@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../models/gamification_models.dart';
 
@@ -30,7 +31,7 @@ class GamificationRepository {
         return _leagueFromJson(data);
       }
     } catch (e) {
-      print('Error reading cached league: $e');
+      debugPrint('Error reading cached league: $e');
     }
     return null;
   }
@@ -41,7 +42,7 @@ class GamificationRepository {
       final json = jsonEncode(_leagueToJson(league));
       await _secureStorage.write(key: _leagueKey, value: json);
     } catch (e) {
-      print('Error caching league: $e');
+      debugPrint('Error caching league: $e');
     }
   }
 
@@ -54,7 +55,7 @@ class GamificationRepository {
         return _streakFromJson(data);
       }
     } catch (e) {
-      print('Error reading cached streak: $e');
+      debugPrint('Error reading cached streak: $e');
     }
     return null;
   }
@@ -65,7 +66,7 @@ class GamificationRepository {
       final json = jsonEncode(_streakToJson(streak));
       await _secureStorage.write(key: _streakKey, value: json);
     } catch (e) {
-      print('Error caching streak: $e');
+      debugPrint('Error caching streak: $e');
     }
   }
 
@@ -78,7 +79,7 @@ class GamificationRepository {
         return _rankingFromJson(data);
       }
     } catch (e) {
-      print('Error reading cached ranking: $e');
+      debugPrint('Error reading cached ranking: $e');
     }
     return null;
   }
@@ -89,7 +90,7 @@ class GamificationRepository {
       final json = jsonEncode(_rankingToJson(ranking));
       await _secureStorage.write(key: _rankingKey, value: json);
     } catch (e) {
-      print('Error caching ranking: $e');
+      debugPrint('Error caching ranking: $e');
     }
   }
 
@@ -104,7 +105,7 @@ class GamificationRepository {
             .toList();
       }
     } catch (e) {
-      print('Error reading cached challenges: $e');
+      debugPrint('Error reading cached challenges: $e');
     }
     return [];
   }
@@ -115,7 +116,7 @@ class GamificationRepository {
       final json = jsonEncode(challenges.map(_challengeToJson).toList());
       await _secureStorage.write(key: _challengesKey, value: json);
     } catch (e) {
-      print('Error caching challenges: $e');
+      debugPrint('Error caching challenges: $e');
     }
   }
 
@@ -137,7 +138,7 @@ class GamificationRepository {
         value: pending.toString(),
       );
     } catch (e) {
-      print('Error setting sync pending flag: $e');
+      debugPrint('Error setting sync pending flag: $e');
     }
   }
 
@@ -152,18 +153,18 @@ class GamificationRepository {
         _secureStorage.delete(key: _syncPendingKey),
       ]);
     } catch (e) {
-      print('Error clearing gamification cache: $e');
+      debugPrint('Error clearing gamification cache: $e');
     }
   }
 
   /// JSON conversion helpers
   League _leagueFromJson(Map<String, dynamic> json) {
     return League(
-      type: _parseLeagueType(json['type']),
-      currentPoints: json['current_points'] ?? 0,
-      pointsToNextLeague: json['points_to_next_league'] ?? 0,
-      joinedAt: json['joined_at'] ?? 0,
-      isActive: json['is_active'] ?? true,
+      type: _parseLeagueType(json['type'] as String?),
+      currentPoints: (json['current_points'] as int?) ?? 0,
+      pointsToNextLeague: (json['points_to_next_league'] as int?) ?? 0,
+      joinedAt: (json['joined_at'] as int?) ?? 0,
+      isActive: (json['is_active'] as bool?) ?? true,
     );
   }
 
@@ -179,11 +180,14 @@ class GamificationRepository {
 
   Streak _streakFromJson(Map<String, dynamic> json) {
     return Streak(
-      currentDays: json['current_days'] ?? 0,
-      longestDays: json['longest_days'] ?? 0,
-      lastActivityDate: DateTime.parse(json['last_activity_date'] ?? DateTime.now().toIso8601String()),
-      isActive: json['is_active'] ?? true,
-      bonusPoints: json['bonus_points'] ?? 0,
+      currentDays: (json['current_days'] as int?) ?? 0,
+      longestDays: (json['longest_days'] as int?) ?? 0,
+      lastActivityDate: DateTime.parse(
+        (json['last_activity_date'] as String?) ??
+            DateTime.now().toIso8601String(),
+      ),
+      isActive: (json['is_active'] as bool?) ?? true,
+      bonusPoints: (json['bonus_points'] as int?) ?? 0,
     );
   }
 
@@ -199,12 +203,12 @@ class GamificationRepository {
 
   Ranking _rankingFromJson(Map<String, dynamic> json) {
     return Ranking(
-      position: json['position'] ?? 0,
-      totalPlayers: json['total_players'] ?? 0,
-      points: json['points'] ?? 0,
-      userId: json['user_id'] ?? '',
-      displayName: json['display_name'] ?? '',
-      currentLeague: _parseLeagueType(json['current_league']),
+      position: (json['position'] as int?) ?? 0,
+      totalPlayers: (json['total_players'] as int?) ?? 0,
+      points: (json['points'] as int?) ?? 0,
+      userId: (json['user_id'] as String?) ?? '',
+      displayName: (json['display_name'] as String?) ?? '',
+      currentLeague: _parseLeagueType(json['current_league'] as String?),
     );
   }
 
@@ -221,14 +225,16 @@ class GamificationRepository {
 
   Challenge _challengeFromJson(Map<String, dynamic> json) {
     return Challenge(
-      id: json['id'] ?? '',
-      title: json['title'] ?? '',
-      description: json['description'] ?? '',
-      targetValue: json['target_value'] ?? 0,
-      currentValue: json['current_value'] ?? 0,
-      rewardPoints: json['reward_points'] ?? 0,
-      isCompleted: json['is_completed'] ?? false,
-      createdAt: DateTime.parse(json['created_at'] ?? DateTime.now().toIso8601String()),
+      id: (json['id'] as String?) ?? '',
+      title: (json['title'] as String?) ?? '',
+      description: (json['description'] as String?) ?? '',
+      targetValue: (json['target_value'] as int?) ?? 0,
+      currentValue: (json['current_value'] as int?) ?? 0,
+      rewardPoints: (json['reward_points'] as int?) ?? 0,
+      isCompleted: (json['is_completed'] as bool?) ?? false,
+      createdAt: DateTime.parse(
+        (json['created_at'] as String?) ?? DateTime.now().toIso8601String(),
+      ),
     );
   }
 
@@ -245,15 +251,12 @@ class GamificationRepository {
     };
   }
 
-  LeagueType _parseLeagueType(dynamic value) {
-    if (value is String) {
-      final enumValue = LeagueType.values.firstWhere(
-        (e) => e.toString() == value,
-        orElse: () => LeagueType.bronze,
-      );
-      return enumValue;
-    }
-    return LeagueType.bronze;
+  LeagueType _parseLeagueType(String? value) {
+    if (value == null) return LeagueType.bronze;
+    return LeagueType.values.firstWhere(
+      (e) => e.toString() == value,
+      orElse: () => LeagueType.bronze,
+    );
   }
 }
 

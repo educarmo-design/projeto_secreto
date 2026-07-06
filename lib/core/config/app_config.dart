@@ -12,6 +12,18 @@ class AppConfig {
     defaultValue: 'your-anon-key',
   );
 
+  /// The `defaultValue`s above are compile-time placeholders only — Dart
+  /// const declarations can't throw. This must be checked at runtime, before
+  /// [supabaseUrl]/[supabaseAnonKey] are handed to Supabase.initialize, so the
+  /// app fails fast on a missing `--dart-define` instead of silently running
+  /// against a URL that doesn't exist (or, worse, against a placeholder that
+  /// later happens to be typo-squatted).
+  static bool get hasValidSupabaseCredentials =>
+      supabaseUrl != 'https://your-project.supabase.co' &&
+      supabaseAnonKey != 'your-anon-key' &&
+      supabaseUrl.isNotEmpty &&
+      supabaseAnonKey.isNotEmpty;
+
   /// App behavior flags
   static const bool debugMode = bool.fromEnvironment(
     'DEBUG_MODE',

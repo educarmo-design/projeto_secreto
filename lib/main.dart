@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'core/config/app_config.dart';
 import 'core/i18n/i18n_manager.dart';
 import 'core/supabase/supabase_client.dart';
 import 'core/theme/app_theme.dart';
@@ -8,16 +9,21 @@ import 'core/router/app_router.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // Zero Trust: refuse to boot against placeholder credentials. Without this
+  // check the app would silently launch pointed at a non-existent project
+  // whenever `--dart-define=SUPABASE_URL=...` is forgotten (e.g. a bad CI
+  // config), instead of failing loudly at startup.
+  if (!AppConfig.hasValidSupabaseCredentials) {
+    throw StateError(
+      'SUPABASE_URL / SUPABASE_ANON_KEY not configured. '
+      'Run with --dart-define=SUPABASE_URL=... --dart-define=SUPABASE_ANON_KEY=...',
+    );
+  }
+
   // Initialize Supabase
   await supabaseManager.initialize(
-    supabaseUrl: const String.fromEnvironment(
-      'SUPABASE_URL',
-      defaultValue: 'https://your-project.supabase.co',
-    ),
-    supabaseAnonKey: const String.fromEnvironment(
-      'SUPABASE_ANON_KEY',
-      defaultValue: 'your-anon-key',
-    ),
+    supabaseUrl: AppConfig.supabaseUrl,
+    supabaseAnonKey: AppConfig.supabaseAnonKey,
   );
 
   // Initialize i18n (default to Portuguese)

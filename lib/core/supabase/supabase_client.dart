@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
@@ -65,7 +66,7 @@ class SupabaseClientManager {
   }
 
   /// Get user profile (anonymous JSONB)
-  Future<Map<String, dynamic>? getUserProfile(String userId) async {
+  Future<Map<String, dynamic>?> getUserProfile(String userId) async {
     try {
       final response = await _client
           .from('anonymous_users')
@@ -73,8 +74,8 @@ class SupabaseClientManager {
           .eq('id', userId)
           .single();
       return response['profile_data'] as Map<String, dynamic>?;
-    } catch (e) {
-      print('Error fetching user profile: $e');
+    } on PostgrestException catch (e) {
+      debugPrint('Error fetching user profile: ${e.message}');
       return null;
     }
   }
@@ -89,50 +90,48 @@ class SupabaseClientManager {
           .from('anonymous_users')
           .update({'profile_data': profileData}).eq('id', userId);
       return true;
-    } catch (e) {
-      print('Error updating user profile: $e');
+    } on PostgrestException catch (e) {
+      debugPrint('Error updating user profile: ${e.message}');
       return false;
     }
   }
 }
 
-// Custom local storage using Secure Storage
+/// Encrypted local storage for the Supabase session, backed by
+/// FlutterSecureStorage (Keychain on iOS, Keystore-backed EncryptedSharedPreferences
+/// on Android). Replaces supabase_flutter's default Hive-based storage, which
+/// persists the session to disk unencrypted.
+///
+/// Implements the actual `LocalStorage` contract exposed by supabase_flutter v2
+/// (initialize / hasAccessToken / accessToken / persistSession / removeSession).
 class _LocalSecureStorage extends LocalStorage {
   final FlutterSecureStorage _secureStorage;
 
   _LocalSecureStorage(this._secureStorage);
 
+  static const String _sessionKey = 'supabase_session';
+
   @override
   Future<void> initialize() async {}
 
   @override
-  Future<void> setItem(String key, String value) async {
-    await _secureStorage.write(key: key, value: value);
+  Future<String?> accessToken() async {
+    return _secureStorage.read(key: _sessionKey);
   }
 
   @override
-  String? getItem(String key) {
-    // Note: This is synchronous but secure storage is async
-    // In production, handle this more gracefully
-    return null;
+  Future<bool> hasAccessToken() async {
+    return _secureStorage.containsKey(key: _sessionKey);
   }
 
   @override
-  Future<String?> getItemAsync(String key) async {
-    return await _secureStorage.read(key: key);
+  Future<void> persistSession(String persistSessionString) async {
+    await _secureStorage.write(key: _sessionKey, value: persistSessionString);
   }
 
   @override
-  Future<bool> removeItem(String key) async {
-    await _secureStorage.delete(key: key);
-    return true;
-  }
-
-  @override
-  Future<bool> clear() async {
-    // Note: FlutterSecureStorage doesn't have a clear all method
-    // You'd need to manage keys separately
-    return true;
+  Future<void> removeSession() async {
+    await _secureStorage.delete(key: _sessionKey);
   }
 }
 

@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -21,11 +23,70 @@ class RouteNames {
 /// Profile types
 enum ProfileType { athlete, guardian, doctor, unknown }
 
-/// Application router with profile-aware middleware
+/// Notifies GoRouter whenever the *current user's* `perfil_uso` changes,
+/// on top of auth state changes. Subscribes to a Supabase Realtime channel
+/// scoped to the signed-in user's own `anonymous_users` row, so a profile
+/// switch (e.g. a caregiver flipping a patient to "Guardião Clínico") is
+/// enforced immediately — gamification routes become unreachable without
+/// requiring the user to navigate first.
+class ProfileRefreshListenable extends ChangeNotifier {
+  StreamSubscription<AuthState>? _authSubscription;
+  RealtimeChannel? _profileChannel;
+
+  ProfileRefreshListenable() {
+    _authSubscription =
+        Supabase.instance.client.auth.onAuthStateChange.listen((event) {
+      _resubscribeToProfile(event.session?.user.id);
+      notifyListeners();
+    });
+    _resubscribeToProfile(Supabase.instance.client.auth.currentUser?.id);
+  }
+
+  void _resubscribeToProfile(String? userId) {
+    _profileChannel?.unsubscribe();
+    _profileChannel = null;
+
+    if (userId == null) return;
+
+    _profileChannel = Supabase.instance.client
+        .channel('public:anonymous_users:id=eq.$userId')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.update,
+          schema: 'public',
+          table: 'anonymous_users',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'id',
+            value: userId,
+          ),
+          callback: (payload) => notifyListeners(),
+        )
+        .subscribe();
+  }
+
+  @override
+  void dispose() {
+    _authSubscription?.cancel();
+    _profileChannel?.unsubscribe();
+    super.dispose();
+  }
+}
+
+/// Application router with profile-aware middleware.
+///
+/// `redirect` is re-evaluated automatically by GoRouter on every navigation
+/// attempt, AND on every event emitted by [refreshListenable] — which fires
+/// on auth state changes and on realtime updates to the user's own
+/// `perfil_uso`. This makes the profile-aware routing truly reactive rather
+/// than only "reactive to taps".
 class AppRouter {
+  static final ProfileRefreshListenable _profileRefresh =
+      ProfileRefreshListenable();
+
   static final GoRouter router = GoRouter(
     routes: _buildRoutes(),
     redirect: _handleRedirect,
+    refreshListenable: _profileRefresh,
     initialLocation: '/${RouteNames.login}',
     errorBuilder: (context, state) => const Scaffold(
       body: Center(
@@ -137,7 +198,8 @@ class AppRouter {
     }
 
     // Profile selected - apply profile-specific routing
-    final profileType = _parseProfileType(profileData['perfil_uso']);
+    final profileType =
+        _parseProfileType(profileData['perfil_uso'] as String?);
 
     switch (profileType) {
       case ProfileType.athlete:
@@ -150,14 +212,17 @@ class AppRouter {
         return null; // Allow athlete routes
 
       case ProfileType.guardian:
-        // Guardian profile: hide gamification, show clinical dashboard
+        // Guardian profile: competitive/gamification routes are unreachable.
+        // Gamification is paused without penalty — the user is redirected to
+        // the Pasta Digital de Exames (Digital Exam Folder), not merely to a
+        // generic clinical screen.
         if (isGoingToGameRoutes(state)) {
-          return '/${RouteNames.clinicalDashboard}'; // Redirect to clinical
+          return '/${RouteNames.examFolder}';
         }
         if (isGoingToLogin || isGoingToCepValidation) {
           return '/${RouteNames.clinicalDashboard}'; // Redirect away from auth
         }
-        return null; // Allow clinical routes
+        return null; // Allow clinical/exam-folder routes
 
       case ProfileType.doctor:
         // Doctor profile: show doctor dashboard
@@ -195,23 +260,22 @@ class AppRouter {
           .eq('id', userId)
           .single();
       return response['profile_data'] as Map<String, dynamic>?;
-    } catch (e) {
-      print('Error fetching profile data: $e');
+    } on PostgrestException catch (e) {
+      debugPrint('Error fetching profile data: ${e.message}');
       return null;
     }
   }
 
   /// Parse profile type from string
-  static ProfileType _parseProfileType(dynamic profileUso) {
-    if (profileUso is String) {
-      if (profileUso.contains('Atleta') || profileUso.contains('Athlete')) {
-        return ProfileType.athlete;
-      } else if (profileUso.contains('Guardião') ||
-          profileUso.contains('Guardian')) {
-        return ProfileType.guardian;
-      } else if (profileUso.contains('Médico') || profileUso.contains('Doctor')) {
-        return ProfileType.doctor;
-      }
+  static ProfileType _parseProfileType(String? profileUso) {
+    if (profileUso == null) return ProfileType.unknown;
+    if (profileUso.contains('Atleta') || profileUso.contains('Athlete')) {
+      return ProfileType.athlete;
+    } else if (profileUso.contains('Guardião') ||
+        profileUso.contains('Guardian')) {
+      return ProfileType.guardian;
+    } else if (profileUso.contains('Médico') || profileUso.contains('Doctor')) {
+      return ProfileType.doctor;
     }
     return ProfileType.unknown;
   }

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 class I18nManager {
@@ -28,7 +29,7 @@ class I18nManager {
       final jsonString = await rootBundle.loadString('assets/i18n/$language.json');
       _translations = json.decode(jsonString) as Map<String, dynamic>;
     } catch (e) {
-      print('Error loading translations for $language: $e');
+      debugPrint('Error loading translations for $language: $e');
       // Fallback to Portuguese
       if (language != 'pt') {
         await _loadTranslations('pt');

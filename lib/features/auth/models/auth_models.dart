@@ -130,7 +130,7 @@ class UserProfile extends Equatable {
         id: json['id'] ?? '',
         displayName: json['display_name'] ?? 'Usuário Anônimo',
         cep: json['cep'],
-        profileType: _parseProfileType(json['perfil_uso']),
+        profileType: _parseProfileType(json['perfil_uso'] as String?),
         isPaused: json['is_paused'] ?? false,
         createdAt: json['created_at'] != null
             ? DateTime.parse(json['created_at'] as String)
@@ -189,8 +189,8 @@ String _profileTypeToString(ProfileUsageType type) {
 }
 
 /// Helper function to parse ProfileUsageType from string
-ProfileUsageType _parseProfileType(dynamic profileUsageString) {
-  if (profileUsageString is String) {
+ProfileUsageType _parseProfileType(String? profileUsageString) {
+  if (profileUsageString != null) {
     if (profileUsageString.contains('Atleta') ||
         profileUsageString.toLowerCase().contains('athlete')) {
       return ProfileUsageType.athlete;
