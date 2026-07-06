@@ -24,8 +24,7 @@ dependencies:
   go_router: ^12.0.0
 
   # State Management
-  riverpod_flutter: ^2.0.0
-  riverpod: ^2.0.0
+  flutter_riverpod: ^2.5.0
 
   # i18n & Localization
   intl: ^0.19.0
@@ -58,14 +57,3 @@ flutter:
   # Assets
   assets:
     - assets/i18n/
-    - assets/
-
-  # Fonts (optional Duolingo-style fonts)
-  fonts:
-    - family: Poppins
-      fonts:
-        - asset: assets/fonts/Poppins-Regular.ttf
-        - asset: assets/fonts/Poppins-Bold.ttf
-          weight: 700
-        - asset: assets/fonts/Poppins-SemiBold.ttf
-          weight: 600

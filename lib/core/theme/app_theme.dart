@@ -59,7 +59,7 @@ ThemeData getLightTheme() {
         color: AppColors.darkText,
       ),
     ),
-    cardTheme: CardTheme(
+    cardTheme: CardThemeData(
       color: AppColors.lightSurface,
       elevation: 4,
       shape: RoundedRectangleBorder(
@@ -169,7 +169,7 @@ ThemeData getDarkTheme() {
         color: AppColors.lightText,
       ),
     ),
-    cardTheme: CardTheme(
+    cardTheme: CardThemeData(
       color: AppColors.darkSurface,
       elevation: 4,
       shape: RoundedRectangleBorder(
