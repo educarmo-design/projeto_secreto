@@ -1,0 +1,92 @@
+{
+  "app_title": "Atleta+",
+  "app_subtitle": "Gamificação Competitiva",
+
+  "common": {
+    "ok": "OK",
+    "cancel": "Cancelar",
+    "save": "Salvar",
+    "delete": "Deletar",
+    "edit": "Editar",
+    "back": "Voltar",
+    "next": "Próximo",
+    "loading": "Carregando...",
+    "error": "Erro",
+    "success": "Sucesso",
+    "retry": "Tentar Novamente"
+  },
+
+  "auth": {
+    "login_title": "Bem-vindo ao Atleta+",
+    "login_subtitle": "Competição saudável começa aqui",
+    "anonymous_login": "Entrar Anonimamente",
+    "cep_validation_title": "Validate your location",
+    "cep_label": "CEP",
+    "cep_hint": "00000-000",
+    "cep_invalid": "CEP inválido",
+    "cep_required": "CEP é obrigatório",
+    "profile_not_found": "Perfil não configurado",
+    "profile_selection": "Selecione seu perfil"
+  },
+
+  "dashboard": {
+    "title": "Dashboard",
+    "welcome": "Bem-vindo, {{username}}",
+    "your_stats": "Suas Estatísticas",
+    "today": "Hoje",
+    "this_week": "Esta Semana",
+    "this_month": "Este Mês",
+    "total_points": "Pontos Totais",
+    "ranking_position": "Posição no Ranking",
+    "current_streak": "Sequência Atual",
+    "longest_streak": "Maior Sequência",
+    "metrics_sync": "Sincronizar Métricas",
+    "sync_success": "Dados sincronizados com sucesso",
+    "sync_error": "Erro ao sincronizar dados",
+    "offline_mode": "Modo Offline - Dados locais"
+  },
+
+  "gamification": {
+    "title": "Gamificação",
+    "leagues": "Ligas",
+    "rankings": "Rankings",
+    "streak": "Chama",
+    "fire_emoji": "🔥",
+    "league_gold": "Liga Ouro",
+    "league_silver": "Liga Prata",
+    "league_bronze": "Liga Bronze",
+    "league_description": "Complete desafios para subir de liga",
+    "your_rank": "Seu Ranking",
+    "position_label": "Posição",
+    "of_players": "de {{total}} jogadores",
+    "streak_days": "{{days}} dias de sequência",
+    "streak_lost": "Sequência perdida",
+    "streak_maintained": "Sequência mantida!",
+    "next_challenge": "Próximo Desafio",
+    "challenge_points": "{{points}} pontos",
+    "offline_ranking": "Ranking offline - será sincronizado",
+    "sync_pending": "Sincronização pendente"
+  },
+
+  "profile": {
+    "title": "Perfil",
+    "profile_type_label": "Tipo de Perfil",
+    "profile_athlete": "Atleta/Gamificação",
+    "profile_guardian": "Guardião Clínico",
+    "profile_doctor": "Médico Especialista",
+    "switch_profile": "Alternar Perfil",
+    "switching": "Alternando perfil...",
+    "switch_success": "Perfil alterado com sucesso",
+    "pausing_gamification": "Pausando gamificação...",
+    "resuming_gamification": "Retomando gamificação..."
+  },
+
+  "errors": {
+    "network_error": "Erro de conexão",
+    "server_error": "Erro do servidor",
+    "invalid_cep": "CEP inválido para sua região",
+    "profile_load_error": "Erro ao carregar perfil",
+    "data_sync_error": "Erro ao sincronizar dados",
+    "unknown_error": "Erro desconhecido"
+  }
+}

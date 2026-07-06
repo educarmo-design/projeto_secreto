@@ -1,0 +1,92 @@
+{
+  "app_title": "Atleta+",
+  "app_subtitle": "Gamificación Competitiva",
+
+  "common": {
+    "ok": "OK",
+    "cancel": "Cancelar",
+    "save": "Guardar",
+    "delete": "Eliminar",
+    "edit": "Editar",
+    "back": "Atrás",
+    "next": "Siguiente",
+    "loading": "Cargando...",
+    "error": "Error",
+    "success": "Éxito",
+    "retry": "Reintentar"
+  },
+
+  "auth": {
+    "login_title": "Bienvenido a Atleta+",
+    "login_subtitle": "La competencia saludable comienza aquí",
+    "anonymous_login": "Iniciar sesión anónimamente",
+    "cep_validation_title": "Valide su ubicación",
+    "cep_label": "Código Postal",
+    "cep_hint": "00000-000",
+    "cep_invalid": "Código postal inválido",
+    "cep_required": "El código postal es obligatorio",
+    "profile_not_found": "Perfil no configurado",
+    "profile_selection": "Seleccione su perfil"
+  },
+
+  "dashboard": {
+    "title": "Panel de control",
+    "welcome": "Bienvenido, {{username}}",
+    "your_stats": "Tus Estadísticas",
+    "today": "Hoy",
+    "this_week": "Esta Semana",
+    "this_month": "Este Mes",
+    "total_points": "Puntos Totales",
+    "ranking_position": "Posición en Ranking",
+    "current_streak": "Racha Actual",
+    "longest_streak": "Racha Más Larga",
+    "metrics_sync": "Sincronizar Métricas",
+    "sync_success": "Datos sincronizados con éxito",
+    "sync_error": "Error al sincronizar datos",
+    "offline_mode": "Modo Offline - Datos locales"
+  },
+
+  "gamification": {
+    "title": "Gamificación",
+    "leagues": "Ligas",
+    "rankings": "Clasificaciones",
+    "streak": "Fuego",
+    "fire_emoji": "🔥",
+    "league_gold": "Liga Oro",
+    "league_silver": "Liga Plata",
+    "league_bronze": "Liga Bronce",
+    "league_description": "Completa desafíos para subir de liga",
+    "your_rank": "Tu Clasificación",
+    "position_label": "Posición",
+    "of_players": "de {{total}} jugadores",
+    "streak_days": "{{days}} días de racha",
+    "streak_lost": "Racha perdida",
+    "streak_maintained": "¡Racha mantenida!",
+    "next_challenge": "Próximo Desafío",
+    "challenge_points": "{{points}} puntos",
+    "offline_ranking": "Clasificación offline - será sincronizada",
+    "sync_pending": "Sincronización pendiente"
+  },
+
+  "profile": {
+    "title": "Perfil",
+    "profile_type_label": "Tipo de Perfil",
+    "profile_athlete": "Atleta/Gamificación",
+    "profile_guardian": "Guardián Clínico",
+    "profile_doctor": "Médico Especialista",
+    "switch_profile": "Cambiar Perfil",
+    "switching": "Cambiando perfil...",
+    "switch_success": "Perfil cambiado con éxito",
+    "pausing_gamification": "Pausando gamificación...",
+    "resuming_gamification": "Reanudando gamificación..."
+  },
+
+  "errors": {
+    "network_error": "Error de conexión",
+    "server_error": "Error del servidor",
+    "invalid_cep": "Código postal inválido para su región",
+    "profile_load_error": "Error al cargar el perfil",
+    "data_sync_error": "Error al sincronizar datos",
+    "unknown_error": "Error desconocido"
+  }
+}

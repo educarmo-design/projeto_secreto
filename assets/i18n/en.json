@@ -1,0 +1,92 @@
+{
+  "app_title": "Athlete+",
+  "app_subtitle": "Competitive Gamification",
+
+  "common": {
+    "ok": "OK",
+    "cancel": "Cancel",
+    "save": "Save",
+    "delete": "Delete",
+    "edit": "Edit",
+    "back": "Back",
+    "next": "Next",
+    "loading": "Loading...",
+    "error": "Error",
+    "success": "Success",
+    "retry": "Retry"
+  },
+
+  "auth": {
+    "login_title": "Welcome to Athlete+",
+    "login_subtitle": "Healthy competition starts here",
+    "anonymous_login": "Sign in Anonymously",
+    "cep_validation_title": "Validate your location",
+    "cep_label": "ZIP Code",
+    "cep_hint": "00000-000",
+    "cep_invalid": "Invalid ZIP Code",
+    "cep_required": "ZIP Code is required",
+    "profile_not_found": "Profile not configured",
+    "profile_selection": "Select your profile"
+  },
+
+  "dashboard": {
+    "title": "Dashboard",
+    "welcome": "Welcome, {{username}}",
+    "your_stats": "Your Statistics",
+    "today": "Today",
+    "this_week": "This Week",
+    "this_month": "This Month",
+    "total_points": "Total Points",
+    "ranking_position": "Ranking Position",
+    "current_streak": "Current Streak",
+    "longest_streak": "Longest Streak",
+    "metrics_sync": "Sync Metrics",
+    "sync_success": "Data synced successfully",
+    "sync_error": "Error syncing data",
+    "offline_mode": "Offline Mode - Local data"
+  },
+
+  "gamification": {
+    "title": "Gamification",
+    "leagues": "Leagues",
+    "rankings": "Rankings",
+    "streak": "Fire Streak",
+    "fire_emoji": "🔥",
+    "league_gold": "Gold League",
+    "league_silver": "Silver League",
+    "league_bronze": "Bronze League",
+    "league_description": "Complete challenges to advance leagues",
+    "your_rank": "Your Ranking",
+    "position_label": "Position",
+    "of_players": "of {{total}} players",
+    "streak_days": "{{days}} days streak",
+    "streak_lost": "Streak lost",
+    "streak_maintained": "Streak maintained!",
+    "next_challenge": "Next Challenge",
+    "challenge_points": "{{points}} points",
+    "offline_ranking": "Offline ranking - will be synced",
+    "sync_pending": "Sync pending"
+  },
+
+  "profile": {
+    "title": "Profile",
+    "profile_type_label": "Profile Type",
+    "profile_athlete": "Athlete/Gamification",
+    "profile_guardian": "Clinical Guardian",
+    "profile_doctor": "Specialist Doctor",
+    "switch_profile": "Switch Profile",
+    "switching": "Switching profile...",
+    "switch_success": "Profile switched successfully",
+    "pausing_gamification": "Pausing gamification...",
+    "resuming_gamification": "Resuming gamification..."
+  },
+
+  "errors": {
+    "network_error": "Connection error",
+    "server_error": "Server error",
+    "invalid_cep": "Invalid ZIP Code for your region",
+    "profile_load_error": "Error loading profile",
+    "data_sync_error": "Error syncing data",
+    "unknown_error": "Unknown error"
+  }
+}

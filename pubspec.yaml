@@ -1,0 +1,71 @@
+name: atleta_gamificacao
+description: "Aplicativo Atleta com Gamificação - ONDA 2 (Clean Architecture + Supabase)"
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+
+  # Supabase Integration
+  supabase_flutter: ^2.0.0
+  supabase: ^2.0.0
+
+  # Secure Storage
+  flutter_secure_storage: ^9.0.0
+
+  # Routing
+  go_router: ^12.0.0
+
+  # State Management
+  riverpod_flutter: ^2.0.0
+  riverpod: ^2.0.0
+
+  # i18n & Localization
+  intl: ^0.19.0
+
+  # HTTP Client
+  http: ^1.1.0
+
+  # JSON serialization
+  json_annotation: ^4.8.0
+
+  # Utilities
+  uuid: ^4.0.0
+  equatable: ^2.0.5
+  freezed_annotation: ^2.4.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  flutter_lints: ^3.0.0
+
+  # Code generation
+  build_runner: ^2.4.0
+  json_serializable: ^6.7.0
+  freezed: ^2.4.0
+
+flutter:
+  uses-material-design: true
+
+  # Assets
+  assets:
+    - assets/i18n/
+    - assets/
+
+  # Fonts (optional Duolingo-style fonts)
+  fonts:
+    - family: Poppins
+      fonts:
+        - asset: assets/fonts/Poppins-Regular.ttf
+        - asset: assets/fonts/Poppins-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/Poppins-SemiBold.ttf
+          weight: 600
