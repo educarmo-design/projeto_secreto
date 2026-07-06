@@ -1,0 +1,11 @@
+.env
+.claudecode/
+.supabase/
+supabase/.temp/
+*.pem
+AppData/ 
+NTUSER.DAT* 
+"Saved Games/" 
+"Searches/" 
+ntuser.dat.LOG* 
+ntuser.ini 
