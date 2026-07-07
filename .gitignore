@@ -3,6 +3,13 @@
 .supabase/
 supabase/.temp/
 *.pem
+
+# Flutter/Dart build artifacts
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+build/
 AppData/ 
 NTUSER.DAT* 
 "Saved Games/" 

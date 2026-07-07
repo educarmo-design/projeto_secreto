@@ -23,8 +23,10 @@ class SupabaseClientManager {
 
     await Supabase.initialize(
       url: supabaseUrl,
-      anonKey: supabaseAnonKey,
-      localStorage: _LocalSecureStorage(_secureStorage),
+      publishableKey: supabaseAnonKey,
+      authOptions: FlutterAuthClientOptions(
+        localStorage: _LocalSecureStorage(_secureStorage),
+      ),
       debug: false,
     );
 
@@ -130,7 +132,7 @@ class _LocalSecureStorage extends LocalStorage {
   }
 
   @override
-  Future<void> removeSession() async {
+  Future<void> removePersistedSession() async {
     await _secureStorage.delete(key: _sessionKey);
   }
 }
