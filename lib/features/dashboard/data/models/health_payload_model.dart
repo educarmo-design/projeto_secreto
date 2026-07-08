@@ -1,72 +1,26 @@
 import 'package:health/health.dart';
 
-/// Internationally-normalized keys shared by every leg of the health
-/// telemetry pipeline — wearable sync (`HealthSyncService`), AI photo
-/// extraction (`CameraCaptureController`), and the Supabase JSONB column
-/// that stores both. One canonical key set means the dashboard, the AI
-/// prompt, and the database never have to translate between three
-/// different naming schemes.
-enum HealthMetricKey {
-  heartRate('heart_rate'),
-  steps('steps'),
-  distance('distance_meters'),
-  activeEnergyBurned('active_energy_burned'),
-  sleepMinutes('sleep_minutes'),
-  hrv('hrv'),
-  weight('weight_kg'),
-  bodyFatPercentage('body_fat_percentage'),
-  systolic('systolic'),
-  diastolic('diastolic'),
-  bloodGlucose('blood_glucose'),
-  bloodOxygen('blood_oxygen'),
-  bodyTemperature('body_temperature');
-
-  const HealthMetricKey(this.jsonKey);
-
-  /// The fixed, internationally-normalized JSONB key (e.g. `heart_rate`,
-  /// `blood_glucose`, `systolic`, `diastolic`, `hrv`) — stable across app
-  /// languages, the Supabase schema, and the AI extraction prompt.
-  final String jsonKey;
-
-  static HealthMetricKey? fromJsonKey(String jsonKey) {
-    for (final key in values) {
-      if (key.jsonKey == jsonKey) return key;
-    }
-    return null;
-  }
-}
-
-/// Maps a `health` package [HealthDataType] to its normalized
-/// [HealthMetricKey]. Some biological signals have a different
-/// [HealthDataType] per platform (distance, sleep, HRV) — both sides
-/// collapse to the same normalized key here, so callers never branch on
-/// platform after this point.
-const Map<HealthDataType, HealthMetricKey> healthDataTypeToMetricKey = {
-  HealthDataType.HEART_RATE: HealthMetricKey.heartRate,
-  HealthDataType.STEPS: HealthMetricKey.steps,
-  HealthDataType.DISTANCE_WALKING_RUNNING: HealthMetricKey.distance,
-  HealthDataType.DISTANCE_DELTA: HealthMetricKey.distance,
-  HealthDataType.ACTIVE_ENERGY_BURNED: HealthMetricKey.activeEnergyBurned,
-  HealthDataType.SLEEP_SESSION: HealthMetricKey.sleepMinutes,
-  HealthDataType.SLEEP_ASLEEP: HealthMetricKey.sleepMinutes,
-  HealthDataType.HEART_RATE_VARIABILITY_SDNN: HealthMetricKey.hrv,
-  HealthDataType.HEART_RATE_VARIABILITY_RMSSD: HealthMetricKey.hrv,
-  HealthDataType.WEIGHT: HealthMetricKey.weight,
-  HealthDataType.BODY_FAT_PERCENTAGE: HealthMetricKey.bodyFatPercentage,
-  HealthDataType.BLOOD_PRESSURE_SYSTOLIC: HealthMetricKey.systolic,
-  HealthDataType.BLOOD_PRESSURE_DIASTOLIC: HealthMetricKey.diastolic,
-  HealthDataType.BLOOD_GLUCOSE: HealthMetricKey.bloodGlucose,
-  HealthDataType.BLOOD_OXYGEN: HealthMetricKey.bloodOxygen,
-  HealthDataType.BODY_TEMPERATURE: HealthMetricKey.bodyTemperature,
-};
-
 /// A single normalized health reading, regardless of where it came from —
 /// one [HealthDataType] read from a wearable, or the one-or-many values a
-/// photo of a physical device yielded via AI extraction. [toJson] is what
-/// is actually written to Supabase's JSONB column, and the shape the AI
-/// extraction prompt is instructed to reply in.
+/// photo of a physical device yielded via AI extraction. Every property
+/// below is a direct, typed mirror of a fixed column on the
+/// `metricas_saude_diarias` table (Onda 1.5) — there is no generic
+/// key/value map and no JSONB blob in this model or in [toJson]'s output.
 class HealthPayloadModel {
-  final Map<HealthMetricKey, double> values;
+  final int? passos;
+  final double? distanciaMetros;
+  final int? fcRepouso;
+  final double? hrvMedio;
+  final double? caloriasAtivas;
+  final int? minutosSono;
+  final double? pesoKg;
+  final double? percentualGordura;
+  final int? pressaoSistolica;
+  final int? pressaoDiastolica;
+  final double? glicoseJejum;
+  final double? saturacaoOxigenio;
+  final double? temperaturaCorporal;
+
   final DateTime dateFrom;
   final DateTime dateTo;
 
@@ -74,18 +28,34 @@ class HealthPayloadModel {
   final String source;
 
   /// Set only for camera-origin payloads — which physical device the
-  /// photo was of (glicosímetro / pressão arterial / balança).
+  /// photo was of (glicosímetro / pressão arterial / balança). Client-side
+  /// context only; `metricas_saude_diarias` has no column for it.
   final String? tipoAparelho;
 
   const HealthPayloadModel({
-    required this.values,
+    this.passos,
+    this.distanciaMetros,
+    this.fcRepouso,
+    this.hrvMedio,
+    this.caloriasAtivas,
+    this.minutosSono,
+    this.pesoKg,
+    this.percentualGordura,
+    this.pressaoSistolica,
+    this.pressaoDiastolica,
+    this.glicoseJejum,
+    this.saturacaoOxigenio,
+    this.temperaturaCorporal,
     required this.dateFrom,
     required this.dateTo,
     required this.source,
     this.tipoAparelho,
   });
 
-  /// Builds a single-key payload from one health-store reading.
+  /// Builds a single-field payload from one health-store reading, routing
+  /// [type] to the one fixed column it corresponds to. [HealthDataType]
+  /// values with no clinical column mapping (e.g. `WORKOUT`) yield a payload
+  /// with every field null — filtered out by [isEmpty] downstream.
   factory HealthPayloadModel.fromHealthDataType({
     required HealthDataType type,
     required double value,
@@ -93,37 +63,142 @@ class HealthPayloadModel {
     required DateTime dateTo,
     required String source,
   }) {
-    final key = healthDataTypeToMetricKey[type];
-    return HealthPayloadModel(
-      values: key == null ? const {} : {key: value},
-      dateFrom: dateFrom,
-      dateTo: dateTo,
-      source: source,
-    );
+    switch (type) {
+      case HealthDataType.HEART_RATE:
+        return HealthPayloadModel(
+          fcRepouso: value.round(),
+          dateFrom: dateFrom,
+          dateTo: dateTo,
+          source: source,
+        );
+      case HealthDataType.STEPS:
+        return HealthPayloadModel(
+          passos: value.round(),
+          dateFrom: dateFrom,
+          dateTo: dateTo,
+          source: source,
+        );
+      case HealthDataType.DISTANCE_WALKING_RUNNING:
+      case HealthDataType.DISTANCE_DELTA:
+        return HealthPayloadModel(
+          distanciaMetros: value,
+          dateFrom: dateFrom,
+          dateTo: dateTo,
+          source: source,
+        );
+      case HealthDataType.ACTIVE_ENERGY_BURNED:
+        return HealthPayloadModel(
+          caloriasAtivas: value,
+          dateFrom: dateFrom,
+          dateTo: dateTo,
+          source: source,
+        );
+      case HealthDataType.SLEEP_SESSION:
+      case HealthDataType.SLEEP_ASLEEP:
+        return HealthPayloadModel(
+          minutosSono: value.round(),
+          dateFrom: dateFrom,
+          dateTo: dateTo,
+          source: source,
+        );
+      case HealthDataType.HEART_RATE_VARIABILITY_SDNN:
+      case HealthDataType.HEART_RATE_VARIABILITY_RMSSD:
+        return HealthPayloadModel(
+          hrvMedio: value,
+          dateFrom: dateFrom,
+          dateTo: dateTo,
+          source: source,
+        );
+      case HealthDataType.WEIGHT:
+        return HealthPayloadModel(
+          pesoKg: value,
+          dateFrom: dateFrom,
+          dateTo: dateTo,
+          source: source,
+        );
+      case HealthDataType.BODY_FAT_PERCENTAGE:
+        return HealthPayloadModel(
+          percentualGordura: value,
+          dateFrom: dateFrom,
+          dateTo: dateTo,
+          source: source,
+        );
+      case HealthDataType.BLOOD_PRESSURE_SYSTOLIC:
+        return HealthPayloadModel(
+          pressaoSistolica: value.round(),
+          dateFrom: dateFrom,
+          dateTo: dateTo,
+          source: source,
+        );
+      case HealthDataType.BLOOD_PRESSURE_DIASTOLIC:
+        return HealthPayloadModel(
+          pressaoDiastolica: value.round(),
+          dateFrom: dateFrom,
+          dateTo: dateTo,
+          source: source,
+        );
+      case HealthDataType.BLOOD_GLUCOSE:
+        return HealthPayloadModel(
+          glicoseJejum: value,
+          dateFrom: dateFrom,
+          dateTo: dateTo,
+          source: source,
+        );
+      case HealthDataType.BLOOD_OXYGEN:
+        return HealthPayloadModel(
+          saturacaoOxigenio: value,
+          dateFrom: dateFrom,
+          dateTo: dateTo,
+          source: source,
+        );
+      case HealthDataType.BODY_TEMPERATURE:
+        return HealthPayloadModel(
+          temperaturaCorporal: value,
+          dateFrom: dateFrom,
+          dateTo: dateTo,
+          source: source,
+        );
+      default:
+        return HealthPayloadModel(
+          dateFrom: dateFrom,
+          dateTo: dateTo,
+          source: source,
+        );
+    }
   }
 
-  /// Parses the AI extraction JSON (already expected in normalized keys,
-  /// e.g. `{"systolic": 128, "diastolic": 82}`) into a payload stamped
-  /// with the capture time — a device photo carries no timestamp of its
-  /// own, so [dateFrom]/[dateTo] default to when the capture happened.
-  /// Unrecognized keys and non-numeric values are silently dropped rather
-  /// than thrown on, since the AI response is untrusted input.
+  /// Parses the AI extraction JSON (already expected in fixed-column keys,
+  /// e.g. `{"pressao_sistolica": 128, "pressao_diastolica": 82}`) into a
+  /// payload stamped with the capture time — a device photo carries no
+  /// timestamp of its own, so [dateFrom]/[dateTo] default to when the
+  /// capture happened. Unrecognized keys and non-numeric values are
+  /// silently dropped rather than thrown on, since the AI response is
+  /// untrusted input.
   factory HealthPayloadModel.fromAiExtraction(
     Map<String, dynamic> json, {
     required String tipoAparelho,
     DateTime? capturedAt,
   }) {
-    final values = <HealthMetricKey, double>{};
-    for (final entry in json.entries) {
-      final key = HealthMetricKey.fromJsonKey(entry.key);
-      final raw = entry.value;
-      if (key != null && raw is num) {
-        values[key] = raw.toDouble();
-      }
+    num? numOrNull(String key) {
+      final raw = json[key];
+      return raw is num ? raw : null;
     }
+
     final timestamp = capturedAt ?? DateTime.now();
     return HealthPayloadModel(
-      values: values,
+      passos: numOrNull('passos')?.round(),
+      distanciaMetros: numOrNull('distancia_metros')?.toDouble(),
+      fcRepouso: numOrNull('fc_repouso')?.round(),
+      hrvMedio: numOrNull('hrv_medio')?.toDouble(),
+      caloriasAtivas: numOrNull('calorias_ativas')?.toDouble(),
+      minutosSono: numOrNull('minutos_sono')?.round(),
+      pesoKg: numOrNull('peso_kg')?.toDouble(),
+      percentualGordura: numOrNull('percentual_gordura')?.toDouble(),
+      pressaoSistolica: numOrNull('pressao_sistolica')?.round(),
+      pressaoDiastolica: numOrNull('pressao_diastolica')?.round(),
+      glicoseJejum: numOrNull('glicose_jejum')?.toDouble(),
+      saturacaoOxigenio: numOrNull('saturacao_oxigenio')?.toDouble(),
+      temperaturaCorporal: numOrNull('temperatura_corporal')?.toDouble(),
       dateFrom: timestamp,
       dateTo: timestamp,
       source: 'camera',
@@ -131,13 +206,80 @@ class HealthPayloadModel {
     );
   }
 
+  /// Parses a row read back from `metricas_saude_diarias` — the exact,
+  /// symmetric counterpart of [toJson].
+  factory HealthPayloadModel.fromJson(Map<String, dynamic> json) {
+    num? asNum(String key) => json[key] as num?;
+    final dataReferencia = DateTime.parse(json['data_referencia'] as String);
+    return HealthPayloadModel(
+      passos: asNum('passos')?.toInt(),
+      distanciaMetros: asNum('distancia_metros')?.toDouble(),
+      fcRepouso: asNum('fc_repouso')?.toInt(),
+      hrvMedio: asNum('hrv_medio')?.toDouble(),
+      caloriasAtivas: asNum('calorias_ativas')?.toDouble(),
+      minutosSono: asNum('minutos_sono')?.toInt(),
+      pesoKg: asNum('peso_kg')?.toDouble(),
+      percentualGordura: asNum('percentual_gordura')?.toDouble(),
+      pressaoSistolica: asNum('pressao_sistolica')?.toInt(),
+      pressaoDiastolica: asNum('pressao_diastolica')?.toInt(),
+      glicoseJejum: asNum('glicose_jejum')?.toDouble(),
+      saturacaoOxigenio: asNum('saturacao_oxigenio')?.toDouble(),
+      temperaturaCorporal: asNum('temperatura_corporal')?.toDouble(),
+      dateFrom: dataReferencia,
+      dateTo: dataReferencia,
+      source: json['origem'] as String? ?? 'wearable',
+    );
+  }
+
+  /// Exact, symmetric mirror of `metricas_saude_diarias`'s fixed columns —
+  /// every key here is a real column name, typed to match its Postgres
+  /// counterpart (`int` -> `int`/`bigint`, `double` -> `numeric`).
   Map<String, dynamic> toJson() => {
-        for (final entry in values.entries) entry.key.jsonKey: entry.value,
-        'date_from': dateFrom.toIso8601String(),
-        'date_to': dateTo.toIso8601String(),
-        'source': source,
-        if (tipoAparelho != null) 'tipo_aparelho': tipoAparelho,
+        'data_referencia': _dateOnly(dateFrom),
+        'origem': source,
+        if (passos != null) 'passos': passos,
+        if (distanciaMetros != null) 'distancia_metros': distanciaMetros,
+        if (fcRepouso != null) 'fc_repouso': fcRepouso,
+        if (hrvMedio != null) 'hrv_medio': hrvMedio,
+        if (caloriasAtivas != null) 'calorias_ativas': caloriasAtivas,
+        if (minutosSono != null) 'minutos_sono': minutosSono,
+        if (pesoKg != null) 'peso_kg': pesoKg,
+        if (percentualGordura != null) 'percentual_gordura': percentualGordura,
+        if (pressaoSistolica != null) 'pressao_sistolica': pressaoSistolica,
+        if (pressaoDiastolica != null) 'pressao_diastolica': pressaoDiastolica,
+        if (glicoseJejum != null) 'glicose_jejum': glicoseJejum,
+        if (saturacaoOxigenio != null) 'saturacao_oxigenio': saturacaoOxigenio,
+        if (temperaturaCorporal != null)
+          'temperatura_corporal': temperaturaCorporal,
       };
 
-  bool get isEmpty => values.isEmpty;
+  static String _dateOnly(DateTime date) =>
+      date.toIso8601String().split('T').first;
+
+  /// Non-null clinical fields as `(coluna, valor)` pairs — for UI display
+  /// (e.g. the camera-capture result dialog) without hardcoding a fixed
+  /// subset of fields.
+  List<MapEntry<String, num>> get camposPreenchidos => [
+        if (passos != null) MapEntry('passos', passos!),
+        if (distanciaMetros != null)
+          MapEntry('distancia_metros', distanciaMetros!),
+        if (fcRepouso != null) MapEntry('fc_repouso', fcRepouso!),
+        if (hrvMedio != null) MapEntry('hrv_medio', hrvMedio!),
+        if (caloriasAtivas != null) MapEntry('calorias_ativas', caloriasAtivas!),
+        if (minutosSono != null) MapEntry('minutos_sono', minutosSono!),
+        if (pesoKg != null) MapEntry('peso_kg', pesoKg!),
+        if (percentualGordura != null)
+          MapEntry('percentual_gordura', percentualGordura!),
+        if (pressaoSistolica != null)
+          MapEntry('pressao_sistolica', pressaoSistolica!),
+        if (pressaoDiastolica != null)
+          MapEntry('pressao_diastolica', pressaoDiastolica!),
+        if (glicoseJejum != null) MapEntry('glicose_jejum', glicoseJejum!),
+        if (saturacaoOxigenio != null)
+          MapEntry('saturacao_oxigenio', saturacaoOxigenio!),
+        if (temperaturaCorporal != null)
+          MapEntry('temperatura_corporal', temperaturaCorporal!),
+      ];
+
+  bool get isEmpty => camposPreenchidos.isEmpty;
 }

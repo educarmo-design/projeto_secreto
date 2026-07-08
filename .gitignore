@@ -2,6 +2,7 @@
 .claudecode/
 .supabase/
 supabase/.temp/
+supabase/.branches/
 *.pem
 
 # Flutter/Dart build artifacts

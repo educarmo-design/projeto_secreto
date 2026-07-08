@@ -21,7 +21,7 @@ major_version = 15
 # Port to use for Supabase Studio. Default: 54323
 port = 54323
 
-[inbucket]
+[local_smtp]
 # Port to use for the email testing server. Default: 54324
 port = 54324
 
@@ -34,11 +34,8 @@ file_size_limit = 52428800
 jwt_expiry = 3600
 # If the jwt_expiry_jti claim included in the token.
 enable_refresh_token_rotation = true
-# Limit the JWT secret so that only users on this list can request a new token.
-refresh_token_rotation_expiration = 604800
 
 [realtime]
-# Multiplexer tick rate in milliseconds. Default: 1000
-tick_ms = 1000
-# The maximum number of subscribers per channel. Default: 200
-max_subscribers_per_channel = 200
+
+[analytics]
+enabled = false
