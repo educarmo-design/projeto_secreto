@@ -66,4 +66,16 @@ class AppConfig {
   /// Offline mode
   static const bool offlineModeEnabled = true;
   static const int maxLocalCacheSize = 10485760; // 10MB in bytes
+
+  /// Endpoint that receives a device-photo's raw bytes and returns the
+  /// metric extracted by Gemini 2.5 Flash as JSON. Defaults to a Supabase
+  /// Edge Function under the already-configured project (zero new infra);
+  /// override via `--dart-define=METRIC_PHOTO_EXTRACTION_ENDPOINT=...` for
+  /// a standalone deployment.
+  static String get metricPhotoExtractionEndpoint {
+    const override = String.fromEnvironment('METRIC_PHOTO_EXTRACTION_ENDPOINT');
+    return override.isNotEmpty
+        ? override
+        : '$supabaseUrl/functions/v1/extract-metric-photo';
+  }
 }
