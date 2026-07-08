@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/config/app_config.dart';
 import '../../../../core/i18n/i18n_manager.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../data/models/health_payload_model.dart';
 import '../../data/services/health_sync_service.dart';
 import '../controllers/camera_capture_controller.dart';
 
@@ -30,20 +31,12 @@ class _RegistrarMetricaPageState extends State<RegistrarMetricaPage> {
       _wearableResult = null;
     });
 
-    final atividade = await _healthService.sincronizarHistoricoAtividade();
-    final clinico = atividade.granted
-        ? await _healthService.sincronizarMetricasClinicasInjetadas()
-        : const HealthSyncResult(granted: false);
+    final result = await _healthService.carregarHistoricoInicial();
 
     if (!mounted) return;
     setState(() {
       _isSyncingWearable = false;
-      _wearableResult = HealthSyncResult(
-        granted: atividade.granted,
-        points: [...atividade.points, ...clinico.points],
-        errorMessage: atividade.errorMessage,
-        needsHealthConnectInstall: atividade.needsHealthConnectInstall,
-      );
+      _wearableResult = result;
     });
   }
 
@@ -58,7 +51,7 @@ class _RegistrarMetricaPageState extends State<RegistrarMetricaPage> {
     );
     if (tipo == null || !mounted) return;
 
-    final extracted = await Navigator.of(context).push<Map<String, dynamic>?>(
+    final extracted = await Navigator.of(context).push<HealthPayloadModel?>(
       MaterialPageRoute(builder: (_) => _CameraCaptureView(tipoAparelho: tipo)),
     );
     if (extracted != null && mounted) {
@@ -66,7 +59,7 @@ class _RegistrarMetricaPageState extends State<RegistrarMetricaPage> {
     }
   }
 
-  void _showExtractedDataDialog(Map<String, dynamic> data) {
+  void _showExtractedDataDialog(HealthPayloadModel payload) {
     showDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
@@ -74,8 +67,8 @@ class _RegistrarMetricaPageState extends State<RegistrarMetricaPage> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: data.entries
-              .map((e) => Text('${e.key}: ${e.value}'))
+          children: payload.values.entries
+              .map((e) => Text('${e.key.jsonKey}: ${e.value}'))
               .toList(),
         ),
         actions: [

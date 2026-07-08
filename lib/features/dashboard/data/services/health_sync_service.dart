@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:health/health.dart';
 
 import '../../../../core/i18n/i18n_manager.dart';
+import '../models/health_payload_model.dart';
 
 /// One normalized point read from Health Connect (Android) / HealthKit
 /// (iOS). [sourceApp] is the app/device that actually wrote the point —
@@ -39,6 +40,17 @@ class HealthMetricPoint {
       sourceApp: point.sourceName,
     );
   }
+
+  /// Converts to the normalized [HealthPayloadModel] shape shared with the
+  /// camera/AI extraction path — e.g. for writing into Supabase's JSONB
+  /// column alongside camera-origin readings.
+  HealthPayloadModel toPayload() => HealthPayloadModel.fromHealthDataType(
+    type: type,
+    value: value,
+    dateFrom: dateFrom,
+    dateTo: dateTo,
+    source: sourceApp.isEmpty ? 'wearable' : sourceApp,
+  );
 }
 
 class HealthSyncResult {
@@ -63,6 +75,14 @@ class HealthSyncResult {
         errorMessage: errorMessage,
         needsHealthConnectInstall: true,
       );
+
+  /// Normalized payloads (one per point) ready for Supabase JSONB storage.
+  /// Points whose [HealthDataType] has no [healthDataTypeToMetricKey]
+  /// mapping yield an empty payload, filtered out here.
+  List<HealthPayloadModel> toPayloads() => points
+      .map((point) => point.toPayload())
+      .where((payload) => !payload.isEmpty)
+      .toList();
 }
 
 /// Bridges Health Connect (Android) / HealthKit (iOS) via the `health`
@@ -78,32 +98,43 @@ class HealthSyncService {
   final Health _health;
   late final Future<void> _configured;
 
-  static const List<HealthDataType> atividadeTypes = [
+  /// The full superset of biological/clinical signals this app tracks.
+  /// Some are platform-specific variants of the same signal (distance,
+  /// sleep, HRV have a different [HealthDataType] on iOS vs. Android) —
+  /// both variants are listed here and [_tiposSuportados] filters down to
+  /// whichever this platform's health store actually exposes, so callers
+  /// never have to branch on platform.
+  static const List<HealthDataType> todosOsTipos = [
+    HealthDataType.HEART_RATE,
     HealthDataType.STEPS,
+    HealthDataType.DISTANCE_WALKING_RUNNING,
+    HealthDataType.DISTANCE_DELTA,
+    HealthDataType.ACTIVE_ENERGY_BURNED,
+    HealthDataType.SLEEP_SESSION,
+    HealthDataType.SLEEP_ASLEEP,
+    HealthDataType.HEART_RATE_VARIABILITY_SDNN,
+    HealthDataType.HEART_RATE_VARIABILITY_RMSSD,
+    HealthDataType.WEIGHT,
+    HealthDataType.BODY_FAT_PERCENTAGE,
+    HealthDataType.BLOOD_PRESSURE_SYSTOLIC,
+    HealthDataType.BLOOD_PRESSURE_DIASTOLIC,
+    HealthDataType.BLOOD_GLUCOSE,
+    HealthDataType.BLOOD_OXYGEN,
+    HealthDataType.BODY_TEMPERATURE,
     HealthDataType.WORKOUT,
   ];
 
-  static const List<HealthDataType> clinicoTypes = [
-    HealthDataType.WEIGHT,
-    HealthDataType.BLOOD_GLUCOSE,
-    HealthDataType.BLOOD_PRESSURE_SYSTOLIC,
-    HealthDataType.BLOOD_PRESSURE_DIASTOLIC,
-  ];
+  List<HealthDataType> get _tiposSuportados =>
+      todosOsTipos.where(_health.isDataTypeAvailable).toList();
 
-  /// Retroactively reads up to [dias] days (default 30) of historical
-  /// steps/workout data — the one-time backfill so the dashboard isn't
-  /// empty on day one after connecting a wearable.
-  Future<HealthSyncResult> sincronizarHistoricoAtividade({int dias = 30}) {
-    return _lerComPermissao(atividadeTypes, dias: dias);
-  }
-
-  /// Reads weight/blood-pressure/blood-glucose entries from the device's
-  /// health store, including entries a *different* app (a smart-scale app,
-  /// a CGM app, ...) injected there — not just data this app itself wrote.
-  Future<HealthSyncResult> sincronizarMetricasClinicasInjetadas({
-    int dias = 30,
-  }) {
-    return _lerComPermissao(clinicoTypes, dias: dias);
+  /// Reads the complete telemetry history across every biological/clinical
+  /// parameter this app tracks — heart rate, steps, distance, calories,
+  /// sleep, HRV, weight, body fat, blood pressure, glucose, oxygen
+  /// saturation and body temperature — for the last [dias] days (default
+  /// 30). This is the one-time backfill so the dashboard isn't empty on
+  /// day one after connecting a wearable.
+  Future<HealthSyncResult> carregarHistoricoInicial({int dias = 30}) {
+    return _lerComPermissao(_tiposSuportados, dias: dias);
   }
 
   /// Android-only: routes the user to install Health Connect from the

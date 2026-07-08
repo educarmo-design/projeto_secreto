@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import '../../../../core/i18n/i18n_manager.dart';
+import '../../data/models/health_payload_model.dart';
 
 enum CameraCaptureStatus {
   idle,
@@ -26,7 +27,13 @@ enum TipoAparelho { glicosimetro, pressaoArterial, balanca }
 @immutable
 class CameraCaptureState {
   final CameraCaptureStatus status;
-  final Map<String, dynamic>? extractedData;
+
+  /// Structured, normalized reading(s) extracted by the server-side AI
+  /// from the captured photo — see [HealthPayloadModel]. Whichever of the
+  /// tracked biological/clinical parameters (heart rate, blood pressure,
+  /// glucose, weight, ...) were visible on the device's display come back
+  /// here as typed values, not a loose untyped map.
+  final HealthPayloadModel? extractedData;
   final String? errorMessage;
 
   const CameraCaptureState({
@@ -155,9 +162,21 @@ class CameraCaptureController extends ValueNotifier<CameraCaptureState> {
       }
 
       final decoded = jsonDecode(response.body) as Map<String, dynamic>;
+      final payload = HealthPayloadModel.fromAiExtraction(
+        decoded,
+        tipoAparelho: tipoAparelho.name,
+      );
+      if (payload.isEmpty) {
+        value = CameraCaptureState(
+          status: CameraCaptureStatus.error,
+          errorMessage: i18n.tr('dashboard.camera_upload_error'),
+        );
+        return;
+      }
+
       value = CameraCaptureState(
         status: CameraCaptureStatus.success,
-        extractedData: decoded,
+        extractedData: payload,
       );
     } on CameraException {
       value = CameraCaptureState(
