@@ -8,6 +8,7 @@ import '../../../../core/theme/app_theme.dart';
 import '../../data/models/health_payload_model.dart';
 import '../../data/services/health_sync_service.dart';
 import '../controllers/camera_capture_controller.dart';
+import '../controllers/sync_ui_controller.dart';
 
 /// Mixed metric-registration entry point: either sync automatically from a
 /// wearable/health app, or photograph a Bluetooth-less device's display for
@@ -21,9 +22,16 @@ class RegistrarMetricaPage extends StatefulWidget {
 
 class _RegistrarMetricaPageState extends State<RegistrarMetricaPage> {
   final HealthSyncService _healthService = HealthSyncService();
+  final SyncUiController _syncUiController = SyncUiController();
 
   bool _isSyncingWearable = false;
   HealthSyncResult? _wearableResult;
+
+  @override
+  void dispose() {
+    _syncUiController.dispose();
+    super.dispose();
+  }
 
   Future<void> _handleSyncWearable() async {
     setState(() {
@@ -67,8 +75,8 @@ class _RegistrarMetricaPageState extends State<RegistrarMetricaPage> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: payload.values.entries
-              .map((e) => Text('${e.key.jsonKey}: ${e.value}'))
+          children: payload.camposPreenchidos
+              .map((e) => Text('${e.key}: ${e.value}'))
               .toList(),
         ),
         actions: [
@@ -93,6 +101,8 @@ class _RegistrarMetricaPageState extends State<RegistrarMetricaPage> {
         child: ListView(
           padding: const EdgeInsets.all(24),
           children: [
+            _SyncStatusCard(controller: _syncUiController),
+            const SizedBox(height: 16),
             _OptionCard(
               icon: Icons.watch_outlined,
               title: i18n.tr('dashboard.sync_wearable_option'),
@@ -117,6 +127,86 @@ class _RegistrarMetricaPageState extends State<RegistrarMetricaPage> {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Sincronização Oportunista entry point: shows the friendly last-sync
+/// label and a manual "sync now" button that calls
+/// [SyncUiController.forcarSincronizacaoAtleta] directly in foreground —
+/// independent of the nightly `sync_diario_wearables` background task.
+class _SyncStatusCard extends StatelessWidget {
+  const _SyncStatusCard({required this.controller});
+
+  final SyncUiController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<SyncUiState>(
+      valueListenable: controller,
+      builder: (context, state, _) {
+        return Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        state.isLoading
+                            ? i18n.tr('dashboard.sync_syncing')
+                            : state.ultimaSincronizacaoLabel(),
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                      if (state.isOffline || state.temPendentes) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          state.temPendentes
+                              ? i18n.tr(
+                                  'dashboard.sync_pending_queue',
+                                  params: {
+                                    'count': state.pendentesNaFila.toString(),
+                                  },
+                                )
+                              : (state.errorMessage ?? ''),
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodySmall
+                              ?.copyWith(color: AppColors.error),
+                        ),
+                      ] else if (state.isError) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          state.errorMessage ??
+                              i18n.tr('dashboard.health_sync_error'),
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodySmall
+                              ?.copyWith(color: AppColors.error),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 12),
+                if (state.isLoading)
+                  const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                else
+                  TextButton(
+                    onPressed: controller.forcarSincronizacaoAtleta,
+                    child: Text(i18n.tr('dashboard.sync_force_button')),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }

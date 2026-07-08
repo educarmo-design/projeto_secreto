@@ -83,7 +83,15 @@
     "health_connect_install_button": "Instalar Health Connect",
     "health_sync_button": "Sincronizar Agora",
     "health_sync_summary": "{{count}} registros sincronizados",
-    "health_sync_error": "Erro ao sincronizar dados de saúde"
+    "health_sync_error": "Erro ao sincronizar dados de saúde",
+    "sync_never": "Ainda não sincronizado",
+    "sync_last_today": "Última atualização: Hoje às {{hora}}",
+    "sync_last_yesterday": "Última atualização: Ontem às {{hora}}",
+    "sync_last_date": "Última atualização: {{data}} às {{hora}}",
+    "sync_syncing": "Sincronizando...",
+    "sync_force_button": "Atualizar Agora",
+    "sync_offline_queued": "Sem conexão. Os dados serão enviados automaticamente assim que você estiver online.",
+    "sync_pending_queue": "{{count}} atualizações pendentes de conexão"
   },
 
   "gamification": {

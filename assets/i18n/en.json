@@ -83,7 +83,15 @@
     "health_connect_install_button": "Install Health Connect",
     "health_sync_button": "Sync Now",
     "health_sync_summary": "{{count}} records synced",
-    "health_sync_error": "Error syncing health data"
+    "health_sync_error": "Error syncing health data",
+    "sync_never": "Not synced yet",
+    "sync_last_today": "Last update: Today at {{hora}}",
+    "sync_last_yesterday": "Last update: Yesterday at {{hora}}",
+    "sync_last_date": "Last update: {{data}} at {{hora}}",
+    "sync_syncing": "Syncing...",
+    "sync_force_button": "Update Now",
+    "sync_offline_queued": "No connection. Data will be sent automatically once you're back online.",
+    "sync_pending_queue": "{{count}} updates pending connection"
   },
 
   "gamification": {

@@ -1,0 +1,225 @@
+import 'dart:async';
+import 'dart:convert';
+
+import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+
+import '../../../../core/i18n/i18n_manager.dart';
+import '../../data/services/health_sync_service.dart';
+
+enum SyncUiStatus { idle, carregando, sucesso, falha, offline }
+
+@immutable
+class SyncUiState {
+  final SyncUiStatus status;
+  final DateTime? ultimaSincronizacaoEm;
+  final String? errorMessage;
+
+  /// Rows still waiting in the offline queue (Secure Storage) for the next
+  /// connectivity window.
+  final int pendentesNaFila;
+
+  const SyncUiState({
+    this.status = SyncUiStatus.idle,
+    this.ultimaSincronizacaoEm,
+    this.errorMessage,
+    this.pendentesNaFila = 0,
+  });
+
+  bool get isLoading => status == SyncUiStatus.carregando;
+  bool get isOffline => status == SyncUiStatus.offline;
+  bool get isError => status == SyncUiStatus.falha;
+  bool get isSuccess => status == SyncUiStatus.sucesso;
+  bool get temPendentes => pendentesNaFila > 0;
+
+  /// Friendly i18n label for the last successful sync, e.g. "Última
+  /// atualização: Hoje às 08:30" — falls back to "Ainda não sincronizado"
+  /// before the first sync ever completes.
+  String ultimaSincronizacaoLabel() {
+    final quando = ultimaSincronizacaoEm;
+    if (quando == null) return i18n.tr('dashboard.sync_never');
+
+    final hora = quando.hour.toString().padLeft(2, '0');
+    final minuto = quando.minute.toString().padLeft(2, '0');
+    final horaFormatada = '$hora:$minuto';
+
+    final agora = DateTime.now();
+    if (_mesmoDia(quando, agora)) {
+      return i18n.tr(
+        'dashboard.sync_last_today',
+        params: {'hora': horaFormatada},
+      );
+    }
+
+    final ontem = agora.subtract(const Duration(days: 1));
+    if (_mesmoDia(quando, ontem)) {
+      return i18n.tr(
+        'dashboard.sync_last_yesterday',
+        params: {'hora': horaFormatada},
+      );
+    }
+
+    final dia = quando.day.toString().padLeft(2, '0');
+    final mes = quando.month.toString().padLeft(2, '0');
+    return i18n.tr(
+      'dashboard.sync_last_date',
+      params: {'data': '$dia/$mes', 'hora': horaFormatada},
+    );
+  }
+
+  static bool _mesmoDia(DateTime a, DateTime b) =>
+      a.year == b.year && a.month == b.month && a.day == b.day;
+}
+
+/// Drives the dashboard's sync UI: surfaces Loading/Success/Failure/Offline
+/// states, the friendly last-sync label, the manual "sync now" button, and
+/// the offline queue that backstops [forcarSincronizacaoAtleta] when the
+/// write to `metricas_saude_diarias` can't reach the server.
+///
+/// `ValueNotifier`-based, matching [CameraCaptureController] and
+/// [CadastroController] in this codebase — a single-screen concern doesn't
+/// need Riverpod's dependency graph.
+class SyncUiController extends ValueNotifier<SyncUiState> {
+  SyncUiController({
+    HealthSyncService? healthSyncService,
+    FlutterSecureStorage? secureStorage,
+    Connectivity? connectivity,
+  })  : _healthSyncService = healthSyncService ?? HealthSyncService(),
+        _secureStorage = secureStorage ?? const FlutterSecureStorage(),
+        _connectivity = connectivity ?? Connectivity(),
+        super(const SyncUiState()) {
+    _carregarEstadoInicial();
+    _observarConectividade();
+  }
+
+  final HealthSyncService _healthSyncService;
+  final FlutterSecureStorage _secureStorage;
+  final Connectivity _connectivity;
+  StreamSubscription<List<ConnectivityResult>>? _connectivitySub;
+
+  /// Secure Storage key for the queued fixed-column rows awaiting dispatch —
+  /// see the class doc's "Resiliência Offline" note.
+  static const String _chaveFilaPendente = 'pending_metricas_saude_payloads';
+
+  Future<void> _carregarEstadoInicial() async {
+    final quando = await _healthSyncService.obterUltimaSincronizacao();
+    final pendentes = await _lerFilaPendente();
+    value = SyncUiState(
+      ultimaSincronizacaoEm: quando,
+      pendentesNaFila: pendentes.length,
+    );
+  }
+
+  void _observarConectividade() {
+    _connectivitySub =
+        _connectivity.onConnectivityChanged.listen((resultados) {
+      final online = resultados.any((r) => r != ConnectivityResult.none);
+      if (online) {
+        unawaited(_tentarDespacharFila());
+      }
+    });
+  }
+
+  /// Sincronização Oportunista: runs the daily delta immediately in
+  /// foreground — when the user opens the app or taps the "sync now"
+  /// button — without registering or waking the WorkManager task. The
+  /// nightly `sync_diario_wearables` job stays reserved for the
+  /// Wi-Fi + charging window; this path is explicitly allowed to run over
+  /// any connection, right now, because the user asked for it.
+  Future<void> forcarSincronizacaoAtleta() async {
+    if (value.isLoading) return;
+
+    value = SyncUiState(
+      status: SyncUiStatus.carregando,
+      ultimaSincronizacaoEm: value.ultimaSincronizacaoEm,
+      pendentesNaFila: value.pendentesNaFila,
+    );
+
+    final resultado = await _healthSyncService.sincronizarDeltaDiario();
+
+    if (resultado.isSuccess) {
+      value = SyncUiState(
+        status: SyncUiStatus.sucesso,
+        ultimaSincronizacaoEm: resultado.sincronizadoEm ??
+            value.ultimaSincronizacaoEm ??
+            DateTime.now(),
+        pendentesNaFila: value.pendentesNaFila,
+      );
+      return;
+    }
+
+    if (resultado.isOffline) {
+      await _enfileirarOffline(resultado.linhas);
+      final pendentes = await _lerFilaPendente();
+      value = SyncUiState(
+        status: SyncUiStatus.offline,
+        ultimaSincronizacaoEm: value.ultimaSincronizacaoEm,
+        errorMessage: i18n.tr('dashboard.sync_offline_queued'),
+        pendentesNaFila: pendentes.length,
+      );
+      return;
+    }
+
+    value = SyncUiState(
+      status: SyncUiStatus.falha,
+      ultimaSincronizacaoEm: value.ultimaSincronizacaoEm,
+      errorMessage:
+          resultado.errorMessage ?? i18n.tr('dashboard.health_sync_error'),
+      pendentesNaFila: value.pendentesNaFila,
+    );
+  }
+
+  /// Resiliência Offline: merges [novasLinhas] into the queue already
+  /// persisted in Secure Storage, keyed by `data_referencia` so a day
+  /// queued twice while offline overwrites rather than duplicates.
+  Future<void> _enfileirarOffline(List<Map<String, dynamic>> novasLinhas) async {
+    if (novasLinhas.isEmpty) return;
+
+    final atuais = await _lerFilaPendente();
+    final porDia = {
+      for (final linha in atuais)
+        linha['data_referencia'] as String: linha,
+    };
+    for (final linha in novasLinhas) {
+      porDia[linha['data_referencia'] as String] = linha;
+    }
+
+    await _secureStorage.write(
+      key: _chaveFilaPendente,
+      value: jsonEncode(porDia.values.toList()),
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> _lerFilaPendente() async {
+    final raw = await _secureStorage.read(key: _chaveFilaPendente);
+    if (raw == null || raw.isEmpty) return const [];
+    final decoded = jsonDecode(raw) as List<dynamic>;
+    return decoded.cast<Map<String, dynamic>>();
+  }
+
+  /// Fires automatically from the connectivity listener the moment the
+  /// device comes back online, dispatching whatever [forcarSincronizacaoAtleta]
+  /// (or a failed background run) left queued.
+  Future<void> _tentarDespacharFila() async {
+    final pendentes = await _lerFilaPendente();
+    if (pendentes.isEmpty) return;
+
+    final enviado = await _healthSyncService.despacharLinhasPendentes(pendentes);
+    if (!enviado) return;
+
+    await _secureStorage.delete(key: _chaveFilaPendente);
+    final quando = await _healthSyncService.obterUltimaSincronizacao();
+    value = SyncUiState(
+      status: SyncUiStatus.sucesso,
+      ultimaSincronizacaoEm: quando,
+      pendentesNaFila: 0,
+    );
+  }
+
+  @override
+  void dispose() {
+    _connectivitySub?.cancel();
+    super.dispose();
+  }
+}

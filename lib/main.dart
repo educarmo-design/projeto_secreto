@@ -5,6 +5,7 @@ import 'core/i18n/i18n_manager.dart';
 import 'core/supabase/supabase_client.dart';
 import 'core/theme/app_theme.dart';
 import 'core/router/app_router.dart';
+import 'features/dashboard/data/services/background_sync_manager.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -28,6 +29,11 @@ void main() async {
 
   // Initialize i18n (default to Portuguese)
   await i18n.initialize('pt');
+
+  // Regra de Bateria Eficiente: agenda o sync_diario_wearables para rodar
+  // uma vez por dia, de madrugada, só com Wi-Fi + carregador conectados.
+  await BackgroundSyncManager.instance.inicializar(debugMode: AppConfig.debugMode);
+  await BackgroundSyncManager.instance.agendarSincronizacaoDiaria();
 
   runApp(const AtletaGamificacaoApp());
 }
