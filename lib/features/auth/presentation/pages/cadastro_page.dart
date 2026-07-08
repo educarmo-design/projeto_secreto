@@ -11,11 +11,12 @@ import '../controllers/cadastro_controller.dart';
 /// manual país/estado/cidade) driven by [CadastroController]'s
 /// [PaisSelecionado].
 ///
-/// [onSubmit] receives the validated, LGPD-conscious payload (nickname,
-/// street/neighborhood as free text, plus a `geo_ranking_id` bucket built
-/// from país+estado+cidade instead of the raw CEP/postal code) so the
-/// caller can persist it however it needs to (Supabase, local cache, ...)
-/// without this widget taking a dependency on that layer.
+/// Submission itself is delegated to [CadastroController.enviarParaNuvem],
+/// which persists the cadastro to `perfis_usuarios` in Supabase. [onSubmit]
+/// is an optional hook called with the validated, LGPD-conscious payload
+/// (nickname, street/neighborhood as free text, plus a `geo_ranking_id`
+/// bucket built from país+estado+cidade instead of the raw CEP/postal code)
+/// after a successful cloud write — e.g. for navigation.
 class CadastroPage extends StatefulWidget {
   const CadastroPage({super.key, this.onSubmit});
 
@@ -39,6 +40,7 @@ class _CadastroPageState extends State<CadastroPage> {
   final TextEditingController _stateController = TextEditingController();
 
   bool _localeDetected = false;
+  bool _isSubmitting = false;
 
   @override
   void initState() {
@@ -97,8 +99,9 @@ class _CadastroPageState extends State<CadastroPage> {
     super.dispose();
   }
 
-  void _submit() {
+  Future<void> _submit() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
+    if (_isSubmitting) return;
 
     final CadastroCepState state = _controller.value;
     final String geoRankingId = state.isBrasil
@@ -109,26 +112,50 @@ class _CadastroPageState extends State<CadastroPage> {
             cidade: _cityController.text,
           );
 
-    final payload = <String, dynamic>{
-      'nickname': _nicknameController.text.trim(),
-      'pais': state.isBrasil
-          ? i18n.tr('auth.country_brazil')
-          : _countryController.text.trim(),
-      'cep': _cepController.text.trim(),
-      'logradouro': _streetController.text.trim(),
-      'bairro': _neighborhoodController.text.trim(),
-      'cidade': _cityController.text.trim(),
-      'uf': _stateController.text.trim(),
-      'geo_ranking_id': geoRankingId,
-    };
+    final nickname = _nicknameController.text.trim();
+    final pais = state.isBrasil
+        ? i18n.tr('auth.country_brazil')
+        : _countryController.text.trim();
+    final cep = _cepController.text.trim();
+    final logradouro = _streetController.text.trim();
+    final bairro = _neighborhoodController.text.trim();
+    final cidade = _cityController.text.trim();
+    final uf = _stateController.text.trim();
 
-    if (widget.onSubmit != null) {
-      widget.onSubmit!(payload);
-    } else {
+    setState(() => _isSubmitting = true);
+    final result = await _controller.enviarParaNuvem(
+      nickname: nickname,
+      pais: pais,
+      cep: cep,
+      logradouro: logradouro,
+      bairro: bairro,
+      cidade: cidade,
+      uf: uf,
+      geoRankingId: geoRankingId,
+    );
+    if (!mounted) return;
+    setState(() => _isSubmitting = false);
+
+    if (!result.success) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(i18n.tr('common.success'))),
+        SnackBar(content: Text(result.errorMessage ?? i18n.tr('common.error'))),
       );
+      return;
     }
+
+    widget.onSubmit?.call(<String, dynamic>{
+      'nickname': nickname,
+      'pais': pais,
+      'cep': cep,
+      'logradouro': logradouro,
+      'bairro': bairro,
+      'cidade': cidade,
+      'uf': uf,
+      'geo_ranking_id': geoRankingId,
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(i18n.tr('common.success'))),
+    );
   }
 
   @override
@@ -285,8 +312,14 @@ class _CadastroPageState extends State<CadastroPage> {
               ),
               const SizedBox(height: 32),
               FilledButton(
-                onPressed: _submit,
-                child: Text(i18n.tr('auth.register_button')),
+                onPressed: _isSubmitting ? null : _submit,
+                child: _isSubmitting
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : Text(i18n.tr('auth.register_button')),
               ),
             ],
           ),

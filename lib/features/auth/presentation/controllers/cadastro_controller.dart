@@ -3,8 +3,10 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/i18n/i18n_manager.dart';
+import '../../../../core/supabase/supabase_client.dart';
 import '../../data/models/cep_model.dart';
 
 enum CadastroCepStatus { idle, loading, success, error }
@@ -152,9 +154,67 @@ class CadastroController extends ValueNotifier<CadastroCepState> {
     );
   }
 
+  /// Persists the cadastro form to `perfis_usuarios` in Supabase.
+  ///
+  /// `perfis_usuarios`'s RLS policies (`auth.uid() = id`) require a signed-in
+  /// session before any row can be written, so this signs the user in
+  /// anonymously first if no session exists yet — there's no separate login
+  /// step in this flow, the cadastro *is* the account creation.
+  Future<CadastroSubmitResult> enviarParaNuvem({
+    required String nickname,
+    required String pais,
+    required String cep,
+    required String logradouro,
+    required String bairro,
+    required String cidade,
+    required String uf,
+    required String geoRankingId,
+  }) async {
+    try {
+      var user = supabaseManager.currentUser;
+      if (user == null) {
+        final authResponse = await supabaseManager.signInAnonymously();
+        user = authResponse.user;
+      }
+      if (user == null) {
+        return const CadastroSubmitResult(
+          success: false,
+          errorMessage: 'Não foi possível autenticar o usuário.',
+        );
+      }
+
+      await supabaseManager.client.from('perfis_usuarios').upsert({
+        'id': user.id,
+        'nickname': nickname,
+        'pais': pais,
+        'cep': cep,
+        'logradouro': logradouro,
+        'bairro': bairro,
+        'cidade': cidade,
+        'estado': uf,
+        'geo_ranking_id': geoRankingId,
+      }, onConflict: 'id');
+
+      return const CadastroSubmitResult(success: true);
+    } on AuthException catch (e) {
+      return CadastroSubmitResult(success: false, errorMessage: e.message);
+    } on PostgrestException catch (e) {
+      return CadastroSubmitResult(success: false, errorMessage: e.message);
+    }
+  }
+
   @override
   void dispose() {
     _httpClient.close();
     super.dispose();
   }
+}
+
+/// Outcome of [CadastroController.enviarParaNuvem].
+@immutable
+class CadastroSubmitResult {
+  final bool success;
+  final String? errorMessage;
+
+  const CadastroSubmitResult({required this.success, this.errorMessage});
 }
