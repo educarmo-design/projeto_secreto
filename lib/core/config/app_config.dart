@@ -78,4 +78,16 @@ class AppConfig {
         ? override
         : '$supabaseUrl/functions/v1/extract-metric-photo';
   }
+
+  /// Endpoint that receives an old exam PDF's raw bytes (Esteira dos 14
+  /// Dias Free — Semana 1 missions) and stores/parses it server-side.
+  /// Same zero-new-infra convention as [metricPhotoExtractionEndpoint]:
+  /// defaults to a Supabase Edge Function; override via
+  /// `--dart-define=EXAM_UPLOAD_ENDPOINT=...` for a standalone deployment.
+  static String get examUploadEndpoint {
+    const override = String.fromEnvironment('EXAM_UPLOAD_ENDPOINT');
+    return override.isNotEmpty
+        ? override
+        : '$supabaseUrl/functions/v1/upload-exam-pdf';
+  }
 }
