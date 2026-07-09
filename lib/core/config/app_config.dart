@@ -106,6 +106,22 @@ class AppConfig {
         : '$supabaseUrl/functions/v1/generate-preventive-insight';
   }
 
+  /// Endpoint that receives a GZIP-compressed batch of anonymized
+  /// [B2BAnalyticsPayload]s (ONDA 3 — Painel Web das Seguradoras/Médicos).
+  /// Same zero-new-infra convention as the other endpoints above: defaults
+  /// to a Supabase Edge Function under the already-configured project;
+  /// override via `--dart-define=B2B_ANALYTICS_ENDPOINT=...` for a
+  /// standalone deployment. The Edge Function — not this client — is the
+  /// only place with the elevated (service-role-scoped) access needed to
+  /// fan a batch out to the actual insurer/doctor-facing panel; this app
+  /// only ever uploads its own already-anonymized, already-RLS-scoped data.
+  static String get b2bAnalyticsEndpoint {
+    const override = String.fromEnvironment('B2B_ANALYTICS_ENDPOINT');
+    return override.isNotEmpty
+        ? override
+        : '$supabaseUrl/functions/v1/ingest-b2b-analytics';
+  }
+
   /// Deep link scheme the Google/Apple OAuth browser redirect returns to.
   /// `signInWithOAuth` hands this to the identity provider; the actual
   /// session only lands back in-app once the OS routes that deep link to

@@ -11,7 +11,13 @@ supabase/.branches/
 .flutter-plugins-dependencies
 .packages
 build/
-AppData/ 
+AppData/
+
+# web_painel/ (Vite + React + TS)
+web_painel/node_modules/
+web_painel/dist/
+web_painel/.env
+web_painel/*.local
 NTUSER.DAT* 
 "Saved Games/" 
 "Searches/" 

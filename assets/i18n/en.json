@@ -251,6 +251,7 @@
     "teaser_grafico_eixo_tempo": "Next 6 months",
     "teaser_insight_titulo": "Preventive Insights",
     "teaser_insight_placeholder": "3 preventive alerts identified by the AI",
+    "teaser_insight_carregando": "Calculating your longevity projection...",
     "teaser_cadeado_titulo": "Unlock your Longevity Projection",
     "teaser_cadeado_copy": "Your AI already calculated how your current habits will impact your health over the next 6 months. Unlock it now and don't miss a single insight.",
     "teaser_selo_premium": "Annual Plan Exclusive",
@@ -282,6 +283,16 @@
     "error_invalid_response": "Couldn't parse the AI's response.",
     "error_no_user": "You must be signed in to generate this analysis.",
     "error_gateway_failure": "Couldn't generate your recommendation right now."
+  },
+
+  "healthscore": {
+    "titulo_bronze": "Bronze Consistency Level",
+    "titulo_prata": "Silver Consistency Level",
+    "titulo_ouro": "Gold Consistency Level",
+    "titulo_platina": "Platinum Consistency Level",
+    "titulo_diamante": "Diamond Consistency Level",
+    "pontos_label": "{{pontos}} points",
+    "meta_label": "Your goal: keep your streak going and complete your daily logs"
   },
 
   "errors": {

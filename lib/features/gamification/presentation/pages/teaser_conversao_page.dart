@@ -1,20 +1,31 @@
 import 'dart:ui';
 
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
 
 import '../../../../core/i18n/i18n_manager.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../intelligence/presentation/controllers/intelligence_controller.dart';
 import '../controllers/esteira_trial_controller.dart';
 
 /// Cadeado Dourado Borrado: the Dia 7 high-impact conversion teaser. The
 /// "real" longevity projection sits fully rendered behind a
 /// [BackdropFilter] blur, with a centered gold-padlock offer overlay
 /// driving straight to the Plano Anual checkout.
-class TeaserConversaoPage extends StatelessWidget {
+///
+/// [intelligenceController], when provided, is what makes the blurred
+/// content real instead of static demo data: the instant
+/// [EsteiraTrialState.gatilhoDia7Ativo] flips true, this page fires
+/// [IntelligenceController.calcularProjecaoLongevidadeDia7] exactly once and
+/// swaps the chart/insight for the live [ProjecaoLongevidadeResult]. Left
+/// `null`-able (default) so existing callers/tests that only care about the
+/// trial countdown keep working unchanged with the original demo content.
+class TeaserConversaoPage extends StatefulWidget {
   const TeaserConversaoPage({
     super.key,
     required this.controller,
     required this.onLiberarProjecao,
+    this.intelligenceController,
   });
 
   final EsteiraTrialController controller;
@@ -24,17 +35,67 @@ class TeaserConversaoPage extends StatelessWidget {
   /// payment/checkout flow ends up wiring it.
   final VoidCallback onLiberarProjecao;
 
+  final IntelligenceController? intelligenceController;
+
+  @override
+  State<TeaserConversaoPage> createState() => _TeaserConversaoPageState();
+}
+
+class _TeaserConversaoPageState extends State<TeaserConversaoPage> {
+  bool _calculoDisparado = false;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.controller.addListener(_onEstadoMudou);
+    widget.intelligenceController?.addListener(_onEstadoMudou);
+    _dispararCalculoSeNecessario();
+  }
+
+  @override
+  void dispose() {
+    widget.controller.removeListener(_onEstadoMudou);
+    widget.intelligenceController?.removeListener(_onEstadoMudou);
+    super.dispose();
+  }
+
+  void _onEstadoMudou() {
+    _dispararCalculoSeNecessario();
+    if (mounted) setState(() {});
+  }
+
+  /// Só dispara quando: há um [IntelligenceController] (feature opt-in), o
+  /// Gatilho do Dia 7 já abriu, e ainda não existe (nem está em voo) uma
+  /// projeção — nunca reprocessa uma projeção já calculada, e nunca chama o
+  /// Gemini antes do dia 7, mesmo que esta tela seja montada cedo.
+  void _dispararCalculoSeNecessario() {
+    final intelligence = widget.intelligenceController;
+    if (intelligence == null || _calculoDisparado) return;
+    if (!widget.controller.value.gatilhoDia7Ativo) return;
+    if (intelligence.projecao != null || intelligence.isLoading) return;
+
+    _calculoDisparado = true;
+    intelligence.calcularProjecaoLongevidadeDia7();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
       body: SafeArea(
         child: ValueListenableBuilder<EsteiraTrialState>(
-          valueListenable: controller,
+          valueListenable: widget.controller,
           builder: (context, state, _) {
             return Stack(
               children: [
-                Positioned.fill(child: _ConteudoProjecao(diaAtual: state.diaAtual)),
+                Positioned.fill(
+                  child: _ConteudoProjecao(
+                    diaAtual: state.diaAtual,
+                    projecao: widget.intelligenceController?.projecao,
+                    carregandoProjecao:
+                        widget.intelligenceController?.isLoading ?? false,
+                  ),
+                ),
                 // Regra de UI Estrita: o gráfico e o painel de insights ficam
                 // fosco/borrado atrás deste filtro — nunca legíveis antes da
                 // conversão.
@@ -48,7 +109,7 @@ class TeaserConversaoPage extends StatelessWidget {
                   child: SingleChildScrollView(
                     padding: const EdgeInsets.symmetric(vertical: 24),
                     child: _CadeadoDouradoOverlay(
-                      onLiberarProjecao: onLiberarProjecao,
+                      onLiberarProjecao: widget.onLiberarProjecao,
                     ),
                   ),
                 ),
@@ -61,13 +122,24 @@ class TeaserConversaoPage extends StatelessWidget {
   }
 }
 
-/// The blurred-away layer: badge, headline, the simulated 6-month
-/// longevity chart, and the preventive-insights panel. Renders fully —
-/// the blur, not missing content, is what hides it.
+/// The blurred-away layer: badge, headline, the longevity chart, and the
+/// preventive-insights panel. Renders fully — the blur, not missing
+/// content, is what hides it.
+///
+/// [projecao] `null` (no [IntelligenceController] wired, or Dia 7 hasn't
+/// triggered the calculation yet) keeps the original static demo chart and
+/// placeholder insight; once populated, both the chart and the insight text
+/// reflect [ProjecaoLongevidadeResult].
 class _ConteudoProjecao extends StatelessWidget {
-  const _ConteudoProjecao({required this.diaAtual});
+  const _ConteudoProjecao({
+    required this.diaAtual,
+    this.projecao,
+    this.carregandoProjecao = false,
+  });
 
   final int diaAtual;
+  final ProjecaoLongevidadeResult? projecao;
+  final bool carregandoProjecao;
 
   @override
   Widget build(BuildContext context) {
@@ -128,8 +200,11 @@ class _ConteudoProjecao extends StatelessWidget {
               color: AppColors.darkSurface,
               borderRadius: BorderRadius.circular(20),
             ),
-            child: const CustomPaint(
-              painter: _LongevityProjectionPainter(),
+            child: CustomPaint(
+              painter: _LongevityProjectionPainter(
+                trajetoriaAtual: projecao?.trajetoriaAtual,
+                trajetoriaOtimizada: projecao?.trajetoriaOtimizada,
+              ),
               size: Size.infinite,
             ),
           ),
@@ -146,15 +221,28 @@ class _ConteudoProjecao extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Icon(
-                Icons.insights_outlined,
-                color: AppColors.secondaryBlue,
-                size: 18,
-              ),
+              if (carregandoProjecao)
+                const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: AppColors.secondaryBlue,
+                  ),
+                )
+              else
+                const Icon(
+                  Icons.insights_outlined,
+                  color: AppColors.secondaryBlue,
+                  size: 18,
+                ),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  i18n.tr('gamification.teaser_insight_placeholder'),
+                  carregandoProjecao
+                      ? i18n.tr('gamification.teaser_insight_carregando')
+                      : (projecao?.insightPreventivo ??
+                          i18n.tr('gamification.teaser_insight_placeholder')),
                   style: const TextStyle(color: Colors.white70, fontSize: 13),
                 ),
               ),
@@ -167,17 +255,26 @@ class _ConteudoProjecao extends StatelessWidget {
 }
 
 /// Two smooth 7-point trajectories (hoje + 6 meses) rendered with a plain
-/// [CustomPainter] — no chart package. Simulated placeholder data: the real
-/// projection (IA + tabelas do banco) lands here once the backend model is
-/// wired up; visually this never matters much since the whole thing sits
-/// under [BackdropFilter] until conversion.
+/// [CustomPainter] — no chart package. [trajetoriaAtual]/[trajetoriaOtimizada]
+/// `null` (no [IntelligenceController] wired, or Dia 7 hasn't triggered yet)
+/// fall back to static demo data — visually that never matters much on its
+/// own since the whole thing sits under [BackdropFilter] until conversion,
+/// but it does keep this painter usable before real biomarker history
+/// exists.
 class _LongevityProjectionPainter extends CustomPainter {
-  const _LongevityProjectionPainter();
+  const _LongevityProjectionPainter({
+    List<double>? trajetoriaAtual,
+    List<double>? trajetoriaOtimizada,
+  })  : _trajetoriaAtual = trajetoriaAtual ?? _trajetoriaAtualDemo,
+        _trajetoriaOtimizada = trajetoriaOtimizada ?? _trajetoriaOtimizadaDemo;
 
-  static const List<double> _trajetoriaAtual = [
+  final List<double> _trajetoriaAtual;
+  final List<double> _trajetoriaOtimizada;
+
+  static const List<double> _trajetoriaAtualDemo = [
     0.55, 0.53, 0.50, 0.49, 0.46, 0.44, 0.41,
   ];
-  static const List<double> _trajetoriaOtimizada = [
+  static const List<double> _trajetoriaOtimizadaDemo = [
     0.55, 0.60, 0.66, 0.71, 0.78, 0.84, 0.92,
   ];
 
@@ -243,7 +340,9 @@ class _LongevityProjectionPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant _LongevityProjectionPainter oldDelegate) =>
+      !listEquals(oldDelegate._trajetoriaAtual, _trajetoriaAtual) ||
+      !listEquals(oldDelegate._trajetoriaOtimizada, _trajetoriaOtimizada);
 }
 
 /// Centered gold-padlock offer: icon, premium seal, persuasive copy, and

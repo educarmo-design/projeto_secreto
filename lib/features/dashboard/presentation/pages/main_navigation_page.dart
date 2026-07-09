@@ -6,6 +6,7 @@ import '../../../../core/theme/app_theme.dart';
 import '../../../../core/theme/senior_theme.dart';
 import '../../../gamification/models/gamification_models.dart';
 import '../../../gamification/repositories/gamification_repository.dart';
+import '../../../intelligence/data/repositories/recommendations_repository.dart';
 import '../../data/models/health_payload_model.dart';
 import '../../data/models/widget_layout_model.dart';
 import '../controllers/camera_capture_controller.dart';
@@ -46,9 +47,12 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
 
   final GamificationRepository _gamificationRepository =
       GamificationRepository();
+  final RecommendationsRepository _recommendationsRepository =
+      RecommendationsRepository();
 
   Streak? _streak;
   League? _liga;
+  String? _recomendacaoIa;
 
   @override
   void initState() {
@@ -56,6 +60,7 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
     uiProfileSwitcher.addListener(_onProfileChanged);
     layoutController.addListener(_onLayoutChanged);
     _carregarGamificacao();
+    _carregarRecomendacaoIa();
   }
 
   @override
@@ -81,6 +86,17 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
       _streak = streak;
       _liga = liga;
     });
+  }
+
+  /// Leitura pura do cache local (`RecommendationsRepository`) — nunca
+  /// dispara uma nova chamada ao Gemini a partir do Dashboard. O insight só
+  /// é gerado uma vez, no Gatilho do Dia 7 (`IntelligenceController` via
+  /// `TeaserConversaoPage`); aqui é só o Card Recomendações da IA lendo o
+  /// que já foi salvo, instantâneo e offline.
+  Future<void> _carregarRecomendacaoIa() async {
+    final insight = await _recommendationsRepository.obterUltimoInsight();
+    if (!mounted) return;
+    setState(() => _recomendacaoIa = insight);
   }
 
   /// Abre [GerenciadorLayoutPage] em página cheia com uma transição de
@@ -152,6 +168,7 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
     final data = DashboardCardData(
       streakAtual: _streak,
       ligaAtual: _liga,
+      recomendacaoIaResumo: _recomendacaoIa,
       onFotoPrato: () => _capturarEExibir(TipoAparelho.pratoRefeicao),
       onScanBarcode: _handleScanBarcode,
       onFotoBalanca: () => _capturarEExibir(TipoAparelho.balanca),
