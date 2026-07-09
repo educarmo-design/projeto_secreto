@@ -276,6 +276,14 @@
     "mode_senior_label": "Guardián Clínico / Sénior"
   },
 
+  "intelligence": {
+    "error_timeout": "Tiempo agotado al hablar con la IA. Inténtalo de nuevo.",
+    "error_network": "Error de conexión al generar tu recomendación.",
+    "error_invalid_response": "No se pudo interpretar la respuesta de la IA.",
+    "error_no_user": "Debes iniciar sesión para generar este análisis.",
+    "error_gateway_failure": "No se pudo generar tu recomendación en este momento."
+  },
+
   "errors": {
     "network_error": "Error de conexión",
     "server_error": "Error del servidor",

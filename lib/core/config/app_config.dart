@@ -91,6 +91,21 @@ class AppConfig {
         : '$supabaseUrl/functions/v1/upload-exam-pdf';
   }
 
+  /// Endpoint that receives a compact textual summary of recent biomarkers
+  /// + detected anomalies and returns a single Gemini 2.5 Flash-generated
+  /// preventive insight as JSON. Same zero-new-infra convention as
+  /// [metricPhotoExtractionEndpoint]: defaults to a Supabase Edge Function
+  /// (which holds the actual Google AI Studio key server-side — never
+  /// shipped in the client binary); override via
+  /// `--dart-define=PREVENTIVE_INSIGHT_ENDPOINT=...` for a standalone
+  /// deployment.
+  static String get preventiveInsightEndpoint {
+    const override = String.fromEnvironment('PREVENTIVE_INSIGHT_ENDPOINT');
+    return override.isNotEmpty
+        ? override
+        : '$supabaseUrl/functions/v1/generate-preventive-insight';
+  }
+
   /// Deep link scheme the Google/Apple OAuth browser redirect returns to.
   /// `signInWithOAuth` hands this to the identity provider; the actual
   /// session only lands back in-app once the OS routes that deep link to

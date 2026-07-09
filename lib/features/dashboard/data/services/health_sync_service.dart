@@ -129,6 +129,24 @@ class EventoAnomaliaSaude {
         if (origem != null) 'origem': origem,
         'detectado_em': detectadoEm.toIso8601String(),
       };
+
+  /// Reads a row back from `eventos_anomalias_saude` — the exact,
+  /// symmetric counterpart of [toJson]. Used by the Módulo de Inteligência
+  /// (`lib/features/intelligence/`) to feed anomaly history into the Dia 7
+  /// preventive report; this "Caixa Preta" table was insert-only until then.
+  factory EventoAnomaliaSaude.fromJson(Map<String, dynamic> json) {
+    return EventoAnomaliaSaude(
+      tipoAnomalia: json['tipo_anomalia'] as String,
+      parametro: json['parametro'] as String,
+      valorDetectado: json['valor_detectado'] as num,
+      valorLimiteMin: json['valor_limite_min'] as num?,
+      valorLimiteMax: json['valor_limite_max'] as num?,
+      emTreino: json['em_treino'] as bool? ?? false,
+      severidade: json['severidade'] as String,
+      origem: json['origem'] as String?,
+      detectadoEm: DateTime.parse(json['detectado_em'] as String),
+    );
+  }
 }
 
 /// Outcome of one [HealthSyncService.sincronizarDeltaDiario] call. Split out

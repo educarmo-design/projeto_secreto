@@ -276,6 +276,14 @@
     "mode_senior_label": "Clinical Guardian / Senior"
   },
 
+  "intelligence": {
+    "error_timeout": "Timed out talking to the AI. Please try again.",
+    "error_network": "Connection error while generating your recommendation.",
+    "error_invalid_response": "Couldn't parse the AI's response.",
+    "error_no_user": "You must be signed in to generate this analysis.",
+    "error_gateway_failure": "Couldn't generate your recommendation right now."
+  },
+
   "errors": {
     "network_error": "Connection error",
     "server_error": "Server error",
