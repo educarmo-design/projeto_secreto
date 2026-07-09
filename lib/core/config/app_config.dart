@@ -90,4 +90,20 @@ class AppConfig {
         ? override
         : '$supabaseUrl/functions/v1/upload-exam-pdf';
   }
+
+  /// Deep link scheme the Google/Apple OAuth browser redirect returns to.
+  /// `signInWithOAuth` hands this to the identity provider; the actual
+  /// session only lands back in-app once the OS routes that deep link to
+  /// `supabase_flutter`'s internal listener, which is what feeds
+  /// `auth.onAuthStateChange`. Registering the scheme natively (Android
+  /// intent-filter / iOS URL type) is required once the `android`/`ios`
+  /// platform folders exist — there are none yet in this project — and is
+  /// out of Dart's reach; override via `--dart-define=OAUTH_REDIRECT_URL=...`
+  /// for a project-specific scheme.
+  static String get oauthRedirectUrl {
+    const override = String.fromEnvironment('OAUTH_REDIRECT_URL');
+    return override.isNotEmpty
+        ? override
+        : 'io.supabase.atletagamificacao://login-callback';
+  }
 }

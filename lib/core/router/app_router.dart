@@ -1,7 +1,8 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+
+import 'ui_profile_switcher.dart';
 
 /// Route names (constants for type-safe navigation)
 class RouteNames {
@@ -22,70 +23,21 @@ class RouteNames {
 /// Profile types
 enum ProfileType { athlete, guardian, doctor, unknown }
 
-/// Notifies GoRouter whenever the *current user's* `perfil_uso` changes,
-/// on top of auth state changes. Subscribes to a Supabase Realtime channel
-/// scoped to the signed-in user's own `anonymous_users` row, so a profile
-/// switch (e.g. a caregiver flipping a patient to "Guardião Clínico") is
-/// enforced immediately — gamification routes become unreachable without
-/// requiring the user to navigate first.
-class ProfileRefreshListenable extends ChangeNotifier {
-  StreamSubscription<AuthState>? _authSubscription;
-  RealtimeChannel? _profileChannel;
-
-  ProfileRefreshListenable() {
-    _authSubscription =
-        Supabase.instance.client.auth.onAuthStateChange.listen((event) {
-      _resubscribeToProfile(event.session?.user.id);
-      notifyListeners();
-    });
-    _resubscribeToProfile(Supabase.instance.client.auth.currentUser?.id);
-  }
-
-  void _resubscribeToProfile(String? userId) {
-    _profileChannel?.unsubscribe();
-    _profileChannel = null;
-
-    if (userId == null) return;
-
-    _profileChannel = Supabase.instance.client
-        .channel('public:anonymous_users:id=eq.$userId')
-        .onPostgresChanges(
-          event: PostgresChangeEvent.update,
-          schema: 'public',
-          table: 'anonymous_users',
-          filter: PostgresChangeFilter(
-            type: PostgresChangeFilterType.eq,
-            column: 'id',
-            value: userId,
-          ),
-          callback: (payload) => notifyListeners(),
-        )
-        .subscribe();
-  }
-
-  @override
-  void dispose() {
-    _authSubscription?.cancel();
-    _profileChannel?.unsubscribe();
-    super.dispose();
-  }
-}
-
 /// Application router with profile-aware middleware.
 ///
 /// `redirect` is re-evaluated automatically by GoRouter on every navigation
-/// attempt, AND on every event emitted by [refreshListenable] — which fires
-/// on auth state changes and on realtime updates to the user's own
-/// `perfil_uso`. This makes the profile-aware routing truly reactive rather
-/// than only "reactive to taps".
+/// attempt, AND on every event emitted by [refreshListenable]. That
+/// listenable is [uiProfileSwitcher] — the same global controller
+/// [MainNavigationPage] and `MaterialApp` (main.dart) already react to for
+/// theme/shell switching, so a `perfil_uso` change reaches the router the
+/// instant it reaches everything else (Requisito §4.3: "blindar o acesso às
+/// telas do jogo"), with a single realtime subscription behind all three
+/// instead of three independent ones that could drift out of sync.
 class AppRouter {
-  static final ProfileRefreshListenable _profileRefresh =
-      ProfileRefreshListenable();
-
   static final GoRouter router = GoRouter(
     routes: _buildRoutes(),
     redirect: _handleRedirect,
-    refreshListenable: _profileRefresh,
+    refreshListenable: uiProfileSwitcher,
     initialLocation: '/${RouteNames.login}',
     errorBuilder: (context, state) => const Scaffold(
       body: Center(

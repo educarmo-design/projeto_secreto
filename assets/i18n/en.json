@@ -39,9 +39,55 @@
     "state_label": "State",
     "register_title": "Create Account",
     "register_button": "Register",
+    "register_auth_failed": "Unable to authenticate the user.",
     "address_auto_filled": "Address auto-filled",
     "profile_not_found": "Profile not configured",
-    "profile_selection": "Select your profile"
+    "profile_selection": "Select your profile",
+
+    "full_name_label": "Full name",
+    "full_name_required": "Full name is required",
+    "phone_label": "Phone",
+    "phone_required": "Invalid phone number",
+    "email_label": "E-mail",
+    "email_invalid": "Invalid e-mail",
+
+    "login_identifier_label": "E-mail or Phone",
+    "login_identifier_required": "Enter your e-mail or phone",
+    "login_button": "Sign In",
+    "biometric_login_button": "Sign In with Biometrics",
+    "biometric_prompt_reason": "Confirm your identity to access your account",
+
+    "password_label": "Password",
+    "password_hint": "At least 8 characters, with a letter, a number and a special character",
+    "password_too_short": "Password must be at least 8 characters",
+    "password_missing_letter": "Password must contain at least one letter",
+    "password_missing_digit": "Password must contain at least one number",
+    "password_missing_special_char": "Password must contain at least one special character",
+    "confirm_password_label": "Confirm password",
+    "confirm_password_mismatch": "Passwords do not match",
+
+    "otp_title": "Verify your e-mail",
+    "otp_subtitle": "We sent a 6-digit code to {{email}}",
+    "otp_verify_button": "Verify",
+    "otp_resend_button": "Resend Code",
+    "otp_resend_countdown": "Resend in {{seconds}}s",
+    "otp_resend_success": "Code resent",
+    "otp_expired": "Code expired. Tap Resend Code.",
+    "otp_invalid": "Invalid code. Check it and try again.",
+
+    "oauth_launch_failed": "Couldn't open the provider's sign-in screen.",
+    "oauth_failed": "Couldn't complete the social sign-in.",
+    "oauth_timeout": "Timed out waiting for the provider's confirmation.",
+
+    "register_social_divider": "Or sign up with",
+    "register_with_google": "Sign up with Google",
+    "register_with_apple": "Sign up with Apple",
+    "login_social_divider": "Or sign in with",
+    "login_with_google": "Sign in with Google",
+    "login_with_apple": "Sign in with Apple",
+
+    "social_complete_title": "Almost there!",
+    "social_complete_subtitle": "Confirm your nickname and location to join the Geographic Leagues"
   },
 
   "dashboard": {
@@ -91,7 +137,56 @@
     "sync_syncing": "Syncing...",
     "sync_force_button": "Update Now",
     "sync_offline_queued": "No connection. Data will be sent automatically once you're back online.",
-    "sync_pending_queue": "{{count}} updates pending connection"
+    "sync_pending_queue": "{{count}} updates pending connection",
+
+    "clinical_panel_tab": "Clinical Panel",
+    "exam_folder_tab": "Digital Exam Folder",
+    "exam_folder_empty": "No exams attached yet",
+
+    "senior_dashboard_title": "Digital Exam Folder",
+    "medication_reminder_label": "Today's Medications",
+    "medications_empty": "No medications registered",
+    "medication_taken_button": "Taken",
+    "medication_taken_today_label": "Taken today",
+    "medication_confirm_error": "Couldn't register the dose. Please try again.",
+    "take_photo_scale_button": "Take a Photo of the Scale",
+    "take_photo_pressure_button": "Take a Photo of the Blood Pressure Monitor",
+
+    "distance_label": "Distance",
+
+    "customize_panel_button": "Customize Panel",
+    "customize_panel_title": "Personalize your panel",
+    "customize_panel_subtitle": "Choose which blocks show up in your day-to-day — drag cards on the home screen to reorder",
+    "customize_panel_empty_state": "No active cards. Tap the customize icon to choose what shows up here.",
+
+    "widget_recomendacoes_ia_title": "AI Recommendations",
+    "widget_recomendacoes_ia_empty": "Your personalized recommendations will show up here once there's enough data.",
+
+    "widget_foto_prato_title": "Nutrition Camera",
+    "widget_foto_prato_description": "Photograph your plate and let the AI estimate the macros",
+    "widget_foto_prato_button": "Take a Photo of the Plate",
+    "widget_foto_prato_zero_storage_note": "Zero Storage: the photo is never saved on the device",
+
+    "widget_scanner_barcode_title": "Barcode Scanner",
+    "widget_scanner_barcode_description": "Scan a packaged food's barcode",
+    "widget_scanner_barcode_button": "Scan Barcode",
+    "scanner_barcode_coming_soon": "Barcode scanner coming soon",
+
+    "widget_foto_balanca_title": "Scale",
+    "widget_foto_balanca_description": "Capture your Bluetooth-less scale's display",
+    "widget_foto_pressao_title": "Blood Pressure Monitor",
+    "widget_foto_pressao_description": "Capture your Bluetooth-less blood pressure monitor's display",
+
+    "widget_atividades_garmin_title": "Latest Activities",
+    "widget_atividades_garmin_empty": "No activity synced yet",
+    "widget_atividades_garmin_minutos": "{{minutos}} min",
+    "widget_atividades_garmin_distancia": "{{km}} km",
+
+    "widget_streak_title": "Streak Thermometer",
+    "widget_streak_empty": "Start today to light up your streak",
+
+    "widget_micronutrientes_title": "Micronutrients",
+    "widget_micronutrientes_empty": "Log your meals to track your micronutrients"
   },
 
   "gamification": {
@@ -162,7 +257,11 @@
     "switching": "Switching profile...",
     "switch_success": "Profile switched successfully",
     "pausing_gamification": "Pausing gamification...",
-    "resuming_gamification": "Resuming gamification..."
+    "resuming_gamification": "Resuming gamification...",
+
+    "mode_switch_description": "Choose how the app should behave for you.",
+    "mode_athlete_label": "Competitive Athlete",
+    "mode_senior_label": "Clinical Guardian / Senior"
   },
 
   "errors": {

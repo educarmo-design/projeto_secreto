@@ -4,7 +4,9 @@ import 'core/config/app_config.dart';
 import 'core/i18n/i18n_manager.dart';
 import 'core/supabase/supabase_client.dart';
 import 'core/theme/app_theme.dart';
+import 'core/theme/senior_theme.dart';
 import 'core/router/app_router.dart';
+import 'core/router/ui_profile_switcher.dart';
 import 'features/dashboard/data/services/background_sync_manager.dart';
 
 void main() async {
@@ -47,12 +49,35 @@ class AtletaGamificacaoApp extends StatefulWidget {
 
 class _AtletaGamificacaoAppState extends State<AtletaGamificacaoApp> {
   @override
+  void initState() {
+    super.initState();
+    // Requisito §4(1): perfil_uso muda -> ThemeMode do MaterialApp muda
+    // instantaneamente, sem esperar uma nova navegação.
+    uiProfileSwitcher.addListener(_onProfileChanged);
+  }
+
+  @override
+  void dispose() {
+    uiProfileSwitcher.removeListener(_onProfileChanged);
+    super.dispose();
+  }
+
+  void _onProfileChanged() {
+    if (mounted) setState(() {});
+  }
+
+  @override
   Widget build(BuildContext context) {
+    // Sênior tem sua própria identidade visual (fundo claro, alto
+    // contraste, sem gold/laranja competitivo) — nunca a versão "clara" do
+    // tema Atleta.
+    final isSenior = uiProfileSwitcher.isSenior;
+
     return MaterialApp.router(
       title: i18n.tr('app_title'),
-      theme: getLightTheme(),
-      darkTheme: getDarkTheme(),
-      themeMode: ThemeMode.light, // or ThemeMode.system for device preference
+      theme: isSenior ? getSeniorTheme() : getLightTheme(),
+      darkTheme: isSenior ? getSeniorTheme() : getDarkTheme(),
+      themeMode: uiProfileSwitcher.themeMode,
       localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,

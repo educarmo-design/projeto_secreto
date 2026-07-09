@@ -50,4 +50,15 @@ class FakeSecureStorage extends Fake implements FlutterSecureStorage {
   }) async {
     _store.remove(key);
   }
+
+  @override
+  Future<bool> containsKey({
+    required String key,
+    IOSOptions? iOptions,
+    AndroidOptions? aOptions,
+    LinuxOptions? lOptions,
+    WebOptions? webOptions,
+    MacOsOptions? mOptions,
+    WindowsOptions? wOptions,
+  }) async => _store.containsKey(key);
 }

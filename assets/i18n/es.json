@@ -39,9 +39,55 @@
     "state_label": "Estado",
     "register_title": "Crear Cuenta",
     "register_button": "Registrarse",
+    "register_auth_failed": "No fue posible autenticar al usuario.",
     "address_auto_filled": "Dirección completada automáticamente",
     "profile_not_found": "Perfil no configurado",
-    "profile_selection": "Seleccione su perfil"
+    "profile_selection": "Seleccione su perfil",
+
+    "full_name_label": "Nombre completo",
+    "full_name_required": "El nombre completo es obligatorio",
+    "phone_label": "Teléfono",
+    "phone_required": "Teléfono inválido",
+    "email_label": "Correo electrónico",
+    "email_invalid": "Correo electrónico inválido",
+
+    "login_identifier_label": "Correo electrónico o Teléfono",
+    "login_identifier_required": "Ingrese su correo electrónico o teléfono",
+    "login_button": "Iniciar sesión",
+    "biometric_login_button": "Iniciar sesión con Biometría",
+    "biometric_prompt_reason": "Confirme su identidad para acceder a su cuenta",
+
+    "password_label": "Contraseña",
+    "password_hint": "Mínimo 8 caracteres, con letra, número y carácter especial",
+    "password_too_short": "La contraseña debe tener al menos 8 caracteres",
+    "password_missing_letter": "La contraseña debe contener al menos una letra",
+    "password_missing_digit": "La contraseña debe contener al menos un número",
+    "password_missing_special_char": "La contraseña debe contener al menos un carácter especial",
+    "confirm_password_label": "Confirmar contraseña",
+    "confirm_password_mismatch": "Las contraseñas no coinciden",
+
+    "otp_title": "Verifica tu correo electrónico",
+    "otp_subtitle": "Enviamos un código de 6 dígitos a {{email}}",
+    "otp_verify_button": "Verificar",
+    "otp_resend_button": "Reenviar Código",
+    "otp_resend_countdown": "Reenviar en {{seconds}}s",
+    "otp_resend_success": "Código reenviado",
+    "otp_expired": "Código expirado. Toca en Reenviar Código.",
+    "otp_invalid": "Código inválido. Verifícalo e inténtalo de nuevo.",
+
+    "oauth_launch_failed": "No se pudo abrir la pantalla de inicio de sesión del proveedor.",
+    "oauth_failed": "No se pudo completar el inicio de sesión social.",
+    "oauth_timeout": "Se agotó el tiempo esperando la confirmación del proveedor.",
+
+    "register_social_divider": "O regístrate con",
+    "register_with_google": "Registrarse con Google",
+    "register_with_apple": "Registrarse con Apple",
+    "login_social_divider": "O inicia sesión con",
+    "login_with_google": "Iniciar sesión con Google",
+    "login_with_apple": "Iniciar sesión con Apple",
+
+    "social_complete_title": "¡Ya casi!",
+    "social_complete_subtitle": "Confirma tu apodo y tu ubicación para unirte a las Ligas Geográficas"
   },
 
   "dashboard": {
@@ -91,7 +137,56 @@
     "sync_syncing": "Sincronizando...",
     "sync_force_button": "Actualizar Ahora",
     "sync_offline_queued": "Sin conexión. Los datos se enviarán automáticamente en cuanto vuelva a estar en línea.",
-    "sync_pending_queue": "{{count}} actualizaciones pendientes de conexión"
+    "sync_pending_queue": "{{count}} actualizaciones pendientes de conexión",
+
+    "clinical_panel_tab": "Panel Clínico",
+    "exam_folder_tab": "Carpeta Digital de Exámenes",
+    "exam_folder_empty": "Aún no hay exámenes adjuntos",
+
+    "senior_dashboard_title": "Carpeta Digital de Exámenes",
+    "medication_reminder_label": "Medicamentos del Día",
+    "medications_empty": "Ningún medicamento registrado",
+    "medication_taken_button": "Tomado",
+    "medication_taken_today_label": "Tomado hoy",
+    "medication_confirm_error": "No se pudo registrar la dosis. Inténtalo de nuevo.",
+    "take_photo_scale_button": "Tomar Foto de la Báscula",
+    "take_photo_pressure_button": "Tomar Foto del Tensiómetro",
+
+    "distance_label": "Distancia",
+
+    "customize_panel_button": "Personalizar Panel",
+    "customize_panel_title": "Personaliza tu panel",
+    "customize_panel_subtitle": "Elige qué bloques aparecen en tu día a día — arrastra los cards en la pantalla principal para reordenar",
+    "customize_panel_empty_state": "Ningún card activo. Toca el ícono de personalizar para elegir qué aparece aquí.",
+
+    "widget_recomendacoes_ia_title": "Recomendaciones de la IA",
+    "widget_recomendacoes_ia_empty": "Tus recomendaciones personalizadas aparecerán aquí en cuanto haya suficientes datos.",
+
+    "widget_foto_prato_title": "Cámara Nutricional",
+    "widget_foto_prato_description": "Fotografía tu plato y deja que la IA estime los macros",
+    "widget_foto_prato_button": "Tomar Foto del Plato",
+    "widget_foto_prato_zero_storage_note": "Zero Storage: la foto nunca se guarda en el dispositivo",
+
+    "widget_scanner_barcode_title": "Escáner de Código de Barras",
+    "widget_scanner_barcode_description": "Escanea el código de barras de un alimento envasado",
+    "widget_scanner_barcode_button": "Escanear Código",
+    "scanner_barcode_coming_soon": "Escáner de código de barras próximamente",
+
+    "widget_foto_balanca_title": "Báscula",
+    "widget_foto_balanca_description": "Captura la pantalla de tu báscula sin Bluetooth",
+    "widget_foto_pressao_title": "Tensiómetro",
+    "widget_foto_pressao_description": "Captura la pantalla de tu tensiómetro sin Bluetooth",
+
+    "widget_atividades_garmin_title": "Últimas Actividades",
+    "widget_atividades_garmin_empty": "Ninguna actividad sincronizada todavía",
+    "widget_atividades_garmin_minutos": "{{minutos}} min",
+    "widget_atividades_garmin_distancia": "{{km}} km",
+
+    "widget_streak_title": "Termómetro de la Racha",
+    "widget_streak_empty": "Empieza hoy para encender tu racha",
+
+    "widget_micronutrientes_title": "Micronutrientes",
+    "widget_micronutrientes_empty": "Registra tus comidas para monitorear tus micronutrientes"
   },
 
   "gamification": {
@@ -162,7 +257,11 @@
     "switching": "Cambiando perfil...",
     "switch_success": "Perfil cambiado con éxito",
     "pausing_gamification": "Pausando gamificación...",
-    "resuming_gamification": "Reanudando gamificación..."
+    "resuming_gamification": "Reanudando gamificación...",
+
+    "mode_switch_description": "Elige cómo la app debe comportarse para ti.",
+    "mode_athlete_label": "Atleta Competitivo",
+    "mode_senior_label": "Guardián Clínico / Sénior"
   },
 
   "errors": {

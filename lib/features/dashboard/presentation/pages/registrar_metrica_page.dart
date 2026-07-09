@@ -1,14 +1,13 @@
-import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../../../../core/config/app_config.dart';
 import '../../../../core/i18n/i18n_manager.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../data/models/health_payload_model.dart';
 import '../../data/services/health_sync_service.dart';
 import '../controllers/camera_capture_controller.dart';
 import '../controllers/sync_ui_controller.dart';
+import '../widgets/camera_capture_view.dart';
+import '../widgets/health_payload_dialog.dart';
 
 /// Mixed metric-registration entry point: either sync automatically from a
 /// wearable/health app, or photograph a Bluetooth-less device's display for
@@ -60,37 +59,11 @@ class _RegistrarMetricaPageState extends State<RegistrarMetricaPage> {
     if (tipo == null || !mounted) return;
 
     final extracted = await Navigator.of(context).push<HealthPayloadModel?>(
-      MaterialPageRoute(builder: (_) => _CameraCaptureView(tipoAparelho: tipo)),
+      MaterialPageRoute(builder: (_) => CameraCaptureView(tipoAparelho: tipo)),
     );
     if (extracted != null && mounted) {
-      _showExtractedDataDialog(extracted);
+      await showExtractedDataDialog(context, extracted);
     }
-  }
-
-  void _showExtractedDataDialog(HealthPayloadModel payload) {
-    showDialog<void>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(i18n.tr('dashboard.camera_result_title')),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: payload.camposPreenchidos
-              .map((e) => Text('${e.key}: ${e.value}'))
-              .toList(),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: Text(i18n.tr('common.cancel')),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: Text(i18n.tr('dashboard.camera_confirm_button')),
-          ),
-        ],
-      ),
-    );
   }
 
   @override
@@ -349,170 +322,6 @@ class _DeviceTypeSheet extends StatelessWidget {
           ),
           const SizedBox(height: 8),
         ],
-      ),
-    );
-  }
-}
-
-/// Full-screen live camera capture, pushed from [RegistrarMetricaPageState].
-/// Pops with the extracted-data JSON on success, or `null` if the user
-/// backs out.
-class _CameraCaptureView extends StatefulWidget {
-  const _CameraCaptureView({required this.tipoAparelho});
-
-  final TipoAparelho tipoAparelho;
-
-  @override
-  State<_CameraCaptureView> createState() => _CameraCaptureViewState();
-}
-
-class _CameraCaptureViewState extends State<_CameraCaptureView> {
-  final CameraCaptureController _controller = CameraCaptureController();
-
-  @override
-  void initState() {
-    super.initState();
-    _controller.addListener(_onStateChanged);
-    _controller.initializeCamera();
-  }
-
-  void _onStateChanged() {
-    if (_controller.value.isSuccess) {
-      Navigator.of(context).pop(_controller.value.extractedData);
-      return;
-    }
-    setState(() {});
-  }
-
-  Future<void> _capturar() async {
-    final session = Supabase.instance.client.auth.currentSession;
-    await _controller.capturarEEnviar(
-      endpoint: Uri.parse(AppConfig.metricPhotoExtractionEndpoint),
-      tipoAparelho: widget.tipoAparelho,
-      headers: {
-        'apikey': AppConfig.supabaseAnonKey,
-        if (session != null) 'Authorization': 'Bearer ${session.accessToken}',
-      },
-    );
-  }
-
-  @override
-  void dispose() {
-    _controller.removeListener(_onStateChanged);
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final state = _controller.value;
-
-    return Scaffold(
-      backgroundColor: Colors.black,
-      appBar: AppBar(
-        backgroundColor: Colors.black,
-        foregroundColor: Colors.white,
-        title: Text(i18n.tr('dashboard.camera_option')),
-      ),
-      body: _buildBody(state),
-    );
-  }
-
-  Widget _buildBody(CameraCaptureState state) {
-    switch (state.status) {
-      case CameraCaptureStatus.idle:
-      case CameraCaptureStatus.initializing:
-        return const Center(
-          child: CircularProgressIndicator(color: Colors.white),
-        );
-
-      case CameraCaptureStatus.permissionDenied:
-        return _buildMessage(
-          state.errorMessage ?? i18n.tr('dashboard.camera_permission_denied'),
-        );
-
-      case CameraCaptureStatus.error:
-        return _buildMessage(
-          state.errorMessage ?? i18n.tr('dashboard.camera_error'),
-          onRetry: _controller.initializeCamera,
-        );
-
-      case CameraCaptureStatus.ready:
-      case CameraCaptureStatus.capturing:
-      case CameraCaptureStatus.uploading:
-        final preview = _controller.cameraController;
-        if (preview == null) {
-          return const Center(
-            child: CircularProgressIndicator(color: Colors.white),
-          );
-        }
-        return Stack(
-          fit: StackFit.expand,
-          children: [
-            CameraPreview(preview),
-            if (state.isBusy)
-              Container(
-                color: Colors.black54,
-                child: Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const CircularProgressIndicator(color: Colors.white),
-                      const SizedBox(height: 16),
-                      Text(
-                        state.status == CameraCaptureStatus.capturing
-                            ? i18n.tr('dashboard.camera_capturing')
-                            : i18n.tr('dashboard.camera_uploading'),
-                        style: const TextStyle(color: Colors.white),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            Align(
-              alignment: Alignment.bottomCenter,
-              child: Padding(
-                padding: const EdgeInsets.only(bottom: 32),
-                child: FilledButton.icon(
-                  onPressed: state.isBusy ? null : _capturar,
-                  icon: const Icon(Icons.camera),
-                  label: Text(i18n.tr('dashboard.camera_take_photo_button')),
-                ),
-              ),
-            ),
-          ],
-        );
-
-      case CameraCaptureStatus.success:
-        return const Center(
-          child: CircularProgressIndicator(color: Colors.white),
-        );
-    }
-  }
-
-  Widget _buildMessage(String message, {VoidCallback? onRetry}) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.camera_alt_outlined, color: Colors.white, size: 48),
-            const SizedBox(height: 16),
-            Text(
-              message,
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: Colors.white),
-            ),
-            if (onRetry != null) ...[
-              const SizedBox(height: 16),
-              FilledButton(
-                onPressed: onRetry,
-                child: Text(i18n.tr('dashboard.camera_retry_button')),
-              ),
-            ],
-          ],
-        ),
       ),
     );
   }

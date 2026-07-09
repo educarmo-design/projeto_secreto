@@ -21,8 +21,11 @@ enum CameraCaptureStatus {
 }
 
 /// Physical, Bluetooth-less devices whose display can be photographed and
-/// read by the server-side AI extraction step.
-enum TipoAparelho { glicosimetro, pressaoArterial, balanca }
+/// read by the server-side AI extraction step — plus [pratoRefeicao], which
+/// reuses the exact same zero-storage live-capture pipeline for a photo of
+/// a meal (macro estimation) from the customizable dashboard's "Câmera
+/// Nutricional" card instead of a device display.
+enum TipoAparelho { glicosimetro, pressaoArterial, balanca, pratoRefeicao }
 
 @immutable
 class CameraCaptureState {

@@ -39,9 +39,55 @@
     "state_label": "Estado",
     "register_title": "Criar Conta",
     "register_button": "Cadastrar",
+    "register_auth_failed": "Não foi possível autenticar o usuário.",
     "address_auto_filled": "Endereço preenchido automaticamente",
     "profile_not_found": "Perfil não configurado",
-    "profile_selection": "Selecione seu perfil"
+    "profile_selection": "Selecione seu perfil",
+
+    "full_name_label": "Nome completo",
+    "full_name_required": "Nome completo é obrigatório",
+    "phone_label": "Telefone",
+    "phone_required": "Telefone inválido",
+    "email_label": "E-mail",
+    "email_invalid": "E-mail inválido",
+
+    "login_identifier_label": "E-mail ou Telefone",
+    "login_identifier_required": "Informe seu e-mail ou telefone",
+    "login_button": "Entrar",
+    "biometric_login_button": "Entrar com Biometria",
+    "biometric_prompt_reason": "Confirme sua identidade para acessar sua conta",
+
+    "password_label": "Senha",
+    "password_hint": "Mínimo 8 caracteres, com letra, número e caractere especial",
+    "password_too_short": "A senha deve ter no mínimo 8 caracteres",
+    "password_missing_letter": "A senha deve conter ao menos uma letra",
+    "password_missing_digit": "A senha deve conter ao menos um número",
+    "password_missing_special_char": "A senha deve conter ao menos um caractere especial",
+    "confirm_password_label": "Confirmar senha",
+    "confirm_password_mismatch": "As senhas não coincidem",
+
+    "otp_title": "Verifique seu e-mail",
+    "otp_subtitle": "Enviamos um código de 6 dígitos para {{email}}",
+    "otp_verify_button": "Verificar",
+    "otp_resend_button": "Reenviar Código",
+    "otp_resend_countdown": "Reenviar em {{seconds}}s",
+    "otp_resend_success": "Código reenviado",
+    "otp_expired": "Código expirado. Toque em Reenviar Código.",
+    "otp_invalid": "Código inválido. Verifique e tente novamente.",
+
+    "oauth_launch_failed": "Não foi possível abrir a tela de login do provedor.",
+    "oauth_failed": "Não foi possível concluir o login social.",
+    "oauth_timeout": "Tempo esgotado aguardando a confirmação do provedor.",
+
+    "register_social_divider": "Ou cadastre-se com",
+    "register_with_google": "Cadastrar com o Google",
+    "register_with_apple": "Cadastrar com a Apple",
+    "login_social_divider": "Ou entre com",
+    "login_with_google": "Entrar com o Google",
+    "login_with_apple": "Entrar com a Apple",
+
+    "social_complete_title": "Falta pouco!",
+    "social_complete_subtitle": "Confirme seu apelido e sua localização para participar das Ligas Geográficas"
   },
 
   "dashboard": {
@@ -91,7 +137,56 @@
     "sync_syncing": "Sincronizando...",
     "sync_force_button": "Atualizar Agora",
     "sync_offline_queued": "Sem conexão. Os dados serão enviados automaticamente assim que você estiver online.",
-    "sync_pending_queue": "{{count}} atualizações pendentes de conexão"
+    "sync_pending_queue": "{{count}} atualizações pendentes de conexão",
+
+    "clinical_panel_tab": "Painel Clínico",
+    "exam_folder_tab": "Pasta Digital de Exames",
+    "exam_folder_empty": "Nenhum exame anexado ainda",
+
+    "senior_dashboard_title": "Pasta Digital de Exames",
+    "medication_reminder_label": "Medicamentos do Dia",
+    "medications_empty": "Nenhum medicamento cadastrado",
+    "medication_taken_button": "Tomei",
+    "medication_taken_today_label": "Tomado hoje",
+    "medication_confirm_error": "Não foi possível registrar a dose. Tente novamente.",
+    "take_photo_scale_button": "Tirar Foto da Balança",
+    "take_photo_pressure_button": "Tirar Foto da Pressão",
+
+    "distance_label": "Distância",
+
+    "customize_panel_button": "Customizar Painel",
+    "customize_panel_title": "Personalize seu painel",
+    "customize_panel_subtitle": "Escolha quais blocos aparecem no seu dia a dia — arraste os cards na tela principal para reordenar",
+    "customize_panel_empty_state": "Nenhum card ativo. Toque no ícone de customizar para escolher o que aparece aqui.",
+
+    "widget_recomendacoes_ia_title": "Recomendações da IA",
+    "widget_recomendacoes_ia_empty": "Suas recomendações personalizadas aparecerão aqui assim que houver dados suficientes.",
+
+    "widget_foto_prato_title": "Câmera Nutricional",
+    "widget_foto_prato_description": "Fotografe seu prato e deixe a IA estimar os macros",
+    "widget_foto_prato_button": "Tirar Foto do Prato",
+    "widget_foto_prato_zero_storage_note": "Zero Storage: a foto nunca é salva no aparelho",
+
+    "widget_scanner_barcode_title": "Scanner de Código de Barras",
+    "widget_scanner_barcode_description": "Leia o código de barras de um alimento embalado",
+    "widget_scanner_barcode_button": "Escanear Código",
+    "scanner_barcode_coming_soon": "Scanner de código de barras em breve",
+
+    "widget_foto_balanca_title": "Balança",
+    "widget_foto_balanca_description": "Capture o visor da sua balança sem Bluetooth",
+    "widget_foto_pressao_title": "Aparelho de Pressão",
+    "widget_foto_pressao_description": "Capture o visor do seu aparelho de pressão sem Bluetooth",
+
+    "widget_atividades_garmin_title": "Últimas Atividades",
+    "widget_atividades_garmin_empty": "Nenhuma atividade sincronizada ainda",
+    "widget_atividades_garmin_minutos": "{{minutos}} min",
+    "widget_atividades_garmin_distancia": "{{km}} km",
+
+    "widget_streak_title": "Termômetro da Ofensiva",
+    "widget_streak_empty": "Comece hoje para acender sua chama",
+
+    "widget_micronutrientes_title": "Micronutrientes",
+    "widget_micronutrientes_empty": "Registre suas refeições para acompanhar seus micronutrientes"
   },
 
   "gamification": {
@@ -162,7 +257,11 @@
     "switching": "Alternando perfil...",
     "switch_success": "Perfil alterado com sucesso",
     "pausing_gamification": "Pausando gamificação...",
-    "resuming_gamification": "Retomando gamificação..."
+    "resuming_gamification": "Retomando gamificação...",
+
+    "mode_switch_description": "Escolha como o app deve se comportar para você.",
+    "mode_athlete_label": "Atleta Competitivo",
+    "mode_senior_label": "Guardião Clínico / Sênior"
   },
 
   "errors": {

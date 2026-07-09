@@ -5,7 +5,9 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../../core/config/app_config.dart';
 import '../../../../core/i18n/i18n_manager.dart';
+import '../../../../core/security/crypto_storage_service.dart';
 import '../../../../core/supabase/supabase_client.dart';
 import '../../data/models/cep_model.dart';
 
@@ -154,46 +156,78 @@ class CadastroController extends ValueNotifier<CadastroCepState> {
     );
   }
 
-  /// Persists the cadastro form to `perfis_usuarios` in Supabase.
-  ///
-  /// `perfis_usuarios`'s RLS policies (`auth.uid() = id`) require a signed-in
-  /// session before any row can be written, so this signs the user in
-  /// anonymously first if no session exists yet — there's no separate login
-  /// step in this flow, the cadastro *is* the account creation.
-  Future<CadastroSubmitResult> enviarParaNuvem({
-    required String nickname,
-    required String pais,
-    required String cep,
-    required String logradouro,
-    required String bairro,
-    required String cidade,
-    required String uf,
-    required String geoRankingId,
+  /// Etapa 1/2 do cadastro bancário: dispara a criação da conta via
+  /// `client.auth.signUp`. Com confirmação de e-mail habilitada no projeto
+  /// Supabase (padrão), isto não abre uma sessão — apenas envia o e-mail
+  /// com o token de 6 dígitos e devolve um `user` ainda não confirmado.
+  /// Nenhum dado de perfil é gravado aqui: `perfis_usuarios` só aceita a
+  /// escrita depois que [verificarTokenOTP] confirmar o e-mail e abrir uma
+  /// sessão real que satisfaça `auth.uid() = id`.
+  Future<CadastroSubmitResult> cadastrarComEmailESenha({
+    required String email,
+    required String senha,
   }) async {
     try {
-      var user = supabaseManager.currentUser;
+      await supabaseManager.client.auth.signUp(email: email, password: senha);
+      return const CadastroSubmitResult(success: true);
+    } on AuthException catch (e) {
+      return CadastroSubmitResult(success: false, errorMessage: e.message);
+    }
+  }
+
+  /// Reenvia o e-mail de confirmação com um novo token de 6 dígitos —
+  /// chamado pelo botão "Reenviar Código" da [VerificacaoOtpPage] depois do
+  /// cooldown de 60s.
+  Future<CadastroSubmitResult> reenviarTokenOTP({required String email}) async {
+    try {
+      await supabaseManager.client.auth.resend(
+        type: OtpType.signup,
+        email: email,
+      );
+      return const CadastroSubmitResult(success: true);
+    } on AuthException catch (e) {
+      return CadastroSubmitResult(success: false, errorMessage: e.message);
+    }
+  }
+
+  /// Etapa 2/2: valida o token de 6 dígitos recebido por e-mail contra o
+  /// Supabase Auth. Só depois de `verifyOTP` confirmar o e-mail é que:
+  ///
+  /// 1. A sessão ativa é capturada e seu refresh token é criptografado e
+  ///    salvo "de forma definitiva" no [CryptoStorageService]
+  ///    (Keystore/Keychain) — exigindo biometria local em todo acesso
+  ///    seguinte, nunca liberado em texto plano.
+  /// 2. [perfil] (nickname/nome/telefone/endereço, coletados na tela de
+  ///    cadastro mas retidos até aqui) é finalmente persistido em
+  ///    `perfis_usuarios`, com nome/telefone AES-256-GCM criptografados
+  ///    client-side — a mesma regra de blindagem de dados sensíveis do
+  ///    restante do app.
+  Future<CadastroSubmitResult> verificarTokenOTP({
+    required String email,
+    required String token,
+    required CadastroPerfilPendente perfil,
+  }) async {
+    try {
+      final authResponse = await supabaseManager.client.auth.verifyOTP(
+        email: email,
+        token: token,
+        type: OtpType.signup,
+      );
+
+      final user = authResponse.user;
       if (user == null) {
-        final authResponse = await supabaseManager.signInAnonymously();
-        user = authResponse.user;
-      }
-      if (user == null) {
-        return const CadastroSubmitResult(
+        return CadastroSubmitResult(
           success: false,
-          errorMessage: 'Não foi possível autenticar o usuário.',
+          errorMessage: i18n.tr('auth.register_auth_failed'),
         );
       }
 
-      await supabaseManager.client.from('perfis_usuarios').upsert({
-        'id': user.id,
-        'nickname': nickname,
-        'pais': pais,
-        'cep': cep,
-        'logradouro': logradouro,
-        'bairro': bairro,
-        'cidade': cidade,
-        'estado': uf,
-        'geo_ranking_id': geoRankingId,
-      }, onConflict: 'id');
+      final refreshToken = authResponse.session?.refreshToken;
+      if (refreshToken != null && await cryptoStorage.isBiometricAvailable()) {
+        await cryptoStorage.persistSessionToken(refreshToken);
+      }
+
+      await _persistirPerfil(userId: user.id, email: email, perfil: perfil);
 
       return const CadastroSubmitResult(success: true);
     } on AuthException catch (e) {
@@ -203,6 +237,154 @@ class CadastroController extends ValueNotifier<CadastroCepState> {
     }
   }
 
+  static const Duration _oauthTimeout = Duration(minutes: 3);
+
+  /// Login Unificado — dispara `signInWithOAuth` para [provider]
+  /// (Google/Apple) e aguarda a sessão chegar via `onAuthStateChange`.
+  ///
+  /// `signInWithOAuth` só abre o navegador/webview e devolve se o
+  /// navegador *abriu*, não se o login teve sucesso — a sessão real chega
+  /// depois, de forma assíncrona, quando o provedor redireciona de volta
+  /// para [AppConfig.oauthRedirectUrl] e o SO entrega esse deep link ao
+  /// app. Por isso este método escuta `onAuthStateChange` por
+  /// [AuthChangeEvent.signedIn] *antes* de lançar o navegador, com um
+  /// timeout — nunca fica esperando para sempre se o usuário simplesmente
+  /// fechar a aba do provedor sem concluir.
+  ///
+  /// Regra de Cibersegurança Bancária: assim que a sessão social chega, seu
+  /// refresh token é criptografado e salvo no [CryptoStorageService]
+  /// (Keystore/Keychain) exatamente como no login por senha — o que faz o
+  /// botão "Entrar com Biometria" já existente em [LoginPage] cobrir contas
+  /// Google/Apple automaticamente, sem nenhum código extra: acessos
+  /// futuros a essa sessão exigem a mesma biometria local.
+  Future<CadastroSubmitResult> autenticarComProvedorSocial({
+    required OAuthProvider provider,
+  }) async {
+    try {
+      final aguardarSessao = supabaseManager.client.auth.onAuthStateChange
+          .firstWhere((event) => event.event == AuthChangeEvent.signedIn)
+          .timeout(_oauthTimeout);
+
+      final navegadorAbriu = await supabaseManager.client.auth.signInWithOAuth(
+        provider,
+        redirectTo: AppConfig.oauthRedirectUrl,
+      );
+      if (!navegadorAbriu) {
+        return CadastroSubmitResult(
+          success: false,
+          errorMessage: i18n.tr('auth.oauth_launch_failed'),
+        );
+      }
+
+      final event = await aguardarSessao;
+      final refreshToken = event.session?.refreshToken;
+      if (refreshToken == null) {
+        return CadastroSubmitResult(
+          success: false,
+          errorMessage: i18n.tr('auth.oauth_failed'),
+        );
+      }
+
+      if (await cryptoStorage.isBiometricAvailable()) {
+        await cryptoStorage.persistSessionToken(refreshToken);
+      }
+
+      return const CadastroSubmitResult(success: true);
+    } on TimeoutException {
+      return CadastroSubmitResult(
+        success: false,
+        errorMessage: i18n.tr('auth.oauth_timeout'),
+      );
+    } on AuthException catch (e) {
+      return CadastroSubmitResult(success: false, errorMessage: e.message);
+    }
+  }
+
+  /// Conclui o cadastro depois de [autenticarComProvedorSocial]: o e-mail
+  /// já veio confirmado pelo Google/Apple (não passa por OTP), então só
+  /// falta o que o provedor social não tem — apelido e Liga Geográfica
+  /// (CEP/Postal Code). [nomeCompleto] é lido com segurança de
+  /// `user.userMetadata`, nunca assumido presente, já que seu formato é
+  /// controlado pelo provedor externo, não pelo Supabase.
+  ///
+  /// Extrai o UUID a persistir estritamente de `currentUser!.id` — o
+  /// identificador interno que o Supabase Auth gera para a sessão, nunca o
+  /// e-mail ou qualquer id bruto do Google/Apple. É esse UUID, e só ele,
+  /// que as tabelas clínicas (`metricas_saude_diarias` etc.) enxergam via
+  /// RLS `auth.uid()`; a conta social original nunca é uma chave visível
+  /// para dados de saúde.
+  Future<CadastroSubmitResult> finalizarCadastroSocial({
+    required String nickname,
+    required String pais,
+    required String cep,
+    required String logradouro,
+    required String bairro,
+    required String cidade,
+    required String uf,
+    required String geoRankingId,
+  }) async {
+    final user = supabaseManager.currentUser;
+    if (user == null) {
+      return CadastroSubmitResult(
+        success: false,
+        errorMessage: i18n.tr('auth.register_auth_failed'),
+      );
+    }
+
+    try {
+      final metadata = user.userMetadata;
+      final nomeSocial = (metadata?['full_name'] as String?) ??
+          (metadata?['name'] as String?) ??
+          '';
+
+      await _persistirPerfil(
+        userId: user.id,
+        email: user.email ?? '',
+        perfil: CadastroPerfilPendente(
+          nickname: nickname,
+          nomeCompleto: nomeSocial,
+          pais: pais,
+          cep: cep,
+          logradouro: logradouro,
+          bairro: bairro,
+          cidade: cidade,
+          uf: uf,
+          geoRankingId: geoRankingId,
+        ),
+      );
+
+      return const CadastroSubmitResult(success: true);
+    } on PostgrestException catch (e) {
+      return CadastroSubmitResult(success: false, errorMessage: e.message);
+    }
+  }
+
+  Future<void> _persistirPerfil({
+    required String userId,
+    required String email,
+    required CadastroPerfilPendente perfil,
+  }) async {
+    final nomeCriptografado =
+        await cryptoStorage.encryptSensitiveField(perfil.nomeCompleto);
+    final telefoneCriptografado =
+        await cryptoStorage.encryptSensitiveField(perfil.telefone);
+
+    await supabaseManager.client.from('perfis_usuarios').upsert({
+      'id': userId,
+      'nickname': perfil.nickname,
+      'nome': nomeCriptografado,
+      'telefone': telefoneCriptografado,
+      'email': email,
+      'pais': perfil.pais,
+      'cep': perfil.cep,
+      'logradouro': perfil.logradouro,
+      'bairro': perfil.bairro,
+      'cidade': perfil.cidade,
+      'estado': perfil.uf,
+      'geo_ranking_id': perfil.geoRankingId,
+    }, onConflict: 'id');
+  }
+
   @override
   void dispose() {
     _httpClient.close();
@@ -210,11 +392,45 @@ class CadastroController extends ValueNotifier<CadastroCepState> {
   }
 }
 
-/// Outcome of [CadastroController.enviarParaNuvem].
+/// Outcome of [CadastroController.cadastrarComEmailESenha] /
+/// [CadastroController.verificarTokenOTP] / [CadastroController.reenviarTokenOTP].
 @immutable
 class CadastroSubmitResult {
   final bool success;
   final String? errorMessage;
 
   const CadastroSubmitResult({required this.success, this.errorMessage});
+}
+
+/// Dados de perfil coletados na tela de cadastro mas cuja gravação em
+/// `perfis_usuarios` fica retida até [CadastroController.verificarTokenOTP]
+/// confirmar o e-mail — antes disso não existe sessão válida para
+/// satisfazer a RLS `auth.uid() = id`, e gravar sob uma conta ainda não
+/// confirmada abriria uma janela para perfis "fantasma" de e-mails que
+/// nunca chegam a ser verificados.
+@immutable
+class CadastroPerfilPendente {
+  final String nickname;
+  final String nomeCompleto;
+  final String telefone;
+  final String pais;
+  final String cep;
+  final String logradouro;
+  final String bairro;
+  final String cidade;
+  final String uf;
+  final String geoRankingId;
+
+  const CadastroPerfilPendente({
+    required this.nickname,
+    this.nomeCompleto = '',
+    this.telefone = '',
+    required this.pais,
+    required this.cep,
+    required this.logradouro,
+    required this.bairro,
+    required this.cidade,
+    required this.uf,
+    required this.geoRankingId,
+  });
 }
