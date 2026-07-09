@@ -186,7 +186,19 @@
     "widget_streak_empty": "Empieza hoy para encender tu racha",
 
     "widget_micronutrientes_title": "Micronutrientes",
-    "widget_micronutrientes_empty": "Registra tus comidas para monitorear tus micronutrientes"
+    "widget_micronutrientes_empty": "Registra tus comidas para monitorear tus micronutrientes",
+
+    "reorder_title": "Gestionar Panel",
+    "reorder_subtitle": "Arrastra por la agarradera para reordenar. Usa el interruptor para mostrar u ocultar cada bloque.",
+
+    "card_recomendacoes_ia_desc": "Resumen atractivo de tus informes",
+    "card_foto_prato_desc": "Foto en vivo de tu plato para estimar macros",
+    "card_scanner_barcode_desc": "Escaneo del código de barras de un alimento",
+    "card_foto_balanca_desc": "Captura de la pantalla de tu báscula sin Bluetooth",
+    "card_foto_pressao_desc": "Captura de la pantalla de tu tensiómetro sin Bluetooth",
+    "card_garmin_desc": "Minutos y distancia sincronizados de tu wearable",
+    "card_streak_desc": "Racha diaria y puntuación de la liga actual",
+    "card_micronutrientes_desc": "Progreso de tus metas diarias de nutrientes"
   },
 
   "gamification": {

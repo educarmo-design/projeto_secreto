@@ -186,7 +186,19 @@
     "widget_streak_empty": "Comece hoje para acender sua chama",
 
     "widget_micronutrientes_title": "Micronutrientes",
-    "widget_micronutrientes_empty": "Registre suas refeições para acompanhar seus micronutrientes"
+    "widget_micronutrientes_empty": "Registre suas refeições para acompanhar seus micronutrientes",
+
+    "reorder_title": "Gerenciar Painel",
+    "reorder_subtitle": "Arraste pela alça para reordenar. Use o interruptor para mostrar ou ocultar cada bloco.",
+
+    "card_recomendacoes_ia_desc": "Resumo convidativo dos seus relatórios",
+    "card_foto_prato_desc": "Foto ao vivo do prato para estimar macros",
+    "card_scanner_barcode_desc": "Leitura de código de barras de alimentos",
+    "card_foto_balanca_desc": "Captura do visor da balança sem Bluetooth",
+    "card_foto_pressao_desc": "Captura do visor do aparelho de pressão sem Bluetooth",
+    "card_garmin_desc": "Minutos e distância sincronizados do wearable",
+    "card_streak_desc": "Chama diária e pontuação da liga atual",
+    "card_micronutrientes_desc": "Progresso das metas diárias de nutrientes"
   },
 
   "gamification": {

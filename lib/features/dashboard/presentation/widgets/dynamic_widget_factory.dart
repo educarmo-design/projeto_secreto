@@ -106,9 +106,9 @@ class DashboardWidgetFactory {
     }
   }
 
-  /// Título i18n de cada card — usado tanto no card em si quanto na lista
-  /// de checkboxes do BottomSheet "Customizar Painel", para que os dois
-  /// lugares nunca fiquem com rótulos diferentes para o mesmo id.
+  /// Título i18n de cada card — usado tanto no card em si quanto na lista de
+  /// linhas de [GerenciadorLayoutPage], para que os dois lugares nunca
+  /// fiquem com rótulos diferentes para o mesmo id.
   static String titleKeyFor(DashboardWidgetId id) {
     switch (id) {
       case DashboardWidgetId.recomendacoesIa:
@@ -127,6 +127,30 @@ class DashboardWidgetFactory {
         return 'dashboard.widget_streak_title';
       case DashboardWidgetId.micronutrientesStatus:
         return 'dashboard.widget_micronutrientes_title';
+    }
+  }
+
+  /// Descrição curta de uma linha, usada só por [GerenciadorLayoutPage] —
+  /// mais enxuta que a descrição de dentro do próprio card, já que aqui ela
+  /// cabe num `ListTile.subtitle` de uma linha só.
+  static String descriptionKeyFor(DashboardWidgetId id) {
+    switch (id) {
+      case DashboardWidgetId.recomendacoesIa:
+        return 'dashboard.card_recomendacoes_ia_desc';
+      case DashboardWidgetId.fotoPratoMacros:
+        return 'dashboard.card_foto_prato_desc';
+      case DashboardWidgetId.scannerCodigoBarras:
+        return 'dashboard.card_scanner_barcode_desc';
+      case DashboardWidgetId.fotoBalanca:
+        return 'dashboard.card_foto_balanca_desc';
+      case DashboardWidgetId.fotoPressao:
+        return 'dashboard.card_foto_pressao_desc';
+      case DashboardWidgetId.ultimasAtividadesGarmin:
+        return 'dashboard.card_garmin_desc';
+      case DashboardWidgetId.statusStreakDuolingo:
+        return 'dashboard.card_streak_desc';
+      case DashboardWidgetId.micronutrientesStatus:
+        return 'dashboard.card_micronutrientes_desc';
     }
   }
 }

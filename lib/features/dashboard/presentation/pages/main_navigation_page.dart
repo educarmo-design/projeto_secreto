@@ -9,10 +9,12 @@ import '../../../gamification/repositories/gamification_repository.dart';
 import '../../data/models/health_payload_model.dart';
 import '../../data/models/widget_layout_model.dart';
 import '../controllers/camera_capture_controller.dart';
+import '../controllers/layout_controller.dart';
 import '../widgets/camera_capture_view.dart';
 import '../widgets/dynamic_widget_factory.dart';
 import '../widgets/health_payload_dialog.dart';
 import 'configuracoes_perfil_page.dart';
+import 'gerenciador_layout_page.dart';
 import 'senior_dashboard_page.dart';
 
 /// Casca principal de navegação do app — Zero Trust §5: escuta
@@ -22,7 +24,8 @@ import 'senior_dashboard_page.dart';
 /// Perfil Atleta -> layout competitivo (estilo Strava), cuja aba Dashboard é
 /// a Tela Principal Dinâmica e Customizável: uma [ReorderableListView] de
 /// cards independentes ([DashboardWidgetFactory]) cuja ordem/visibilidade o
-/// próprio usuário controla ([WidgetLayoutModel]).
+/// próprio usuário controla via [layoutController] — reordenar direto no
+/// Dashboard, ou pela tela dedicada [GerenciadorLayoutPage].
 ///
 /// Perfil Sênior/Guardião -> [SeniorDashboardPage] (tema acessível, Pasta
 /// Digital de Exames, Medicamentos do Dia) + Perfil. As rotas de jogo não
@@ -44,7 +47,6 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
   final GamificationRepository _gamificationRepository =
       GamificationRepository();
 
-  WidgetLayoutModel? _layout;
   Streak? _streak;
   League? _liga;
 
@@ -52,12 +54,14 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
   void initState() {
     super.initState();
     uiProfileSwitcher.addListener(_onProfileChanged);
-    _carregarPainel();
+    layoutController.addListener(_onLayoutChanged);
+    _carregarGamificacao();
   }
 
   @override
   void dispose() {
     uiProfileSwitcher.removeListener(_onProfileChanged);
+    layoutController.removeListener(_onLayoutChanged);
     super.dispose();
   }
 
@@ -65,70 +69,42 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
     if (mounted) setState(() {});
   }
 
-  Future<void> _carregarPainel() async {
-    final layout = await WidgetLayoutModel.carregar();
+  void _onLayoutChanged() {
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _carregarGamificacao() async {
     final streak = await _gamificationRepository.getCachedStreak();
     final liga = await _gamificationRepository.getCachedLeague();
     if (!mounted) return;
     setState(() {
-      _layout = layout;
       _streak = streak;
       _liga = liga;
     });
   }
 
-  /// [oldIndex]/[newIndex] chegam relativos à lista *visível* que o
-  /// [ReorderableListView] está renderizando — precisam ser traduzidos de
-  /// volta para a ordem canônica completa (que também contém os cards
-  /// ocultos), preservando a posição relativa de cada card oculto.
-  ///
-  /// Usa `onReorderItem` (não o `onReorder` legado): [newIndex] já vem
-  /// ajustado para a remoção do item em [oldIndex], então nenhuma correção
-  /// manual de índice é necessária aqui.
-  Future<void> _onReorder(int oldIndex, int newIndex) async {
-    final layout = _layout;
-    if (layout == null) return;
-
-    final visiveis = List<DashboardWidgetId>.from(layout.visiveisEmOrdem);
-    final id = visiveis.removeAt(oldIndex);
-    visiveis.insert(newIndex, id);
-
-    final novaOrdemCompleta = <DashboardWidgetId>[];
-    var visivelIdx = 0;
-    for (final idAtual in layout.ordem) {
-      if (layout.isAtivo(idAtual)) {
-        novaOrdemCompleta.add(visiveis[visivelIdx]);
-        visivelIdx++;
-      } else {
-        novaOrdemCompleta.add(idAtual);
-      }
-    }
-
-    final novoLayout = layout.comOrdem(novaOrdemCompleta);
-    setState(() => _layout = novoLayout);
-    await novoLayout.salvar();
-  }
-
-  Future<void> _toggleAtivo(DashboardWidgetId id, bool ativo) async {
-    final layout = _layout;
-    if (layout == null) return;
-    final novoLayout = layout.comAtivo(id, ativo);
-    setState(() => _layout = novoLayout);
-    await novoLayout.salvar();
-  }
-
-  Future<void> _abrirCustomizacao() async {
-    final layout = _layout;
-    if (layout == null) return;
-    await showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: AppColors.darkSurface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (_) => _CustomizarPainelSheet(
-        layout: layout,
-        onToggle: _toggleAtivo,
+  /// Abre [GerenciadorLayoutPage] em página cheia com uma transição de
+  /// slide (da direita para a esquerda) em vez do `MaterialPageRoute`
+  /// padrão — microinteração deliberada, não incidental.
+  void _abrirGerenciadorLayout() {
+    Navigator.of(context).push(
+      PageRouteBuilder<void>(
+        transitionDuration: const Duration(milliseconds: 320),
+        reverseTransitionDuration: const Duration(milliseconds: 280),
+        pageBuilder: (_, __, ___) => const GerenciadorLayoutPage(),
+        transitionsBuilder: (_, animation, __, child) {
+          final curved = CurvedAnimation(
+            parent: animation,
+            curve: Curves.easeInOutCubic,
+          );
+          return SlideTransition(
+            position: Tween<Offset>(
+              begin: const Offset(1, 0),
+              end: Offset.zero,
+            ).animate(curved),
+            child: child,
+          );
+        },
       ),
     );
   }
@@ -185,10 +161,10 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
     return _AthleteShell(
       currentIndex: _athleteTabIndex,
       onTabSelected: (index) => setState(() => _athleteTabIndex = index),
-      layout: _layout,
+      layout: layoutController.layout,
       cardData: data,
-      onReorder: _onReorder,
-      onCustomizePressed: _abrirCustomizacao,
+      onReorder: layoutController.atualizarOrdemVisivel,
+      onCustomizePressed: _abrirGerenciadorLayout,
     );
   }
 }
@@ -281,7 +257,7 @@ class _AthleteShell extends StatelessWidget {
 
 /// Tela Principal Dinâmica: renderiza [layout.visiveisEmOrdem] num
 /// [ReorderableListView], onde arrastar um card já persiste a nova ordem
-/// via [WidgetLayoutModel.salvar].
+/// via [layoutController].
 class _DynamicDashboardHome extends StatelessWidget {
   const _DynamicDashboardHome({
     required this.layout,
@@ -329,77 +305,6 @@ class _DynamicDashboardHome extends StatelessWidget {
           child: DashboardWidgetFactory.build(id, data),
         );
       },
-    );
-  }
-}
-
-/// BottomSheet "Customizar Painel": um [CheckboxListTile] por
-/// [DashboardWidgetId], na ordem canônica — marcar/desmarcar chama
-/// [onToggle] imediatamente (sem botão "Salvar" separado, já que
-/// [WidgetLayoutModel.salvar] é chamado a cada toggle).
-class _CustomizarPainelSheet extends StatefulWidget {
-  const _CustomizarPainelSheet({required this.layout, required this.onToggle});
-
-  final WidgetLayoutModel layout;
-  final Future<void> Function(DashboardWidgetId id, bool ativo) onToggle;
-
-  @override
-  State<_CustomizarPainelSheet> createState() => _CustomizarPainelSheetState();
-}
-
-class _CustomizarPainelSheetState extends State<_CustomizarPainelSheet> {
-  late WidgetLayoutModel _layout = widget.layout;
-
-  @override
-  Widget build(BuildContext context) {
-    return SafeArea(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 4),
-            child: Text(
-              i18n.tr('dashboard.customize_panel_title'),
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    color: AppColors.lightText,
-                  ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-            child: Text(
-              i18n.tr('dashboard.customize_panel_subtitle'),
-              style: Theme.of(context)
-                  .textTheme
-                  .bodySmall
-                  ?.copyWith(color: AppColors.mutedText),
-            ),
-          ),
-          Flexible(
-            child: ListView(
-              shrinkWrap: true,
-              children: [
-                for (final id in _layout.ordem)
-                  CheckboxListTile(
-                    value: _layout.isAtivo(id),
-                    title: Text(
-                      i18n.tr(DashboardWidgetFactory.titleKeyFor(id)),
-                      style: const TextStyle(color: AppColors.lightText),
-                    ),
-                    activeColor: AppColors.primaryGold,
-                    onChanged: (ativo) {
-                      if (ativo == null) return;
-                      setState(() => _layout = _layout.comAtivo(id, ativo));
-                      widget.onToggle(id, ativo);
-                    },
-                  ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 8),
-        ],
-      ),
     );
   }
 }

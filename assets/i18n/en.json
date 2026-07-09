@@ -186,7 +186,19 @@
     "widget_streak_empty": "Start today to light up your streak",
 
     "widget_micronutrientes_title": "Micronutrients",
-    "widget_micronutrientes_empty": "Log your meals to track your micronutrients"
+    "widget_micronutrientes_empty": "Log your meals to track your micronutrients",
+
+    "reorder_title": "Manage Panel",
+    "reorder_subtitle": "Drag by the handle to reorder. Use the switch to show or hide each block.",
+
+    "card_recomendacoes_ia_desc": "Inviting summary of your reports",
+    "card_foto_prato_desc": "Live photo of your plate to estimate macros",
+    "card_scanner_barcode_desc": "Scan a food's barcode",
+    "card_foto_balanca_desc": "Capture your Bluetooth-less scale's display",
+    "card_foto_pressao_desc": "Capture your Bluetooth-less blood pressure monitor's display",
+    "card_garmin_desc": "Minutes and distance synced from your wearable",
+    "card_streak_desc": "Daily streak and current league score",
+    "card_micronutrientes_desc": "Progress toward your daily nutrient goals"
   },
 
   "gamification": {
