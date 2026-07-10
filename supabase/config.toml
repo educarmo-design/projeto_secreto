@@ -39,3 +39,13 @@ enable_refresh_token_rotation = true
 
 [analytics]
 enabled = false
+
+[functions.garmin-gateway]
+# true é o padrão da plataforma, mas deixado explícito de propósito: a
+# runtime do Supabase já recusa requisições sem um JWT válido antes mesmo
+# de garmin-gateway/index.ts rodar. Isso cobre só AUTENTICAÇÃO (é um
+# usuário Supabase válido?) — a AUTORIZAÇÃO ("esse usuário é um
+# profissional dono desta prescrição?") continua sendo responsabilidade do
+# próprio index.ts, que revalida o JWT via `auth.getUser()` e confere o
+# vínculo em `planejamento_clinico`.
+verify_jwt = true
