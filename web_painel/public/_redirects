@@ -1,6 +1,0 @@
-# Fallback de SPA — Netlify e Cloudflare Pages leem este arquivo com o
-# mesmo formato, então ele cobre os dois hosts de Custo Zero com um único
-# arquivo. Sem isto, atualizar a página em /pacientes/<uuid> (uma rota que
-# só existe no lado do cliente, via React Router) devolveria 404 do
-# servidor de hospedagem em vez de deixar o React Router assumir.
-/*   /index.html   200
