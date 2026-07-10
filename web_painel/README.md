@@ -29,17 +29,26 @@ npm run preview  # serve o build de dist/ localmente, para testar antes de publi
 minificado (`esbuild.legalComments: 'none'`) — ver os comentários no
 próprio arquivo para o raciocínio de cache/Custo Zero por trás disso.
 
-### Deploy em hospedagem gratuita (SPA fallback)
+## Deploy
 
-- **Netlify / Cloudflare Pages**: leem `public/_redirects` automaticamente
-  (Vite copia esse arquivo para a raiz de `dist/` no build) — mesmo
-  arquivo, mesmo formato, cobre os dois hosts.
-- **Vercel**: lê `vercel.json` na raiz do projeto (`web_painel/vercel.json`,
-  não dentro de `dist/` — convenção diferente da dos outros dois hosts).
+O painel roda em **Cloudflare Workers** (assets estáticos), configurado em
+`web_painel/wrangler.jsonc`. O deploy é automático a cada push na `main`,
+via integração Git do Cloudflare — não é feito manualmente com
+`wrangler deploy` no dia a dia.
 
-Sem um desses, atualizar a página numa rota do React Router (ex.:
-`/pacientes/<uuid>`) devolve 404 do servidor de hospedagem em vez de
-deixar o React Router assumir a rota no cliente.
+- **Root directory**: `web_painel` (o projeto vive numa subpasta do
+  monorepo, não na raiz do repositório).
+- **Build command**: `npm install && npm run build`.
+- **Output**: `dist/` — servido como assets estáticos; o fallback de SPA
+  (rotas do React Router como `/pacientes/<uuid>` não devolverem 404) é
+  feito por `wrangler.jsonc`'s `assets.not_found_handling:
+  "single-page-application"`, não por um arquivo `_redirects` separado
+  (Cloudflare Workers assets já cobre isso nativamente — um `_redirects`
+  com `/* /index.html 200` ao lado disso causa loop infinito de redirect).
+- **Variáveis de ambiente** (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`):
+  configuradas no painel do Cloudflare (Settings → Variables do projeto),
+  nunca commitadas — `.env` fica só na máquina local, coberto pelo
+  `.gitignore`.
 
 ## Antes de usar em produção
 
