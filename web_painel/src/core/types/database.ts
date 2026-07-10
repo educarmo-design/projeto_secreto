@@ -39,6 +39,7 @@ export interface Database {
           id: string;
         };
         Update: Partial<Database['public']['Tables']['perfis_usuarios']['Row']>;
+        Relationships: [];
       };
 
       metricas_saude_diarias: {
@@ -68,6 +69,7 @@ export interface Database {
           data_referencia: string;
         };
         Update: Partial<Database['public']['Tables']['metricas_saude_diarias']['Row']>;
+        Relationships: [];
       };
 
       eventos_anomalias_saude: {
@@ -92,6 +94,7 @@ export interface Database {
           severidade: string;
         };
         Update: Partial<Database['public']['Tables']['eventos_anomalias_saude']['Row']>;
+        Relationships: [];
       };
 
       planejamento_clinico: {
@@ -110,6 +113,7 @@ export interface Database {
           paciente_id_anonimo: string;
         };
         Update: Partial<Database['public']['Tables']['planejamento_clinico']['Row']>;
+        Relationships: [];
       };
 
       progresso_gamificacao: {
@@ -125,6 +129,7 @@ export interface Database {
           usuario_id_anonimo: string;
         };
         Update: Partial<Database['public']['Tables']['progresso_gamificacao']['Row']>;
+        Relationships: [];
       };
     };
     Views: {
@@ -142,6 +147,7 @@ export interface Database {
           data_nascimento: string | null;
           geo_ranking_id: string | null;
         };
+        Relationships: [];
       };
     };
     Functions: Record<string, never>;
