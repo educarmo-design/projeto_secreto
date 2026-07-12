@@ -1,34 +1,65 @@
-import 'package:flutter_test/flutter_test.dart';
+import 'dart:convert';
 
+import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+
+import 'package:atleta_gamificacao/features/gamification/data/services/esteira_trial_gateway_service.dart';
 import 'package:atleta_gamificacao/features/gamification/presentation/controllers/esteira_trial_controller.dart';
 
-import '../../../../support/fake_secure_storage.dart';
-
+/// Etapa 0.5 (F21): [EsteiraTrialController] não calcula mais o dia do
+/// trial nem a janela de congelamento localmente — ele só repassa a
+/// intenção do usuário para `calculate-recovery-mode` e adota a resposta.
+/// Esta suíte, portanto, não testa mais aritmética de datas (isso migrou
+/// para o servidor, hoje um stub — ver `supabase/functions/
+/// calculate-recovery-mode/index_test.ts`); testa o contrato entre o
+/// controller e o gateway: qual `acao` cada método público dispara, e como
+/// o estado local reage a sucesso/erro do servidor.
 void main() {
-  TestWidgetsFlutterBinding.ensureInitialized();
-
   final cadastro = DateTime(2026, 7, 1);
 
-  Future<EsteiraTrialController> criarEAguardar({
-    required FakeSecureStorage storage,
-    required DateTime relogio,
-    DateTime? dataCadastro,
-  }) async {
-    final controller = EsteiraTrialController(
-      dataCadastro: dataCadastro ?? cadastro,
-      secureStorage: storage,
-      relogio: () => relogio,
-    );
-    await Future<void>.delayed(Duration.zero);
-    return controller;
+  EsteiraTrialGatewayService gatewayComRespostas(
+    Map<String, dynamic> Function(Map<String, dynamic> corpo) responder,
+  ) {
+    final mockClient = MockClient((request) async {
+      final corpo = jsonDecode(request.body) as Map<String, dynamic>;
+      final resposta = responder(corpo);
+      return http.Response(jsonEncode(resposta), 200);
+    });
+    return EsteiraTrialGatewayService(httpClient: mockClient);
   }
 
-  group('cálculo do dia atual', () {
-    test('carregando começa true e vira false após inicializar', () async {
+  EsteiraTrialGatewayService gatewayComFalha({int status = 501}) {
+    final mockClient = MockClient((request) async {
+      return http.Response(
+        jsonEncode({'error': 'calculate-recovery-mode ainda não implementada.'}),
+        status,
+      );
+    });
+    return EsteiraTrialGatewayService(httpClient: mockClient);
+  }
+
+  Map<String, dynamic> estadoPadrao({
+    int diaAtual = 1,
+    bool modoRecuperacaoAtivo = false,
+    bool metaMovimentoCumprida = false,
+    List<int> missoesExamesConcluidas = const [],
+  }) {
+    return {
+      'diaAtual': diaAtual,
+      'modoRecuperacaoAtivo': modoRecuperacaoAtivo,
+      'metaMovimentoCumprida': metaMovimentoCumprida,
+      'missoesExamesConcluidas': missoesExamesConcluidas,
+    };
+  }
+
+  group('consulta inicial', () {
+    test('carregando começa true e vira false após a resposta do servidor',
+        () async {
       final controller = EsteiraTrialController(
         dataCadastro: cadastro,
-        secureStorage: FakeSecureStorage(),
-        relogio: () => cadastro,
+        authHeadersProvider: () => const {},
+        gatewayService: gatewayComRespostas((_) => estadoPadrao(diaAtual: 3)),
       );
 
       expect(controller.value.carregando, isTrue);
@@ -37,222 +68,192 @@ void main() {
       await Future<void>.delayed(Duration.zero);
 
       expect(controller.value.carregando, isFalse);
+      expect(controller.value.diaAtual, 3);
     });
 
-    test('dia 1 no dia do cadastro', () async {
-      final controller = await criarEAguardar(
-        storage: FakeSecureStorage(),
-        relogio: cadastro,
+    test('a primeira chamada ao gateway usa a ação "consultar"', () async {
+      String? acaoRecebida;
+      final controller = EsteiraTrialController(
+        dataCadastro: cadastro,
+        authHeadersProvider: () => const {},
+        gatewayService: gatewayComRespostas((corpo) {
+          acaoRecebida = corpo['acao'] as String;
+          return estadoPadrao();
+        }),
       );
+      await Future<void>.delayed(Duration.zero);
 
+      expect(acaoRecebida, 'consultar');
+      expect(controller.value.carregando, isFalse);
+    });
+
+    test('uma falha do servidor preenche erro sem travar em "carregando"',
+        () async {
+      final controller = EsteiraTrialController(
+        dataCadastro: cadastro,
+        authHeadersProvider: () => const {},
+        gatewayService: gatewayComFalha(),
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      expect(controller.value.carregando, isFalse);
+      expect(controller.value.erro, isNotNull);
+      // Nenhum valor é inventado localmente como substituto — fica no
+      // default neutro (dia 1, sem recuperação) até uma chamada bem
+      // sucedida chegar.
       expect(controller.value.diaAtual, 1);
-    });
-
-    test('avança um dia por dia corrido desde o cadastro', () async {
-      final controller = await criarEAguardar(
-        storage: FakeSecureStorage(),
-        relogio: cadastro.add(const Duration(days: 6)),
-      );
-
-      expect(controller.value.diaAtual, 7);
-    });
-
-    test('é limitado a 14 mesmo muito depois do fim do trial', () async {
-      final controller = await criarEAguardar(
-        storage: FakeSecureStorage(),
-        relogio: cadastro.add(const Duration(days: 40)),
-      );
-
-      expect(controller.value.diaAtual, 14);
-      expect(controller.value.diasRestantes, 0);
-    });
-
-    test('diasRestantes reflete 14 - diaAtual', () async {
-      final controller = await criarEAguardar(
-        storage: FakeSecureStorage(),
-        relogio: cadastro.add(const Duration(days: 3)),
-      );
-
-      expect(controller.value.diaAtual, 4);
-      expect(controller.value.diasRestantes, 10);
     });
   });
 
-  group('Regra de Congelamento', () {
-    test('ativar o Modo Recuperação trava o dia atual', () async {
-      final storage = FakeSecureStorage();
-      final controller = await criarEAguardar(
-        storage: storage,
-        relogio: cadastro.add(const Duration(days: 5)),
+  group('Modo Recuperação — delega ao servidor', () {
+    test('ativarModoRecuperacao envia "ativar_recuperacao" e adota a resposta',
+        () async {
+      String? acaoRecebida;
+      final controller = EsteiraTrialController(
+        dataCadastro: cadastro,
+        authHeadersProvider: () => const {},
+        gatewayService: gatewayComRespostas((corpo) {
+          acaoRecebida = corpo['acao'] as String;
+          if (acaoRecebida == 'ativar_recuperacao') {
+            return estadoPadrao(diaAtual: 6, modoRecuperacaoAtivo: true);
+          }
+          return estadoPadrao(diaAtual: 6);
+        }),
       );
-      expect(controller.value.diaAtual, 6);
+      await Future<void>.delayed(Duration.zero);
 
       await controller.ativarModoRecuperacao();
 
+      expect(acaoRecebida, 'ativar_recuperacao');
       expect(controller.value.modoRecuperacaoAtivo, isTrue);
       expect(controller.value.diaAtual, 6);
     });
 
     test(
-      'o congelamento persiste entre sessões mesmo com o relógio real avançando',
-      () async {
-        final storage = FakeSecureStorage();
-        final sessaoA = await criarEAguardar(
-          storage: storage,
-          relogio: cadastro.add(const Duration(days: 5)),
-        );
-        await sessaoA.ativarModoRecuperacao();
-        expect(sessaoA.value.diaAtual, 6);
-
-        // Nova "sessão" (ex.: usuário reabriu o app), 5 dias de calendário
-        // depois, ainda com a recuperação ativa — o dia deve continuar
-        // congelado em 6, não pular para 11.
-        final sessaoB = await criarEAguardar(
-          storage: storage,
-          relogio: cadastro.add(const Duration(days: 10)),
-        );
-
-        expect(sessaoB.value.modoRecuperacaoAtivo, isTrue);
-        expect(sessaoB.value.diaAtual, 6);
-      },
-    );
-
-    test(
-      'desativar retoma exatamente de onde parou e estende o prazo do trial',
-      () async {
-        final storage = FakeSecureStorage();
-        final sessaoA = await criarEAguardar(
-          storage: storage,
-          relogio: cadastro.add(const Duration(days: 5)),
-        );
-        await sessaoA.ativarModoRecuperacao();
-
-        // Reabre 5 dias depois, ainda congelado, e desativa a recuperação
-        // nesse exato instante.
-        final sessaoB = await criarEAguardar(
-          storage: storage,
-          relogio: cadastro.add(const Duration(days: 10)),
-        );
-        await sessaoB.desativarModoRecuperacao();
-
-        expect(sessaoB.value.modoRecuperacaoAtivo, isFalse);
-        // Retoma exatamente do dia 6 — nem zera, nem pula para o dia 11.
-        expect(sessaoB.value.diaAtual, 6);
-
-        // 3 dias corridos depois de desativar: o contador volta a andar
-        // normalmente a partir de onde parou.
-        final sessaoC = await criarEAguardar(
-          storage: storage,
-          relogio: cadastro.add(const Duration(days: 13)),
-        );
-        expect(sessaoC.value.diaAtual, 9);
-
-        // Sem o congelamento de 5 dias, o dia 13 corresponderia ao dia 14
-        // do trial (13 dias decorridos); com o congelamento, é o dia 9 —
-        // os 5 dias parados foram preservados, não descontados do trial.
-      },
-    );
-
-    test('desativar sem nunca ter ativado é um no-op seguro', () async {
-      final storage = FakeSecureStorage();
-      final controller = await criarEAguardar(
-        storage: storage,
-        relogio: cadastro.add(const Duration(days: 2)),
+        'desativarModoRecuperacao envia "desativar_recuperacao" e adota a '
+        'resposta', () async {
+      String? acaoRecebida;
+      final controller = EsteiraTrialController(
+        dataCadastro: cadastro,
+        authHeadersProvider: () => const {},
+        gatewayService: gatewayComRespostas((corpo) {
+          acaoRecebida = corpo['acao'] as String;
+          if (acaoRecebida == 'desativar_recuperacao') {
+            return estadoPadrao(diaAtual: 6, modoRecuperacaoAtivo: false);
+          }
+          return estadoPadrao(diaAtual: 6, modoRecuperacaoAtivo: true);
+        }),
       );
+      await Future<void>.delayed(Duration.zero);
 
       await controller.desativarModoRecuperacao();
 
+      expect(acaoRecebida, 'desativar_recuperacao');
       expect(controller.value.modoRecuperacaoAtivo, isFalse);
-      expect(controller.value.diaAtual, 3);
+      expect(controller.value.diaAtual, 6);
+    });
+
+    test('uma falha ao ativar recuperação preserva o último estado conhecido '
+        'e expõe o erro', () async {
+      final controller = EsteiraTrialController(
+        dataCadastro: cadastro,
+        authHeadersProvider: () => const {},
+        gatewayService: gatewayComRespostas((_) => estadoPadrao(diaAtual: 6)),
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(controller.value.diaAtual, 6);
+
+      // Troca o gateway "por baixo" não é possível (é final) — em vez
+      // disso, este teste usa uma segunda instância dedicada para simular
+      // a falha isoladamente, mantendo o padrão de injeção do serviço.
+      final controllerComFalha = EsteiraTrialController(
+        dataCadastro: cadastro,
+        authHeadersProvider: () => const {},
+        gatewayService: gatewayComFalha(status: 500),
+      );
+      await Future<void>.delayed(Duration.zero);
+      await controllerComFalha.ativarModoRecuperacao();
+
+      expect(controllerComFalha.value.erro, isNotNull);
     });
   });
 
-  group('Gatilho do Dia 7', () {
-    test('não dispara antes do dia 7 mesmo com a Semana 1 completa', () async {
-      final controller = await criarEAguardar(
-        storage: FakeSecureStorage(),
-        relogio: cadastro,
+  group('missões de exame e meta de movimento — delega ao servidor', () {
+    test('registrarMetaMovimentoCumprida envia "registrar_meta_movimento"',
+        () async {
+      String? acaoRecebida;
+      final controller = EsteiraTrialController(
+        dataCadastro: cadastro,
+        authHeadersProvider: () => const {},
+        gatewayService: gatewayComRespostas((corpo) {
+          acaoRecebida = corpo['acao'] as String;
+          return estadoPadrao(metaMovimentoCumprida: true);
+        }),
       );
+      await Future<void>.delayed(Duration.zero);
 
       await controller.registrarMetaMovimentoCumprida();
-      await controller.registrarMissaoExameConcluida(1);
 
-      expect(controller.value.diaAtual, 1);
+      expect(acaoRecebida, 'registrar_meta_movimento');
+      expect(controller.value.metaMovimentoCumprida, isTrue);
+    });
+
+    test(
+        'registrarMissaoExameConcluida envia "registrar_missao_exame" com o '
+        'dia informado', () async {
+      String? acaoRecebida;
+      int? diaRecebido;
+      final controller = EsteiraTrialController(
+        dataCadastro: cadastro,
+        authHeadersProvider: () => const {},
+        gatewayService: gatewayComRespostas((corpo) {
+          acaoRecebida = corpo['acao'] as String;
+          diaRecebido = corpo['dia'] as int?;
+          return estadoPadrao(missoesExamesConcluidas: [3]);
+        }),
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      await controller.registrarMissaoExameConcluida(3);
+
+      expect(acaoRecebida, 'registrar_missao_exame');
+      expect(diaRecebido, 3);
+      expect(controller.value.missoesExamesConcluidas, {3});
+    });
+  });
+
+  group('Gatilho do Dia 7 (derivado do estado devolvido pelo servidor)', () {
+    test('não dispara antes do dia 7 mesmo com a Semana 1 completa',
+        () async {
+      final controller = EsteiraTrialController(
+        dataCadastro: cadastro,
+        authHeadersProvider: () => const {},
+        gatewayService: gatewayComRespostas((_) => estadoPadrao(
+              diaAtual: 1,
+              metaMovimentoCumprida: true,
+              missoesExamesConcluidas: [1],
+            )),
+      );
+      await Future<void>.delayed(Duration.zero);
+
       expect(controller.value.missoesSemana1Completas, isTrue);
       expect(controller.value.gatilhoDia7Ativo, isFalse);
     });
 
-    test('não dispara no dia 7 se a Semana 1 estiver incompleta', () async {
-      final controller = await criarEAguardar(
-        storage: FakeSecureStorage(),
-        relogio: cadastro.add(const Duration(days: 6)),
+    test('dispara no dia 7 com meta de movimento e ao menos um exame',
+        () async {
+      final controller = EsteiraTrialController(
+        dataCadastro: cadastro,
+        authHeadersProvider: () => const {},
+        gatewayService: gatewayComRespostas((_) => estadoPadrao(
+              diaAtual: 7,
+              metaMovimentoCumprida: true,
+              missoesExamesConcluidas: [3],
+            )),
       );
+      await Future<void>.delayed(Duration.zero);
 
-      await controller.registrarMetaMovimentoCumprida();
-
-      expect(controller.value.diaAtual, 7);
-      expect(controller.value.uploadExamesSemana1Cumprido, isFalse);
-      expect(controller.value.gatilhoDia7Ativo, isFalse);
-    });
-
-    test('dispara no dia 7 com meta de movimento e ao menos um exame', () async {
-      final controller = await criarEAguardar(
-        storage: FakeSecureStorage(),
-        relogio: cadastro.add(const Duration(days: 6)),
-      );
-
-      await controller.registrarMetaMovimentoCumprida();
-      expect(controller.value.gatilhoDia7Ativo, isFalse);
-
-      await controller.registrarMissaoExameConcluida(3);
       expect(controller.value.gatilhoDia7Ativo, isTrue);
-    });
-  });
-
-  group('missões de exame e meta de movimento', () {
-    test('acumula múltiplos dias concluídos sem duplicar', () async {
-      final controller = await criarEAguardar(
-        storage: FakeSecureStorage(),
-        relogio: cadastro.add(const Duration(days: 5)),
-      );
-
-      await controller.registrarMissaoExameConcluida(1);
-      await controller.registrarMissaoExameConcluida(2);
-      await controller.registrarMissaoExameConcluida(1);
-
-      expect(controller.value.missoesExamesConcluidas, {1, 2});
-      expect(controller.value.uploadExamesSemana1Cumprido, isTrue);
-    });
-
-    test('registrar a meta de movimento duas vezes é idempotente', () async {
-      final controller = await criarEAguardar(
-        storage: FakeSecureStorage(),
-        relogio: cadastro,
-      );
-
-      await controller.registrarMetaMovimentoCumprida();
-      await controller.registrarMetaMovimentoCumprida();
-
-      expect(controller.value.metaMovimentoCumprida, isTrue);
-    });
-
-    test('estado persistido é recarregado em uma nova sessão', () async {
-      final storage = FakeSecureStorage();
-      final sessaoA = await criarEAguardar(
-        storage: storage,
-        relogio: cadastro.add(const Duration(days: 2)),
-      );
-      await sessaoA.registrarMetaMovimentoCumprida();
-      await sessaoA.registrarMissaoExameConcluida(1);
-      await sessaoA.registrarMissaoExameConcluida(2);
-
-      final sessaoB = await criarEAguardar(
-        storage: storage,
-        relogio: cadastro.add(const Duration(days: 2)),
-      );
-
-      expect(sessaoB.value.metaMovimentoCumprida, isTrue);
-      expect(sessaoB.value.missoesExamesConcluidas, {1, 2});
     });
   });
 }

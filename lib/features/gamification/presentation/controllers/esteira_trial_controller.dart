@@ -1,28 +1,34 @@
-import 'dart:convert';
-
 import 'package:flutter/foundation.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+import '../../../../core/config/app_config.dart';
+import '../../data/services/esteira_trial_gateway_service.dart';
 
 /// Snapshot of where the user stands on the "Esteira dos 14 Dias Free" (A
-/// Cenoura) trial ladder. Immutable; rebuilt by [EsteiraTrialController]
-/// every time the signup date, the freeze toggle, or a Semana 1 mission
-/// flag changes.
+/// Cenoura) trial ladder — devolvido inteiramente pelo servidor (Edge
+/// Function `calculate-recovery-mode`). [EsteiraTrialController] só guarda
+/// aqui a última resposta recebida; nenhum campo abaixo é calculado no
+/// cliente.
 @immutable
 class EsteiraTrialState {
-  /// 1-14, clamped. While [modoRecuperacaoAtivo] is true this stays fixed
-  /// at whatever day it was on the moment the freeze started — see
-  /// [EsteiraTrialController.ativarModoRecuperacao].
+  /// 1-14. Enquanto [modoRecuperacaoAtivo] é `true`, o servidor mantém este
+  /// valor travado no dia em que o congelamento começou.
   final int diaAtual;
   final bool modoRecuperacaoAtivo;
   final bool metaMovimentoCumprida;
 
-  /// Which of the 6 daily exam-upload missions (Dias 1-6) have already
-  /// been completed.
+  /// Quais das 6 missões diárias de upload de exame (Dias 1-6) já foram
+  /// concluídas.
   final Set<int> missoesExamesConcluidas;
 
-  /// True until the persisted state has finished loading from secure
-  /// storage — [diaAtual] defaults to 1 during this window.
+  /// True até a primeira resposta do servidor chegar — [diaAtual] fica em 1
+  /// (valor neutro) durante essa janela.
   final bool carregando;
+
+  /// Não-nulo quando a última chamada a `calculate-recovery-mode` falhou —
+  /// os demais campos, nesse caso, são só o último valor conhecido (ou o
+  /// default), não uma leitura fresca do servidor.
+  final String? erro;
 
   const EsteiraTrialState({
     this.diaAtual = 1,
@@ -30,7 +36,18 @@ class EsteiraTrialState {
     this.metaMovimentoCumprida = false,
     this.missoesExamesConcluidas = const {},
     this.carregando = true,
+    this.erro,
   });
+
+  factory EsteiraTrialState.deServidor(EsteiraTrialGatewayState servidor) {
+    return EsteiraTrialState(
+      diaAtual: servidor.diaAtual,
+      modoRecuperacaoAtivo: servidor.modoRecuperacaoAtivo,
+      metaMovimentoCumprida: servidor.metaMovimentoCumprida,
+      missoesExamesConcluidas: servidor.missoesExamesConcluidas,
+      carregando: false,
+    );
+  }
 
   bool get uploadExamesSemana1Cumprido => missoesExamesConcluidas.isNotEmpty;
 
@@ -51,159 +68,99 @@ class EsteiraTrialState {
 /// countdown that gates the Dia 7 conversion teaser (`TeaserConversaoPage`)
 /// and the Semana 1 exam-upload missions (`MissoesExamesPage`).
 ///
-/// Regra de Congelamento: turning on "Modo Recuperação Humano" (injury or
-/// illness) freezes the day counter in place instead of resetting it. This
-/// is implemented by shifting an internal, persisted anchor date forward
-/// by exactly the number of calendar days spent frozen, the instant
-/// recovery mode is turned back off — the counter resumes exactly where it
-/// left off, and the 14-day window stretches by the same amount, so the
-/// user never loses trial days to being sick (desbloqueio posterior dentro
-/// do trial).
+/// Etapa 0.5 (F21 — Correção de Arquitetura): este controller costumava
+/// calcular o dia do trial e a janela de "Modo Recuperação Humano"
+/// localmente, com uma âncora de data persistida em
+/// `flutter_secure_storage` no próprio aparelho — o que violava a Regra de
+/// arquitetura inegociável do PRD Mestre (§0.5): "toda regra de negócio
+/// sensível é calculada server-side". Um usuário com acesso de depuração ao
+/// próprio aparelho podia adiantar o Dia 7 ou nunca sair do Modo
+/// Recuperação simplesmente editando essa data local.
+///
+/// Agora o controller não calcula mais nada: cada método público aqui só
+/// envia a intenção (`consultar`/`ativar_recuperacao`/
+/// `desativar_recuperacao`/`registrar_meta_movimento`/
+/// `registrar_missao_exame`) para a Edge Function `calculate-recovery-mode`
+/// via [EsteiraTrialGatewayService], e adota o [EsteiraTrialState] que ela
+/// devolve. Essa Edge Function é, por ora, um stub (HTTP 501) — ver
+/// `supabase/functions/calculate-recovery-mode/index.ts` — então
+/// [EsteiraTrialState.erro] fica preenchido até a lógica real ser
+/// implementada numa sessão futura; nenhum estado é inventado localmente
+/// como substituto.
 class EsteiraTrialController extends ValueNotifier<EsteiraTrialState> {
   EsteiraTrialController({
     required DateTime dataCadastro,
-    FlutterSecureStorage? secureStorage,
-    DateTime Function()? relogio,
-  })  : _dataCadastroReal = _dataOnly(dataCadastro),
-        _secureStorage = secureStorage ?? const FlutterSecureStorage(),
-        _relogio = relogio ?? DateTime.now,
-        _ancoraEfetiva = _dataOnly(dataCadastro),
+    EsteiraTrialGatewayService? gatewayService,
+    Map<String, String> Function()? authHeadersProvider,
+  })  : _dataCadastro = dataCadastro,
+        _gateway = gatewayService ?? EsteiraTrialGatewayService(),
+        _authHeadersProvider = authHeadersProvider ?? _authHeadersFromSupabase,
         super(const EsteiraTrialState()) {
-    _carregarEInicializar();
+    _executar(EsteiraTrialAcao.consultar);
   }
 
-  final DateTime _dataCadastroReal;
-  final FlutterSecureStorage _secureStorage;
-  final DateTime Function() _relogio;
+  final DateTime _dataCadastro;
+  final EsteiraTrialGatewayService _gateway;
 
-  DateTime _ancoraEfetiva;
-  bool _recuperacaoAtiva = false;
-  DateTime? _congeladoDesde;
-  bool _metaMovimentoCumprida = false;
-  Set<int> _missoesExamesConcluidas = {};
+  /// Injetável em teste para não depender de `Supabase.instance` estar
+  /// inicializado (ver [_authHeadersFromSupabase]) — mesmo espírito de
+  /// [gatewayService] acima: o controller nunca fala com a rede/Supabase
+  /// diretamente, só através de dependências que podem ser trocadas por
+  /// fakes.
+  final Map<String, String> Function() _authHeadersProvider;
 
-  static const int _diasTotalTrial = 14;
-
-  static const String _keyAncora = 'esteira_trial_ancora_efetiva';
-  static const String _keyRecuperacaoAtiva = 'esteira_trial_recuperacao_ativa';
-  static const String _keyCongeladoDesde = 'esteira_trial_congelado_desde';
-  static const String _keyMetaMovimento = 'esteira_trial_meta_movimento';
-  static const String _keyMissoesExames = 'esteira_trial_missoes_exames';
-
-  Future<void> _carregarEInicializar() async {
-    final ancoraSalva = await _secureStorage.read(key: _keyAncora);
-    _ancoraEfetiva = ancoraSalva != null
-        ? _dataOnly(DateTime.parse(ancoraSalva))
-        : _dataCadastroReal;
-    if (ancoraSalva == null) {
-      await _secureStorage.write(
-        key: _keyAncora,
-        value: _ancoraEfetiva.toIso8601String(),
-      );
-    }
-
-    _recuperacaoAtiva =
-        (await _secureStorage.read(key: _keyRecuperacaoAtiva)) == 'true';
-
-    final congeladoRaw = await _secureStorage.read(key: _keyCongeladoDesde);
-    _congeladoDesde =
-        congeladoRaw != null ? DateTime.parse(congeladoRaw) : null;
-
-    _metaMovimentoCumprida =
-        (await _secureStorage.read(key: _keyMetaMovimento)) == 'true';
-
-    final missoesRaw = await _secureStorage.read(key: _keyMissoesExames);
-    _missoesExamesConcluidas = missoesRaw != null
-        ? (jsonDecode(missoesRaw) as List<dynamic>)
-            .map((e) => e as int)
-            .toSet()
-        : <int>{};
-
-    _recalcular();
+  static Map<String, String> _authHeadersFromSupabase() {
+    final session = Supabase.instance.client.auth.currentSession;
+    return {
+      'apikey': AppConfig.supabaseAnonKey,
+      if (session != null) 'Authorization': 'Bearer ${session.accessToken}',
+    };
   }
 
-  /// Regra de Congelamento (parte 1): trava o contador no dia atual em vez
-  /// de zerar. Chamado quando o "Modo Recuperação Humano" é ativado
-  /// (lesão/doença) — normalmente a partir de um toggle em outra tela.
-  Future<void> ativarModoRecuperacao() async {
-    if (_recuperacaoAtiva) return;
-    _recuperacaoAtiva = true;
-    _congeladoDesde = _dataOnly(_relogio());
-    await _persistirRecuperacao();
-    _recalcular();
-  }
+  /// Regra de Congelamento (parte 1): pede ao servidor para travar o
+  /// contador no dia atual — chamado quando o "Modo Recuperação Humano" é
+  /// ativado (lesão/doença), normalmente a partir de um toggle em outra
+  /// tela.
+  Future<void> ativarModoRecuperacao() =>
+      _executar(EsteiraTrialAcao.ativarRecuperacao);
 
-  /// Regra de Congelamento (parte 2): ao desligar, empurra a âncora do
-  /// trial para frente pelo número exato de dias que ficou congelado — o
-  /// contador retoma de onde parou, sem pular nem zerar.
-  Future<void> desativarModoRecuperacao() async {
-    if (!_recuperacaoAtiva || _congeladoDesde == null) return;
-    final diasCongelado =
-        _dataOnly(_relogio()).difference(_congeladoDesde!).inDays;
-    _ancoraEfetiva = _ancoraEfetiva.add(Duration(days: diasCongelado));
-    _recuperacaoAtiva = false;
-    _congeladoDesde = null;
-    await _secureStorage.write(
-      key: _keyAncora,
-      value: _ancoraEfetiva.toIso8601String(),
-    );
-    await _persistirRecuperacao();
-    _recalcular();
-  }
-
-  Future<void> _persistirRecuperacao() async {
-    await _secureStorage.write(
-      key: _keyRecuperacaoAtiva,
-      value: _recuperacaoAtiva.toString(),
-    );
-    final congeladoDesde = _congeladoDesde;
-    if (congeladoDesde != null) {
-      await _secureStorage.write(
-        key: _keyCongeladoDesde,
-        value: congeladoDesde.toIso8601String(),
-      );
-    } else {
-      await _secureStorage.delete(key: _keyCongeladoDesde);
-    }
-  }
+  /// Regra de Congelamento (parte 2): pede ao servidor para retomar o
+  /// contador de onde parou, estendendo o prazo do trial pelo número de
+  /// dias que ficou congelado.
+  Future<void> desativarModoRecuperacao() =>
+      _executar(EsteiraTrialAcao.desativarRecuperacao);
 
   /// Marca a meta de movimento da Semana 1 como cumprida — junto com o
   /// upload de exame, libera o Gatilho do Dia 7.
-  Future<void> registrarMetaMovimentoCumprida() async {
-    if (_metaMovimentoCumprida) return;
-    _metaMovimentoCumprida = true;
-    await _secureStorage.write(key: _keyMetaMovimento, value: 'true');
-    _recalcular();
-  }
+  Future<void> registrarMetaMovimentoCumprida() =>
+      _executar(EsteiraTrialAcao.registrarMetaMovimento);
 
   /// Marca a missão de upload de exame do [dia] (1-6) como concluída —
   /// chamado pela tela de missões após cada envio bem-sucedido.
-  Future<void> registrarMissaoExameConcluida(int dia) async {
-    if (_missoesExamesConcluidas.contains(dia)) return;
-    _missoesExamesConcluidas = {..._missoesExamesConcluidas, dia};
-    await _secureStorage.write(
-      key: _keyMissoesExames,
-      value: jsonEncode(_missoesExamesConcluidas.toList()),
+  Future<void> registrarMissaoExameConcluida(int dia) =>
+      _executar(EsteiraTrialAcao.registrarMissaoExame, dia: dia);
+
+  Future<void> _executar(EsteiraTrialAcao acao, {int? dia}) async {
+    final resultado = await _gateway.executar(
+      acao: acao,
+      dataCadastro: _dataCadastro,
+      authHeaders: _authHeadersProvider(),
+      dia: dia,
     );
-    _recalcular();
+
+    final servidorState = resultado.state;
+    if (!resultado.success || servidorState == null) {
+      value = EsteiraTrialState(
+        diaAtual: value.diaAtual,
+        modoRecuperacaoAtivo: value.modoRecuperacaoAtivo,
+        metaMovimentoCumprida: value.metaMovimentoCumprida,
+        missoesExamesConcluidas: value.missoesExamesConcluidas,
+        carregando: false,
+        erro: resultado.errorMessage ?? 'Erro desconhecido.',
+      );
+      return;
+    }
+
+    value = EsteiraTrialState.deServidor(servidorState);
   }
-
-  void _recalcular() {
-    final referencia = (_recuperacaoAtiva && _congeladoDesde != null)
-        ? _congeladoDesde!
-        : _dataOnly(_relogio());
-    final diasDecorridos = referencia.difference(_ancoraEfetiva).inDays;
-    final diaAtual = (diasDecorridos + 1).clamp(1, _diasTotalTrial);
-
-    value = EsteiraTrialState(
-      diaAtual: diaAtual,
-      modoRecuperacaoAtivo: _recuperacaoAtiva,
-      metaMovimentoCumprida: _metaMovimentoCumprida,
-      missoesExamesConcluidas: _missoesExamesConcluidas,
-      carregando: false,
-    );
-  }
-
-  static DateTime _dataOnly(DateTime data) =>
-      DateTime(data.year, data.month, data.day);
 }

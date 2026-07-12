@@ -56,3 +56,9 @@ verify_jwt = true
 # `auth.getUser()` (defesa em profundidade) e NÃO usa service_role — não
 # toca em nenhuma tabela, só lê a foto da RAM, chama o Gemini e a destrói.
 verify_jwt = true
+
+[functions.calculate-recovery-mode]
+# Mesmo raciocínio de garmin-gateway acima: cobre só autenticação de
+# plataforma. Etapa 0.5 — função ainda é um stub (sempre HTTP 501); ver
+# TODO em supabase/functions/calculate-recovery-mode/index.ts.
+verify_jwt = true

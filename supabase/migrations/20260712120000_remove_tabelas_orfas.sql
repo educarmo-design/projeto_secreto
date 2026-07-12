@@ -1,0 +1,33 @@
+-- Etapa 0.5 — Faxina de Infraestrutura: remove duas tabelas órfãs
+-- encontradas na auditoria de 2026-07-12 (docs/auditoria/20260712_01.txt).
+--
+-- `metricas_saude`: schema genérico (dados_jsonb) da migration inicial
+-- (20260706191827_core_schema.sql). Foi substituído pelas 5 tabelas de
+-- colunas fixas da Onda 1.5 (20260708174650_reestruturacao_colunas_fixas_
+-- onda_1_5.sql) — metricas_saude_diarias, eventos_anomalias_saude,
+-- diario_alimentar_diario, resultados_exames, eventos_treino — mas nunca
+-- foi removida do schema. Nenhum código do app (lib/ Flutter ou
+-- web_painel/ React) lê ou escreve nesta tabela: confirmado por busca no
+-- repositório inteiro antes desta migration.
+--
+-- `ciclo_menstrual`: criada na mesma migration inicial, mas não consta em
+-- nenhuma das duas versões do Documento Mestre (v3.0/v4.0) nem é lida ou
+-- escrita por nenhuma tela do app — sem contrapartida na documentação nem
+-- no código atual.
+--
+-- Fora de escopo aqui (preservadas intactas): as 13 tabelas validadas na
+-- auditoria — perfis_usuarios, metricas_saude_diarias,
+-- eventos_anomalias_saude, diario_alimentar_diario, resultados_exames,
+-- eventos_treino, progresso_gamificacao, planejamento_clinico,
+-- medicamentos_usuario, garmin_conexoes, anonymous_users — e a view
+-- perfis_pacientes_vinculados.
+--
+-- DROP TABLE (sem CASCADE, de propósito): nenhuma outra tabela tem foreign
+-- key apontando para metricas_saude/ciclo_menstrual, e nenhuma view depende
+-- delas (confirmado nas migrations anteriores) — se essa premissa mudar no
+-- futuro, esta migration deve falhar alto em vez de arrastar em silêncio
+-- algo que passou a depender delas. As policies de RLS de cada uma são
+-- removidas automaticamente pelo DROP TABLE.
+
+drop table if exists metricas_saude;
+drop table if exists ciclo_menstrual;

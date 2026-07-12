@@ -2,27 +2,19 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../features/auth/presentation/pages/cadastro_page.dart';
+import '../../features/auth/presentation/pages/login_page.dart';
+import '../../features/auth/presentation/pages/profile_selection_page.dart';
 import '../../features/dashboard/presentation/pages/main_navigation_page.dart';
 import 'ui_profile_switcher.dart';
 
 /// Route names (constants for type-safe navigation)
 class RouteNames {
   static const String login = 'login';
-  static const String cepValidation = 'cep-validation';
+  static const String cadastro = 'cadastro';
   static const String profileSelection = 'profile-selection';
-  static const String athleteDashboard = 'athlete-dashboard';
-  static const String gamification = 'gamification';
-  static const String leagues = 'leagues';
-  static const String rankings = 'rankings';
-  static const String profile = 'profile';
-  static const String clinicalDashboard = 'clinical-dashboard';
-  static const String doctorDashboard = 'doctor-dashboard';
-  static const String examFolder = 'exam-folder';
-  static const String notFound = 'not-found';
+  static const String home = 'home';
 }
-
-/// Profile types
-enum ProfileType { athlete, guardian, doctor, unknown }
 
 /// Application router with profile-aware middleware.
 ///
@@ -31,9 +23,19 @@ enum ProfileType { athlete, guardian, doctor, unknown }
 /// listenable is [uiProfileSwitcher] — the same global controller
 /// [MainNavigationPage] and `MaterialApp` (main.dart) already react to for
 /// theme/shell switching, so a `perfil_uso` change reaches the router the
-/// instant it reaches everything else (Requisito §4.3: "blindar o acesso às
-/// telas do jogo"), with a single realtime subscription behind all three
-/// instead of three independent ones that could drift out of sync.
+/// instant it reaches everything else, with a single realtime subscription
+/// behind all three instead of three independent ones that could drift out
+/// of sync.
+///
+/// Etapa 0.5 (faxina de roteamento): as 4 rotas abaixo são as únicas que
+/// correspondem a telas reais e completas do app — `MainNavigationPage` já
+/// é, sozinha, a casca inteira de navegação pós-login (troca Atleta/Sênior
+/// internamente via [uiProfileSwitcher], com abas em `IndexedStack`, não
+/// via rotas separadas do GoRouter). As rotas antigas para
+/// leagues/rankings/exam-folder/doctor-dashboard/gamification foram
+/// removidas porque nunca corresponderam a telas de fato separadas — eram
+/// nomes de rota apontando para rascunhos, e as abas reais que substituem
+/// cada uma delas já vivem dentro de `MainNavigationPage`.
 class AppRouter {
   static final GoRouter router = GoRouter(
     routes: _buildRoutes(),
@@ -50,297 +52,74 @@ class AppRouter {
   /// Build all routes
   static List<RouteBase> _buildRoutes() {
     return [
-      // Auth Routes
       GoRoute(
         path: '/${RouteNames.login}',
         name: RouteNames.login,
-        builder: (context, state) => const LoginScreen(),
+        builder: (context, state) => const LoginPage(),
       ),
       GoRoute(
-        path: '/${RouteNames.cepValidation}',
-        name: RouteNames.cepValidation,
-        builder: (context, state) => const CepValidationScreen(),
+        path: '/${RouteNames.cadastro}',
+        name: RouteNames.cadastro,
+        builder: (context, state) => const CadastroPage(),
       ),
       GoRoute(
         path: '/${RouteNames.profileSelection}',
         name: RouteNames.profileSelection,
-        builder: (context, state) => const ProfileSelectionScreen(),
+        builder: (context, state) => const ProfileSelectionPage(),
       ),
-
-      // Athlete Routes (Perfil 1)
       GoRoute(
-        path: '/${RouteNames.athleteDashboard}',
-        name: RouteNames.athleteDashboard,
-        // BUG CORRIGIDO (24/jul/2026): apontava para o stub
-        // AthleteDashboardScreen (Center(Text('Athlete Dashboard'))) desde
-        // o scaffold original (commit 43b6f83) — a UI real e completa
-        // (MainNavigationPage, com o grid de cards configuráveis, a Câmera
-        // Nutricional etc.) foi construída depois (commit 7797837) mas
-        // nunca teve essa linha atualizada para usá-la. MainNavigationPage
-        // já resolve internamente Atleta x Sênior via uiProfileSwitcher.
+        path: '/${RouteNames.home}',
+        name: RouteNames.home,
         builder: (context, state) => const MainNavigationPage(),
-      ),
-      GoRoute(
-        path: '/${RouteNames.gamification}',
-        name: RouteNames.gamification,
-        builder: (context, state) => const GamificationScreen(),
-      ),
-      GoRoute(
-        path: '/${RouteNames.leagues}',
-        name: RouteNames.leagues,
-        builder: (context, state) => const LeaguesScreen(),
-      ),
-      GoRoute(
-        path: '/${RouteNames.rankings}',
-        name: RouteNames.rankings,
-        builder: (context, state) => const RankingsScreen(),
-      ),
-
-      // Guardian/Clinical Routes (Perfil 2)
-      GoRoute(
-        path: '/${RouteNames.clinicalDashboard}',
-        name: RouteNames.clinicalDashboard,
-        // BUG CORRIGIDO (24/jul/2026): mesma causa do athleteDashboard
-        // (ver commit fbdd9ce) — apontava para o stub ClinicalDashboardScreen
-        // desde o scaffold original. MainNavigationPage já resolve
-        // ProfileType.guardian internamente via uiProfileSwitcher.isSenior,
-        // renderizando _SeniorShell/SeniorDashboardPage.
-        builder: (context, state) => const MainNavigationPage(),
-      ),
-      GoRoute(
-        path: '/${RouteNames.examFolder}',
-        name: RouteNames.examFolder,
-        builder: (context, state) => const ExamFolderScreen(),
-      ),
-
-      // Doctor Routes (Perfil 3)
-      GoRoute(
-        path: '/${RouteNames.doctorDashboard}',
-        name: RouteNames.doctorDashboard,
-        builder: (context, state) => const DoctorDashboardScreen(),
-      ),
-
-      // Common Routes
-      GoRoute(
-        path: '/${RouteNames.profile}',
-        name: RouteNames.profile,
-        builder: (context, state) => const ProfileScreen(),
       ),
     ];
   }
 
-  /// Redirect logic based on profile_uso and auth state
-  static Future<String?> _handleRedirect(
+  /// Redirect logic based on auth state + `perfil_uso`.
+  ///
+  /// Lê [uiProfileSwitcher] diretamente em vez de fazer sua própria consulta
+  /// ao Supabase — [uiProfileSwitcher] já É a fonte única de verdade de
+  /// `perfil_uso` (ver o doc comment da própria classe) e já é o
+  /// `refreshListenable` deste router; uma segunda consulta independente
+  /// aqui só correria contra a que ele já faz, podendo divergir dela. Isso
+  /// substitui o `_getProfileData` antigo, que reconsultava
+  /// `anonymous_users` do zero a cada navegação.
+  static String? _handleRedirect(
     BuildContext context,
     GoRouterState state,
-  ) async {
-    // Check if user is authenticated
+  ) {
     final user = Supabase.instance.client.auth.currentUser;
     final isGoingToLogin = state.matchedLocation == '/${RouteNames.login}';
-    final isGoingToCepValidation =
-        state.matchedLocation == '/${RouteNames.cepValidation}';
+    final isGoingToCadastro =
+        state.matchedLocation == '/${RouteNames.cadastro}';
     final isGoingToProfileSelection =
         state.matchedLocation == '/${RouteNames.profileSelection}';
+    final isGoingToHome = state.matchedLocation == '/${RouteNames.home}';
 
-    // Not authenticated - redirect to login
+    // Não autenticado — só login/cadastro são alcançáveis.
     if (user == null) {
-      if (isGoingToLogin ||
-          isGoingToCepValidation ||
-          isGoingToProfileSelection) {
-        return null; // Allow navigation to auth routes
-      }
+      if (isGoingToLogin || isGoingToCadastro) return null;
       return '/${RouteNames.login}';
     }
 
-    // Authenticated but no profile selected
-    final profileData = await _getProfileData(user.id);
-    if (profileData == null || profileData['perfil_uso'] == null) {
-      if (isGoingToCepValidation || isGoingToProfileSelection) {
-        return null; // Allow navigation to setup routes
+    // Autenticado, mas ainda sem `perfil_uso` resolvido.
+    if (uiProfileSwitcher.profileType == null) {
+      // Ainda carregando: manda para /home, cujo MainNavigationPage já sabe
+      // mostrar um spinner enquanto uiProfileSwitcher termina de carregar —
+      // assim que ele terminar, `refreshListenable` reavalia este redirect
+      // sozinho (sem precisar de nenhuma lógica de espera aqui).
+      if (uiProfileSwitcher.isLoading) {
+        return isGoingToHome ? null : '/${RouteNames.home}';
       }
-      return '/${RouteNames.profileSelection}';
+      // Carregou e realmente não há perfil definido: força a escolha.
+      return isGoingToProfileSelection ? null : '/${RouteNames.profileSelection}';
     }
 
-    // Profile selected - apply profile-specific routing
-    final profileType =
-        _parseProfileType(profileData['perfil_uso'] as String?);
-
-    switch (profileType) {
-      case ProfileType.athlete:
-        // Athlete profile: allow gamification routes
-        if (isGoingToLogin ||
-            isGoingToCepValidation ||
-            isGoingToExamFolder(state)) {
-          return '/${RouteNames.athleteDashboard}'; // Redirect away from non-athlete routes
-        }
-        return null; // Allow athlete routes
-
-      case ProfileType.guardian:
-        // Guardian profile: competitive/gamification routes are unreachable.
-        // Gamification is paused without penalty — the user is redirected to
-        // the Pasta Digital de Exames (Digital Exam Folder), not merely to a
-        // generic clinical screen.
-        if (isGoingToGameRoutes(state)) {
-          return '/${RouteNames.examFolder}';
-        }
-        if (isGoingToLogin || isGoingToCepValidation) {
-          return '/${RouteNames.clinicalDashboard}'; // Redirect away from auth
-        }
-        return null; // Allow clinical/exam-folder routes
-
-      case ProfileType.doctor:
-        // Doctor profile: show doctor dashboard
-        if (isGoingToGameRoutes(state) || isGoingToExamFolder(state)) {
-          return '/${RouteNames.doctorDashboard}'; // Redirect to doctor
-        }
-        if (isGoingToLogin || isGoingToCepValidation) {
-          return '/${RouteNames.doctorDashboard}'; // Redirect away from auth
-        }
-        return null; // Allow doctor routes
-
-      case ProfileType.unknown:
-        return '/${RouteNames.profileSelection}'; // Force profile selection
+    // Autenticado com perfil definido — sai de qualquer tela de
+    // auth/onboarding, MainNavigationPage cuida do resto internamente.
+    if (isGoingToLogin || isGoingToCadastro || isGoingToProfileSelection) {
+      return '/${RouteNames.home}';
     }
-  }
-
-  /// Check if current route is a gamification route
-  static bool isGoingToGameRoutes(GoRouterState state) {
-    return state.matchedLocation.contains(RouteNames.gamification) ||
-        state.matchedLocation.contains(RouteNames.leagues) ||
-        state.matchedLocation.contains(RouteNames.rankings);
-  }
-
-  /// Check if going to exam folder
-  static bool isGoingToExamFolder(GoRouterState state) {
-    return state.matchedLocation.contains(RouteNames.examFolder);
-  }
-
-  /// Get profile data from Supabase
-  static Future<Map<String, dynamic>?> _getProfileData(String userId) async {
-    try {
-      final response = await Supabase.instance.client
-          .from('anonymous_users')
-          .select('profile_data')
-          .eq('id', userId)
-          .single();
-      return response['profile_data'] as Map<String, dynamic>?;
-    } on PostgrestException catch (e) {
-      debugPrint('Error fetching profile data: ${e.message}');
-      return null;
-    }
-  }
-
-  /// Parse profile type from string
-  static ProfileType _parseProfileType(String? profileUso) {
-    if (profileUso == null) return ProfileType.unknown;
-    if (profileUso.contains('Atleta') || profileUso.contains('Athlete')) {
-      return ProfileType.athlete;
-    } else if (profileUso.contains('Guardião') ||
-        profileUso.contains('Guardian')) {
-      return ProfileType.guardian;
-    } else if (profileUso.contains('Médico') || profileUso.contains('Doctor')) {
-      return ProfileType.doctor;
-    }
-    return ProfileType.unknown;
-  }
-}
-
-// Placeholder screens (will be implemented in features)
-class LoginScreen extends StatelessWidget {
-  const LoginScreen({Key? key}) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return const Scaffold(
-      body: Center(child: Text('Login Screen')),
-    );
-  }
-}
-
-class CepValidationScreen extends StatelessWidget {
-  const CepValidationScreen({Key? key}) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return const Scaffold(
-      body: Center(child: Text('CEP Validation Screen')),
-    );
-  }
-}
-
-class ProfileSelectionScreen extends StatelessWidget {
-  const ProfileSelectionScreen({Key? key}) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return const Scaffold(
-      body: Center(child: Text('Profile Selection Screen')),
-    );
-  }
-}
-
-class GamificationScreen extends StatelessWidget {
-  const GamificationScreen({Key? key}) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return const Scaffold(
-      body: Center(child: Text('Gamification Screen')),
-    );
-  }
-}
-
-class LeaguesScreen extends StatelessWidget {
-  const LeaguesScreen({Key? key}) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return const Scaffold(
-      body: Center(child: Text('Leagues Screen')),
-    );
-  }
-}
-
-class RankingsScreen extends StatelessWidget {
-  const RankingsScreen({Key? key}) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return const Scaffold(
-      body: Center(child: Text('Rankings Screen')),
-    );
-  }
-}
-
-class ExamFolderScreen extends StatelessWidget {
-  const ExamFolderScreen({Key? key}) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return const Scaffold(
-      body: Center(child: Text('Exam Folder Screen')),
-    );
-  }
-}
-
-class DoctorDashboardScreen extends StatelessWidget {
-  const DoctorDashboardScreen({Key? key}) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return const Scaffold(
-      body: Center(child: Text('Doctor Dashboard')),
-    );
-  }
-}
-
-class ProfileScreen extends StatelessWidget {
-  const ProfileScreen({Key? key}) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return const Scaffold(
-      body: Center(child: Text('Profile Screen')),
-    );
+    return null;
   }
 }

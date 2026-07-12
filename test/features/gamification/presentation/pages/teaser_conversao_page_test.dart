@@ -1,11 +1,14 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 
 import 'package:atleta_gamificacao/core/i18n/i18n_manager.dart';
+import 'package:atleta_gamificacao/features/gamification/data/services/esteira_trial_gateway_service.dart';
 import 'package:atleta_gamificacao/features/gamification/presentation/controllers/esteira_trial_controller.dart';
 import 'package:atleta_gamificacao/features/gamification/presentation/pages/teaser_conversao_page.dart';
-
-import '../../../../support/fake_secure_storage.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -14,19 +17,34 @@ void main() {
     await i18n.initialize('pt');
   });
 
-  // Não usa `Future.delayed` para esperar o carregamento assíncrono do
-  // controller: dentro de `testWidgets`, timers/delays só avançam quando o
-  // relógio falso do binding é avançado via `tester.pump()` — um
-  // `Future.delayed` "solto" nunca dispara e trava o teste. O controller é
-  // construído síncrono aqui; os dois `tester.pump()` depois de
-  // `pumpWidget` drenam a cadeia de `await`s do FakeSecureStorage
-  // (puramente microtasks, sem timer real).
+  // Etapa 0.5 (F21): o dia do trial não é mais calculado localmente a
+  // partir de um relógio falso — vem da resposta de
+  // `calculate-recovery-mode` (EsteiraTrialGatewayService), aqui simulada
+  // com um MockClient que sempre devolve o `diaAtual` fixo pedido pelo
+  // teste. `diasDesdeCadastro` é mantido só como nome do parâmetro para
+  // minimizar o diff nos call sites abaixo — o valor vira diretamente o
+  // `diaAtual` devolvido (dia = diasDesdeCadastro + 1, mesma fórmula que o
+  // cálculo local antigo usava).
   EsteiraTrialController controllerNoDia(int diasDesdeCadastro) {
     final cadastro = DateTime(2026, 7, 1);
+    final diaAtual = (diasDesdeCadastro + 1).clamp(1, 14);
+    final gateway = EsteiraTrialGatewayService(
+      httpClient: MockClient((request) async {
+        return http.Response(
+          jsonEncode({
+            'diaAtual': diaAtual,
+            'modoRecuperacaoAtivo': false,
+            'metaMovimentoCumprida': false,
+            'missoesExamesConcluidas': <int>[],
+          }),
+          200,
+        );
+      }),
+    );
     return EsteiraTrialController(
       dataCadastro: cadastro,
-      secureStorage: FakeSecureStorage(),
-      relogio: () => cadastro.add(Duration(days: diasDesdeCadastro)),
+      gatewayService: gateway,
+      authHeadersProvider: () => const {},
     );
   }
 

@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
@@ -7,10 +8,9 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
 import 'package:atleta_gamificacao/core/i18n/i18n_manager.dart';
+import 'package:atleta_gamificacao/features/gamification/data/services/esteira_trial_gateway_service.dart';
 import 'package:atleta_gamificacao/features/gamification/presentation/controllers/esteira_trial_controller.dart';
 import 'package:atleta_gamificacao/features/gamification/presentation/pages/missoes_exames_page.dart';
-
-import '../../../../support/fake_secure_storage.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -21,18 +21,32 @@ void main() {
 
   final hoje = DateTime(2026, 7, 1);
 
-  // Não usa `Future.delayed` para esperar o carregamento assíncrono do
-  // controller: dentro de `testWidgets`, timers/delays só avançam quando o
-  // relógio falso do binding é avançado via `tester.pump()` — um
-  // `Future.delayed` "solto" nunca dispara e trava o teste. `pumpPagina`
-  // abaixo constrói o controller (síncrono) e deixa o `tester.pump()` do
-  // primeiro frame drenar a cadeia de `await`s do FakeSecureStorage
-  // (puramente microtasks, sem timer real).
+  // Etapa 0.5 (F21): EsteiraTrialController não calcula mais o dia
+  // localmente — o dia/estado vem de `calculate-recovery-mode`
+  // (EsteiraTrialGatewayService), aqui simulada com um MockClient que
+  // sempre devolve Dia 1 e ecoa de volta qualquer missão de exame marcada
+  // como concluída, o suficiente para exercitar `MissoesExamesPage`
+  // exatamente como o cálculo local fazia antes.
   EsteiraTrialController controllerPronto() {
+    final gateway = EsteiraTrialGatewayService(
+      httpClient: MockClient((request) async {
+        final corpo = jsonDecode(request.body) as Map<String, dynamic>;
+        final dia = corpo['dia'] as int?;
+        return http.Response(
+          jsonEncode({
+            'diaAtual': 1,
+            'modoRecuperacaoAtivo': false,
+            'metaMovimentoCumprida': false,
+            'missoesExamesConcluidas': dia != null ? [dia] : <int>[],
+          }),
+          200,
+        );
+      }),
+    );
     return EsteiraTrialController(
       dataCadastro: hoje,
-      secureStorage: FakeSecureStorage(),
-      relogio: () => hoje,
+      gatewayService: gateway,
+      authHeadersProvider: () => const {},
     );
   }
 
