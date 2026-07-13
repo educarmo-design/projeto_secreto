@@ -275,7 +275,34 @@
 
     "mode_switch_description": "Elige cómo la app debe comportarse para ti.",
     "mode_athlete_label": "Atleta Competitivo",
-    "mode_senior_label": "Guardián Clínico / Sénior"
+    "mode_senior_label": "Guardián Clínico / Sénior",
+
+    "manage_links_item": "Invitaciones de Profesionales"
+  },
+
+  "vinculos": {
+    "title": "Invitaciones de Profesionales",
+    "empty_state": "No tienes invitaciones pendientes.",
+    "invited_by_generic": "Un profesional",
+    "invited_by": "{{nome}} desea acompañar tus datos de salud",
+    "product_with_garmin": "Incluye envío de entrenamiento a Garmin",
+    "product_without_garmin": "Sin sincronización con Garmin",
+    "invited_at": "Invitación enviada el {{data}}",
+    "privacy_notice": "Al aceptar, este profesional tendrá acceso a tus exámenes y métricas diarias. Puedes revocar este acceso cuando quieras.",
+    "accept": "Aceptar",
+    "reject": "Rechazar",
+    "cancel": "Cancelar",
+    "reject_confirm_title": "¿Rechazar invitación?",
+    "reject_confirm_body": "No vas a compartir tus datos con este profesional.",
+    "reject_confirm_action": "Rechazar",
+    "accept_success": "Invitación aceptada. {{nome}} ya puede acompañar tus datos.",
+    "professional_type": {
+      "Medico": "Médico",
+      "Nutricionista": "Nutricionista",
+      "Fisioterapeuta": "Fisioterapeuta",
+      "Personal_Trainer": "Entrenador Personal",
+      "Auditoria_Seguradora": "Auditoría de Seguros"
+    }
   },
 
   "intelligence": {

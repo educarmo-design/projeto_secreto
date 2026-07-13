@@ -122,6 +122,40 @@ class AppConfig {
         : '$supabaseUrl/functions/v1/ingest-b2b-analytics';
   }
 
+  /// Endpoint of the `calculate-recovery-mode` Edge Function (Etapa 0.5 —
+  /// F21). Replaces the local date-anchor arithmetic that used to live in
+  /// [EsteiraTrialController] — server-side by the same "Regra de
+  /// arquitetura inegociável" (PRD Mestre §0.5) already applied to
+  /// streaks/points elsewhere: a client-computed trial day/freeze state is
+  /// trivially manipulable by reverse engineering. Same zero-new-infra
+  /// convention as the other endpoints above; override via
+  /// `--dart-define=CALCULATE_RECOVERY_MODE_ENDPOINT=...` for a standalone
+  /// deployment. As of Etapa 0.5 this Edge Function is a stub (HTTP 501) —
+  /// see supabase/functions/calculate-recovery-mode/index.ts.
+  static String get calculateRecoveryModeEndpoint {
+    const override =
+        String.fromEnvironment('CALCULATE_RECOVERY_MODE_ENDPOINT');
+    return override.isNotEmpty
+        ? override
+        : '$supabaseUrl/functions/v1/calculate-recovery-mode';
+  }
+
+  /// Endpoint of the `manage-professional-link` Edge Function (Motor de
+  /// Vínculos — Adendo v4, Parte F). O app do paciente usa só as ações
+  /// `aceitar_vinculo`/`encerrar_vinculo` (ver
+  /// [ManageProfessionalLinkGatewayService]); `criar_vinculo` é do painel web
+  /// do profissional, fora deste app. Same zero-new-infra convention as the
+  /// other endpoints above; override via
+  /// `--dart-define=MANAGE_PROFESSIONAL_LINK_ENDPOINT=...` for a standalone
+  /// deployment.
+  static String get manageProfessionalLinkEndpoint {
+    const override =
+        String.fromEnvironment('MANAGE_PROFESSIONAL_LINK_ENDPOINT');
+    return override.isNotEmpty
+        ? override
+        : '$supabaseUrl/functions/v1/manage-professional-link';
+  }
+
   /// Deep link scheme the Google/Apple OAuth browser redirect returns to.
   /// `signInWithOAuth` hands this to the identity provider; the actual
   /// session only lands back in-app once the OS routes that deep link to

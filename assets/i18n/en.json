@@ -275,7 +275,34 @@
 
     "mode_switch_description": "Choose how the app should behave for you.",
     "mode_athlete_label": "Competitive Athlete",
-    "mode_senior_label": "Clinical Guardian / Senior"
+    "mode_senior_label": "Clinical Guardian / Senior",
+
+    "manage_links_item": "Professional Invitations"
+  },
+
+  "vinculos": {
+    "title": "Professional Invitations",
+    "empty_state": "You have no pending invitations.",
+    "invited_by_generic": "A professional",
+    "invited_by": "{{nome}} wants to follow your health data",
+    "product_with_garmin": "Includes sending workouts to Garmin",
+    "product_without_garmin": "No Garmin workout sync",
+    "invited_at": "Invited on {{data}}",
+    "privacy_notice": "By accepting, this professional will be able to see your exams and daily metrics. You can revoke this access at any time.",
+    "accept": "Accept",
+    "reject": "Decline",
+    "cancel": "Cancel",
+    "reject_confirm_title": "Decline invitation?",
+    "reject_confirm_body": "You will not share your data with this professional.",
+    "reject_confirm_action": "Decline",
+    "accept_success": "Invitation accepted. {{nome}} can now follow your data.",
+    "professional_type": {
+      "Medico": "Doctor",
+      "Nutricionista": "Nutritionist",
+      "Fisioterapeuta": "Physical Therapist",
+      "Personal_Trainer": "Personal Trainer",
+      "Auditoria_Seguradora": "Insurance Audit"
+    }
   },
 
   "intelligence": {
