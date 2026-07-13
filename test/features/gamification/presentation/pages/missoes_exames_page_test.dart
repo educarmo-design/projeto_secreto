@@ -19,9 +19,7 @@ void main() {
     await i18n.initialize('pt');
   });
 
-  final hoje = DateTime(2026, 7, 1);
-
-  // Etapa 0.5 (F21): EsteiraTrialController não calcula mais o dia
+  // Etapa 0.5/1 (F21): EsteiraTrialController não calcula mais o dia
   // localmente — o dia/estado vem de `calculate-recovery-mode`
   // (EsteiraTrialGatewayService), aqui simulada com um MockClient que
   // sempre devolve Dia 1 e ecoa de volta qualquer missão de exame marcada
@@ -44,7 +42,6 @@ void main() {
       }),
     );
     return EsteiraTrialController(
-      dataCadastro: hoje,
       gatewayService: gateway,
       authHeadersProvider: () => const {},
     );

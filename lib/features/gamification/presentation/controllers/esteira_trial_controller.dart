@@ -77,29 +77,29 @@ class EsteiraTrialState {
 /// próprio aparelho podia adiantar o Dia 7 ou nunca sair do Modo
 /// Recuperação simplesmente editando essa data local.
 ///
-/// Agora o controller não calcula mais nada: cada método público aqui só
-/// envia a intenção (`consultar`/`ativar_recuperacao`/
-/// `desativar_recuperacao`/`registrar_meta_movimento`/
-/// `registrar_missao_exame`) para a Edge Function `calculate-recovery-mode`
-/// via [EsteiraTrialGatewayService], e adota o [EsteiraTrialState] que ela
-/// devolve. Essa Edge Function é, por ora, um stub (HTTP 501) — ver
-/// `supabase/functions/calculate-recovery-mode/index.ts` — então
-/// [EsteiraTrialState.erro] fica preenchido até a lógica real ser
-/// implementada numa sessão futura; nenhum estado é inventado localmente
-/// como substituto.
+/// O controller não calcula mais nada: cada método público aqui só envia a
+/// intenção (`consultar`/`ativar_recuperacao`/`desativar_recuperacao`/
+/// `registrar_meta_movimento`/`registrar_missao_exame`) para a Edge
+/// Function `calculate-recovery-mode` via [EsteiraTrialGatewayService], e
+/// adota o [EsteiraTrialState] que ela devolve.
+///
+/// Etapa 1: a Edge Function passou a calcular o estado de verdade (antes
+/// era um stub HTTP 501) — ver
+/// `supabase/functions/calculate-recovery-mode/index.ts`. O construtor não
+/// recebe mais `dataCadastro`: a data de início do trial agora é semeada
+/// pelo próprio servidor a partir de `auth.users.created_at` na primeira
+/// consulta de cada usuário, nunca de um valor que o cliente poderia
+/// forjar.
 class EsteiraTrialController extends ValueNotifier<EsteiraTrialState> {
   EsteiraTrialController({
-    required DateTime dataCadastro,
     EsteiraTrialGatewayService? gatewayService,
     Map<String, String> Function()? authHeadersProvider,
-  })  : _dataCadastro = dataCadastro,
-        _gateway = gatewayService ?? EsteiraTrialGatewayService(),
+  })  : _gateway = gatewayService ?? EsteiraTrialGatewayService(),
         _authHeadersProvider = authHeadersProvider ?? _authHeadersFromSupabase,
         super(const EsteiraTrialState()) {
     _executar(EsteiraTrialAcao.consultar);
   }
 
-  final DateTime _dataCadastro;
   final EsteiraTrialGatewayService _gateway;
 
   /// Injetável em teste para não depender de `Supabase.instance` estar
@@ -143,7 +143,6 @@ class EsteiraTrialController extends ValueNotifier<EsteiraTrialState> {
   Future<void> _executar(EsteiraTrialAcao acao, {int? dia}) async {
     final resultado = await _gateway.executar(
       acao: acao,
-      dataCadastro: _dataCadastro,
       authHeaders: _authHeadersProvider(),
       dia: dia,
     );

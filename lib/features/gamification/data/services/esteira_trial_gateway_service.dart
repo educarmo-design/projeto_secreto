@@ -77,11 +77,11 @@ class EsteiraTrialGatewayResult {
   });
 }
 
-/// Gateway server-side da Esteira dos 14 Dias Free (Etapa 0.5 — F21).
+/// Gateway server-side da Esteira dos 14 Dias Free (Etapa 0.5/1 — F21).
 ///
 /// Regra de arquitetura inegociável (PRD Mestre §0.5): toda regra de jogo
 /// sensível (streaks, pontos, congelamento) é calculada no servidor, nunca
-/// no cliente. Antes desta etapa, [EsteiraTrialController] calculava o dia
+/// no cliente. Antes da Etapa 0.5, [EsteiraTrialController] calculava o dia
 /// do trial e a janela de congelamento localmente a partir de datas
 /// guardadas no `flutter_secure_storage` do próprio aparelho — manipulável
 /// por qualquer um com acesso de depuração ao dispositivo. Este serviço
@@ -89,6 +89,12 @@ class EsteiraTrialGatewayResult {
 /// `calculate-recovery-mode`, mesmo padrão de [GeminiGatewayService]: o
 /// cliente nunca decide o resultado, só envia a intenção (`acao`) e exibe o
 /// que o servidor devolve.
+///
+/// Etapa 1: o payload não carrega mais uma `dataCadastro` — a Edge Function
+/// agora semeia a data de início do trial a partir de
+/// `auth.users.created_at` (a data real de criação da conta, gerida pelo
+/// GoTrue), nunca de um valor que o cliente poderia forjar para nunca sair
+/// do trial gratuito.
 class EsteiraTrialGatewayService {
   EsteiraTrialGatewayService({http.Client? httpClient})
       : _httpClient = httpClient ?? http.Client();
@@ -99,7 +105,6 @@ class EsteiraTrialGatewayService {
 
   Future<EsteiraTrialGatewayResult> executar({
     required EsteiraTrialAcao acao,
-    required DateTime dataCadastro,
     required Map<String, String> authHeaders,
     int? dia,
   }) async {
@@ -113,7 +118,6 @@ class EsteiraTrialGatewayService {
             },
             body: jsonEncode({
               'acao': acao.valorServidor,
-              'dataCadastro': dataCadastro.toIso8601String(),
               if (dia != null) 'dia': dia,
             }),
           )

@@ -59,6 +59,6 @@ verify_jwt = true
 
 [functions.calculate-recovery-mode]
 # Mesmo raciocínio de garmin-gateway acima: cobre só autenticação de
-# plataforma. Etapa 0.5 — função ainda é um stub (sempre HTTP 501); ver
-# TODO em supabase/functions/calculate-recovery-mode/index.ts.
+# plataforma. Etapa 1 — cálculo real da Esteira dos 14 Dias Free, lendo/
+# escrevendo em `esteira_trial_estado` via service role.
 verify_jwt = true

@@ -17,16 +17,15 @@ void main() {
     await i18n.initialize('pt');
   });
 
-  // Etapa 0.5 (F21): o dia do trial não é mais calculado localmente a
+  // Etapa 0.5/1 (F21): o dia do trial não é mais calculado localmente a
   // partir de um relógio falso — vem da resposta de
   // `calculate-recovery-mode` (EsteiraTrialGatewayService), aqui simulada
   // com um MockClient que sempre devolve o `diaAtual` fixo pedido pelo
   // teste. `diasDesdeCadastro` é mantido só como nome do parâmetro para
   // minimizar o diff nos call sites abaixo — o valor vira diretamente o
   // `diaAtual` devolvido (dia = diasDesdeCadastro + 1, mesma fórmula que o
-  // cálculo local antigo usava).
+  // cálculo real no servidor usa a partir da âncora).
   EsteiraTrialController controllerNoDia(int diasDesdeCadastro) {
-    final cadastro = DateTime(2026, 7, 1);
     final diaAtual = (diasDesdeCadastro + 1).clamp(1, 14);
     final gateway = EsteiraTrialGatewayService(
       httpClient: MockClient((request) async {
@@ -42,7 +41,6 @@ void main() {
       }),
     );
     return EsteiraTrialController(
-      dataCadastro: cadastro,
       gatewayService: gateway,
       authHeadersProvider: () => const {},
     );

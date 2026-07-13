@@ -359,6 +359,13 @@ class CadastroController extends ValueNotifier<CadastroCepState> {
     }
   }
 
+  /// Etapa 1 (LGPD art. 11 — dado sensível): `email` sai daqui cifrado com
+  /// o mesmo padrão AES-256-GCM já usado para `nome`/`telefone`
+  /// ([CryptoStorageService.encryptSensitiveField]) — nunca em texto plano.
+  /// `perfis_usuarios.email` é só uma cópia de conveniência de
+  /// `auth.users.email` (que o próprio Supabase Auth já guarda isolado);
+  /// nenhuma tela ou serviço lê essa coluna de volta, então cifrar aqui não
+  /// exige nenhum caminho de decriptação novo em lugar nenhum do app.
   Future<void> _persistirPerfil({
     required String userId,
     required String email,
@@ -368,13 +375,14 @@ class CadastroController extends ValueNotifier<CadastroCepState> {
         await cryptoStorage.encryptSensitiveField(perfil.nomeCompleto);
     final telefoneCriptografado =
         await cryptoStorage.encryptSensitiveField(perfil.telefone);
+    final emailCriptografado = await cryptoStorage.encryptSensitiveField(email);
 
     await supabaseManager.client.from('perfis_usuarios').upsert({
       'id': userId,
       'nickname': perfil.nickname,
       'nome': nomeCriptografado,
       'telefone': telefoneCriptografado,
-      'email': email,
+      'email': emailCriptografado,
       'pais': perfil.pais,
       'cep': perfil.cep,
       'logradouro': perfil.logradouro,

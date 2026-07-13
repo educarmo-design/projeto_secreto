@@ -16,8 +16,6 @@ import 'package:atleta_gamificacao/features/gamification/presentation/controller
 /// controller e o gateway: qual `acao` cada método público dispara, e como
 /// o estado local reage a sucesso/erro do servidor.
 void main() {
-  final cadastro = DateTime(2026, 7, 1);
-
   EsteiraTrialGatewayService gatewayComRespostas(
     Map<String, dynamic> Function(Map<String, dynamic> corpo) responder,
   ) {
@@ -57,7 +55,6 @@ void main() {
     test('carregando começa true e vira false após a resposta do servidor',
         () async {
       final controller = EsteiraTrialController(
-        dataCadastro: cadastro,
         authHeadersProvider: () => const {},
         gatewayService: gatewayComRespostas((_) => estadoPadrao(diaAtual: 3)),
       );
@@ -74,7 +71,6 @@ void main() {
     test('a primeira chamada ao gateway usa a ação "consultar"', () async {
       String? acaoRecebida;
       final controller = EsteiraTrialController(
-        dataCadastro: cadastro,
         authHeadersProvider: () => const {},
         gatewayService: gatewayComRespostas((corpo) {
           acaoRecebida = corpo['acao'] as String;
@@ -90,7 +86,6 @@ void main() {
     test('uma falha do servidor preenche erro sem travar em "carregando"',
         () async {
       final controller = EsteiraTrialController(
-        dataCadastro: cadastro,
         authHeadersProvider: () => const {},
         gatewayService: gatewayComFalha(),
       );
@@ -110,7 +105,6 @@ void main() {
         () async {
       String? acaoRecebida;
       final controller = EsteiraTrialController(
-        dataCadastro: cadastro,
         authHeadersProvider: () => const {},
         gatewayService: gatewayComRespostas((corpo) {
           acaoRecebida = corpo['acao'] as String;
@@ -134,7 +128,6 @@ void main() {
         'resposta', () async {
       String? acaoRecebida;
       final controller = EsteiraTrialController(
-        dataCadastro: cadastro,
         authHeadersProvider: () => const {},
         gatewayService: gatewayComRespostas((corpo) {
           acaoRecebida = corpo['acao'] as String;
@@ -156,7 +149,6 @@ void main() {
     test('uma falha ao ativar recuperação preserva o último estado conhecido '
         'e expõe o erro', () async {
       final controller = EsteiraTrialController(
-        dataCadastro: cadastro,
         authHeadersProvider: () => const {},
         gatewayService: gatewayComRespostas((_) => estadoPadrao(diaAtual: 6)),
       );
@@ -167,7 +159,6 @@ void main() {
       // disso, este teste usa uma segunda instância dedicada para simular
       // a falha isoladamente, mantendo o padrão de injeção do serviço.
       final controllerComFalha = EsteiraTrialController(
-        dataCadastro: cadastro,
         authHeadersProvider: () => const {},
         gatewayService: gatewayComFalha(status: 500),
       );
@@ -183,7 +174,6 @@ void main() {
         () async {
       String? acaoRecebida;
       final controller = EsteiraTrialController(
-        dataCadastro: cadastro,
         authHeadersProvider: () => const {},
         gatewayService: gatewayComRespostas((corpo) {
           acaoRecebida = corpo['acao'] as String;
@@ -204,7 +194,6 @@ void main() {
       String? acaoRecebida;
       int? diaRecebido;
       final controller = EsteiraTrialController(
-        dataCadastro: cadastro,
         authHeadersProvider: () => const {},
         gatewayService: gatewayComRespostas((corpo) {
           acaoRecebida = corpo['acao'] as String;
@@ -226,7 +215,6 @@ void main() {
     test('não dispara antes do dia 7 mesmo com a Semana 1 completa',
         () async {
       final controller = EsteiraTrialController(
-        dataCadastro: cadastro,
         authHeadersProvider: () => const {},
         gatewayService: gatewayComRespostas((_) => estadoPadrao(
               diaAtual: 1,
@@ -243,7 +231,6 @@ void main() {
     test('dispara no dia 7 com meta de movimento e ao menos um exame',
         () async {
       final controller = EsteiraTrialController(
-        dataCadastro: cadastro,
         authHeadersProvider: () => const {},
         gatewayService: gatewayComRespostas((_) => estadoPadrao(
               diaAtual: 7,
