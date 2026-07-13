@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase, type ProfissionalAutenticado } from '@/core/supabase';
+import { Toast, type ToastMessage } from '@/components/Toast';
+import { InvitePatientModal } from './InvitePatientModal';
 
 interface PatientListProps {
   profissional: ProfissionalAutenticado;
@@ -48,6 +50,8 @@ export function PatientList({ profissional }: PatientListProps) {
   const [estado, setEstado] = useState<EstadoTela>('carregando');
   const [pacientes, setPacientes] = useState<PacienteResumo[]>([]);
   const [mensagemErro, setMensagemErro] = useState<string | null>(null);
+  const [modalConviteAberto, setModalConviteAberto] = useState(false);
+  const [toast, setToast] = useState<ToastMessage | null>(null);
 
   useEffect(() => {
     let cancelado = false;
@@ -147,16 +151,47 @@ export function PatientList({ profissional }: PatientListProps) {
 
   return (
     <div>
-      <header className="mb-4">
-        <h1 className="text-lg font-semibold text-slate-100">
-          {ehSeguradora ? 'Auditoria de Sinistros — Grupo Anonimizado' : 'Meus Pacientes'}
-        </h1>
-        <p className="text-sm text-clinical-muted">
-          {ehSeguradora
-            ? 'Visão agregada e anonimizada — sem dados nominais.'
-            : `${pacientes.length} paciente(s) com prescrição ativa.`}
-        </p>
+      <header className="mb-4 flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-lg font-semibold text-slate-100">
+            {ehSeguradora ? 'Auditoria de Sinistros — Grupo Anonimizado' : 'Meus Pacientes'}
+          </h1>
+          <p className="text-sm text-clinical-muted">
+            {ehSeguradora
+              ? 'Visão agregada e anonimizada — sem dados nominais.'
+              : `${pacientes.length} paciente(s) com prescrição ativa.`}
+          </p>
+        </div>
+        {/* Blindagem LGPD (mesma regra do restante desta tela): Auditoria de
+            Seguradora nunca cria vínculo nominal com um paciente individual —
+            só enxerga o pool agregado e anonimizado. */}
+        {!ehSeguradora && (
+          <button
+            type="button"
+            onClick={() => setModalConviteAberto(true)}
+            className="shrink-0 rounded-lg bg-clinical-primary px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-600"
+          >
+            Convidar Paciente
+          </button>
+        )}
       </header>
+
+      {modalConviteAberto && (
+        <InvitePatientModal
+          onClose={() => setModalConviteAberto(false)}
+          onSuccess={(pacienteEmail, alreadyInvited) => {
+            setModalConviteAberto(false);
+            setToast({
+              variant: 'success',
+              text: alreadyInvited
+                ? `Este paciente (${pacienteEmail}) já tinha um convite em andamento.`
+                : 'Convite enviado. A aguardar autorização do paciente.',
+            });
+          }}
+        />
+      )}
+
+      {toast && <Toast toast={toast} onDismiss={() => setToast(null)} />}
 
       {pacientes.length === 0 ? (
         <p className="text-sm text-clinical-muted">Nenhum paciente vinculado ainda.</p>

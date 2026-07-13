@@ -32,9 +32,14 @@ function fakeSupabaseAdmin(options: {
   usuarioAutenticado?: string | null;
   perfis?: PerfilFake[];
   vinculos?: VinculoRow[];
+  /// Espelha `resolver_usuario_id_por_email` (20260713210000): e-mail já
+  /// normalizado (minúsculo, sem espaço — o mesmo que `validarRequisicao` faz
+  /// antes de chegar aqui) -> UUID em `auth.users`.
+  usuariosPorEmail?: Record<string, string>;
 }): { admin: SupabaseAdminLike; vinculos: VinculoRow[] } {
   const perfis = options.perfis ?? [];
   const vinculos = [...(options.vinculos ?? [])];
+  const usuariosPorEmail = options.usuariosPorEmail ?? {};
 
   function filtrar(
     linhas: Record<string, unknown>[],
@@ -124,6 +129,14 @@ function fakeSupabaseAdmin(options: {
         },
       };
     },
+    // deno-lint-ignore require-await
+    async rpc(fn: string, params: Record<string, unknown>) {
+      if (fn !== 'resolver_usuario_id_por_email') {
+        return { data: null, error: { message: `RPC desconhecida no fake: ${fn}` } };
+      }
+      const email = params.email_busca as string;
+      return { data: usuariosPorEmail[email] ?? null, error: null };
+    },
   };
 
   return { admin, vinculos };
@@ -208,6 +221,23 @@ Deno.test('Test: validação de payload', async (t) => {
 
   await t.step('rejeita aceitar_vinculo sem vinculo_id com 400', async () => {
     const resposta = await handler(req({ acao: 'aceitar_vinculo' }, AUTORIZADO));
+    assertEquals(resposta.status, 400);
+  });
+
+  await t.step('rejeita criar_vinculo com paciente_id E paciente_email juntos (400)', async () => {
+    const resposta = await handler(
+      req(
+        { acao: 'criar_vinculo', paciente_id: PACIENTE, paciente_email: 'paciente@teste.com' },
+        AUTORIZADO,
+      ),
+    );
+    assertEquals(resposta.status, 400);
+  });
+
+  await t.step('rejeita paciente_email com formato inválido com 400', async () => {
+    const resposta = await handler(
+      req({ acao: 'criar_vinculo', paciente_email: 'nao-e-um-email' }, AUTORIZADO),
+    );
     assertEquals(resposta.status, 400);
   });
 });
@@ -296,6 +326,71 @@ Deno.test('Test: criar_vinculo nasce pendente e o profissional é sempre o do JW
   assertEquals(corpo.vinculo.data_inicio, '2026-07-13');
 
   assertEquals(vinculos.length, 1);
+});
+
+// ============================================================================
+// Criação via e-mail (painel web B2B) — perfis_usuarios.email é cifrado no
+// cliente, então o convite só pode chegar aqui pelo e-mail de auth.users.
+// ============================================================================
+Deno.test('Test: criar_vinculo via paciente_email (painel B2B)', async (t) => {
+  await t.step('e-mail conhecido resolve para o UUID e cria o vínculo pendente', async () => {
+    const { admin, vinculos } = fakeSupabaseAdmin({
+      usuarioAutenticado: PROFISSIONAL,
+      perfis: [
+        { id: PROFISSIONAL, eh_profissional: true },
+        { id: PACIENTE, eh_profissional: false },
+      ],
+      usuariosPorEmail: { 'paciente@teste.com': PACIENTE },
+    });
+    const handler = createHandler({ supabaseAdmin: admin, agora: () => HOJE });
+
+    const resposta = await handler(
+      req({ acao: 'criar_vinculo', paciente_email: 'PACIENTE@Teste.com' }, AUTORIZADO),
+    );
+
+    assertEquals(resposta.status, 201);
+    const corpo = await resposta.json();
+    // O UUID resolvido pelo e-mail é o mesmo que o fluxo por paciente_id usa —
+    // dali em diante, criarVinculo roda idêntico (mesma checagem de perfil,
+    // mesma idempotência, mesmo insert 'pendente').
+    assertEquals(corpo.vinculo.paciente_id, PACIENTE);
+    assertEquals(corpo.vinculo.status, 'pendente');
+    assertEquals(vinculos.length, 1);
+  });
+
+  await t.step('e-mail desconhecido devolve 404 "Paciente não encontrado."', async () => {
+    const { handler, vinculos } = cenarioPadrao({ usuariosPorEmail: {} });
+    const resposta = await handler(
+      req({ acao: 'criar_vinculo', paciente_email: 'ninguem@teste.com' }, AUTORIZADO),
+    );
+    assertEquals(resposta.status, 404);
+    const corpo = await resposta.json();
+    assertEquals(corpo.error, 'Paciente não encontrado.');
+    assertEquals(vinculos.length, 0);
+  });
+
+  await t.step('convidar duas vezes pelo mesmo e-mail é idempotente (201 depois 200)', async () => {
+    const { admin, vinculos } = fakeSupabaseAdmin({
+      usuarioAutenticado: PROFISSIONAL,
+      perfis: [
+        { id: PROFISSIONAL, eh_profissional: true },
+        { id: PACIENTE, eh_profissional: false },
+      ],
+      usuariosPorEmail: { 'paciente@teste.com': PACIENTE },
+    });
+    const handler = createHandler({ supabaseAdmin: admin, agora: () => HOJE });
+
+    const primeira = await handler(
+      req({ acao: 'criar_vinculo', paciente_email: 'paciente@teste.com' }, AUTORIZADO),
+    );
+    const segunda = await handler(
+      req({ acao: 'criar_vinculo', paciente_email: 'paciente@teste.com' }, AUTORIZADO),
+    );
+
+    assertEquals(primeira.status, 201);
+    assertEquals(segunda.status, 200);
+    assertEquals(vinculos.length, 1);
+  });
 });
 
 Deno.test('Test: criar_vinculo é idempotente — clique duplo não duplica slot', async () => {

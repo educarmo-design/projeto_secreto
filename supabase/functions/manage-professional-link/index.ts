@@ -58,10 +58,12 @@ const ACOES_VALIDAS = ['criar_vinculo', 'aceitar_vinculo', 'encerrar_vinculo'] a
 type AcaoVinculo = (typeof ACOES_VALIDAS)[number];
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 interface ManageLinkRequest {
   acao: AcaoVinculo;
   paciente_id?: string;
+  paciente_email?: string;
   vinculo_id?: string;
 }
 
@@ -84,17 +86,34 @@ export function validarRequisicao(corpo: unknown): ManageLinkRequest {
   if (typeof corpo !== 'object' || corpo === null) {
     throw new Error('Corpo da requisição deve ser um objeto JSON.');
   }
-  const { acao, paciente_id, vinculo_id } = corpo as Record<string, unknown>;
+  const { acao, paciente_id, paciente_email, vinculo_id } = corpo as Record<string, unknown>;
 
   if (typeof acao !== 'string' || !ACOES_VALIDAS.includes(acao as AcaoVinculo)) {
     throw new Error(`"acao" deve ser um dos valores: ${ACOES_VALIDAS.join(', ')}.`);
   }
 
   if (acao === 'criar_vinculo') {
-    if (typeof paciente_id !== 'string' || !UUID_REGEX.test(paciente_id)) {
-      throw new Error('"paciente_id" deve ser um UUID válido.');
+    // Aceita exatamente um dos dois: `paciente_id` (UUID — uso futuro/interno)
+    // ou `paciente_email` (o painel web B2B só conhece o e-mail do paciente;
+    // ver `resolverPacienteIdPorEmail` abaixo, que resolve o UUID
+    // internamente contra `auth.users`, nunca contra `perfis_usuarios.email`
+    // — essa coluna sai cifrada AES-256-GCM no cliente e nunca bateria com o
+    // texto plano digitado no formulário).
+    const temId = typeof paciente_id === 'string' && paciente_id.length > 0;
+    const temEmail = typeof paciente_email === 'string' && paciente_email.length > 0;
+    if (temId === temEmail) {
+      throw new Error('Informe exatamente um entre "paciente_id" e "paciente_email".');
     }
-    return { acao, paciente_id };
+    if (temId) {
+      if (!UUID_REGEX.test(paciente_id as string)) {
+        throw new Error('"paciente_id" deve ser um UUID válido.');
+      }
+      return { acao, paciente_id: paciente_id as string };
+    }
+    if (!EMAIL_REGEX.test(paciente_email as string)) {
+      throw new Error('"paciente_email" deve ser um e-mail válido.');
+    }
+    return { acao, paciente_email: (paciente_email as string).trim().toLowerCase() };
   }
 
   if (typeof vinculo_id !== 'string' || !UUID_REGEX.test(vinculo_id)) {
@@ -145,6 +164,11 @@ export interface SupabaseAdminLike {
     }>;
   };
   from(tabela: string): TabelaLike;
+  /// Só usado para `resolver_usuario_id_por_email` (ver
+  /// `resolverPacienteIdPorEmail`) — a função SQL que traduz o e-mail do
+  /// paciente para o UUID de `auth.users`, restrita ao papel `service_role`
+  /// (20260713210000_resolver_usuario_id_por_email.sql).
+  rpc(fn: string, params: Record<string, unknown>): Promise<{ data: unknown; error: ErroSupabase }>;
 }
 
 interface HandlerDeps {
@@ -168,6 +192,25 @@ function somarDias(data: Date, dias: number): string {
   const copia = new Date(data.getTime());
   copia.setUTCDate(copia.getUTCDate() + dias);
   return dataISO(copia);
+}
+
+/// Traduz o e-mail do paciente (digitado no painel web B2B) para o UUID de
+/// `auth.users`, via a função SQL `resolver_usuario_id_por_email` — a única
+/// que enxerga e-mail em texto plano neste sistema (o de `perfis_usuarios` é
+/// cifrado no cliente). Não distingue "e-mail não existe" de "erro de rede"
+/// no retorno (`null` nos dois casos até aqui) — quem decide o HTTP 404 é o
+/// chamador, em `createHandler`.
+async function resolverPacienteIdPorEmail(
+  admin: SupabaseAdminLike,
+  email: string,
+): Promise<string | null> {
+  const { data, error } = await admin.rpc('resolver_usuario_id_por_email', {
+    email_busca: email,
+  });
+  if (error) {
+    throw new Error(`Erro ao resolver e-mail do paciente: ${error.message}`);
+  }
+  return (data as string | null) ?? null;
 }
 
 // ============================================================================
@@ -409,12 +452,20 @@ export function createHandler(deps: HandlerDeps = {}) {
     try {
       switch (requisicao.acao) {
         case 'criar_vinculo': {
-          const { vinculo, criado } = await criarVinculo(
-            admin,
-            usuarioId,
-            requisicao.paciente_id!,
-            hoje,
-          );
+          let pacienteId = requisicao.paciente_id;
+          if (!pacienteId) {
+            // validarRequisicao já garante que, chegando aqui sem paciente_id,
+            // existe paciente_email — o "!" abaixo é seguro por essa garantia.
+            pacienteId = (await resolverPacienteIdPorEmail(admin, requisicao.paciente_email!)) ?? undefined;
+            if (!pacienteId) {
+              // Mesma mensagem do 404 de `criarVinculo` (perfil inexistente
+              // por UUID) — um só texto para "e-mail não corresponde a
+              // ninguém", não importa em qual dos dois pontos a busca falhou.
+              return jsonResponse({ error: 'Paciente não encontrado.' }, 404);
+            }
+          }
+
+          const { vinculo, criado } = await criarVinculo(admin, usuarioId, pacienteId, hoje);
           return jsonResponse({ vinculo }, criado ? 201 : 200);
         }
         case 'aceitar_vinculo': {
