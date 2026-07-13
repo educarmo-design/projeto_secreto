@@ -7,10 +7,10 @@ import '../models/resultado_exame_model.dart';
 
 /// Data access for [SeniorDashboardPage]: the Pasta Digital de Exames
 /// timeline (`resultados_exames`) and the "Medicamentos do Dia" module
-/// (`medicamentos_usuario`). Both tables are RLS-scoped to
-/// `auth.uid() = usuario_id_anonimo`, so every query here implicitly reads
-/// only the signed-in user's own records — no explicit filtering needed
-/// beyond the `.eq` calls already required by Postgrest.
+/// (`medicamentos_usuario`). Ambas as tabelas são RLS-scoped ao dono do dado
+/// (`auth.uid() = usuario_id` em exames, `= usuario_id_anonimo` em
+/// medicamentos), então toda query aqui lê implicitamente só os registros do
+/// usuário logado — nenhum filtro além dos `.eq` que o Postgrest já exige.
 class SeniorDashboardService {
   SeniorDashboardService({SupabaseClient? client})
       : _client = client ?? supabaseManager.client;
@@ -23,11 +23,17 @@ class SeniorDashboardService {
     if (userId == null) return const [];
 
     try {
+      // O embed traz o dicionário (`marcadores_referencia`) junto: é dele que
+      // saem o nome traduzido e a faixa de referência de fallback do marcador.
+      // Vem nulo quando o exame não é reconhecido — ver ResultadoExameModel.
       final response = await _client
           .from('resultados_exames')
-          .select()
-          .eq('usuario_id_anonimo', userId)
-          .order('data_exame', ascending: false);
+          .select(
+            '*, marcadores_referencia(nome_exibicao_pt, unidade_padrao, '
+            'faixa_referencia_min, faixa_referencia_max)',
+          )
+          .eq('usuario_id', userId)
+          .order('data_coleta', ascending: false);
 
       return (response as List)
           .cast<Map<String, dynamic>>()

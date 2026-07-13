@@ -300,11 +300,11 @@ class _ExameTimelineTile extends StatelessWidget {
           Icons.science_outlined,
           color: foraDaFaixa ? Theme.of(context).colorScheme.error : null,
         ),
-        title: Text(exame.tipoExame),
-        subtitle: Text(_formatarData(exame.dataExame)),
-        trailing: exame.valorResultado != null
+        title: Text(exame.titulo),
+        subtitle: Text(_formatarData(exame.dataColeta)),
+        trailing: exame.valorExibicao != null
             ? Text(
-                '${exame.valorResultado}${exame.unidadeMedida != null ? ' ${exame.unidadeMedida}' : ''}',
+                exame.valorExibicao!,
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
                       color: foraDaFaixa
                           ? Theme.of(context).colorScheme.error
