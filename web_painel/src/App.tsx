@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Link, Navigate, Route, Routes } from 'react-router-dom';
 import { LoginPage } from './components/LoginPage';
 import {
   obterProfissionalAtual,
@@ -10,6 +10,7 @@ import {
 import { PatientList } from './features/patients/components/PatientList';
 import { PatientDetails } from './features/dashboard/components/PatientDetails';
 import { GarminPrescriptionForm } from './features/prescriptions/components/GarminPrescriptionForm';
+import { AdminDashboard } from './features/admin/components/AdminDashboard';
 
 type EstadoAuth = 'carregando' | 'autenticado' | 'nao_autenticado';
 
@@ -69,13 +70,23 @@ export default function App() {
             {profissional.nome ?? profissional.tipoProfissional}
           </p>
         </div>
-        <button
-          type="button"
-          onClick={handleSignOut}
-          className="rounded-lg border border-clinical-border px-3 py-1.5 text-sm text-clinical-muted transition hover:border-clinical-primary hover:text-slate-100"
-        >
-          Sair
-        </button>
+        <div className="flex items-center gap-3">
+          {profissional.isAdmin && (
+            <Link
+              to="/admin"
+              className="rounded-lg border border-clinical-border px-3 py-1.5 text-sm text-clinical-muted transition hover:border-clinical-primary hover:text-slate-100"
+            >
+              Sala de Espera
+            </Link>
+          )}
+          <button
+            type="button"
+            onClick={handleSignOut}
+            className="rounded-lg border border-clinical-border px-3 py-1.5 text-sm text-clinical-muted transition hover:border-clinical-primary hover:text-slate-100"
+          >
+            Sair
+          </button>
+        </div>
       </header>
 
       <main className="mx-auto max-w-6xl px-6 py-8">
@@ -88,6 +99,16 @@ export default function App() {
           <Route
             path="/pacientes/:pacienteId/prescricao"
             element={<GarminPrescriptionForm profissional={profissional} />}
+          />
+          {/* Rota oculta: sem link nenhum na navegação para quem não é admin
+              (só `header` acima renderiza o link condicionalmente), e mesmo
+              que alguém digite a URL direto, `AdminDashboard` não devolve
+              nenhuma linha — a RLS `perfis_usuarios_select_admin` já barra a
+              query no banco antes de qualquer dado pendente aparecer. Este
+              `Navigate` é só uma conveniência de UX, nunca a barreira real. */}
+          <Route
+            path="/admin"
+            element={profissional.isAdmin ? <AdminDashboard /> : <Navigate to="/" replace />}
           />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

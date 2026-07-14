@@ -33,6 +33,9 @@ export interface Database {
           cidade: string | null;
           estado: string | null;
           geo_ranking_id: string | null;
+          /** Sala de Espera (20260714100000) — todo cadastro nasce `pendente`; só um admin muda isso. */
+          status_aprovacao: StatusAprovacaoUsuario;
+          is_admin: boolean;
           criado_em: string;
         };
         Insert: Partial<Database['public']['Tables']['perfis_usuarios']['Row']> & {
@@ -153,9 +156,13 @@ export interface Database {
     Functions: Record<string, never>;
     Enums: {
       tipo_profissional_saude: TipoProfissionalSaude;
+      status_aprovacao_usuario: StatusAprovacaoUsuario;
     };
   };
 }
+
+/** Espelha o enum Postgres `status_aprovacao_usuario` (20260714100000_add_approval_workflow.sql). */
+export type StatusAprovacaoUsuario = 'pendente' | 'aprovado' | 'rejeitado';
 
 /**
  * Espelha o enum Postgres `tipo_profissional_saude`. `Auditoria_Seguradora`
