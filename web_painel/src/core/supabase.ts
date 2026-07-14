@@ -31,7 +31,8 @@ export const supabase: SupabaseClient<Database> = createClient<Database>(supabas
 export interface ProfissionalAutenticado {
   id: string;
   nome: string | null;
-  tipoProfissional: TipoProfissionalSaude;
+  /** `null` só é possível para um Admin puro, sem prática clínica (ver `isAdmin` abaixo) — todo profissional aprovado normalmente tem isto preenchido. */
+  tipoProfissional: TipoProfissionalSaude | null;
   /** `true` só para o papel de Auditoria de Seguradora — ver Regra de Blindagem LGPD em `PatientList.tsx`. */
   ehSeguradora: boolean;
   /** Sala de Espera (20260714100000) — só quem tem isto vê/aciona `/admin`. Nunca a única barreira: a RLS de `perfis_usuarios_update_admin` reforça o mesmo no banco. */
@@ -101,7 +102,15 @@ export async function signInProfissional(
     throw new SolicitacaoPendenteError();
   }
 
-  if (!perfil.eh_profissional || !perfil.tipo_profissional) {
+  // Admin sempre entra, mesmo sem prática clínica própria (`eh_profissional`/
+  // `tipo_profissional` nulos) — descoberto na prática ao testar o bootstrap
+  // do primeiro Admin: exigir o gate profissional completo aqui bloquearia
+  // justamente a conta que só existe para aprovar as outras. `is_admin` só
+  // chega a `true` pela policy `perfis_usuarios_update_admin`/bootstrap
+  // manual (nunca pelo próprio usuário, ver trigger em
+  // `perfis_usuarios_bloquear_auto_promocao`), então confiar nele aqui não
+  // abre nenhuma porta nova.
+  if (!perfil.is_admin && (!perfil.eh_profissional || !perfil.tipo_profissional)) {
     await supabase.auth.signOut();
     throw new AcessoNaoAutorizadoError(
       'Esta conta não tem acesso ao Painel Profissional.',
@@ -130,6 +139,16 @@ export interface SolicitarAcessoResultado {
  * são sempre os defaults seguros (reforçado no banco pelo `with check` de
  * `perfis_usuarios_insert_own`, 20260714100000) — só um Admin muda isso, e só
  * depois pelo `AdminDashboard`.
+ *
+ * Termina sempre com `signOut()` quando `signUp` devolveu sessão — descoberto
+ * na prática (teste de navegador ponta a ponta) que deixar essa sessão viva
+ * corre contra `App.tsx`: `onAuthStateChange` reage a QUALQUER login, inclusive
+ * este, e dispara `obterProfissionalAtual` → `signOut()` de forma assíncrona e
+ * desacoplada por já ver `status_aprovacao = 'pendente'`. Se um login legítimo
+ * for tentado logo em seguida, esse `signOut()` tardio pode correr contra o
+ * `signInWithPassword` novo e derrubar a sessão certa por baixo. Fechar a
+ * sessão aqui, de forma síncrona ao fluxo de cadastro, elimina a corrida:
+ * "Solicitar Acesso" nunca deixa o usuário autenticado, só cadastrado.
  */
 export async function solicitarAcesso(
   input: SolicitarAcessoInput,
@@ -161,11 +180,15 @@ export async function solicitarAcesso(
     return { perfilCriadoImediatamente: false };
   }
 
-  await inserirPerfilPendente(data.user.id, {
-    email: input.email,
-    nome: input.nome,
-    tipoProfissional: input.tipoProfissional,
-  });
+  try {
+    await inserirPerfilPendente(data.user.id, {
+      email: input.email,
+      nome: input.nome,
+      tipoProfissional: input.tipoProfissional,
+    });
+  } finally {
+    await supabase.auth.signOut();
+  }
 
   return { perfilCriadoImediatamente: true };
 }
@@ -189,9 +212,8 @@ export async function obterProfissionalAtual(): Promise<ProfissionalAutenticado 
   // rejeitada/sem acesso).
   if (
     !perfil ||
-    perfil.status_aprovacao !== 'aprovado' ||
-    !perfil.eh_profissional ||
-    !perfil.tipo_profissional
+    (!perfil.is_admin &&
+      (perfil.status_aprovacao !== 'aprovado' || !perfil.eh_profissional || !perfil.tipo_profissional))
   ) {
     await supabase.auth.signOut();
     return null;
@@ -248,7 +270,7 @@ function paraProfissionalAutenticado(perfil: PerfilBruto): ProfissionalAutentica
   return {
     id: perfil.id,
     nome: perfil.nome,
-    tipoProfissional: perfil.tipo_profissional as TipoProfissionalSaude,
+    tipoProfissional: perfil.tipo_profissional,
     ehSeguradora: perfil.tipo_profissional === 'Auditoria_Seguradora',
     isAdmin: perfil.is_admin,
   };

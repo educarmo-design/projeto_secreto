@@ -67,7 +67,7 @@ export default function App() {
         <div>
           <p className="text-xs uppercase tracking-wide text-clinical-muted">Painel Profissional</p>
           <p className="font-medium text-slate-100">
-            {profissional.nome ?? profissional.tipoProfissional}
+            {profissional.nome ?? profissional.tipoProfissional ?? 'Administrador'}
           </p>
         </div>
         <div className="flex items-center gap-3">

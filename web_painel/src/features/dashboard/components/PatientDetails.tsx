@@ -188,7 +188,7 @@ export function PatientDetails({ profissional }: PatientDetailsProps) {
           Caixa Preta
         </p>
         <p className="mt-1 text-xs text-clinical-muted">
-          Visualizado por {profissional.nome ?? profissional.tipoProfissional} em{' '}
+          Visualizado por {profissional.nome ?? profissional.tipoProfissional ?? 'Administrador'} em{' '}
           {formatarDataHoraExata(new Date().toISOString())}
         </p>
       </header>
