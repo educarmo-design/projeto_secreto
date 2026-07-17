@@ -1,4 +1,5 @@
 import { NavLink } from 'react-router-dom';
+import { X } from 'lucide-react';
 import type { ProfissionalAutenticado } from '@/core/supabase';
 
 interface NavItem {
@@ -43,14 +44,14 @@ export function Sidebar({ profissional, onSignOut, aberta, onFechar }: SidebarPr
     <>
       {aberta && (
         <div
-          className="fixed inset-0 z-30 bg-black/60 md:hidden"
+          className="fixed inset-0 z-40 bg-black/50 md:hidden"
           onClick={onFechar}
           aria-hidden="true"
         />
       )}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-40 flex w-64 shrink-0 flex-col border-r border-clinical-border bg-clinical-surface transition-transform duration-200 ease-in-out md:static md:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-50 flex w-64 shrink-0 flex-col border-r border-clinical-border bg-clinical-surface transition-transform duration-200 ease-in-out md:static md:z-auto md:flex md:translate-x-0 ${
           aberta ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
@@ -65,7 +66,7 @@ export function Sidebar({ profissional, onSignOut, aberta, onFechar }: SidebarPr
             className="rounded-lg p-1 text-clinical-muted transition hover:text-slate-100 md:hidden"
             aria-label="Fechar menu"
           >
-            ✕
+            <X size={18} />
           </button>
         </div>
 

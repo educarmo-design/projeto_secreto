@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Outlet } from 'react-router-dom';
+import { Menu } from 'lucide-react';
 import type { ProfissionalAutenticado } from '@/core/supabase';
 import { Sidebar } from './Sidebar';
 
@@ -33,7 +34,7 @@ export function DashboardLayout({ profissional, onSignOut }: DashboardLayoutProp
             className="rounded-lg border border-clinical-border p-2 text-clinical-muted transition hover:text-slate-100"
             aria-label="Abrir menu"
           >
-            ☰
+            <Menu size={20} />
           </button>
           <p className="text-sm font-medium text-slate-100">Painel B2B</p>
         </header>
