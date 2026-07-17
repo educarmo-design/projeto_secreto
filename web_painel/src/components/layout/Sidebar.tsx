@@ -25,8 +25,8 @@ const ITENS_ADMIN: NavItem[] = [
 interface SidebarProps {
   profissional: ProfissionalAutenticado;
   onSignOut: () => void;
-  aberta: boolean;
-  onFechar: () => void;
+  isOpen: boolean;
+  onClose: () => void;
 }
 
 /**
@@ -36,68 +36,61 @@ interface SidebarProps {
  * seção "Administração" só para `isAdmin`. As duas podem coexistir para uma
  * conta que acumula os dois papéis. Nunca a barreira real de acesso — isso é
  * sempre RLS/checagem de rota (ver App.tsx); esconder um item aqui é só UX.
+ *
+ * O backdrop mobile é responsabilidade do `DashboardLayout` (que já tem o
+ * estado `isSidebarOpen`); este componente só é a gaveta em si.
  */
-export function Sidebar({ profissional, onSignOut, aberta, onFechar }: SidebarProps) {
+export function Sidebar({ profissional, onSignOut, isOpen, onClose }: SidebarProps) {
   const mostrarProfissional = Boolean(profissional.tipoProfissional);
 
   return (
-    <>
-      {aberta && (
-        <div
-          className="fixed inset-0 z-40 bg-black/50 md:hidden"
-          onClick={onFechar}
-          aria-hidden="true"
-        />
-      )}
-
-      <aside
-        className={`fixed inset-y-0 left-0 z-50 flex w-64 shrink-0 flex-col border-r border-clinical-border bg-clinical-surface transition-transform duration-200 ease-in-out md:static md:z-auto md:flex md:translate-x-0 ${
-          aberta ? 'translate-x-0' : '-translate-x-full'
-        }`}
-      >
-        <div className="flex items-center justify-between border-b border-clinical-border px-5 py-4">
-          <div>
-            <p className="text-sm font-semibold tracking-wide text-slate-100">Painel B2B</p>
-            <p className="text-xs text-clinical-muted">Área Profissional</p>
-          </div>
-          <button
-            type="button"
-            onClick={onFechar}
-            className="rounded-lg p-1 text-clinical-muted transition hover:text-slate-100 md:hidden"
-            aria-label="Fechar menu"
-          >
-            <X size={18} />
-          </button>
+    <aside
+      className={`fixed inset-y-0 left-0 z-50 flex w-64 shrink-0 flex-col border-r border-clinical-border bg-clinical-surface transform transition-transform duration-300 ease-in-out md:relative md:translate-x-0 ${
+        isOpen ? 'translate-x-0' : '-translate-x-full'
+      }`}
+    >
+      <div className="flex items-center justify-between border-b border-clinical-border px-5 py-4">
+        <div>
+          <p className="text-sm font-semibold tracking-wide text-slate-100">Painel B2B</p>
+          <p className="text-xs text-clinical-muted">Área Profissional</p>
         </div>
+        <button
+          type="button"
+          onClick={onClose}
+          className="rounded-lg p-1 text-clinical-muted transition hover:text-slate-100 md:hidden"
+          aria-label="Fechar menu"
+        >
+          <X size={18} />
+        </button>
+      </div>
 
-        <nav className="flex-1 overflow-y-auto px-3 py-4">
-          {mostrarProfissional && (
-            <NavSection titulo="Profissional" itens={ITENS_PROFISSIONAL} onNavigate={onFechar} />
-          )}
-          {profissional.isAdmin && (
-            <NavSection titulo="Administração" itens={ITENS_ADMIN} onNavigate={onFechar} />
-          )}
-        </nav>
+      <nav className="flex-1 overflow-y-auto px-3 py-4">
+        {mostrarProfissional && (
+          <NavSection titulo="Profissional" itens={ITENS_PROFISSIONAL} onNavigate={onClose} />
+        )}
+        {profissional.isAdmin && (
+          <NavSection titulo="Administração" itens={ITENS_ADMIN} onNavigate={onClose} />
+        )}
+      </nav>
 
-        <div className="border-t border-clinical-border px-3 py-4">
-          <div className="mb-3 px-2">
-            <p className="truncate text-sm font-medium text-slate-100">
-              {profissional.nome ?? profissional.tipoProfissional ?? 'Administrador'}
-            </p>
-            <p className="text-xs text-clinical-muted">
-              {profissional.isAdmin ? 'Admin' : (profissional.tipoProfissional ?? 'Profissional')}
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={onSignOut}
-            className="w-full rounded-lg border border-clinical-border px-3 py-2 text-left text-sm text-clinical-muted transition hover:border-clinical-critical hover:text-clinical-critical"
-          >
-            Sair
-          </button>
+      <div className="border-t border-clinical-border px-3 py-4">
+        <div className="mb-3 px-2">
+          <p className="truncate text-sm font-medium text-slate-100">
+            {profissional.nome ?? profissional.tipoProfissional ?? 'Administrador'}
+          </p>
+          <p className="text-xs text-clinical-muted">
+            {profissional.isAdmin ? 'Admin' : (profissional.tipoProfissional ?? 'Profissional')}
+          </p>
         </div>
-      </aside>
-    </>
+        <button
+          type="button"
+          onClick={onSignOut}
+          className="w-full rounded-lg border border-clinical-border px-3 py-2 text-left text-sm text-clinical-muted transition hover:border-clinical-critical hover:text-clinical-critical"
+        >
+          Sair
+        </button>
+      </div>
+    </aside>
   );
 }
 
