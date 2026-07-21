@@ -62,3 +62,11 @@ verify_jwt = true
 # plataforma. Etapa 1 — cálculo real da Esteira dos 14 Dias Free, lendo/
 # escrevendo em `esteira_trial_estado` via service role.
 verify_jwt = true
+
+[functions.extract-metric-photo]
+# Passo 1 do F10 (Pipeline Gemini / Zero Storage). Mesmo raciocínio das
+# irmãs: a plataforma já barra quem não tem JWT válido antes do index.ts
+# rodar. A função revalida o JWT via `auth.getUser()` (defesa em
+# profundidade) e NÃO usa service_role — não toca em nenhuma tabela, só lê a
+# foto da RAM, chama o Gemini e a destrói.
+verify_jwt = true

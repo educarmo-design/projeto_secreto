@@ -180,10 +180,12 @@ class CameraCaptureController extends ValueNotifier<CameraCaptureState> {
         // >=500: falha do lado do servidor/Gemini — "servidor ocupado" é a
         // leitura correta. 4xx é outra categoria (requisição rejeitada por
         // algo que o cliente enviou — imagem grande demais, tipo de
-        // aparelho desconhecido, sessão expirada etc.) e NUNCA deveria
-        // aparecer como "servidor ocupado": mostra o texto que o próprio
-        // backend já devolve em `{"error": "..."}`, que já é específico e
-        // seguro de exibir (nunca inclui a foto nem dado do usuário).
+        // aparelho desconhecido, sessão expirada, leitura ilegível do
+        // glicosímetro, etc.) e NUNCA deveria aparecer como "servidor
+        // ocupado": mostra o texto que o próprio backend já devolve (em
+        // "message" ou "error", ver _extrairMensagemErroBackend), que já é
+        // específico e seguro de exibir (nunca inclui a foto nem dado do
+        // usuário).
         final erroBackend = _extrairMensagemErroBackend(response.body);
         value = _estadoDeErro(
           mensagemAmigavel: response.statusCode >= 500

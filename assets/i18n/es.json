@@ -156,6 +156,7 @@
     "medication_confirm_error": "No se pudo registrar la dosis. Inténtalo de nuevo.",
     "take_photo_scale_button": "Tomar Foto de la Báscula",
     "take_photo_pressure_button": "Tomar Foto del Tensiómetro",
+    "take_photo_glucose_button": "Tomar Foto del Glucómetro",
 
     "distance_label": "Distancia",
 

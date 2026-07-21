@@ -156,6 +156,7 @@
     "medication_confirm_error": "Couldn't register the dose. Please try again.",
     "take_photo_scale_button": "Take a Photo of the Scale",
     "take_photo_pressure_button": "Take a Photo of the Blood Pressure Monitor",
+    "take_photo_glucose_button": "Take a Photo of the Glucometer",
 
     "distance_label": "Distance",
 

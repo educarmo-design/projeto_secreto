@@ -156,6 +156,7 @@
     "medication_confirm_error": "Não foi possível registrar a dose. Tente novamente.",
     "take_photo_scale_button": "Tirar Foto da Balança",
     "take_photo_pressure_button": "Tirar Foto da Pressão",
+    "take_photo_glucose_button": "Tirar Foto do Glicosímetro",
 
     "distance_label": "Distância",
 

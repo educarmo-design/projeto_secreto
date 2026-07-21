@@ -18,8 +18,8 @@ import '../widgets/health_payload_dialog.dart';
 /// árvore por engano.
 ///
 /// A tela é a Pasta Digital de Exames (linha do tempo cronológica de
-/// `resultados_exames`) mais o módulo "Medicamentos do Dia" e dois botões
-/// grandes e acessíveis para registro assíncrono via câmera (Balança /
+/// `resultados_exames`) mais o módulo "Medicamentos do Dia" e botões grandes
+/// e acessíveis para registro assíncrono via câmera (Glicosímetro / Balança /
 /// Pressão), reaproveitando o mesmo pipeline zero-storage de
 /// [CameraCaptureView] já usado pelo Perfil 1.
 class SeniorDashboardPage extends StatefulWidget {
@@ -241,6 +241,16 @@ class _RegistroAssincronoSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        // Glicose é a métrica clínica primária do perfil Guardião (público
+        // diabético/crônico) e é o extrator provado no Passo 1 do F10
+        // (pipeline Zero Storage + leitura de visor de glicosímetro), por isso
+        // vem primeiro. Reaproveita o mesmo pipeline de câmera dos demais.
+        OutlinedButton.icon(
+          onPressed: () => onTirarFoto(TipoAparelho.glicosimetro),
+          icon: const Icon(Icons.bloodtype_outlined),
+          label: Text(i18n.tr('dashboard.take_photo_glucose_button')),
+        ),
+        const SizedBox(height: 12),
         OutlinedButton.icon(
           onPressed: () => onTirarFoto(TipoAparelho.balanca),
           icon: const Icon(Icons.monitor_weight_outlined),
