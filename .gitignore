@@ -13,6 +13,12 @@ supabase/.branches/
 build/
 AppData/
 
+# IDE (ambiente local — não versionar)
+.idea/
+*.iml
+*.ipr
+*.iws
+
 # web_painel/ (Vite + React + TS)
 web_painel/node_modules/
 web_painel/dist/
