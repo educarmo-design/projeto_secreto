@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -12,7 +14,10 @@ import '../controllers/camera_capture_controller.dart';
 /// [SeniorDashboardPage] (dedicated Balança/Pressão buttons), so the actual
 /// capture/upload/zero-storage pipeline exists in exactly one place. Pops
 /// with the extracted [HealthPayloadModel] on success, or `null` if the user
-/// backs out.
+/// backs out. Exception: [TipoAparelho.pratoRefeicao] (F10 Passo 2) never
+/// pops a [HealthPayloadModel] — its server-calculated JSON result doesn't
+/// fit that fixed-column model, so it's shown crude/in-place instead (see
+/// [_buildRawFoodResult]).
 class CameraCaptureView extends StatefulWidget {
   const CameraCaptureView({super.key, required this.tipoAparelho});
 
@@ -29,11 +34,24 @@ class _CameraCaptureViewState extends State<CameraCaptureView> {
   void initState() {
     super.initState();
     _controller.addListener(_onStateChanged);
-    _controller.initializeCamera();
+    _controller.initializeCamera(tipoAparelho: widget.tipoAparelho);
   }
 
   void _onStateChanged() {
     if (_controller.value.isSuccess) {
+      // F10 Passo 2 (Adendo v5.1 §B): prato de comida não tem tela de
+      // confirmação bonita ainda — o resultado (já calculado pelo backend,
+      // A.2) fica visível NESTA tela, crua, em vez de fechar com pop. Os
+      // demais tipos (glicosímetro/pressão/balança) mantêm o comportamento
+      // já existente: fecham devolvendo o [HealthPayloadModel] typado.
+      if (widget.tipoAparelho == TipoAparelho.pratoRefeicao) {
+        debugPrint(
+          'F10 Passo 2 — resultado do prato: '
+          '${jsonEncode(_controller.value.rawFoodResult)}',
+        );
+        setState(() {});
+        return;
+      }
       Navigator.of(context).pop(_controller.value.extractedData);
       return;
     }
@@ -106,7 +124,8 @@ class _CameraCaptureViewState extends State<CameraCaptureView> {
       case CameraCaptureStatus.error:
         return _buildMessage(
           state.errorMessage ?? i18n.tr('dashboard.camera_error'),
-          onRetry: _controller.initializeCamera,
+          onRetry: () =>
+              _controller.initializeCamera(tipoAparelho: widget.tipoAparelho),
           debugDetail: state.debugDetail,
         );
 
@@ -157,10 +176,66 @@ class _CameraCaptureViewState extends State<CameraCaptureView> {
         );
 
       case CameraCaptureStatus.success:
+        final resultado = state.rawFoodResult;
+        if (resultado != null) {
+          return _buildRawFoodResult(resultado);
+        }
+        // Demais tipos: `_onStateChanged` já fez `Navigator.pop` antes deste
+        // frame renderizar de fato — este spinner só cobre o instante entre
+        // os dois.
         return const Center(
           child: CircularProgressIndicator(color: Colors.white),
         );
     }
+  }
+
+  /// F10 Passo 2 (Adendo v5.1 §B — "completa funcionalmente, crua
+  /// visualmente"): mostra o JSON JÁ CALCULADO pelo backend (itens + macros
+  /// determinísticos via `alimentos_referencia`, A.2) sem nenhum
+  /// acabamento visual. A funcionalidade é real — os números são os finais,
+  /// prontos para a futura tela de confirmação (Passo 3) — só a aparência
+  /// fica para depois.
+  Widget _buildRawFoodResult(Map<String, dynamic> resultado) {
+    const encoder = JsonEncoder.withIndent('  ');
+    return SafeArea(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: SelectableText(
+                encoder.convert(resultado),
+                style: const TextStyle(color: Colors.white, fontFamily: 'monospace'),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () {
+                      _controller.reset();
+                      _controller.initializeCamera(tipoAparelho: widget.tipoAparelho);
+                    },
+                    child: Text(i18n.tr('dashboard.camera_retry_button')),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: FilledButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: Text(i18n.tr('dashboard.camera_confirm_button')),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildMessage(String message, {VoidCallback? onRetry, String? debugDetail}) {

@@ -44,8 +44,23 @@ class CameraCaptureState {
   /// from the captured photo — see [HealthPayloadModel]. Whichever of the
   /// tracked biological/clinical parameters (heart rate, blood pressure,
   /// glucose, weight, ...) were visible on the device's display come back
-  /// here as typed values, not a loose untyped map.
+  /// here as typed values, not a loose untyped map. Populated for every
+  /// [TipoAparelho] except [TipoAparelho.pratoRefeicao] — see
+  /// [rawFoodResult].
   final HealthPayloadModel? extractedData;
+
+  /// F10 Passo 2 (Adendo v5.1 A.8.2) — the already-server-calculated JSON
+  /// for a [TipoAparelho.pratoRefeicao] capture (matched food items +
+  /// deterministic macros from `alimentos_referencia`, per item AND
+  /// totals). [HealthPayloadModel] is deliberately NOT reused here: its own
+  /// doc comment states it's a strict "one property = one fixed column of
+  /// `metricas_saude_diarias`" model with no generic bag, and a plate of
+  /// food (a variable list of items) doesn't fit that shape. Per Adendo
+  /// v5.1 §B ("validação = completa funcionalmente, crua visualmente"),
+  /// this raw JSON is shown as-is by [CameraCaptureView] — no typed
+  /// confirmation screen yet (that's Passo 3).
+  final Map<String, dynamic>? rawFoodResult;
+
   final String? errorMessage;
 
   /// Classe da exceção real + mensagem técnica (nunca dado da foto/paciente)
@@ -58,6 +73,7 @@ class CameraCaptureState {
   const CameraCaptureState({
     this.status = CameraCaptureStatus.idle,
     this.extractedData,
+    this.rawFoodResult,
     this.errorMessage,
     this.debugDetail,
   });
@@ -98,7 +114,16 @@ class CameraCaptureController extends ValueNotifier<CameraCaptureState> {
 
   static const Duration _uploadTimeout = Duration(seconds: 30);
 
-  Future<void> initializeCamera() async {
+  /// Adendo v5.1 A.4: "a resolução de envio é função do `tipo_captura`".
+  /// Comida é barata (~512px, economiza token) porque a IA só precisa
+  /// reconhecer FORMA/COR de alimentos; visores de aparelho (glicosímetro/
+  /// pressão/balança) continuam em [ResolutionPreset.medium] — inalterado
+  /// deste Passo 2 — porque o OCR de dígito não pode perder nitidez. A
+  /// escolha acontece na CAPTURA (o `camera` plugin already grava o frame
+  /// no tamanho do preset, nunca em alta resolução seguida de corte — Zero
+  /// Storage nunca materializa um frame maior do que o necessário na RAM
+  /// do device).
+  Future<void> initializeCamera({required TipoAparelho tipoAparelho}) async {
     value = const CameraCaptureState(status: CameraCaptureStatus.initializing);
 
     try {
@@ -116,9 +141,12 @@ class CameraCaptureController extends ValueNotifier<CameraCaptureState> {
         orElse: () => cameras.first,
       );
 
+      final preset = tipoAparelho == TipoAparelho.pratoRefeicao
+          ? ResolutionPreset.low
+          : ResolutionPreset.medium;
       final controller = CameraController(
         lens,
-        ResolutionPreset.medium,
+        preset,
         enableAudio: false,
       );
       await controller.initialize();
@@ -198,6 +226,20 @@ class CameraCaptureController extends ValueNotifier<CameraCaptureState> {
       }
 
       final decoded = jsonDecode(response.body) as Map<String, dynamic>;
+
+      // Prato de comida: o servidor já devolve o JSON calculado
+      // (itens + macros determinísticos, A.2) — não é um HealthPayloadModel
+      // (lista variável de itens não cabe no modelo de colunas fixas). Sem
+      // tela bonita ainda (Adendo v5.1 §B): [CameraCaptureView] exibe este
+      // JSON cru para o fundador conferir os números.
+      if (tipoAparelho == TipoAparelho.pratoRefeicao) {
+        value = CameraCaptureState(
+          status: CameraCaptureStatus.success,
+          rawFoodResult: decoded,
+        );
+        return;
+      }
+
       final payload = HealthPayloadModel.fromAiExtraction(
         decoded,
         tipoAparelho: tipoAparelho.name,
