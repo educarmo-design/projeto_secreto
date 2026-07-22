@@ -16,11 +16,18 @@ void main() async {
   // check the app would silently launch pointed at a non-existent project
   // whenever `--dart-define=SUPABASE_URL=...` is forgotten (e.g. a bad CI
   // config), instead of failing loudly at startup.
+  //
+  // "Loudly" means an on-screen message, not a `throw` here: a throw before
+  // `runApp()` leaves Flutter's first frame never drawn, so the NATIVE
+  // Android/iOS launch screen (the logo splash) just stays up forever with
+  // nothing else on screen — indistinguishable from a hang, and undebuggable
+  // for the non-dev fundador this app is built for (PRD Mestre §0.8) without
+  // reading `adb logcat`/source. `runApp` a real (if minimal) error screen
+  // instead, so the same missing-config mistake shows up as a message
+  // anyone can read and act on, not a frozen splash.
   if (!AppConfig.hasValidSupabaseCredentials) {
-    throw StateError(
-      'SUPABASE_URL / SUPABASE_ANON_KEY not configured. '
-      'Run with --dart-define=SUPABASE_URL=... --dart-define=SUPABASE_ANON_KEY=...',
-    );
+    runApp(const _MissingSupabaseCredentialsApp());
+    return;
   }
 
   // Initialize Supabase
@@ -106,5 +113,46 @@ class _AtletaGamificacaoAppState extends State<AtletaGamificacaoApp> {
       default:
         return const Locale('pt', 'BR');
     }
+  }
+}
+
+/// Runs instead of [AtletaGamificacaoApp] when `--dart-define=SUPABASE_URL=...
+/// --dart-define=SUPABASE_ANON_KEY=...` was forgotten at build/run time —
+/// see the check in `main()`. Deliberately hardcoded (not `i18n.tr`): this
+/// screen can render before `i18n.initialize()` ever runs, since the whole
+/// point is to fail before touching Supabase/anything else. Same precedent
+/// as `AppRouter.errorBuilder`'s plain-text 404, elsewhere in this file's
+/// package.
+class _MissingSupabaseCredentialsApp extends StatelessWidget {
+  const _MissingSupabaseCredentialsApp();
+
+  @override
+  Widget build(BuildContext context) {
+    return const MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: Scaffold(
+        backgroundColor: Colors.black,
+        body: Center(
+          child: Padding(
+            padding: EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.error_outline, color: Colors.white, size: 48),
+                SizedBox(height: 16),
+                Text(
+                  'Configuração ausente: SUPABASE_URL / SUPABASE_ANON_KEY.\n\n'
+                  'Rode com:\nflutter run '
+                  '--dart-define=SUPABASE_URL=... '
+                  '--dart-define=SUPABASE_ANON_KEY=...',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.white),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
