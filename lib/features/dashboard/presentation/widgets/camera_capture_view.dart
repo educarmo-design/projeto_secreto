@@ -68,10 +68,25 @@ class _CameraCaptureViewState extends State<CameraCaptureView> {
       appBar: AppBar(
         backgroundColor: Colors.black,
         foregroundColor: Colors.white,
-        title: Text(i18n.tr('dashboard.camera_option')),
+        title: Text(i18n.tr(_chaveTituloAppBar(widget.tipoAparelho))),
       ),
       body: _buildBody(state),
     );
+  }
+
+  /// Título da tela varia por [TipoAparelho]: "Tirar Foto do Visor do
+  /// Aparelho" descreve corretamente o glicosímetro/pressão/balança, mas
+  /// nunca fez sentido para [TipoAparelho.pratoRefeicao] — a câmera
+  /// Nutricional do perfil Atleta reaproveitava o mesmo texto por engano.
+  static String _chaveTituloAppBar(TipoAparelho tipo) {
+    switch (tipo) {
+      case TipoAparelho.pratoRefeicao:
+        return 'dashboard.camera_option_prato_refeicao';
+      case TipoAparelho.glicosimetro:
+      case TipoAparelho.pressaoArterial:
+      case TipoAparelho.balanca:
+        return 'dashboard.camera_option';
+    }
   }
 
   Widget _buildBody(CameraCaptureState state) {
