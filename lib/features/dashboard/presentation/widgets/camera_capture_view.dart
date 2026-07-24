@@ -100,12 +100,14 @@ class _CameraCaptureViewState extends State<CameraCaptureView> {
       case CameraCaptureStatus.permissionDenied:
         return _buildMessage(
           state.errorMessage ?? i18n.tr('dashboard.camera_permission_denied'),
+          debugDetail: state.debugDetail,
         );
 
       case CameraCaptureStatus.error:
         return _buildMessage(
           state.errorMessage ?? i18n.tr('dashboard.camera_error'),
           onRetry: _controller.initializeCamera,
+          debugDetail: state.debugDetail,
         );
 
       case CameraCaptureStatus.ready:
@@ -161,7 +163,7 @@ class _CameraCaptureViewState extends State<CameraCaptureView> {
     }
   }
 
-  Widget _buildMessage(String message, {VoidCallback? onRetry}) {
+  Widget _buildMessage(String message, {VoidCallback? onRetry, String? debugDetail}) {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
@@ -175,6 +177,28 @@ class _CameraCaptureViewState extends State<CameraCaptureView> {
               textAlign: TextAlign.center,
               style: const TextStyle(color: Colors.white),
             ),
+            // Só aparece em build de debug/homolog (ver _podeExibirDetalheTecnico
+            // no controller) — nunca em produção. É o erro real por trás da
+            // mensagem amigável acima, para quem está depurando.
+            if (debugDetail != null) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.white10,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  debugDetail,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Colors.white70,
+                    fontSize: 12,
+                    fontFamily: 'monospace',
+                  ),
+                ),
+              ),
+            ],
             if (onRetry != null) ...[
               const SizedBox(height: 16),
               FilledButton(
