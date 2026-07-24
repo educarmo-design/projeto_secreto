@@ -303,15 +303,21 @@ class CameraCaptureController extends ValueNotifier<CameraCaptureState> {
     );
   }
 
-  /// O backend (`extract-metric-photo`) já devolve `{"error": "texto
-  /// específico e seguro"}` em toda resposta 4xx (ex.: "Imagem grande
-  /// demais.") — melhor mostrar isso ao usuário do que uma mensagem
-  /// genérica, quando o corpo realmente tiver esse formato.
+  /// O backend (`extract-metric-photo`) devolve `{"error": "..."}` em toda
+  /// resposta 4xx, mas o campo `error` tem DOIS formatos diferentes
+  /// dependendo do caso: às vezes já é a frase pronta para o usuário (ex.:
+  /// `{"error": "Imagem grande demais."}`), às vezes é um código de máquina
+  /// em snake_case acompanhado de um `message` separado com o texto humano
+  /// (ex.: `{"error": "leitura_ilegivel", "message": "Não consegui ler o
+  /// visor com segurança..."}` — o caso do glicosímetro rejeitando uma
+  /// leitura de baixa confiança). Preferir `message` quando presente cobre
+  /// os dois formatos sem precisar decidir status a status qual é qual.
   String? _extrairMensagemErroBackend(String body) {
     try {
       final decoded = jsonDecode(body);
-      if (decoded is Map<String, dynamic> && decoded['error'] is String) {
-        return decoded['error'] as String;
+      if (decoded is Map<String, dynamic>) {
+        if (decoded['message'] is String) return decoded['message'] as String;
+        if (decoded['error'] is String) return decoded['error'] as String;
       }
     } catch (_) {
       // Corpo não é JSON (ex.: erro genérico do gateway) — sem mensagem
