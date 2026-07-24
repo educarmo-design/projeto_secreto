@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../features/dashboard/presentation/pages/main_navigation_page.dart';
 import 'ui_profile_switcher.dart';
 
 /// Route names (constants for type-safe navigation)
@@ -70,7 +71,14 @@ class AppRouter {
       GoRoute(
         path: '/${RouteNames.athleteDashboard}',
         name: RouteNames.athleteDashboard,
-        builder: (context, state) => const AthleteDashboardScreen(),
+        // BUG CORRIGIDO (24/jul/2026): apontava para o stub
+        // AthleteDashboardScreen (Center(Text('Athlete Dashboard'))) desde
+        // o scaffold original (commit 43b6f83) — a UI real e completa
+        // (MainNavigationPage, com o grid de cards configuráveis, a Câmera
+        // Nutricional etc.) foi construída depois (commit 7797837) mas
+        // nunca teve essa linha atualizada para usá-la. MainNavigationPage
+        // já resolve internamente Atleta x Sênior via uiProfileSwitcher.
+        builder: (context, state) => const MainNavigationPage(),
       ),
       GoRoute(
         path: '/${RouteNames.gamification}',
@@ -262,17 +270,6 @@ class ProfileSelectionScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return const Scaffold(
       body: Center(child: Text('Profile Selection Screen')),
-    );
-  }
-}
-
-class AthleteDashboardScreen extends StatelessWidget {
-  const AthleteDashboardScreen({Key? key}) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return const Scaffold(
-      body: Center(child: Text('Athlete Dashboard')),
     );
   }
 }
