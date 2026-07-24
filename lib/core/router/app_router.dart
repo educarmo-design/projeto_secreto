@@ -100,7 +100,12 @@ class AppRouter {
       GoRoute(
         path: '/${RouteNames.clinicalDashboard}',
         name: RouteNames.clinicalDashboard,
-        builder: (context, state) => const ClinicalDashboardScreen(),
+        // BUG CORRIGIDO (24/jul/2026): mesma causa do athleteDashboard
+        // (ver commit fbdd9ce) — apontava para o stub ClinicalDashboardScreen
+        // desde o scaffold original. MainNavigationPage já resolve
+        // ProfileType.guardian internamente via uiProfileSwitcher.isSenior,
+        // renderizando _SeniorShell/SeniorDashboardPage.
+        builder: (context, state) => const MainNavigationPage(),
       ),
       GoRoute(
         path: '/${RouteNames.examFolder}',
@@ -303,17 +308,6 @@ class RankingsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return const Scaffold(
       body: Center(child: Text('Rankings Screen')),
-    );
-  }
-}
-
-class ClinicalDashboardScreen extends StatelessWidget {
-  const ClinicalDashboardScreen({Key? key}) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return const Scaffold(
-      body: Center(child: Text('Clinical Dashboard')),
     );
   }
 }
