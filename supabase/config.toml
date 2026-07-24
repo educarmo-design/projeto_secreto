@@ -49,3 +49,10 @@ enabled = false
 # próprio index.ts, que revalida o JWT via `auth.getUser()` e confere o
 # vínculo em `planejamento_clinico`.
 verify_jwt = true
+
+[functions.extract-metric-photo]
+# F10 (Pipeline Gemini / Zero Storage). Mesmo raciocínio de garmin-gateway
+# acima: cobre só autenticação de plataforma. A função revalida o JWT via
+# `auth.getUser()` (defesa em profundidade) e NÃO usa service_role — não
+# toca em nenhuma tabela, só lê a foto da RAM, chama o Gemini e a destrói.
+verify_jwt = true
