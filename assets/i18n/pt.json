@@ -118,7 +118,12 @@
     "recuperar_senha_button": "Enviar link de recuperação",
     "recuperar_senha_sucesso": "Se o e-mail informado estiver cadastrado, você vai receber um link de redefinição em instantes.",
     "recuperar_senha_voltar_button": "Voltar ao login",
-    "recuperar_senha_error": "Não foi possível enviar o e-mail agora. Tente novamente."
+    "recuperar_senha_error": "Não foi possível enviar o e-mail agora. Tente novamente.",
+
+    "definir_nova_senha_title": "Definir nova senha",
+    "definir_nova_senha_subtitle": "Escolha uma nova senha para sua conta.",
+    "definir_nova_senha_button": "Salvar nova senha",
+    "definir_nova_senha_error": "Não foi possível salvar a nova senha agora. Tente novamente."
   },
 
   "dashboard": {

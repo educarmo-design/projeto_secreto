@@ -71,6 +71,26 @@
             <intent-filter>
                 <action android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE" />
             </intent-filter>
+
+            <!-- Deep link do Supabase Auth (OAuth Google/Apple E o link de
+                 "definir nova senha" do e-mail de recuperação) —
+                 AppConfig.oauthRedirectUrl aponta pra cá
+                 (io.supabase.atletagamificacao://login-callback), mas até
+                 agora nada no Android sabia entregar essa URI ao app: o
+                 pacote supabase_flutter já intercepta e traduz sozinho
+                 (authFlowType PKCE, padrão do pacote) assim que o SO abre a
+                 Activity — só faltava este intent-filter dizendo ao Android
+                 que esta Activity responde por esse esquema. android:host
+                 tem que bater exatamente com o path depois de "://" na URL
+                 configurada. -->
+            <intent-filter android:autoVerify="false">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:scheme="io.supabase.atletagamificacao"
+                    android:host="login-callback" />
+            </intent-filter>
         </activity>
 
         <!-- Exigido pelo Health Connect: a "Política de Privacidade de Uso

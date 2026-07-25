@@ -118,7 +118,12 @@
     "recuperar_senha_button": "Send recovery link",
     "recuperar_senha_sucesso": "If the e-mail you entered is registered, you'll receive a reset link shortly.",
     "recuperar_senha_voltar_button": "Back to login",
-    "recuperar_senha_error": "Couldn't send the e-mail right now. Please try again."
+    "recuperar_senha_error": "Couldn't send the e-mail right now. Please try again.",
+
+    "definir_nova_senha_title": "Set new password",
+    "definir_nova_senha_subtitle": "Choose a new password for your account.",
+    "definir_nova_senha_button": "Save new password",
+    "definir_nova_senha_error": "Couldn't save the new password right now. Please try again."
   },
 
   "dashboard": {
