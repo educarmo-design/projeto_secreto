@@ -156,6 +156,10 @@
     "health_sync_button": "Sincronizar Ahora",
     "health_sync_summary": "{{count}} registros sincronizados",
     "health_sync_error": "Error al sincronizar datos de salud",
+    "heart_rate_test_title": "Prueba: Frecuencia Cardíaca",
+    "heart_rate_test_subtitle": "Lee el registro más reciente de frecuencia cardíaca del Health Connect (últimas 24h) — dato bruto, sin guardar en ningún lugar.",
+    "heart_rate_test_button": "Leer Frecuencia Cardíaca",
+    "heart_rate_test_empty": "Ningún registro de frecuencia cardíaca en las últimas 24h.",
     "sync_never": "Aún no sincronizado",
     "sync_last_today": "Última actualización: Hoy a las {{hora}}",
     "sync_last_yesterday": "Última actualización: Ayer a las {{hora}}",
@@ -303,7 +307,8 @@
     "mode_athlete_label": "Atleta Competitivo",
     "mode_senior_label": "Guardián Clínico / Sénior",
 
-    "manage_links_item": "Invitaciones de Profesionales"
+    "manage_links_item": "Invitaciones de Profesionales",
+    "heart_rate_test_item": "Probar Lectura de Frecuencia Cardíaca"
   },
 
   "vinculos": {

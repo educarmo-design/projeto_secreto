@@ -156,6 +156,10 @@
     "health_sync_button": "Sync Now",
     "health_sync_summary": "{{count}} records synced",
     "health_sync_error": "Error syncing health data",
+    "heart_rate_test_title": "Test: Heart Rate",
+    "heart_rate_test_subtitle": "Reads the most recent heart rate reading from Health Connect (last 24h) — raw data, not saved anywhere.",
+    "heart_rate_test_button": "Read Heart Rate",
+    "heart_rate_test_empty": "No heart rate reading in the last 24h.",
     "sync_never": "Not synced yet",
     "sync_last_today": "Last update: Today at {{hora}}",
     "sync_last_yesterday": "Last update: Yesterday at {{hora}}",
@@ -303,7 +307,8 @@
     "mode_athlete_label": "Competitive Athlete",
     "mode_senior_label": "Clinical Guardian / Senior",
 
-    "manage_links_item": "Professional Invitations"
+    "manage_links_item": "Professional Invitations",
+    "heart_rate_test_item": "Test Heart Rate Reading"
   },
 
   "vinculos": {

@@ -391,4 +391,92 @@ void main() {
       expect(await service.obterUltimaSincronizacao(), isNull);
     });
   });
+
+  group('lerFrequenciaCardiacaRecente', () {
+    test('pede só HEART_RATE ao health store, nunca os outros tipos', () async {
+      await service.lerFrequenciaCardiacaRecente();
+
+      final captured = verify(
+        () => health.getHealthDataFromTypes(
+          types: captureAny(named: 'types'),
+          startTime: any(named: 'startTime'),
+          endTime: any(named: 'endTime'),
+        ),
+      ).captured;
+
+      expect(captured.single, [HealthDataType.HEART_RATE]);
+    });
+
+    test('janela padrão é as últimas 24h a partir de agora', () async {
+      final antes = DateTime.now().subtract(const Duration(hours: 24));
+
+      await service.lerFrequenciaCardiacaRecente();
+
+      final captured = verify(
+        () => health.getHealthDataFromTypes(
+          types: any(named: 'types'),
+          startTime: captureAny(named: 'startTime'),
+          endTime: any(named: 'endTime'),
+        ),
+      ).captured;
+      final startTime = captured.single as DateTime;
+
+      expect(startTime.isAfter(antes.subtract(const Duration(seconds: 5))), isTrue);
+      expect(startTime.isBefore(DateTime.now()), isTrue);
+    });
+
+    test('permissão negada devolve granted=false sem pontos', () async {
+      when(
+        () => health.hasPermissions(any(), permissions: any(named: 'permissions')),
+      ).thenAnswer((_) async => false);
+      when(
+        () => health.requestAuthorization(any(), permissions: any(named: 'permissions')),
+      ).thenAnswer((_) async => false);
+
+      final resultado = await service.lerFrequenciaCardiacaRecente();
+
+      expect(resultado.granted, isFalse);
+      expect(resultado.points, isEmpty);
+    });
+
+    test('sem registro na janela devolve points vazio', () async {
+      final resultado = await service.lerFrequenciaCardiacaRecente();
+
+      expect(resultado.granted, isTrue);
+      expect(resultado.points, isEmpty);
+      expect(HealthSyncService.ultimaLeituraOuNula(resultado.points), isNull);
+    });
+  });
+
+  group('HealthSyncService.ultimaLeituraOuNula', () {
+    test('devolve o ponto com dateTo mais tardio, não o último da lista', () {
+      final antigo = HealthMetricPoint(
+        type: HealthDataType.HEART_RATE,
+        value: 60,
+        unit: 'bpm',
+        dateFrom: DateTime(2026, 7, 8, 8),
+        dateTo: DateTime(2026, 7, 8, 8),
+        sourceApp: 'Garmin Connect',
+      );
+      final recente = HealthMetricPoint(
+        type: HealthDataType.HEART_RATE,
+        value: 72,
+        unit: 'bpm',
+        dateFrom: DateTime(2026, 7, 8, 14),
+        dateTo: DateTime(2026, 7, 8, 14),
+        sourceApp: 'Garmin Connect',
+      );
+
+      // Lista fora de ordem cronológica de propósito — a janela do Health
+      // Connect não garante ordenação.
+      final ultima =
+          HealthSyncService.ultimaLeituraOuNula([recente, antigo]);
+
+      expect(ultima, same(recente));
+    });
+
+    test('lista vazia devolve null', () {
+      expect(HealthSyncService.ultimaLeituraOuNula(const []), isNull);
+    });
+  });
 }

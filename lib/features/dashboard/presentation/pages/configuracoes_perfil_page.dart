@@ -4,6 +4,7 @@ import '../../../../core/i18n/i18n_manager.dart';
 import '../../../../core/router/ui_profile_switcher.dart';
 import '../../../auth/models/auth_models.dart' show ProfileUsageType;
 import '../../../vinculos/presentation/pages/gerir_vinculos_page.dart';
+import 'teste_frequencia_cardiaca_page.dart';
 
 /// Tela de Configurações de Perfil — PRD Mestre §1/§2/§4.
 ///
@@ -80,6 +81,17 @@ class ConfiguracoesPerfilPage extends StatelessWidget {
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => Navigator.of(context).push(
                     MaterialPageRoute<void>(builder: (_) => const GerirVinculosPage()),
+                  ),
+                ),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.favorite_border),
+                  title: Text(i18n.tr('profile.heart_rate_test_item')),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const TesteFrequenciaCardiacaPage(),
+                    ),
                   ),
                 ),
               ],

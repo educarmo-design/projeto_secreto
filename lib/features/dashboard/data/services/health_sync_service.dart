@@ -263,6 +263,34 @@ class HealthSyncService {
     return _lerComPermissao(_tiposSuportados, dias: dias);
   }
 
+  /// Leitura pontual, só de [HealthDataType.HEART_RATE], das últimas [horas]
+  /// (padrão 24h) — gatilho manual de teste/validação do fundador (Adendo
+  /// v5.1 §B: "validação = completa funcionalmente, crua visualmente").
+  /// Passa por exatamente o mesmo caminho de permissão/instalação do Health
+  /// Connect que [carregarHistoricoInicial]/[sincronizarDeltaDiario] já
+  /// usam — [_lerComPermissao] — só que pedindo um único tipo, então não
+  /// aciona (nem exige permissão de) nenhum dos outros sinais que o app
+  /// rastreia. Não grava nada — quem chama decide o que fazer com
+  /// [HealthSyncResult.points]; ver [ultimaLeituraOuNula] para o valor bruto
+  /// mais recente.
+  Future<HealthSyncResult> lerFrequenciaCardiacaRecente({int horas = 24}) {
+    return _lerComPermissao(
+      const [HealthDataType.HEART_RATE],
+      start: DateTime.now().subtract(Duration(hours: horas)),
+    );
+  }
+
+  /// O ponto mais recente (`dateTo` mais tardio) dentre [points] — o
+  /// "último registro" que a leitura pontual de frequência cardíaca precisa
+  /// mostrar, já que o Health Connect pode devolver vários batimentos
+  /// dentro da janela pedida (um por sincronização do Garmin, por exemplo).
+  /// `null` quando a janela não tem nenhum ponto (nenhum wearable
+  /// sincronizou frequência cardíaca no período).
+  static HealthMetricPoint? ultimaLeituraOuNula(List<HealthMetricPoint> points) {
+    if (points.isEmpty) return null;
+    return points.reduce((a, b) => a.dateTo.isAfter(b.dateTo) ? a : b);
+  }
+
   /// Android-only: routes the user to install Health Connect from the
   /// store. No-op on iOS. Call when a [HealthSyncResult] comes back with
   /// [HealthSyncResult.needsHealthConnectInstall] set.
