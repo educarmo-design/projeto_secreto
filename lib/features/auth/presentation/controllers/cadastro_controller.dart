@@ -160,15 +160,31 @@ class CadastroController extends ValueNotifier<CadastroCepState> {
   /// `client.auth.signUp`. Com confirmação de e-mail habilitada no projeto
   /// Supabase (padrão), isto não abre uma sessão — apenas envia o e-mail
   /// com o token de 6 dígitos e devolve um `user` ainda não confirmado.
-  /// Nenhum dado de perfil é gravado aqui: `perfis_usuarios` só aceita a
-  /// escrita depois que [verificarTokenOTP] confirmar o e-mail e abrir uma
-  /// sessão real que satisfaça `auth.uid() = id`.
+  /// Nenhum dado de perfil é gravado em `perfis_usuarios` aqui: essa tabela
+  /// só aceita a escrita depois que [verificarTokenOTP] confirmar o e-mail e
+  /// abrir uma sessão real que satisfaça `auth.uid() = id`.
+  ///
+  /// [metadadosPapel] é a ÚNICA exceção: vai direto no `data:` do `signUp`,
+  /// virando `user_metadata` em `auth.users` imediatamente — mesmo antes da
+  /// confirmação de e-mail (GoTrue aceita `data` em contas ainda não
+  /// confirmadas). Ver [CadastroPerfilPendente.toUserMetadata] para o
+  /// formato exato; é a combinação de papéis (perfil_uso + eh_profissional +
+  /// especialidade/registro) que o Cadastro Dinâmico precisa estruturada em
+  /// `user_metadata`, não um espelho de todo o formulário — nome/telefone
+  /// seguem SÓ o caminho criptografado de `_persistirPerfil`, nunca em
+  /// texto plano em `user_metadata` (que não tem o mesmo tratamento de
+  /// cifragem client-side do resto do app).
   Future<CadastroSubmitResult> cadastrarComEmailESenha({
     required String email,
     required String senha,
+    Map<String, dynamic>? metadadosPapel,
   }) async {
     try {
-      await supabaseManager.client.auth.signUp(email: email, password: senha);
+      await supabaseManager.client.auth.signUp(
+        email: email,
+        password: senha,
+        data: metadadosPapel,
+      );
       return const CadastroSubmitResult(success: true);
     } on AuthException catch (e) {
       return CadastroSubmitResult(success: false, errorMessage: e.message);
@@ -390,7 +406,42 @@ class CadastroController extends ValueNotifier<CadastroCepState> {
       'cidade': perfil.cidade,
       'estado': perfil.uf,
       'geo_ranking_id': perfil.geoRankingId,
+      if (perfil.idade != null) 'idade': perfil.idade,
+      if (perfil.pesoKg != null) 'peso_kg': perfil.pesoKg,
+      'eh_profissional': perfil.ehProfissional,
+      if (perfil.tipoProfissional != null)
+        'tipo_profissional': perfil.tipoProfissional,
+      if (perfil.registroProfissional != null &&
+          perfil.registroProfissional!.isNotEmpty)
+        'registro_profissional': perfil.registroProfissional,
     }, onConflict: 'id');
+
+    if (perfil.perfilUso != null) {
+      await _persistirPerfilUsoInicial(userId, perfil.perfilUso!);
+    }
+  }
+
+  /// Grava `perfil_uso` em `anonymous_users.profile_data` — o mesmo JSONB
+  /// que [UiProfileSwitcher] lê para decidir o shell (Atleta competitivo x
+  /// Guardião/Sênior) e que `AppRouter` usa para saber se o perfil já foi
+  /// escolhido. Sem isto, um cadastro novo cairia num limbo de "perfil não
+  /// configurado" mesmo já tendo respondido ao Radio Button da tela de
+  /// cadastro — que é exatamente o comportamento que evita duplicar a
+  /// escolha de perfil com [ProfileSelectionPage]: quando esta grava
+  /// `perfil_uso` aqui, o redirect do roteador nunca chega a mandar o
+  /// usuário para lá (só existe como fallback para quem cadastrou sem
+  /// escolher, hoje só o caminho social reduzido). Diferente de
+  /// `UiProfileSwitcher.switchProfile` (que faz merge preservando outras
+  /// chaves), aqui não existe `profile_data` anterior — é a primeira
+  /// escrita da conta, então `profile_data` nasce só com esta chave.
+  Future<void> _persistirPerfilUsoInicial(String userId, String tag) async {
+    await supabaseManager.client.from('anonymous_users').upsert(
+      {
+        'id': userId,
+        'profile_data': {'perfil_uso': tag},
+      },
+      onConflict: 'id',
+    );
   }
 
   @override
@@ -416,6 +467,14 @@ class CadastroSubmitResult {
 /// satisfazer a RLS `auth.uid() = id`, e gravar sob uma conta ainda não
 /// confirmada abriria uma janela para perfis "fantasma" de e-mails que
 /// nunca chegam a ser verificados.
+///
+/// [perfilUso]/[ehProfissional]/[tipoProfissional]/[registroProfissional]/
+/// [idade]/[pesoKg] são os campos do Cadastro Dinâmico (Perfil Base +
+/// Profissional de Saúde) — persistidos duas vezes, de propósito: aqui em
+/// `perfis_usuarios` (o que o resto do app lê via RLS) via
+/// [toUserMetadata] direto no `signUp` da Etapa 1 (o que fica em
+/// `auth.users.user_metadata`, disponível mesmo antes da confirmação de
+/// e-mail).
 @immutable
 class CadastroPerfilPendente {
   final String nickname;
@@ -429,6 +488,21 @@ class CadastroPerfilPendente {
   final String uf;
   final String geoRankingId;
 
+  /// Tag de `perfil_uso` já no formato que [UiProfileSwitcher] espera em
+  /// `anonymous_users.profile_data` — `'Atleta'` ou `'Senior'`. `null`
+  /// significa "não escolhido" (hoje só acontece no caminho social
+  /// reduzido, que não passa pelo Radio Button do Perfil Base).
+  final String? perfilUso;
+  final bool ehProfissional;
+
+  /// Valor exato do enum Postgres `tipo_profissional_saude` (`'Medico'`,
+  /// `'Nutricionista'`, `'Fisioterapeuta'`, `'Personal_Trainer'`) — `null`
+  /// quando [ehProfissional] é `false`.
+  final String? tipoProfissional;
+  final String? registroProfissional;
+  final int? idade;
+  final double? pesoKg;
+
   const CadastroPerfilPendente({
     required this.nickname,
     this.nomeCompleto = '',
@@ -440,5 +514,26 @@ class CadastroPerfilPendente {
     required this.cidade,
     required this.uf,
     required this.geoRankingId,
+    this.perfilUso,
+    this.ehProfissional = false,
+    this.tipoProfissional,
+    this.registroProfissional,
+    this.idade,
+    this.pesoKg,
   });
+
+  /// Estrutura enviada como `data:` para `client.auth.signUp` — vira
+  /// `user_metadata`. Espelha 1:1 os campos que [CadastroController.
+  /// _persistirPerfil] grava em `perfis_usuarios`/`anonymous_users`, exceto
+  /// nome/telefone/endereço (esses só existem, cifrados, na tabela — nunca
+  /// em texto plano em `user_metadata`).
+  Map<String, dynamic> toUserMetadata() => {
+        if (perfilUso != null) 'perfil_uso': perfilUso,
+        'eh_profissional': ehProfissional,
+        if (tipoProfissional != null) 'tipo_profissional': tipoProfissional,
+        if (registroProfissional != null && registroProfissional!.isNotEmpty)
+          'registro_profissional': registroProfissional,
+        if (idade != null) 'idade': idade,
+        if (pesoKg != null) 'peso_kg': pesoKg,
+      };
 }

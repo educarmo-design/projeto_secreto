@@ -58,6 +58,10 @@ class _CadastroPageState extends State<CadastroPage> {
       TextEditingController();
   final TextEditingController _cityController = TextEditingController();
   final TextEditingController _stateController = TextEditingController();
+  final TextEditingController _idadeController = TextEditingController();
+  final TextEditingController _pesoController = TextEditingController();
+  final TextEditingController _registroProfissionalController =
+      TextEditingController();
 
   static final RegExp _emailRegex = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
 
@@ -65,6 +69,17 @@ class _CadastroPageState extends State<CadastroPage> {
   bool _isSubmitting = false;
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
+
+  /// Perfil Base — obrigatório, mas sem valor padrão pré-marcado (o usuário
+  /// precisa escolher ativamente; não é uma decisão que o app deva tomar
+  /// por ele). `null` até o primeiro toque; validado manualmente em
+  /// [_submit] porque um `RadioListTile` não passa por um `FormField`
+  /// comum.
+  PerfilBaseCadastro? _perfilBase;
+  bool _perfilBaseTocado = false;
+
+  bool _souProfissional = false;
+  TipoProfissionalCadastro? _tipoProfissional;
 
   /// `true` depois que um provedor social confirmou a identidade — troca o
   /// formulário completo por só apelido + localização.
@@ -130,6 +145,9 @@ class _CadastroPageState extends State<CadastroPage> {
     _neighborhoodController.dispose();
     _cityController.dispose();
     _stateController.dispose();
+    _idadeController.dispose();
+    _pesoController.dispose();
+    _registroProfissionalController.dispose();
     super.dispose();
   }
 
@@ -158,7 +176,14 @@ class _CadastroPageState extends State<CadastroPage> {
   }
 
   Future<void> _submit() async {
-    if (!(_formKey.currentState?.validate() ?? false)) return;
+    // RadioListTile não é um FormField — a validação do Perfil Base é
+    // manual, e `_perfilBaseTocado` liga a mensagem de erro embaixo dele só
+    // depois da primeira tentativa de envio (não antes, para não assustar
+    // quem ainda nem chegou lá).
+    setState(() => _perfilBaseTocado = true);
+    final formValido = _formKey.currentState?.validate() ?? false;
+    if (!formValido || _perfilBase == null) return;
+    if (_souProfissional && _tipoProfissional == null) return;
     if (_isSubmitting) return;
 
     final endereco = _lerCamposDeEndereco();
@@ -167,21 +192,6 @@ class _CadastroPageState extends State<CadastroPage> {
     final telefone = _phoneController.text.trim();
     final email = _emailController.text.trim();
     final senha = _passwordController.text;
-
-    setState(() => _isSubmitting = true);
-    final result = await _controller.cadastrarComEmailESenha(
-      email: email,
-      senha: senha,
-    );
-    if (!mounted) return;
-    setState(() => _isSubmitting = false);
-
-    if (!result.success) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(result.errorMessage ?? i18n.tr('common.error'))),
-      );
-      return;
-    }
 
     final perfilPendente = CadastroPerfilPendente(
       nickname: nickname,
@@ -194,7 +204,31 @@ class _CadastroPageState extends State<CadastroPage> {
       cidade: endereco.cidade,
       uf: endereco.uf,
       geoRankingId: endereco.geoRankingId,
+      perfilUso: _perfilBase!.tag,
+      ehProfissional: _souProfissional,
+      tipoProfissional: _souProfissional ? _tipoProfissional!.valorEnum : null,
+      registroProfissional: _souProfissional
+          ? _registroProfissionalController.text.trim()
+          : null,
+      idade: int.tryParse(_idadeController.text.trim()),
+      pesoKg: double.tryParse(_pesoController.text.trim().replaceAll(',', '.')),
     );
+
+    setState(() => _isSubmitting = true);
+    final result = await _controller.cadastrarComEmailESenha(
+      email: email,
+      senha: senha,
+      metadadosPapel: perfilPendente.toUserMetadata(),
+    );
+    if (!mounted) return;
+    setState(() => _isSubmitting = false);
+
+    if (!result.success) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(result.errorMessage ?? i18n.tr('common.error'))),
+      );
+      return;
+    }
 
     await Navigator.of(context).push(
       MaterialPageRoute(
@@ -398,7 +432,55 @@ class _CadastroPageState extends State<CadastroPage> {
             : null,
       ),
       const SizedBox(height: 16),
+      Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: TextFormField(
+              controller: _idadeController,
+              keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              decoration: InputDecoration(
+                labelText: i18n.tr('auth.idade_label'),
+                prefixIcon: const Icon(Icons.cake_outlined),
+              ),
+              validator: (value) {
+                final idade = int.tryParse(value?.trim() ?? '');
+                return (idade == null || idade < 1 || idade > 120)
+                    ? i18n.tr('auth.idade_invalid')
+                    : null;
+              },
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: TextFormField(
+              controller: _pesoController,
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp(r'[0-9,.]')),
+              ],
+              decoration: InputDecoration(
+                labelText: i18n.tr('auth.peso_label'),
+                prefixIcon: const Icon(Icons.monitor_weight_outlined),
+              ),
+              validator: (value) {
+                final peso = double.tryParse(
+                  (value ?? '').trim().replaceAll(',', '.'),
+                );
+                return (peso == null || peso <= 0 || peso > 400)
+                    ? i18n.tr('auth.peso_invalid')
+                    : null;
+              },
+            ),
+          ),
+        ],
+      ),
+      const SizedBox(height: 16),
       ..._buildAddressFields(state, isBrasil, isAddressAutoFilled),
+      const SizedBox(height: 24),
+      ..._buildPerfilBaseESection(context),
       const SizedBox(height: 32),
       FilledButton(
         onPressed: _isSubmitting ? null : _submit,
@@ -591,6 +673,91 @@ class _CadastroPageState extends State<CadastroPage> {
     ];
   }
 
+  /// Perfil Base (Atleta / Guardião-Sênior, obrigatório) + o toggle "Sou um
+  /// Profissional de Saúde", que revela Especialidade + Registro
+  /// Profissional só quando ligado — o formulário dinâmico do Cadastro
+  /// Dinâmico. Cru de propósito (Adendo v5.1 §B): `RadioListTile`/
+  /// `SwitchListTile`/`DropdownButtonFormField` padrão do Material, sem
+  /// nenhum estilo customizado.
+  List<Widget> _buildPerfilBaseESection(BuildContext context) {
+    final mostrarErroPerfilBase = _perfilBaseTocado && _perfilBase == null;
+    final mostrarErroTipoProfissional =
+        _perfilBaseTocado && _souProfissional && _tipoProfissional == null;
+
+    return [
+      Text(
+        i18n.tr('auth.perfil_base_title'),
+        style: Theme.of(context).textTheme.titleMedium,
+      ),
+      RadioGroup<PerfilBaseCadastro>(
+        groupValue: _perfilBase,
+        onChanged: (value) => setState(() => _perfilBase = value),
+        child: Column(
+          children: [
+            for (final perfil in PerfilBaseCadastro.values)
+              RadioListTile<PerfilBaseCadastro>(
+                contentPadding: EdgeInsets.zero,
+                value: perfil,
+                title: Text(i18n.tr(perfil.labelKey)),
+              ),
+          ],
+        ),
+      ),
+      if (mostrarErroPerfilBase)
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Text(
+            i18n.tr('auth.perfil_base_required'),
+            style: const TextStyle(color: AppColors.error),
+          ),
+        ),
+      const SizedBox(height: 8),
+      SwitchListTile(
+        contentPadding: EdgeInsets.zero,
+        value: _souProfissional,
+        title: Text(i18n.tr('auth.sou_profissional_label')),
+        onChanged: (value) => setState(() {
+          _souProfissional = value;
+          if (!value) {
+            _tipoProfissional = null;
+            _registroProfissionalController.clear();
+          }
+        }),
+      ),
+      if (_souProfissional) ...[
+        const SizedBox(height: 8),
+        DropdownButtonFormField<TipoProfissionalCadastro>(
+          initialValue: _tipoProfissional,
+          decoration: InputDecoration(
+            labelText: i18n.tr('auth.especialidade_label'),
+            prefixIcon: const Icon(Icons.medical_services_outlined),
+            errorText:
+                mostrarErroTipoProfissional ? i18n.tr('auth.especialidade_required') : null,
+          ),
+          items: [
+            for (final tipo in TipoProfissionalCadastro.values)
+              DropdownMenuItem(value: tipo, child: Text(i18n.tr(tipo.labelKey))),
+          ],
+          onChanged: (value) => setState(() => _tipoProfissional = value),
+        ),
+        const SizedBox(height: 16),
+        TextFormField(
+          controller: _registroProfissionalController,
+          textCapitalization: TextCapitalization.characters,
+          decoration: InputDecoration(
+            labelText: i18n.tr('auth.registro_profissional_label'),
+            hintText: i18n.tr('auth.registro_profissional_hint'),
+            prefixIcon: const Icon(Icons.badge_outlined),
+          ),
+          validator: (value) => (_souProfissional &&
+                  (value == null || value.trim().isEmpty))
+              ? i18n.tr('auth.registro_profissional_required')
+              : null,
+        ),
+      ],
+    ];
+  }
+
   Widget? _buildCepSuffix(CadastroCepState state) {
     if (state.isLoading) {
       return const Padding(
@@ -607,4 +774,34 @@ class _CadastroPageState extends State<CadastroPage> {
     }
     return null;
   }
+}
+
+/// Perfil Base do Radio Button de cadastro — [tag] é o valor exato que
+/// [UiProfileSwitcher]/`AppRouter` esperam em `anonymous_users.profile_data.
+/// perfil_uso` ('Atleta'/'Senior'). Perfil "Assíncrono" (profissional que só
+/// acompanha, nunca joga) não é uma opção de cadastro — hoje só é alcançado
+/// via troca de perfil já dentro do app (`ConfiguracoesPerfilPage`).
+enum PerfilBaseCadastro {
+  atleta('auth.perfil_base_atleta', 'Atleta'),
+  guardiao('auth.perfil_base_guardiao', 'Senior');
+
+  const PerfilBaseCadastro(this.labelKey, this.tag);
+
+  final String labelKey;
+  final String tag;
+}
+
+/// Espelha 1:1 os valores do enum Postgres `tipo_profissional_saude`
+/// (20260706191827_core_schema.sql) — [valorEnum] precisa bater exatamente
+/// (mesma caixa/underscore) com o que o Postgres aceita.
+enum TipoProfissionalCadastro {
+  medico('auth.especialidade_medico', 'Medico'),
+  nutricionista('auth.especialidade_nutricionista', 'Nutricionista'),
+  fisioterapeuta('auth.especialidade_fisioterapeuta', 'Fisioterapeuta'),
+  personalTrainer('auth.especialidade_personal_trainer', 'Personal_Trainer');
+
+  const TipoProfissionalCadastro(this.labelKey, this.valorEnum);
+
+  final String labelKey;
+  final String valorEnum;
 }

@@ -30,3 +30,5 @@ NTUSER.DAT*
 "Searches/" 
 ntuser.dat.LOG* 
 ntuser.ini 
+# Arquivo local de chaves (Nao commitar)
+config_local.json

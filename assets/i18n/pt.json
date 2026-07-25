@@ -87,7 +87,28 @@
     "login_with_apple": "Entrar com a Apple",
 
     "social_complete_title": "Falta pouco!",
-    "social_complete_subtitle": "Confirme seu apelido e sua localização para participar das Ligas Geográficas"
+    "social_complete_subtitle": "Confirme seu apelido e sua localização para participar das Ligas Geográficas",
+
+    "idade_label": "Idade",
+    "idade_invalid": "Informe uma idade válida",
+    "peso_label": "Peso atual (kg)",
+    "peso_invalid": "Informe um peso válido",
+
+    "perfil_base_title": "Perfil de uso",
+    "perfil_base_atleta": "Atleta",
+    "perfil_base_guardiao": "Guardião / Sênior",
+    "perfil_base_required": "Escolha um perfil de uso",
+
+    "sou_profissional_label": "Sou um Profissional de Saúde",
+    "especialidade_label": "Especialidade",
+    "especialidade_required": "Escolha uma especialidade",
+    "especialidade_medico": "Médico",
+    "especialidade_nutricionista": "Nutricionista",
+    "especialidade_fisioterapeuta": "Fisioterapeuta",
+    "especialidade_personal_trainer": "Personal Trainer",
+    "registro_profissional_label": "Registro profissional",
+    "registro_profissional_hint": "Ex.: CRM 12345, CRN3 6789",
+    "registro_profissional_required": "Informe o número do seu registro profissional"
   },
 
   "dashboard": {
