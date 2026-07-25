@@ -314,9 +314,15 @@ class HealthSyncService {
         );
       }
 
+      // READ, não READ_WRITE: este serviço nunca chama
+      // `Health.writeHealthData` (nem nenhum outro método de escrita) em
+      // lugar nenhum — todo o app só LÊ do Health Connect/HealthKit e grava
+      // seus próprios dados no Supabase, nunca de volta no health store do
+      // SO. Pedir WRITE que nunca é usado é permissão a mais do que o app
+      // precisa (achado registrado no RELATÓRIO da tarefa anterior).
       final permissions = List<HealthDataAccess>.filled(
         types.length,
-        HealthDataAccess.READ_WRITE,
+        HealthDataAccess.READ,
       );
 
       // hasPermissions() is best-effort: HealthKit never discloses read

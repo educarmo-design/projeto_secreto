@@ -3,36 +3,26 @@
     <!-- Health Connect: só as permissões dos HealthDataType que
          HealthSyncService.todosOsTipos realmente pede — nunca o catálogo
          inteiro do Health Connect, que o plugin `health` só usa como
-         exemplo. READ_WRITE é o nível de acesso que _lerComPermissao já
-         solicita para cada tipo (embora o app hoje só leia; ver RELATÓRIO
-         desta tarefa), então cada tipo precisa das duas permissões, READ e
-         WRITE, ou o pedido de autorização falha silenciosamente para ele. -->
+         exemplo. Só READ, nunca WRITE: _lerComPermissao pede
+         HealthDataAccess.READ (corrigido nesta tarefa — antes pedia
+         READ_WRITE por engano) porque HealthSyncService nunca chama nenhum
+         método de escrita do plugin; o app só lê do Health Connect e grava
+         seus próprios dados no Supabase, nunca de volta no health store do
+         SO. Pedir WRITE que nunca é usado seria permissão a mais do que o
+         app precisa. -->
     <uses-permission android:name="android.permission.health.READ_HEART_RATE"/>
-    <uses-permission android:name="android.permission.health.WRITE_HEART_RATE"/>
     <uses-permission android:name="android.permission.health.READ_STEPS"/>
-    <uses-permission android:name="android.permission.health.WRITE_STEPS"/>
     <uses-permission android:name="android.permission.health.READ_DISTANCE"/>
-    <uses-permission android:name="android.permission.health.WRITE_DISTANCE"/>
     <uses-permission android:name="android.permission.health.READ_ACTIVE_CALORIES_BURNED"/>
-    <uses-permission android:name="android.permission.health.WRITE_ACTIVE_CALORIES_BURNED"/>
     <uses-permission android:name="android.permission.health.READ_SLEEP"/>
-    <uses-permission android:name="android.permission.health.WRITE_SLEEP"/>
     <uses-permission android:name="android.permission.health.READ_HEART_RATE_VARIABILITY"/>
-    <uses-permission android:name="android.permission.health.WRITE_HEART_RATE_VARIABILITY"/>
     <uses-permission android:name="android.permission.health.READ_WEIGHT"/>
-    <uses-permission android:name="android.permission.health.WRITE_WEIGHT"/>
     <uses-permission android:name="android.permission.health.READ_BODY_FAT"/>
-    <uses-permission android:name="android.permission.health.WRITE_BODY_FAT"/>
     <uses-permission android:name="android.permission.health.READ_BLOOD_PRESSURE"/>
-    <uses-permission android:name="android.permission.health.WRITE_BLOOD_PRESSURE"/>
     <uses-permission android:name="android.permission.health.READ_BLOOD_GLUCOSE"/>
-    <uses-permission android:name="android.permission.health.WRITE_BLOOD_GLUCOSE"/>
     <uses-permission android:name="android.permission.health.READ_OXYGEN_SATURATION"/>
-    <uses-permission android:name="android.permission.health.WRITE_OXYGEN_SATURATION"/>
     <uses-permission android:name="android.permission.health.READ_BODY_TEMPERATURE"/>
-    <uses-permission android:name="android.permission.health.WRITE_BODY_TEMPERATURE"/>
     <uses-permission android:name="android.permission.health.READ_EXERCISE"/>
-    <uses-permission android:name="android.permission.health.WRITE_EXERCISE"/>
 
     <!-- BackgroundSyncManager roda sync_diario_wearables via WorkManager de
          madrugada (Wi-Fi + carregando) chamando

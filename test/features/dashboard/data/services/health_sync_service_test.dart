@@ -479,4 +479,37 @@ void main() {
       expect(HealthSyncService.ultimaLeituraOuNula(const []), isNull);
     });
   });
+
+  group('nível de permissão pedido ao health store', () {
+    test(
+      'pede só READ, nunca READ_WRITE — o serviço nunca escreve no health store',
+      () async {
+        await service.lerFrequenciaCardiacaRecente();
+
+        final captured = verify(
+          () => health.hasPermissions(
+            any(),
+            permissions: captureAny(named: 'permissions'),
+          ),
+        ).captured;
+
+        final permissoes = captured.single as List<HealthDataAccess>;
+        expect(permissoes, everyElement(HealthDataAccess.READ));
+      },
+    );
+
+    test('mesmo em carregarHistoricoInicial (todos os tipos) o nível é READ', () async {
+      await service.carregarHistoricoInicial();
+
+      final captured = verify(
+        () => health.hasPermissions(
+          any(),
+          permissions: captureAny(named: 'permissions'),
+        ),
+      ).captured;
+
+      final permissoes = captured.single as List<HealthDataAccess>;
+      expect(permissoes, everyElement(HealthDataAccess.READ));
+    });
+  });
 }
