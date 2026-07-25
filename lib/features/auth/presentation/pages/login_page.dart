@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/i18n/i18n_manager.dart';
+import '../../../../core/router/app_router.dart';
 import '../../../../core/security/crypto_storage_service.dart';
 import '../../../../core/security/password_policy.dart';
 import '../../../../core/supabase/supabase_client.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../controllers/cadastro_controller.dart';
 import '../widgets/social_auth_buttons.dart';
+import 'recuperar_senha_page.dart';
 
 /// Bank-grade login screen (Zero Trust §5): dark/high-contrast UI, strict
 /// password strength, and a hardware-gated biometric quick-access path that
@@ -287,6 +290,22 @@ class _LoginPageState extends State<LoginPage> {
                         label: Text(i18n.tr('auth.biometric_login_button')),
                       ),
                     ],
+                    // RecuperarSenhaPage não é uma rota do GoRouter (o
+                    // roteador só tem as 4 rotas reais — login/cadastro/
+                    // profile-selection/home; ver app_router.dart) — abre
+                    // por cima da tela atual via Navigator, mesmo padrão de
+                    // CameraCaptureView/GerirVinculosPage.
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton(
+                        onPressed: () => Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => const RecuperarSenhaPage(),
+                          ),
+                        ),
+                        child: Text(i18n.tr('auth.forgot_password_link')),
+                      ),
+                    ),
                     const SizedBox(height: 24),
                     SocialAuthButtons(
                       dividerLabelKey: 'auth.login_social_divider',
@@ -294,6 +313,16 @@ class _LoginPageState extends State<LoginPage> {
                       appleLabelKey: 'auth.login_with_apple',
                       loadingProvider: _socialProviderLoading,
                       onProviderSelected: _handleSocialAuth,
+                    ),
+                    const SizedBox(height: 16),
+                    // Diferente do botão acima, /cadastro JÁ é uma rota real
+                    // do GoRouter — navega por ele (context.pushNamed), não
+                    // por um Navigator.push avulso, para não abrir uma
+                    // segunda instância de CadastroPage fora do controle do
+                    // roteador.
+                    TextButton(
+                      onPressed: () => context.pushNamed(RouteNames.cadastro),
+                      child: Text(i18n.tr('auth.create_account_link')),
                     ),
                   ],
                 ),

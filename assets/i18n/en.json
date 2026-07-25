@@ -108,7 +108,17 @@
     "especialidade_personal_trainer": "Personal Trainer",
     "registro_profissional_label": "Professional license",
     "registro_profissional_hint": "e.g.: License 12345",
-    "registro_profissional_required": "Enter your professional license number"
+    "registro_profissional_required": "Enter your professional license number",
+
+    "forgot_password_link": "Forgot my password",
+    "create_account_link": "Create account",
+
+    "recuperar_senha_title": "Recover password",
+    "recuperar_senha_subtitle": "Enter your e-mail. If it's registered, we'll send a link to reset your password.",
+    "recuperar_senha_button": "Send recovery link",
+    "recuperar_senha_sucesso": "If the e-mail you entered is registered, you'll receive a reset link shortly.",
+    "recuperar_senha_voltar_button": "Back to login",
+    "recuperar_senha_error": "Couldn't send the e-mail right now. Please try again."
   },
 
   "dashboard": {

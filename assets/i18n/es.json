@@ -108,7 +108,17 @@
     "especialidade_personal_trainer": "Entrenador Personal",
     "registro_profissional_label": "Registro profesional",
     "registro_profissional_hint": "Ej.: Colegiado 12345",
-    "registro_profissional_required": "Ingresa tu número de registro profesional"
+    "registro_profissional_required": "Ingresa tu número de registro profesional",
+
+    "forgot_password_link": "Olvidé mi contraseña",
+    "create_account_link": "Crear cuenta",
+
+    "recuperar_senha_title": "Recuperar contraseña",
+    "recuperar_senha_subtitle": "Ingresa tu correo. Si está registrado, te enviaremos un enlace para restablecer tu contraseña.",
+    "recuperar_senha_button": "Enviar enlace de recuperación",
+    "recuperar_senha_sucesso": "Si el correo ingresado está registrado, recibirás un enlace de restablecimiento en breve.",
+    "recuperar_senha_voltar_button": "Volver al inicio de sesión",
+    "recuperar_senha_error": "No se pudo enviar el correo ahora. Inténtalo de nuevo."
   },
 
   "dashboard": {

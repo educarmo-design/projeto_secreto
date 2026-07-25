@@ -108,7 +108,17 @@
     "especialidade_personal_trainer": "Personal Trainer",
     "registro_profissional_label": "Registro profissional",
     "registro_profissional_hint": "Ex.: CRM 12345, CRN3 6789",
-    "registro_profissional_required": "Informe o número do seu registro profissional"
+    "registro_profissional_required": "Informe o número do seu registro profissional",
+
+    "forgot_password_link": "Esqueci minha senha",
+    "create_account_link": "Criar conta",
+
+    "recuperar_senha_title": "Recuperar senha",
+    "recuperar_senha_subtitle": "Informe seu e-mail. Se ele estiver cadastrado, enviaremos um link para redefinir sua senha.",
+    "recuperar_senha_button": "Enviar link de recuperação",
+    "recuperar_senha_sucesso": "Se o e-mail informado estiver cadastrado, você vai receber um link de redefinição em instantes.",
+    "recuperar_senha_voltar_button": "Voltar ao login",
+    "recuperar_senha_error": "Não foi possível enviar o e-mail agora. Tente novamente."
   },
 
   "dashboard": {
