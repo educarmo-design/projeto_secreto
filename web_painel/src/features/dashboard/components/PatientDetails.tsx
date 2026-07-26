@@ -38,10 +38,10 @@ const tooltipStyle = {
  * mobile) nunca pode apresentar estes mesmos números como "score de
  * saúde"/"risco clínico" — só como pontos/metas de jogo (ver
  * `HealthScoreResult` no app Flutter). Esta tela é o oposto por desenho:
- * sua audiência (Médico/Nutricionista com vínculo clínico ativo via
- * `planejamento_clinico`) é exatamente o público para quem a leitura
- * clínica direta é apropriada — não reaproveite estes componentes na
- * experiência do app mobile.
+ * sua audiência (Médico/Nutricionista com vínculo ATIVO em
+ * `vinculos_profissional_paciente`) é exatamente o público para quem a
+ * leitura clínica direta é apropriada — não reaproveite estes componentes
+ * na experiência do app mobile.
  */
 export function PatientDetails({ profissional }: PatientDetailsProps) {
   const { pacienteId } = useParams<{ pacienteId: string }>();
@@ -76,11 +76,19 @@ export function PatientDetails({ profissional }: PatientDetailsProps) {
           .eq('usuario_id_anonimo', idPaciente)
           .gte('detectado_em', desde.toISOString())
           .order('detectado_em', { ascending: false }),
+        // Correção (mesmo achado do PatientList, ver RELATÓRIO): o vínculo
+        // real, desde a unificação do Zero Trust (20260713140000), é
+        // `vinculos_profissional_paciente` com `status = 'ativo'` — não
+        // `planejamento_clinico`. RLS de `metricas_saude_diarias`/
+        // `eventos_anomalias_saude` já usa essa fonte; ler daqui a mesma
+        // fonte evita o "sem_acesso" falso-negativo que a tabela antiga
+        // causava para quem tinha vínculo mas nunca teve prescrição.
         supabase
-          .from('planejamento_clinico')
+          .from('vinculos_profissional_paciente')
           .select('id')
           .eq('profissional_id', profissional.id)
-          .eq('paciente_id_anonimo', idPaciente)
+          .eq('paciente_id', idPaciente)
+          .eq('status', 'ativo')
           .limit(1),
       ]);
 
@@ -97,9 +105,10 @@ export function PatientDetails({ profissional }: PatientDetailsProps) {
         return;
       }
 
-      // Auditoria de Seguradora não tem `planejamento_clinico` (não é uma
-      // relação de cuidado individual) — só Médico/Nutricionista precisam
-      // desse vínculo para ver dados brutos de um paciente específico.
+      // Auditoria de Seguradora não tem vínculo individual em
+      // `vinculos_profissional_paciente` (não é uma relação de cuidado
+      // pessoa-a-pessoa) — só Médico/Nutricionista precisam desse vínculo
+      // para ver dados brutos de um paciente específico.
       const temVinculo = profissional.ehSeguradora || (vinculoResult.data?.length ?? 0) > 0;
       if (!temVinculo) {
         setEstado('sem_acesso');

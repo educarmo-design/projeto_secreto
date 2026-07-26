@@ -36,15 +36,29 @@ type EstadoTela = 'carregando' | 'sucesso' | 'erro';
  * grupo, nunca a ficha clínica bruta de um indivíduo.
  *
  * Nota de escopo (documentada, não escondida): esta lista só mostra
- * pacientes com quem O PROFISSIONAL LOGADO tem um vínculo em
- * `planejamento_clinico` — correto para Médico/Nutricionista (a relação de
- * cuidado É o vínculo), mas insuficiente para o caso de uso real de uma
- * Auditoria de Seguradora (que precisaria enxergar todo um pool de
- * apólices, não pacientes prescritos por ela mesma). Sem uma tabela de
- * vínculo seguradora↔apólice↔paciente (que não existe neste schema ainda),
- * a alternativa seria uma policy de RLS ampla demais — e por Zero Trust é
- * preferível esta lista ficar vazia para contas de seguradora até essa
- * modelagem existir, a abrir acesso amplo por padrão.
+ * pacientes com quem O PROFISSIONAL LOGADO tem um vínculo ATIVO em
+ * `vinculos_profissional_paciente` (F.2) — correto para
+ * Médico/Nutricionista (a relação de cuidado É o vínculo), mas insuficiente
+ * para o caso de uso real de uma Auditoria de Seguradora (que precisaria
+ * enxergar todo um pool de apólices, não pacientes vinculados a ela mesma).
+ * Sem uma tabela de vínculo seguradora↔apólice↔paciente (que não existe
+ * neste schema ainda), a alternativa seria uma policy de RLS ampla demais —
+ * e por Zero Trust é preferível esta lista ficar vazia para contas de
+ * seguradora até essa modelagem existir, a abrir acesso amplo por padrão.
+ * (Continua vazia de graça: uma seguradora nunca tem linha própria em
+ * `vinculos_profissional_paciente`, então a `WHERE EXISTS` da view abaixo
+ * já devolve zero linhas pra ela, sem nenhum caso especial no código.)
+ *
+ * Correção (achado da integração de Vínculos, ver RELATÓRIO): esta tela
+ * lia a lista de IDs de `planejamento_clinico` — a fonte de autorização
+ * ANTIGA, substituída por `vinculos_profissional_paciente` desde a
+ * unificação do Zero Trust (20260713140000). Um paciente que aceitasse um
+ * convite só aparecia aqui se o profissional TAMBÉM registrasse uma
+ * prescrição — o vínculo sozinho não bastava, mesmo já sendo a autorização
+ * real. Corrigido: `perfis_pacientes_vinculados` (abaixo) já é, ela mesma,
+ * a fonte de verdade — a view só devolve linha para quem tem vínculo ATIVO
+ * com `auth.uid()` (ver `create or replace view` em 20260713140000), então
+ * não existe mais nenhum passo prévio de buscar IDs em outro lugar.
  */
 export function PatientList({ profissional }: PatientListProps) {
   const [estado, setEstado] = useState<EstadoTela>('carregando');
@@ -60,61 +74,51 @@ export function PatientList({ profissional }: PatientListProps) {
       setEstado('carregando');
       setMensagemErro(null);
 
-      const { data: vinculos, error: erroVinculos } = await supabase
-        .from('planejamento_clinico')
-        .select('paciente_id_anonimo')
-        .eq('profissional_id', profissional.id);
+      // `perfis_pacientes_vinculados` (não `perfis_usuarios` diretamente) —
+      // a view criada na migration deste ONDA 3, que só expõe as 4 colunas
+      // não-sensíveis. Nenhum filtro por `profissional.id` é necessário
+      // aqui: a própria view só devolve linha para quem tem vínculo ATIVO
+      // com `auth.uid()` (a sessão atual) — a autorização já está embutida
+      // na `WHERE EXISTS` da view, não é responsabilidade deste componente
+      // reconstruí-la buscando IDs em outra tabela antes.
+      const { data: perfis, error: erroPerfis } = await supabase
+        .from('perfis_pacientes_vinculados')
+        .select('id, nickname, data_nascimento, geo_ranking_id');
 
       if (cancelado) return;
-      if (erroVinculos) {
+      if (erroPerfis) {
         setEstado('erro');
-        setMensagemErro(erroVinculos.message);
+        setMensagemErro(erroPerfis.message);
         return;
       }
 
-      const idsUnicos = Array.from(
-        new Set((vinculos ?? []).map((v) => v.paciente_id_anonimo)),
-      );
-
-      if (idsUnicos.length === 0) {
+      if (!perfis || perfis.length === 0) {
         setPacientes([]);
         setEstado('sucesso');
         return;
       }
 
-      const [perfisResult, progressoResult] = await Promise.all([
-        // `perfis_pacientes_vinculados` (não `perfis_usuarios` diretamente)
-        // — a view criada na migration deste ONDA 3, que só expõe as 4
-        // colunas não-sensíveis para pacientes vinculados a este
-        // profissional. `perfis_usuarios` em si nunca libera a linha de
-        // outro usuário via RLS, por desenho.
-        supabase
-          .from('perfis_pacientes_vinculados')
-          .select('id, nickname, data_nascimento, geo_ranking_id')
-          .in('id', idsUnicos),
-        supabase
-          .from('progresso_gamificacao')
-          .select('usuario_id_anonimo, pontuacao_ranking')
-          .in('usuario_id_anonimo', idsUnicos),
-      ]);
+      const idsUnicos = perfis.map((p) => p.id);
+      const { data: progresso, error: erroProgresso } = await supabase
+        .from('progresso_gamificacao')
+        .select('usuario_id_anonimo, pontuacao_ranking')
+        .in('usuario_id_anonimo', idsUnicos);
 
       if (cancelado) return;
-      if (perfisResult.error || progressoResult.error) {
+      if (erroProgresso) {
         setEstado('erro');
-        setMensagemErro(
-          perfisResult.error?.message ?? progressoResult.error?.message ?? 'Erro desconhecido.',
-        );
+        setMensagemErro(erroProgresso.message);
         return;
       }
 
       const pontuacaoPorId = new Map<string, number>(
-        (progressoResult.data ?? []).map((p): [string, number] => [
+        (progresso ?? []).map((p): [string, number] => [
           p.usuario_id_anonimo,
           p.pontuacao_ranking,
         ]),
       );
 
-      const resumos: PacienteResumo[] = (perfisResult.data ?? []).map((perfil) => ({
+      const resumos: PacienteResumo[] = perfis.map((perfil) => ({
         id: perfil.id,
         nickname: perfil.nickname,
         faixaEtaria: calcularFaixaEtaria(perfil.data_nascimento),
@@ -159,7 +163,7 @@ export function PatientList({ profissional }: PatientListProps) {
           <p className="text-sm text-clinical-muted">
             {ehSeguradora
               ? 'Visão agregada e anonimizada — sem dados nominais.'
-              : `${pacientes.length} paciente(s) com prescrição ativa.`}
+              : `${pacientes.length} paciente(s) com vínculo ativo.`}
           </p>
         </div>
         {/* Blindagem LGPD (mesma regra do restante desta tela): Auditoria de

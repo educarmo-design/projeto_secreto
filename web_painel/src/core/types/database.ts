@@ -134,6 +134,35 @@ export interface Database {
         Update: Partial<Database['public']['Tables']['progresso_gamificacao']['Row']>;
         Relationships: [];
       };
+
+      /**
+       * Motor de vínculos (Adendo v4, F.2) — a ÚNICA fonte de autorização
+       * "profissional acompanha paciente" desde a unificação do Zero Trust
+       * (20260713140000_saneamento_grants_e_unificacao_rls.sql).
+       * `PatientList`/`PatientDetails` leem `status` diretamente daqui (ou,
+       * no caso de `PatientList`, indiretamente via a view
+       * `perfis_pacientes_vinculados`, que já filtra por `status = 'ativo'`
+       * dentro dela mesma). Sem policy de INSERT/UPDATE/DELETE para
+       * `authenticated` — ver a migration.
+       */
+      vinculos_profissional_paciente: {
+        Row: {
+          id: string;
+          profissional_id: string;
+          paciente_id: string;
+          status: StatusVinculo;
+          tipo_pagador: string;
+          tipo_produto: string;
+          data_inicio: string;
+          data_saida: string | null;
+          fim_carencia: string | null;
+          criado_em: string;
+          atualizado_em: string;
+        };
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
     };
     Views: {
       /**
@@ -157,12 +186,16 @@ export interface Database {
     Enums: {
       tipo_profissional_saude: TipoProfissionalSaude;
       status_aprovacao_usuario: StatusAprovacaoUsuario;
+      status_vinculo: StatusVinculo;
     };
   };
 }
 
 /** Espelha o enum Postgres `status_aprovacao_usuario` (20260714100000_add_approval_workflow.sql). */
 export type StatusAprovacaoUsuario = 'pendente' | 'aprovado' | 'rejeitado';
+
+/** Espelha o enum Postgres `status_vinculo` (20260713100000_estruturas_b2b_v4.sql). */
+export type StatusVinculo = 'ativo' | 'em_carencia' | 'encerrado';
 
 /**
  * Espelha o enum Postgres `tipo_profissional_saude`. `Auditoria_Seguradora`
