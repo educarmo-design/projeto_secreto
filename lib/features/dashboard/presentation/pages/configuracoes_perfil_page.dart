@@ -5,6 +5,7 @@ import '../../../../core/router/ui_profile_switcher.dart';
 import '../../../auth/models/auth_models.dart' show ProfileUsageType;
 import '../../../vinculos/presentation/pages/gerir_vinculos_page.dart';
 import 'teste_frequencia_cardiaca_page.dart';
+import 'teste_peso_page.dart';
 
 /// Tela de Configurações de Perfil — PRD Mestre §1/§2/§4.
 ///
@@ -91,6 +92,17 @@ class ConfiguracoesPerfilPage extends StatelessWidget {
                   onTap: () => Navigator.of(context).push(
                     MaterialPageRoute<void>(
                       builder: (_) => const TesteFrequenciaCardiacaPage(),
+                    ),
+                  ),
+                ),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.monitor_weight_outlined),
+                  title: Text(i18n.tr('profile.weight_test_item')),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const TestePesoPage(),
                     ),
                   ),
                 ),

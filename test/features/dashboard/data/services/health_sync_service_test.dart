@@ -448,6 +448,76 @@ void main() {
     });
   });
 
+  group('lerPesoRecente', () {
+    test('pede só WEIGHT ao health store, nunca os outros tipos', () async {
+      await service.lerPesoRecente();
+
+      final captured = verify(
+        () => health.getHealthDataFromTypes(
+          types: captureAny(named: 'types'),
+          startTime: any(named: 'startTime'),
+          endTime: any(named: 'endTime'),
+        ),
+      ).captured;
+
+      expect(captured.single, [HealthDataType.WEIGHT]);
+    });
+
+    test('janela padrão são os últimos 30 dias a partir de agora', () async {
+      final antes = DateTime.now().subtract(const Duration(days: 30));
+
+      await service.lerPesoRecente();
+
+      final captured = verify(
+        () => health.getHealthDataFromTypes(
+          types: any(named: 'types'),
+          startTime: captureAny(named: 'startTime'),
+          endTime: any(named: 'endTime'),
+        ),
+      ).captured;
+      final startTime = captured.single as DateTime;
+
+      expect(startTime.isAfter(antes.subtract(const Duration(seconds: 5))), isTrue);
+      expect(startTime.isBefore(DateTime.now()), isTrue);
+    });
+
+    test('permissão negada devolve granted=false sem pontos', () async {
+      when(
+        () => health.hasPermissions(any(), permissions: any(named: 'permissions')),
+      ).thenAnswer((_) async => false);
+      when(
+        () => health.requestAuthorization(any(), permissions: any(named: 'permissions')),
+      ).thenAnswer((_) async => false);
+
+      final resultado = await service.lerPesoRecente();
+
+      expect(resultado.granted, isFalse);
+      expect(resultado.points, isEmpty);
+    });
+
+    test('sem registro na janela devolve points vazio', () async {
+      final resultado = await service.lerPesoRecente();
+
+      expect(resultado.granted, isTrue);
+      expect(resultado.points, isEmpty);
+      expect(HealthSyncService.ultimaLeituraOuNula(resultado.points), isNull);
+    });
+
+    test('nível de permissão pedido é READ, nunca READ_WRITE', () async {
+      await service.lerPesoRecente();
+
+      final captured = verify(
+        () => health.hasPermissions(
+          any(),
+          permissions: captureAny(named: 'permissions'),
+        ),
+      ).captured;
+
+      final permissoes = captured.single as List<HealthDataAccess>;
+      expect(permissoes, everyElement(HealthDataAccess.READ));
+    });
+  });
+
   group('HealthSyncService.ultimaLeituraOuNula', () {
     test('devolve o ponto com dateTo mais tardio, não o último da lista', () {
       final antigo = HealthMetricPoint(

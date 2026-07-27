@@ -175,6 +175,10 @@
     "heart_rate_test_subtitle": "Reads the most recent heart rate reading from Health Connect (last 24h) — raw data, not saved anywhere.",
     "heart_rate_test_button": "Read Heart Rate",
     "heart_rate_test_empty": "No heart rate reading in the last 24h.",
+    "weight_test_title": "Test: Weight",
+    "weight_test_subtitle": "Reads the most recent weight reading from Health Connect (last 30 days) — raw data, not saved anywhere.",
+    "weight_test_button": "Read Weight",
+    "weight_test_empty": "No weight reading in the last 30 days.",
     "sync_never": "Not synced yet",
     "sync_last_today": "Last update: Today at {{hora}}",
     "sync_last_yesterday": "Last update: Yesterday at {{hora}}",
@@ -323,7 +327,8 @@
     "mode_senior_label": "Clinical Guardian / Senior",
 
     "manage_links_item": "Professional Invitations",
-    "heart_rate_test_item": "Test Heart Rate Reading"
+    "heart_rate_test_item": "Test Heart Rate Reading",
+    "weight_test_item": "Test Weight Reading"
   },
 
   "vinculos": {

@@ -175,6 +175,10 @@
     "heart_rate_test_subtitle": "Lee el registro más reciente de frecuencia cardíaca del Health Connect (últimas 24h) — dato bruto, sin guardar en ningún lugar.",
     "heart_rate_test_button": "Leer Frecuencia Cardíaca",
     "heart_rate_test_empty": "Ningún registro de frecuencia cardíaca en las últimas 24h.",
+    "weight_test_title": "Prueba: Peso",
+    "weight_test_subtitle": "Lee el registro más reciente de peso del Health Connect (últimos 30 días) — dato bruto, sin guardar en ningún lugar.",
+    "weight_test_button": "Leer Peso",
+    "weight_test_empty": "Ningún registro de peso en los últimos 30 días.",
     "sync_never": "Aún no sincronizado",
     "sync_last_today": "Última actualización: Hoy a las {{hora}}",
     "sync_last_yesterday": "Última actualización: Ayer a las {{hora}}",
@@ -323,7 +327,8 @@
     "mode_senior_label": "Guardián Clínico / Sénior",
 
     "manage_links_item": "Invitaciones de Profesionales",
-    "heart_rate_test_item": "Probar Lectura de Frecuencia Cardíaca"
+    "heart_rate_test_item": "Probar Lectura de Frecuencia Cardíaca",
+    "weight_test_item": "Probar Lectura de Peso"
   },
 
   "vinculos": {

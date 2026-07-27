@@ -280,12 +280,32 @@ class HealthSyncService {
     );
   }
 
+  /// Leitura pontual, só de [HealthDataType.WEIGHT], dos últimos [dias]
+  /// (padrão 30) — mesmo gatilho manual de teste/validação do fundador que
+  /// [lerFrequenciaCardiacaRecente] já serve, mas com janela em dias, não
+  /// horas: peso é um sinal discreto/de baixa frequência (a balança Fitdays
+  /// só produz um ponto por pesagem, tipicamente alguns por semana, nunca
+  /// contínuo como frequência cardíaca), então uma janela de 24h quase
+  /// sempre voltaria vazia mesmo com o dado presente no Health Connect.
+  /// Passa pelo mesmo [_lerComPermissao] — mesma checagem de instalação,
+  /// mesmo pedido de permissão nativo (aqui, só
+  /// `android.permission.health.READ_WEIGHT`, já declarada no Manifest) —
+  /// pedindo um único tipo, então não aciona nenhum dos outros sinais que o
+  /// app rastreia. Não grava nada.
+  Future<HealthSyncResult> lerPesoRecente({int dias = 30}) {
+    return _lerComPermissao(
+      const [HealthDataType.WEIGHT],
+      start: DateTime.now().subtract(Duration(days: dias)),
+    );
+  }
+
   /// O ponto mais recente (`dateTo` mais tardio) dentre [points] — o
-  /// "último registro" que a leitura pontual de frequência cardíaca precisa
-  /// mostrar, já que o Health Connect pode devolver vários batimentos
-  /// dentro da janela pedida (um por sincronização do Garmin, por exemplo).
-  /// `null` quando a janela não tem nenhum ponto (nenhum wearable
-  /// sincronizou frequência cardíaca no período).
+  /// "último registro" que a leitura pontual de frequência cardíaca (ou de
+  /// peso, ver [lerPesoRecente]) precisa mostrar, já que o Health Connect
+  /// pode devolver vários pontos dentro da janela pedida (um por
+  /// sincronização do Garmin ou pesagem na balança, por exemplo). `null`
+  /// quando a janela não tem nenhum ponto (nenhum wearable/balança
+  /// sincronizou o sinal no período).
   static HealthMetricPoint? ultimaLeituraOuNula(List<HealthMetricPoint> points) {
     if (points.isEmpty) return null;
     return points.reduce((a, b) => a.dateTo.isAfter(b.dateTo) ? a : b);
