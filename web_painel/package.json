@@ -9,7 +9,8 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
-    "seed:cloud": "tsx scripts/seed_cloud.ts"
+    "seed:cloud": "tsx scripts/seed_cloud.ts",
+    "seed:food-embeddings": "tsx scripts/seed_food_embeddings.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",
