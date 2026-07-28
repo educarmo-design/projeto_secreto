@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "seed:cloud": "tsx scripts/seed_cloud.ts",
-    "seed:food-embeddings": "tsx scripts/seed_food_embeddings.ts"
+    "seed:food-embeddings": "tsx scripts/seed_food_embeddings.ts",
+    "seed:teste-alimentos": "tsx scripts/seed_teste_alimentos.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",
