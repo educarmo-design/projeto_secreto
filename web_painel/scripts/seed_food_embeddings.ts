@@ -4,28 +4,63 @@
  * Popula `alimentos_referencia.embedding` (coluna `vector(768)`, criada em
  * 20260727120000_setup_nutricao_semantica.sql, nula até aqui) para todo
  * alimento que ainda não tem embedding: busca `nome_taco` + `aliases`,
- * gera o vetor via `text-embedding-004` do Gemini e grava de volta na
- * mesma linha. Esse embedding é o que vai permitir casar sinônimos/gírias
- * que o casamento exato/substring por `aliases`
- * (supabase/functions/extract-metric-photo/index.ts) não cobre — a busca
- * por similaridade em si (Edge Function que consome este embedding) é
- * trabalho de uma tarefa separada; este script só faz a ingestão.
+ * gera o vetor via Gemini e grava de volta na mesma linha. Esse embedding é
+ * o que vai permitir casar sinônimos/gírias que o casamento exato/substring
+ * por `aliases` (supabase/functions/extract-metric-photo/index.ts) não
+ * cobre — a busca por similaridade em si (Edge Function que consome este
+ * embedding) é trabalho de uma tarefa separada; este script só faz a
+ * ingestão.
+ *
+ * BUG CORRIGIDO (29/jul/2026): rodando pela primeira vez, `text-embedding-004`
+ * devolveu 404 ("is not found for API version v1beta, or is not supported
+ * for embedContent"). Confirmado chamando ListModels contra a própria chave
+ * do projeto: o modelo NEM APARECE na lista — foi desativado por completo
+ * (mesma classe de bug já documentada em
+ * extract-metric-photo/index.ts para 'gemini-2.5-flash'). Os modelos de
+ * embedding disponíveis hoje são `gemini-embedding-001` (estável, usado
+ * aqui), `gemini-embedding-2-preview` e `gemini-embedding-2`. Três
+ * diferenças em relação ao que este script tinha antes:
+ *
+ *   1. Endpoint: nenhum dos modelos atuais lista `batchEmbedContents`
+ *      (síncrono) em `supportedGenerationMethods` — só `embedContent`
+ *      (um texto por chamada) e `asyncBatchEmbedContent` (fluxo
+ *      assíncrono, cria um job e exige polling — infraestrutura extra que
+ *      não compensa no volume deste catálogo, algumas dezenas/centenas de
+ *      itens, não milhões). Por isso o script agora chama `embedContent`
+ *      uma vez por alimento, sequencialmente, com delay entre cada chamada
+ *      — a noção de "lote" (`TAMANHO_LOTE`) continua existindo só como
+ *      agrupamento de log/checkpoint, não como uma única chamada HTTP.
+ *   2. Dimensão: `gemini-embedding-001` devolve 3072 valores por padrão —
+ *      incompatível com a coluna `vector(768)`. `outputDimensionality: 768`
+ *      no corpo da requisição trunca pro tamanho certo (Matryoshka
+ *      Representation Learning — o modelo foi treinado pra isso, não é um
+ *      corte arbitrário).
+ *   3. Normalização: confirmado testando contra a API de verdade — um
+ *      embedding truncado por `outputDimensionality` NÃO sai normalizado
+ *      (norma L2 ~0.59, não 1.0). Documentação do próprio Google recomenda
+ *      normalizar antes de guardar; feito em `normalizarL2`. Sem isso, o
+ *      vetor ainda funcionaria para busca por distância de cosseno (`<=>`,
+ *      que já é invariante a escala), mas ficaria incorreto se algum dia
+ *      alguém trocar para `<->`/`<#>` — normalizar na ingestão custa quase
+ *      nada e elimina essa pegadinha de vez.
  *
  * REST puro (`fetch` direto para `generativelanguage.googleapis.com`), sem
  * SDK `@google/genai`: mesmo padrão que `extract-metric-photo/index.ts` já
- * usa para o resto do pipeline de IA deste projeto — não introduz uma
- * segunda forma de falar com o Gemini.
+ * usa para o resto do pipeline de IA deste projeto.
  *
  * `taskType: 'RETRIEVAL_DOCUMENT'` em cada embedding gerado aqui — é o modo
  * assimétrico do Gemini para o lado "catálogo" de uma busca por
  * similaridade. Quem for construir a Edge Function que consulta este vetor
  * (pendência, ver RELATÓRIO) precisa gerar o embedding do termo de busca do
- * usuário com `taskType: 'RETRIEVAL_QUERY'` — não `RETRIEVAL_DOCUMENT' — ou
+ * usuário com `taskType: 'RETRIEVAL_QUERY'` — não `RETRIEVAL_DOCUMENT` — ou
  * os dois espaços vetoriais não ficam comparáveis.
  *
  * Idempotente por construção: só busca linhas com `embedding IS NULL`, sem
  * nenhum estado externo de progresso — rodar de novo depois de uma falha
- * simplesmente retoma dos alimentos que ainda não têm vetor.
+ * simplesmente retoma dos alimentos que ainda não têm vetor. Cada alimento
+ * é gravado assim que seu próprio embedding chega (não espera o lote
+ * inteiro terminar), então uma falha no meio de um lote não descarta o que
+ * já tinha sido processado com sucesso antes dela.
  *
  * Como rodar:
  *   1. cd web_painel
@@ -38,14 +73,16 @@
 import 'dotenv/config';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
-const GEMINI_EMBEDDING_ENDPOINT =
-  'https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:batchEmbedContents';
+const MODELO_EMBEDDING = 'gemini-embedding-001';
+const GEMINI_EMBED_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${MODELO_EMBEDDING}:embedContent`;
 const DIMENSOES_ESPERADAS = 768;
 
-// Conservador de propósito: `batchEmbedContents` aceita até 100 requests por
-// chamada, mas um lote menor mantém cada chamada HTTP rápida de auditar no
-// log e reduz o tamanho do "prejuízo" se uma chamada falhar no meio.
+// "Lote" aqui é só agrupamento de log/checkpoint — cada alimento vira uma
+// chamada HTTP própria (embedContent não tem variante síncrona em lote, ver
+// nota de correção no cabeçalho), então quem controla o rate limit de
+// verdade é DELAY_ENTRE_ITENS_MS.
 const TAMANHO_LOTE = 20;
+const DELAY_ENTRE_ITENS_MS = 1000;
 const DELAY_ENTRE_LOTES_MS = 2000;
 
 interface AlimentoPendente {
@@ -81,6 +118,13 @@ function construirTextoEmbedding(alimento: AlimentoPendente): string {
     : alimento.nome_taco;
 }
 
+/** Reescala para norma L2 = 1 — necessário porque `outputDimensionality` (Matryoshka) não devolve o vetor já normalizado (ver nota de correção no cabeçalho). */
+function normalizarL2(values: number[]): number[] {
+  const norma = Math.sqrt(values.reduce((soma, v) => soma + v * v, 0));
+  if (norma === 0) return values;
+  return values.map((v) => v / norma);
+}
+
 async function contarPendentes(admin: SupabaseClient): Promise<number> {
   const { count, error } = await admin
     .from('alimentos_referencia')
@@ -100,41 +144,34 @@ async function buscarLotePendente(admin: SupabaseClient, limite: number): Promis
   return data ?? [];
 }
 
-async function gerarEmbeddingsDoLote(apiKey: string, alimentos: AlimentoPendente[]): Promise<number[][]> {
-  const requests = alimentos.map((alimento) => ({
-    model: 'models/text-embedding-004',
-    content: { parts: [{ text: construirTextoEmbedding(alimento) }] },
-    taskType: 'RETRIEVAL_DOCUMENT',
-  }));
-
-  const resposta = await fetch(`${GEMINI_EMBEDDING_ENDPOINT}?key=${apiKey}`, {
+async function gerarEmbeddingParaAlimento(apiKey: string, alimento: AlimentoPendente): Promise<number[]> {
+  const resposta = await fetch(`${GEMINI_EMBED_ENDPOINT}?key=${apiKey}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ requests }),
+    body: JSON.stringify({
+      content: { parts: [{ text: construirTextoEmbedding(alimento) }] },
+      taskType: 'RETRIEVAL_DOCUMENT',
+      outputDimensionality: DIMENSOES_ESPERADAS,
+    }),
   });
 
   if (!resposta.ok) {
     const corpoErro = await resposta.text();
-    throw new Error(`Gemini batchEmbedContents falhou (HTTP ${resposta.status}): ${corpoErro}`);
+    throw new Error(`Gemini embedContent falhou para "${alimento.nome_taco}" (HTTP ${resposta.status}): ${corpoErro}`);
   }
 
-  const json = (await resposta.json()) as { embeddings?: Array<{ values: number[] }> };
-  const embeddings = json.embeddings;
-  if (!embeddings || embeddings.length !== alimentos.length) {
+  const json = (await resposta.json()) as { embedding?: { values: number[] } };
+  const values = json.embedding?.values;
+  if (!values) {
+    throw new Error(`Resposta do Gemini sem "embedding.values" para "${alimento.nome_taco}": ${JSON.stringify(json)}`);
+  }
+  if (values.length !== DIMENSOES_ESPERADAS) {
     throw new Error(
-      `Resposta do Gemini com formato inesperado: esperava ${alimentos.length} embeddings, recebeu ${embeddings?.length ?? 0}.`,
+      `Embedding de "${alimento.nome_taco}" veio com ${values.length} dimensões, esperado ${DIMENSOES_ESPERADAS}.`,
     );
   }
 
-  embeddings.forEach((embedding, i) => {
-    if (embedding.values.length !== DIMENSOES_ESPERADAS) {
-      throw new Error(
-        `Embedding de "${alimentos[i].nome_taco}" veio com ${embedding.values.length} dimensões, esperado ${DIMENSOES_ESPERADAS}.`,
-      );
-    }
-  });
-
-  return embeddings.map((e) => e.values);
+  return normalizarL2(values);
 }
 
 /**
@@ -166,7 +203,7 @@ async function main() {
   }
 
   const totalLotes = Math.ceil(total / TAMANHO_LOTE);
-  console.log(`${total} alimento(s) sem embedding. Processando em até ${totalLotes} lote(s) de ${TAMANHO_LOTE}.`);
+  console.log(`${total} alimento(s) sem embedding. Processando em até ${totalLotes} lote(s) de ${TAMANHO_LOTE} (modelo ${MODELO_EMBEDDING}).`);
 
   let processados = 0;
 
@@ -175,12 +212,17 @@ async function main() {
     if (lote.length === 0) break;
 
     console.log(`\nProcessando lote ${numeroLote}/${totalLotes} (${lote.length} alimento(s))...`);
-    const embeddings = await gerarEmbeddingsDoLote(geminiApiKey, lote);
 
     for (const [i, alimento] of lote.entries()) {
-      await gravarEmbedding(admin, alimento.id, embeddings[i]);
+      const values = await gerarEmbeddingParaAlimento(geminiApiKey, alimento);
+      await gravarEmbedding(admin, alimento.id, values);
       processados += 1;
-      console.log(`  OK: "${alimento.nome_taco}" atualizado (${embeddings[i].length} dimensões).`);
+      console.log(`  OK: "${alimento.nome_taco}" atualizado (${values.length} dimensões).`);
+
+      const ehUltimoItemDoLote = i === lote.length - 1;
+      if (!ehUltimoItemDoLote) {
+        await sleep(DELAY_ENTRE_ITENS_MS);
+      }
     }
 
     if (numeroLote < totalLotes) {
