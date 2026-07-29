@@ -1,0 +1,4174 @@
+[
+  {
+    "nome": "Arroz, integral, cozido",
+    "calorias": 123.53,
+    "proteinas": 2.59,
+    "carboidratos": 25.81,
+    "gorduras": 1
+  },
+  {
+    "nome": "Arroz, integral, cru",
+    "calorias": 359.68,
+    "proteinas": 7.32,
+    "carboidratos": 77.45,
+    "gorduras": 1.86
+  },
+  {
+    "nome": "Arroz, tipo 1, cozido",
+    "calorias": 128.26,
+    "proteinas": 2.52,
+    "carboidratos": 28.06,
+    "gorduras": 0.23
+  },
+  {
+    "nome": "Arroz, tipo 1, cru",
+    "calorias": 357.79,
+    "proteinas": 7.16,
+    "carboidratos": 78.76,
+    "gorduras": 0.34
+  },
+  {
+    "nome": "Arroz, tipo 2, cozido",
+    "calorias": 130.12,
+    "proteinas": 2.57,
+    "carboidratos": 28.19,
+    "gorduras": 0.36
+  },
+  {
+    "nome": "Arroz, tipo 2, cru",
+    "calorias": 358.12,
+    "proteinas": 7.24,
+    "carboidratos": 78.88,
+    "gorduras": 0.28
+  },
+  {
+    "nome": "Aveia, flocos, crua",
+    "calorias": 393.82,
+    "proteinas": 13.92,
+    "carboidratos": 66.64,
+    "gorduras": 8.5
+  },
+  {
+    "nome": "Biscoito, doce, maisena",
+    "calorias": 442.82,
+    "proteinas": 8.07,
+    "carboidratos": 75.23,
+    "gorduras": 11.97
+  },
+  {
+    "nome": "Biscoito, doce, recheado com chocolate",
+    "calorias": 471.82,
+    "proteinas": 6.4,
+    "carboidratos": 70.55,
+    "gorduras": 19.58
+  },
+  {
+    "nome": "Biscoito, doce, recheado com morango",
+    "calorias": 471.17,
+    "proteinas": 5.72,
+    "carboidratos": 71.01,
+    "gorduras": 19.57
+  },
+  {
+    "nome": "Biscoito, doce, wafer, recheado de chocolate",
+    "calorias": 502.46,
+    "proteinas": 5.56,
+    "carboidratos": 67.54,
+    "gorduras": 24.67
+  },
+  {
+    "nome": "Biscoito, doce, wafer, recheado de morango",
+    "calorias": 513.45,
+    "proteinas": 4.52,
+    "carboidratos": 67.35,
+    "gorduras": 26.4
+  },
+  {
+    "nome": "Biscoito, salgado, cream cracker",
+    "calorias": 431.73,
+    "proteinas": 10.06,
+    "carboidratos": 68.73,
+    "gorduras": 14.44
+  },
+  {
+    "nome": "Bolo, mistura para",
+    "calorias": 418.63,
+    "proteinas": 6.16,
+    "carboidratos": 84.71,
+    "gorduras": 6.13
+  },
+  {
+    "nome": "Bolo, pronto, aipim",
+    "calorias": 323.85,
+    "proteinas": 4.42,
+    "carboidratos": 47.86,
+    "gorduras": 12.75
+  },
+  {
+    "nome": "Bolo, pronto, chocolate",
+    "calorias": 410.01,
+    "proteinas": 6.22,
+    "carboidratos": 54.72,
+    "gorduras": 18.47
+  },
+  {
+    "nome": "Bolo, pronto, coco",
+    "calorias": 333.44,
+    "proteinas": 5.67,
+    "carboidratos": 52.28,
+    "gorduras": 11.3
+  },
+  {
+    "nome": "Bolo, pronto, milho",
+    "calorias": 311.39,
+    "proteinas": 4.8,
+    "carboidratos": 45.11,
+    "gorduras": 12.42
+  },
+  {
+    "nome": "Canjica, branca, crua",
+    "calorias": 357.6,
+    "proteinas": 7.2,
+    "carboidratos": 78.06,
+    "gorduras": 0.97
+  },
+  {
+    "nome": "Canjica, com leite integral",
+    "calorias": 112.46,
+    "proteinas": 2.36,
+    "carboidratos": 23.63,
+    "gorduras": 1.24
+  },
+  {
+    "nome": "Cereais, milho, flocos, com sal",
+    "calorias": 369.6,
+    "proteinas": 7.29,
+    "carboidratos": 80.83,
+    "gorduras": 1.6
+  },
+  {
+    "nome": "Cereais, milho, flocos, sem sal",
+    "calorias": 363.34,
+    "proteinas": 6.88,
+    "carboidratos": 80.45,
+    "gorduras": 1.18
+  },
+  {
+    "nome": "Cereais, mingau, milho, infantil",
+    "calorias": 394.43,
+    "proteinas": 6.43,
+    "carboidratos": 87.27,
+    "gorduras": 1.09
+  },
+  {
+    "nome": "Cereais, mistura para vitamina, trigo, cevada e aveia",
+    "calorias": 381.13,
+    "proteinas": 8.9,
+    "carboidratos": 81.62,
+    "gorduras": 2.12
+  },
+  {
+    "nome": "Cereal matinal, milho",
+    "calorias": 365.35,
+    "proteinas": 7.16,
+    "carboidratos": 83.82,
+    "gorduras": 0.96
+  },
+  {
+    "nome": "Cereal matinal, milho, açúcar",
+    "calorias": 376.56,
+    "proteinas": 4.74,
+    "carboidratos": 88.84,
+    "gorduras": 0.67
+  },
+  {
+    "nome": "Creme de arroz, pó",
+    "calorias": 386,
+    "proteinas": 7.03,
+    "carboidratos": 83.87,
+    "gorduras": 1.23
+  },
+  {
+    "nome": "Creme de milho, pó",
+    "calorias": 333.03,
+    "proteinas": 4.82,
+    "carboidratos": 86.15,
+    "gorduras": 1.64
+  },
+  {
+    "nome": "Curau, milho verde",
+    "calorias": 78.43,
+    "proteinas": 2.36,
+    "carboidratos": 13.94,
+    "gorduras": 1.64
+  },
+  {
+    "nome": "Curau, milho verde, mistura para",
+    "calorias": 402.29,
+    "proteinas": 2.22,
+    "carboidratos": 79.82,
+    "gorduras": 13.37
+  },
+  {
+    "nome": "Farinha, de arroz, enriquecida",
+    "calorias": 363.06,
+    "proteinas": 1.27,
+    "carboidratos": 85.5,
+    "gorduras": 0.3
+  },
+  {
+    "nome": "Farinha, de centeio, integral",
+    "calorias": 335.78,
+    "proteinas": 12.52,
+    "carboidratos": 73.3,
+    "gorduras": 1.75
+  },
+  {
+    "nome": "Farinha, de milho, amarela",
+    "calorias": 350.59,
+    "proteinas": 7.19,
+    "carboidratos": 79.08,
+    "gorduras": 1.47
+  },
+  {
+    "nome": "Farinha, de rosca",
+    "calorias": 370.58,
+    "proteinas": 11.38,
+    "carboidratos": 75.79,
+    "gorduras": 1.46
+  },
+  {
+    "nome": "Farinha, de trigo",
+    "calorias": 360.47,
+    "proteinas": 9.79,
+    "carboidratos": 75.09,
+    "gorduras": 1.37
+  },
+  {
+    "nome": "Farinha, láctea, de cereais",
+    "calorias": 414.85,
+    "proteinas": 11.88,
+    "carboidratos": 77.77,
+    "gorduras": 5.79
+  },
+  {
+    "nome": "Lasanha, massa fresca, cozida",
+    "calorias": 163.76,
+    "proteinas": 5.81,
+    "carboidratos": 32.52,
+    "gorduras": 1.16
+  },
+  {
+    "nome": "Lasanha, massa fresca, crua",
+    "calorias": 220.31,
+    "proteinas": 7.01,
+    "carboidratos": 45.06,
+    "gorduras": 1.34
+  },
+  {
+    "nome": "Macarrão, instantâneo",
+    "calorias": 435.86,
+    "proteinas": 8.79,
+    "carboidratos": 62.43,
+    "gorduras": 17.24
+  },
+  {
+    "nome": "Macarrão, trigo, cru",
+    "calorias": 371.12,
+    "proteinas": 10,
+    "carboidratos": 77.94,
+    "gorduras": 1.3
+  },
+  {
+    "nome": "Macarrão, trigo, cru, com ovos",
+    "calorias": 370.57,
+    "proteinas": 10.32,
+    "carboidratos": 76.62,
+    "gorduras": 1.97
+  },
+  {
+    "nome": "Milho, amido, cru",
+    "calorias": 361.37,
+    "proteinas": 0.6,
+    "carboidratos": 87.15,
+    "gorduras": 0
+  },
+  {
+    "nome": "Milho, fubá, cru",
+    "calorias": 353.48,
+    "proteinas": 7.21,
+    "carboidratos": 78.87,
+    "gorduras": 1.9
+  },
+  {
+    "nome": "Milho, verde, cru",
+    "calorias": 138.17,
+    "proteinas": 6.59,
+    "carboidratos": 28.56,
+    "gorduras": 0.61
+  },
+  {
+    "nome": "Milho, verde, enlatado, drenado",
+    "calorias": 97.56,
+    "proteinas": 3.23,
+    "carboidratos": 17.14,
+    "gorduras": 2.35
+  },
+  {
+    "nome": "Mingau tradicional, pó",
+    "calorias": 373.42,
+    "proteinas": 0.58,
+    "carboidratos": 89.34,
+    "gorduras": 0.37
+  },
+  {
+    "nome": "Pamonha, barra para cozimento, pré-cozida",
+    "calorias": 171.22,
+    "proteinas": 2.55,
+    "carboidratos": 30.68,
+    "gorduras": 4.85
+  },
+  {
+    "nome": "Pão, aveia, forma",
+    "calorias": 343.09,
+    "proteinas": 12.35,
+    "carboidratos": 59.57,
+    "gorduras": 5.69
+  },
+  {
+    "nome": "Pão, de soja",
+    "calorias": 308.73,
+    "proteinas": 11.34,
+    "carboidratos": 56.51,
+    "gorduras": 3.58
+  },
+  {
+    "nome": "Pão, glúten, forma",
+    "calorias": 252.99,
+    "proteinas": 11.95,
+    "carboidratos": 44.12,
+    "gorduras": 2.73
+  },
+  {
+    "nome": "Pão, milho, forma",
+    "calorias": 292.01,
+    "proteinas": 8.3,
+    "carboidratos": 56.4,
+    "gorduras": 3.11
+  },
+  {
+    "nome": "Pão, trigo, forma, integral",
+    "calorias": 253.19,
+    "proteinas": 9.43,
+    "carboidratos": 49.94,
+    "gorduras": 3.65
+  },
+  {
+    "nome": "Pão, trigo, francês",
+    "calorias": 299.81,
+    "proteinas": 7.95,
+    "carboidratos": 58.65,
+    "gorduras": 3.1
+  },
+  {
+    "nome": "Pão, trigo, sovado",
+    "calorias": 310.96,
+    "proteinas": 8.4,
+    "carboidratos": 61.45,
+    "gorduras": 2.84
+  },
+  {
+    "nome": "Pastel, de carne, cru",
+    "calorias": 288.7,
+    "proteinas": 10.74,
+    "carboidratos": 42.02,
+    "gorduras": 8.79
+  },
+  {
+    "nome": "Pastel, de carne, frito",
+    "calorias": 388.37,
+    "proteinas": 10.1,
+    "carboidratos": 43.77,
+    "gorduras": 20.14
+  },
+  {
+    "nome": "Pastel, de queijo, cru",
+    "calorias": 308.47,
+    "proteinas": 9.85,
+    "carboidratos": 45.95,
+    "gorduras": 9.63
+  },
+  {
+    "nome": "Pastel, de queijo, frito",
+    "calorias": 422.11,
+    "proteinas": 8.71,
+    "carboidratos": 48.13,
+    "gorduras": 22.67
+  },
+  {
+    "nome": "Pastel, massa, crua",
+    "calorias": 310.2,
+    "proteinas": 6.9,
+    "carboidratos": 57.38,
+    "gorduras": 5.48
+  },
+  {
+    "nome": "Pastel, massa, frita",
+    "calorias": 569.67,
+    "proteinas": 6.02,
+    "carboidratos": 49.34,
+    "gorduras": 40.86
+  },
+  {
+    "nome": "Pipoca, com óleo de soja, sem sal",
+    "calorias": 448.33,
+    "proteinas": 9.93,
+    "carboidratos": 70.31,
+    "gorduras": 15.94
+  },
+  {
+    "nome": "Polenta, pré-cozida",
+    "calorias": 102.74,
+    "proteinas": 2.29,
+    "carboidratos": 23.31,
+    "gorduras": 0.3
+  },
+  {
+    "nome": "Torrada, pão francês",
+    "calorias": 377.42,
+    "proteinas": 10.52,
+    "carboidratos": 74.56,
+    "gorduras": 3.3
+  },
+  {
+    "nome": "Abóbora, cabotian, cozida",
+    "calorias": 48.04,
+    "proteinas": 1.44,
+    "carboidratos": 10.76,
+    "gorduras": 0.73
+  },
+  {
+    "nome": "Abóbora, cabotian, crua",
+    "calorias": 38.6,
+    "proteinas": 1.75,
+    "carboidratos": 8.36,
+    "gorduras": 0.54
+  },
+  {
+    "nome": "Abóbora, menina brasileira, crua",
+    "calorias": 13.61,
+    "proteinas": 0.61,
+    "carboidratos": 3.3,
+    "gorduras": 0
+  },
+  {
+    "nome": "Abóbora, moranga, crua",
+    "calorias": 12.36,
+    "proteinas": 0.96,
+    "carboidratos": 2.67,
+    "gorduras": 0.06
+  },
+  {
+    "nome": "Abóbora, moranga, refogada",
+    "calorias": 29,
+    "proteinas": 0.39,
+    "carboidratos": 5.98,
+    "gorduras": 0.8
+  },
+  {
+    "nome": "Abóbora, pescoço, crua",
+    "calorias": 24.47,
+    "proteinas": 0.67,
+    "carboidratos": 6.12,
+    "gorduras": 0.12
+  },
+  {
+    "nome": "Abobrinha, italiana, cozida",
+    "calorias": 15.04,
+    "proteinas": 1.13,
+    "carboidratos": 2.98,
+    "gorduras": 0.2
+  },
+  {
+    "nome": "Abobrinha, italiana, crua",
+    "calorias": 19.28,
+    "proteinas": 1.14,
+    "carboidratos": 4.29,
+    "gorduras": 0.14
+  },
+  {
+    "nome": "Abobrinha, italiana, refogada",
+    "calorias": 24.43,
+    "proteinas": 1.07,
+    "carboidratos": 4.19,
+    "gorduras": 0.82
+  },
+  {
+    "nome": "Abobrinha, paulista, crua",
+    "calorias": 30.81,
+    "proteinas": 0.64,
+    "carboidratos": 7.87,
+    "gorduras": 0.14
+  },
+  {
+    "nome": "Acelga, crua",
+    "calorias": 20.94,
+    "proteinas": 1.44,
+    "carboidratos": 4.63,
+    "gorduras": 0.11
+  },
+  {
+    "nome": "Agrião, cru",
+    "calorias": 16.58,
+    "proteinas": 2.69,
+    "carboidratos": 2.25,
+    "gorduras": 0.24
+  },
+  {
+    "nome": "Aipo, cru",
+    "calorias": 19.09,
+    "proteinas": 0.76,
+    "carboidratos": 4.27,
+    "gorduras": 0.07
+  },
+  {
+    "nome": "Alface, americana, crua",
+    "calorias": 8.79,
+    "proteinas": 0.61,
+    "carboidratos": 1.75,
+    "gorduras": 0.13
+  },
+  {
+    "nome": "Alface, crespa, crua",
+    "calorias": 10.68,
+    "proteinas": 1.35,
+    "carboidratos": 1.7,
+    "gorduras": 0.16
+  },
+  {
+    "nome": "Alface, lisa, crua",
+    "calorias": 13.82,
+    "proteinas": 1.69,
+    "carboidratos": 2.43,
+    "gorduras": 0.12
+  },
+  {
+    "nome": "Alface, roxa, crua",
+    "calorias": 12.72,
+    "proteinas": 0.91,
+    "carboidratos": 2.49,
+    "gorduras": 0.19
+  },
+  {
+    "nome": "Alfavaca, crua",
+    "calorias": 29.18,
+    "proteinas": 2.66,
+    "carboidratos": 5.24,
+    "gorduras": 0.48
+  },
+  {
+    "nome": "Alho, cru",
+    "calorias": 113.13,
+    "proteinas": 7.01,
+    "carboidratos": 23.91,
+    "gorduras": 0.22
+  },
+  {
+    "nome": "Alho-poró, cru",
+    "calorias": 31.51,
+    "proteinas": 1.41,
+    "carboidratos": 6.88,
+    "gorduras": 0.14
+  },
+  {
+    "nome": "Almeirão, cru",
+    "calorias": 18.03,
+    "proteinas": 1.77,
+    "carboidratos": 3.34,
+    "gorduras": 0.22
+  },
+  {
+    "nome": "Almeirão, refogado",
+    "calorias": 65.08,
+    "proteinas": 1.7,
+    "carboidratos": 5.7,
+    "gorduras": 4.85
+  },
+  {
+    "nome": "Batata, baroa, cozida",
+    "calorias": 80.12,
+    "proteinas": 0.85,
+    "carboidratos": 18.95,
+    "gorduras": 0.17
+  },
+  {
+    "nome": "Batata, baroa, crua",
+    "calorias": 100.98,
+    "proteinas": 1.05,
+    "carboidratos": 23.98,
+    "gorduras": 0.17
+  },
+  {
+    "nome": "Batata, doce, cozida",
+    "calorias": 76.76,
+    "proteinas": 0.64,
+    "carboidratos": 18.42,
+    "gorduras": 0.09
+  },
+  {
+    "nome": "Batata, doce, crua",
+    "calorias": 118.24,
+    "proteinas": 1.26,
+    "carboidratos": 28.2,
+    "gorduras": 0.13
+  },
+  {
+    "nome": "Batata, frita, tipo chips, industrializada",
+    "calorias": 542.73,
+    "proteinas": 5.58,
+    "carboidratos": 51.22,
+    "gorduras": 36.62
+  },
+  {
+    "nome": "Batata, inglesa, cozida",
+    "calorias": 51.59,
+    "proteinas": 1.16,
+    "carboidratos": 11.94,
+    "gorduras": 0
+  },
+  {
+    "nome": "Batata, inglesa, crua",
+    "calorias": 64.37,
+    "proteinas": 1.77,
+    "carboidratos": 14.69,
+    "gorduras": 0
+  },
+  {
+    "nome": "Batata, inglesa, frita",
+    "calorias": 267.16,
+    "proteinas": 4.97,
+    "carboidratos": 35.64,
+    "gorduras": 13.11
+  },
+  {
+    "nome": "Batata, inglesa, sauté",
+    "calorias": 67.89,
+    "proteinas": 1.29,
+    "carboidratos": 14.09,
+    "gorduras": 0.9
+  },
+  {
+    "nome": "Berinjela, cozida",
+    "calorias": 18.85,
+    "proteinas": 0.68,
+    "carboidratos": 4.47,
+    "gorduras": 0.15
+  },
+  {
+    "nome": "Berinjela, crua",
+    "calorias": 19.63,
+    "proteinas": 1.22,
+    "carboidratos": 4.43,
+    "gorduras": 0.1
+  },
+  {
+    "nome": "Beterraba, cozida",
+    "calorias": 32.15,
+    "proteinas": 1.29,
+    "carboidratos": 7.23,
+    "gorduras": 0.09
+  },
+  {
+    "nome": "Beterraba, crua",
+    "calorias": 48.83,
+    "proteinas": 1.95,
+    "carboidratos": 11.11,
+    "gorduras": 0.09
+  },
+  {
+    "nome": "Biscoito, polvilho doce",
+    "calorias": 437.55,
+    "proteinas": 1.29,
+    "carboidratos": 80.54,
+    "gorduras": 12.25
+  },
+  {
+    "nome": "Brócolis, cozido",
+    "calorias": 24.64,
+    "proteinas": 2.13,
+    "carboidratos": 4.37,
+    "gorduras": 0.46
+  },
+  {
+    "nome": "Brócolis, cru",
+    "calorias": 25.5,
+    "proteinas": 3.64,
+    "carboidratos": 4.03,
+    "gorduras": 0.27
+  },
+  {
+    "nome": "Cará, cozido",
+    "calorias": 77.58,
+    "proteinas": 1.53,
+    "carboidratos": 18.85,
+    "gorduras": 0.11
+  },
+  {
+    "nome": "Cará, cru",
+    "calorias": 95.63,
+    "proteinas": 2.28,
+    "carboidratos": 22.95,
+    "gorduras": 0.14
+  },
+  {
+    "nome": "Caruru, cru",
+    "calorias": 34.03,
+    "proteinas": 3.2,
+    "carboidratos": 5.97,
+    "gorduras": 0.59
+  },
+  {
+    "nome": "Catalonha, crua",
+    "calorias": 23.89,
+    "proteinas": 1.87,
+    "carboidratos": 4.75,
+    "gorduras": 0.28
+  },
+  {
+    "nome": "Catalonha, refogada",
+    "calorias": 63.45,
+    "proteinas": 1.95,
+    "carboidratos": 4.81,
+    "gorduras": 4.81
+  },
+  {
+    "nome": "Cebola, crua",
+    "calorias": 39.42,
+    "proteinas": 1.71,
+    "carboidratos": 8.85,
+    "gorduras": 0.08
+  },
+  {
+    "nome": "Cebolinha, crua",
+    "calorias": 19.52,
+    "proteinas": 1.87,
+    "carboidratos": 3.37,
+    "gorduras": 0.35
+  },
+  {
+    "nome": "Cenoura, cozida",
+    "calorias": 29.86,
+    "proteinas": 0.85,
+    "carboidratos": 6.69,
+    "gorduras": 0.22
+  },
+  {
+    "nome": "Cenoura, crua",
+    "calorias": 34.14,
+    "proteinas": 1.32,
+    "carboidratos": 7.66,
+    "gorduras": 0.17
+  },
+  {
+    "nome": "Chicória, crua",
+    "calorias": 13.84,
+    "proteinas": 1.14,
+    "carboidratos": 2.85,
+    "gorduras": 0.14
+  },
+  {
+    "nome": "Chuchu, cozido",
+    "calorias": 18.54,
+    "proteinas": 0.41,
+    "carboidratos": 4.79,
+    "gorduras": 0
+  },
+  {
+    "nome": "Chuchu, cru",
+    "calorias": 16.98,
+    "proteinas": 0.7,
+    "carboidratos": 4.14,
+    "gorduras": 0.06
+  },
+  {
+    "nome": "Coentro, folhas desidratadas",
+    "calorias": 309.07,
+    "proteinas": 20.88,
+    "carboidratos": 47.96,
+    "gorduras": 10.39
+  },
+  {
+    "nome": "Couve, manteiga, crua",
+    "calorias": 27.06,
+    "proteinas": 2.87,
+    "carboidratos": 4.33,
+    "gorduras": 0.55
+  },
+  {
+    "nome": "Couve, manteiga, refogada",
+    "calorias": 90.34,
+    "proteinas": 1.67,
+    "carboidratos": 8.71,
+    "gorduras": 6.59
+  },
+  {
+    "nome": "Couve-flor, crua",
+    "calorias": 22.56,
+    "proteinas": 1.91,
+    "carboidratos": 4.52,
+    "gorduras": 0.21
+  },
+  {
+    "nome": "Couve-flor, cozida",
+    "calorias": 19.11,
+    "proteinas": 1.24,
+    "carboidratos": 3.88,
+    "gorduras": 0.27
+  },
+  {
+    "nome": "Espinafre, Nova Zelândia, cru",
+    "calorias": 16.1,
+    "proteinas": 2,
+    "carboidratos": 2.57,
+    "gorduras": 0.24
+  },
+  {
+    "nome": "Espinafre, Nova Zelândia, refogado",
+    "calorias": 67.25,
+    "proteinas": 2.72,
+    "carboidratos": 4.24,
+    "gorduras": 5.43
+  },
+  {
+    "nome": "Farinha, de mandioca, crua",
+    "calorias": 360.87,
+    "proteinas": 1.55,
+    "carboidratos": 87.9,
+    "gorduras": 0.28
+  },
+  {
+    "nome": "Farinha, de mandioca, torrada",
+    "calorias": 365.27,
+    "proteinas": 1.23,
+    "carboidratos": 89.19,
+    "gorduras": 0.29
+  },
+  {
+    "nome": "Farinha, de puba",
+    "calorias": 360.18,
+    "proteinas": 1.62,
+    "carboidratos": 87.29,
+    "gorduras": 0.47
+  },
+  {
+    "nome": "Fécula, de mandioca",
+    "calorias": 330.85,
+    "proteinas": 0.52,
+    "carboidratos": 81.15,
+    "gorduras": 0.28
+  },
+  {
+    "nome": "Feijão, broto, cru",
+    "calorias": 38.72,
+    "proteinas": 4.17,
+    "carboidratos": 7.76,
+    "gorduras": 0.1
+  },
+  {
+    "nome": "Inhame, cru",
+    "calorias": 96.7,
+    "proteinas": 2.05,
+    "carboidratos": 23.23,
+    "gorduras": 0.21
+  },
+  {
+    "nome": "Jiló, cru",
+    "calorias": 27.37,
+    "proteinas": 1.4,
+    "carboidratos": 6.19,
+    "gorduras": 0.22
+  },
+  {
+    "nome": "Jurubeba, crua",
+    "calorias": 125.81,
+    "proteinas": 4.41,
+    "carboidratos": 23.06,
+    "gorduras": 3.91
+  },
+  {
+    "nome": "Mandioca, cozida",
+    "calorias": 125.36,
+    "proteinas": 0.57,
+    "carboidratos": 30.09,
+    "gorduras": 0.3
+  },
+  {
+    "nome": "Mandioca, crua",
+    "calorias": 151.42,
+    "proteinas": 1.13,
+    "carboidratos": 36.17,
+    "gorduras": 0.3
+  },
+  {
+    "nome": "Mandioca, farofa, temperada",
+    "calorias": 405.69,
+    "proteinas": 2.06,
+    "carboidratos": 80.3,
+    "gorduras": 9.12
+  },
+  {
+    "nome": "Mandioca, frita",
+    "calorias": 300.06,
+    "proteinas": 1.38,
+    "carboidratos": 50.25,
+    "gorduras": 11.2
+  },
+  {
+    "nome": "Manjericão, cru",
+    "calorias": 21.15,
+    "proteinas": 1.99,
+    "carboidratos": 3.64,
+    "gorduras": 0.39
+  },
+  {
+    "nome": "Maxixe, cru",
+    "calorias": 13.75,
+    "proteinas": 1.39,
+    "carboidratos": 2.73,
+    "gorduras": 0.07
+  },
+  {
+    "nome": "Mostarda, folha, crua",
+    "calorias": 18.11,
+    "proteinas": 2.11,
+    "carboidratos": 3.24,
+    "gorduras": 0.17
+  },
+  {
+    "nome": "Nhoque, batata, cozido",
+    "calorias": 180.78,
+    "proteinas": 5.86,
+    "carboidratos": 36.78,
+    "gorduras": 1.94
+  },
+  {
+    "nome": "Nabo, cru",
+    "calorias": 18.19,
+    "proteinas": 1.2,
+    "carboidratos": 4.15,
+    "gorduras": 0.05
+  },
+  {
+    "nome": "Palmito, Juçara, em conserva",
+    "calorias": 23.2,
+    "proteinas": 1.79,
+    "carboidratos": 4.33,
+    "gorduras": 0.4
+  },
+  {
+    "nome": "Palmito, pupunha, em conserva",
+    "calorias": 29.43,
+    "proteinas": 2.46,
+    "carboidratos": 5.51,
+    "gorduras": 0.45
+  },
+  {
+    "nome": "Pão, de queijo, assado",
+    "calorias": 363.08,
+    "proteinas": 5.12,
+    "carboidratos": 34.24,
+    "gorduras": 24.57
+  },
+  {
+    "nome": "Pão, de queijo, cru",
+    "calorias": 294.54,
+    "proteinas": 3.65,
+    "carboidratos": 38.51,
+    "gorduras": 13.99
+  },
+  {
+    "nome": "Pepino, cru",
+    "calorias": 9.53,
+    "proteinas": 0.87,
+    "carboidratos": 2.04,
+    "gorduras": 0
+  },
+  {
+    "nome": "Pimentão, amarelo, cru",
+    "calorias": 27.93,
+    "proteinas": 1.22,
+    "carboidratos": 5.96,
+    "gorduras": 0.44
+  },
+  {
+    "nome": "Pimentão, verde, cru",
+    "calorias": 21.29,
+    "proteinas": 1.05,
+    "carboidratos": 4.89,
+    "gorduras": 0.15
+  },
+  {
+    "nome": "Pimentão, vermelho, cru",
+    "calorias": 23.28,
+    "proteinas": 1.04,
+    "carboidratos": 5.47,
+    "gorduras": 0.15
+  },
+  {
+    "nome": "Polvilho, doce",
+    "calorias": 351.23,
+    "proteinas": 0.43,
+    "carboidratos": 86.77,
+    "gorduras": 0
+  },
+  {
+    "nome": "Quiabo, cru",
+    "calorias": 29.94,
+    "proteinas": 1.92,
+    "carboidratos": 6.37,
+    "gorduras": 0.3
+  },
+  {
+    "nome": "Rabanete, cru",
+    "calorias": 13.74,
+    "proteinas": 1.39,
+    "carboidratos": 2.73,
+    "gorduras": 0.07
+  },
+  {
+    "nome": "Repolho, branco, cru",
+    "calorias": 17.12,
+    "proteinas": 0.88,
+    "carboidratos": 3.86,
+    "gorduras": 0.14
+  },
+  {
+    "nome": "Repolho, roxo, cru",
+    "calorias": 30.91,
+    "proteinas": 1.91,
+    "carboidratos": 7.2,
+    "gorduras": 0.06
+  },
+  {
+    "nome": "Repolho, roxo, refogado",
+    "calorias": 41.77,
+    "proteinas": 1.8,
+    "carboidratos": 7.56,
+    "gorduras": 1.24
+  },
+  {
+    "nome": "Rúcula, crua",
+    "calorias": 13.13,
+    "proteinas": 1.77,
+    "carboidratos": 2.22,
+    "gorduras": 0.11
+  },
+  {
+    "nome": "Salsa, crua",
+    "calorias": 33.42,
+    "proteinas": 3.26,
+    "carboidratos": 5.71,
+    "gorduras": 0.61
+  },
+  {
+    "nome": "Seleta de legumes, enlatada",
+    "calorias": 56.53,
+    "proteinas": 3.42,
+    "carboidratos": 12.67,
+    "gorduras": 0.35
+  },
+  {
+    "nome": "Serralha, crua",
+    "calorias": 30.4,
+    "proteinas": 2.67,
+    "carboidratos": 4.95,
+    "gorduras": 0.74
+  },
+  {
+    "nome": "Taioba, crua",
+    "calorias": 34.21,
+    "proteinas": 2.9,
+    "carboidratos": 5.43,
+    "gorduras": 0.93
+  },
+  {
+    "nome": "Tomate, com semente, cru",
+    "calorias": 15.34,
+    "proteinas": 1.1,
+    "carboidratos": 3.14,
+    "gorduras": 0.17
+  },
+  {
+    "nome": "Tomate, extrato",
+    "calorias": 60.93,
+    "proteinas": 2.43,
+    "carboidratos": 14.96,
+    "gorduras": 0.19
+  },
+  {
+    "nome": "Tomate, molho industrializado",
+    "calorias": 38.45,
+    "proteinas": 1.38,
+    "carboidratos": 7.71,
+    "gorduras": 0.9
+  },
+  {
+    "nome": "Tomate, purê",
+    "calorias": 27.94,
+    "proteinas": 1.36,
+    "carboidratos": 6.89,
+    "gorduras": 0
+  },
+  {
+    "nome": "Tomate, salada",
+    "calorias": 20.55,
+    "proteinas": 0.81,
+    "carboidratos": 5.12,
+    "gorduras": 0
+  },
+  {
+    "nome": "Vagem, crua",
+    "calorias": 24.9,
+    "proteinas": 1.79,
+    "carboidratos": 5.35,
+    "gorduras": 0.17
+  },
+  {
+    "nome": "Abacate, cru",
+    "calorias": 96.15,
+    "proteinas": 1.24,
+    "carboidratos": 6.03,
+    "gorduras": 8.4
+  },
+  {
+    "nome": "Abacaxi, cru",
+    "calorias": 48.32,
+    "proteinas": 0.86,
+    "carboidratos": 12.33,
+    "gorduras": 0.12
+  },
+  {
+    "nome": "Abacaxi, polpa, congelada",
+    "calorias": 30.59,
+    "proteinas": 0.47,
+    "carboidratos": 7.8,
+    "gorduras": 0.11
+  },
+  {
+    "nome": "Abiu, cru",
+    "calorias": 62.42,
+    "proteinas": 0.83,
+    "carboidratos": 14.93,
+    "gorduras": 0.7
+  },
+  {
+    "nome": "Açaí, polpa, com xarope de guaraná e glucose",
+    "calorias": 110.3,
+    "proteinas": 0.72,
+    "carboidratos": 21.46,
+    "gorduras": 3.66
+  },
+  {
+    "nome": "Açaí, polpa, congelada",
+    "calorias": 58.05,
+    "proteinas": 0.8,
+    "carboidratos": 6.21,
+    "gorduras": 3.94
+  },
+  {
+    "nome": "Acerola, crua",
+    "calorias": 33.46,
+    "proteinas": 0.91,
+    "carboidratos": 7.97,
+    "gorduras": 0.21
+  },
+  {
+    "nome": "Acerola, polpa, congelada",
+    "calorias": 21.94,
+    "proteinas": 0.59,
+    "carboidratos": 5.54,
+    "gorduras": 0
+  },
+  {
+    "nome": "Ameixa, calda, enlatada",
+    "calorias": 182.85,
+    "proteinas": 0.41,
+    "carboidratos": 46.89,
+    "gorduras": 0
+  },
+  {
+    "nome": "Ameixa, crua",
+    "calorias": 52.54,
+    "proteinas": 0.77,
+    "carboidratos": 13.85,
+    "gorduras": 0
+  },
+  {
+    "nome": "Ameixa, em calda, enlatada, drenada",
+    "calorias": 177.36,
+    "proteinas": 1.02,
+    "carboidratos": 47.66,
+    "gorduras": 0.28
+  },
+  {
+    "nome": "Atemóia, crua",
+    "calorias": 96.97,
+    "proteinas": 0.97,
+    "carboidratos": 25.33,
+    "gorduras": 0.3
+  },
+  {
+    "nome": "Banana, da terra, crua",
+    "calorias": 128.02,
+    "proteinas": 1.43,
+    "carboidratos": 33.67,
+    "gorduras": 0.24
+  },
+  {
+    "nome": "Banana, doce em barra",
+    "calorias": 280.11,
+    "proteinas": 2.17,
+    "carboidratos": 75.67,
+    "gorduras": 0.05
+  },
+  {
+    "nome": "Banana, figo, crua",
+    "calorias": 105.08,
+    "proteinas": 1.13,
+    "carboidratos": 27.8,
+    "gorduras": 0.14
+  },
+  {
+    "nome": "Banana, maçã, crua",
+    "calorias": 86.81,
+    "proteinas": 1.75,
+    "carboidratos": 22.34,
+    "gorduras": 0.06
+  },
+  {
+    "nome": "Banana, nanica, crua",
+    "calorias": 91.53,
+    "proteinas": 1.4,
+    "carboidratos": 23.85,
+    "gorduras": 0.12
+  },
+  {
+    "nome": "Banana, ouro, crua",
+    "calorias": 112.37,
+    "proteinas": 1.48,
+    "carboidratos": 29.34,
+    "gorduras": 0.21
+  },
+  {
+    "nome": "Banana, pacova, crua",
+    "calorias": 77.91,
+    "proteinas": 1.23,
+    "carboidratos": 20.31,
+    "gorduras": 0.08
+  },
+  {
+    "nome": "Banana, prata, crua",
+    "calorias": 98.25,
+    "proteinas": 1.27,
+    "carboidratos": 25.96,
+    "gorduras": 0.07
+  },
+  {
+    "nome": "Cacau, cru",
+    "calorias": 74.29,
+    "proteinas": 0.95,
+    "carboidratos": 19.41,
+    "gorduras": 0.14
+  },
+  {
+    "nome": "Cajá-Manga, cru",
+    "calorias": 45.58,
+    "proteinas": 1.28,
+    "carboidratos": 11.43,
+    "gorduras": 0
+  },
+  {
+    "nome": "Cajá, polpa, congelada",
+    "calorias": 26.33,
+    "proteinas": 0.59,
+    "carboidratos": 6.37,
+    "gorduras": 0.17
+  },
+  {
+    "nome": "Caju, cru",
+    "calorias": 43.07,
+    "proteinas": 0.97,
+    "carboidratos": 10.29,
+    "gorduras": 0.33
+  },
+  {
+    "nome": "Caju, polpa, congelada",
+    "calorias": 36.57,
+    "proteinas": 0.48,
+    "carboidratos": 9.35,
+    "gorduras": 0.15
+  },
+  {
+    "nome": "Caju, suco concentrado, envasado",
+    "calorias": 45.11,
+    "proteinas": 0.4,
+    "carboidratos": 10.73,
+    "gorduras": 0.2
+  },
+  {
+    "nome": "Caqui, chocolate, cru",
+    "calorias": 71.35,
+    "proteinas": 0.36,
+    "carboidratos": 19.33,
+    "gorduras": 0.07
+  },
+  {
+    "nome": "Carambola, crua",
+    "calorias": 45.74,
+    "proteinas": 0.87,
+    "carboidratos": 11.48,
+    "gorduras": 0.18
+  },
+  {
+    "nome": "Ciriguela, crua",
+    "calorias": 75.59,
+    "proteinas": 1.4,
+    "carboidratos": 18.86,
+    "gorduras": 0.36
+  },
+  {
+    "nome": "Cupuaçu, cru",
+    "calorias": 49.42,
+    "proteinas": 1.16,
+    "carboidratos": 10.43,
+    "gorduras": 0.95
+  },
+  {
+    "nome": "Cupuaçu, polpa, congelada",
+    "calorias": 48.8,
+    "proteinas": 0.84,
+    "carboidratos": 11.39,
+    "gorduras": 0.59
+  },
+  {
+    "nome": "Figo, cru",
+    "calorias": 41.45,
+    "proteinas": 0.97,
+    "carboidratos": 10.25,
+    "gorduras": 0.16
+  },
+  {
+    "nome": "Figo, enlatado, em calda",
+    "calorias": 184.36,
+    "proteinas": 0.56,
+    "carboidratos": 50.34,
+    "gorduras": 0.15
+  },
+  {
+    "nome": "Fruta-pão, crua",
+    "calorias": 67.05,
+    "proteinas": 1.08,
+    "carboidratos": 17.17,
+    "gorduras": 0.19
+  },
+  {
+    "nome": "Goiaba, branca, com casca, crua",
+    "calorias": 51.74,
+    "proteinas": 0.9,
+    "carboidratos": 12.4,
+    "gorduras": 0.49
+  },
+  {
+    "nome": "Goiaba, doce em pasta",
+    "calorias": 268.96,
+    "proteinas": 0.58,
+    "carboidratos": 74.12,
+    "gorduras": 0
+  },
+  {
+    "nome": "Goiaba, doce, cascão",
+    "calorias": 285.59,
+    "proteinas": 0.41,
+    "carboidratos": 78.7,
+    "gorduras": 0.1
+  },
+  {
+    "nome": "Goiaba, vermelha, com casca, crua",
+    "calorias": 54.17,
+    "proteinas": 1.09,
+    "carboidratos": 13.01,
+    "gorduras": 0.44
+  },
+  {
+    "nome": "Graviola, crua",
+    "calorias": 61.62,
+    "proteinas": 0.85,
+    "carboidratos": 15.84,
+    "gorduras": 0.21
+  },
+  {
+    "nome": "Graviola, polpa, congelada",
+    "calorias": 38.27,
+    "proteinas": 0.57,
+    "carboidratos": 9.78,
+    "gorduras": 0.14
+  },
+  {
+    "nome": "Jabuticaba, crua",
+    "calorias": 58.05,
+    "proteinas": 0.61,
+    "carboidratos": 15.26,
+    "gorduras": 0.13
+  },
+  {
+    "nome": "Jaca, crua",
+    "calorias": 87.92,
+    "proteinas": 1.4,
+    "carboidratos": 22.5,
+    "gorduras": 0.27
+  },
+  {
+    "nome": "Jambo, cru",
+    "calorias": 26.91,
+    "proteinas": 0.89,
+    "carboidratos": 6.49,
+    "gorduras": 0.07
+  },
+  {
+    "nome": "Jamelão, cru",
+    "calorias": 41.01,
+    "proteinas": 0.55,
+    "carboidratos": 10.63,
+    "gorduras": 0.11
+  },
+  {
+    "nome": "Kiwi, cru",
+    "calorias": 51.14,
+    "proteinas": 1.34,
+    "carboidratos": 11.5,
+    "gorduras": 0.63
+  },
+  {
+    "nome": "Laranja, baía, crua",
+    "calorias": 45.44,
+    "proteinas": 0.98,
+    "carboidratos": 11.47,
+    "gorduras": 0.1
+  },
+  {
+    "nome": "Laranja, baía, suco",
+    "calorias": 36.65,
+    "proteinas": 0.65,
+    "carboidratos": 8.7,
+    "gorduras": 0
+  },
+  {
+    "nome": "Laranja, da terra, crua",
+    "calorias": 51.47,
+    "proteinas": 1.08,
+    "carboidratos": 12.86,
+    "gorduras": 0.19
+  },
+  {
+    "nome": "Laranja, da terra, suco",
+    "calorias": 40.96,
+    "proteinas": 0.67,
+    "carboidratos": 9.57,
+    "gorduras": 0.14
+  },
+  {
+    "nome": "Laranja, lima, crua",
+    "calorias": 45.7,
+    "proteinas": 1.06,
+    "carboidratos": 11.53,
+    "gorduras": 0.08
+  },
+  {
+    "nome": "Laranja, lima, suco",
+    "calorias": 39.34,
+    "proteinas": 0.71,
+    "carboidratos": 9.17,
+    "gorduras": 0.12
+  },
+  {
+    "nome": "Laranja, pêra, crua",
+    "calorias": 36.77,
+    "proteinas": 1.04,
+    "carboidratos": 8.95,
+    "gorduras": 0.13
+  },
+  {
+    "nome": "Laranja, pêra, suco",
+    "calorias": 32.71,
+    "proteinas": 0.74,
+    "carboidratos": 7.55,
+    "gorduras": 0.07
+  },
+  {
+    "nome": "Laranja, valência, crua",
+    "calorias": 46.11,
+    "proteinas": 0.77,
+    "carboidratos": 11.72,
+    "gorduras": 0.16
+  },
+  {
+    "nome": "Laranja, valência, suco",
+    "calorias": 36.2,
+    "proteinas": 0.48,
+    "carboidratos": 8.55,
+    "gorduras": 0.12
+  },
+  {
+    "nome": "Limão, cravo, suco",
+    "calorias": 14.1,
+    "proteinas": 0.33,
+    "carboidratos": 5.25,
+    "gorduras": 0
+  },
+  {
+    "nome": "Limão, galego, suco",
+    "calorias": 22.23,
+    "proteinas": 0.57,
+    "carboidratos": 7.32,
+    "gorduras": 0.07
+  },
+  {
+    "nome": "Limão, tahiti, cru",
+    "calorias": 31.82,
+    "proteinas": 0.94,
+    "carboidratos": 11.08,
+    "gorduras": 0.14
+  },
+  {
+    "nome": "Maçã, Argentina, com casca, crua",
+    "calorias": 62.53,
+    "proteinas": 0.23,
+    "carboidratos": 16.59,
+    "gorduras": 0.25
+  },
+  {
+    "nome": "Maçã, Fuji, com casca, crua",
+    "calorias": 55.52,
+    "proteinas": 0.29,
+    "carboidratos": 15.15,
+    "gorduras": 0
+  },
+  {
+    "nome": "Macaúba, crua",
+    "calorias": 404.28,
+    "proteinas": 2.08,
+    "carboidratos": 13.95,
+    "gorduras": 40.66
+  },
+  {
+    "nome": "Mamão, doce em calda, drenado",
+    "calorias": 195.63,
+    "proteinas": 0.19,
+    "carboidratos": 54,
+    "gorduras": 0.07
+  },
+  {
+    "nome": "Mamão, Formosa, cru",
+    "calorias": 45.34,
+    "proteinas": 0.82,
+    "carboidratos": 11.55,
+    "gorduras": 0.12
+  },
+  {
+    "nome": "Mamão, Papaia, cru",
+    "calorias": 40.16,
+    "proteinas": 0.46,
+    "carboidratos": 10.44,
+    "gorduras": 0.12
+  },
+  {
+    "nome": "Mamão verde, doce em calda, drenado",
+    "calorias": 209.38,
+    "proteinas": 0.32,
+    "carboidratos": 57.64,
+    "gorduras": 0.1
+  },
+  {
+    "nome": "Manga, Haden, crua",
+    "calorias": 63.5,
+    "proteinas": 0.41,
+    "carboidratos": 16.66,
+    "gorduras": 0.26
+  },
+  {
+    "nome": "Manga, Palmer, crua",
+    "calorias": 72.49,
+    "proteinas": 0.41,
+    "carboidratos": 19.35,
+    "gorduras": 0.17
+  },
+  {
+    "nome": "Manga, polpa, congelada",
+    "calorias": 48.31,
+    "proteinas": 0.38,
+    "carboidratos": 12.52,
+    "gorduras": 0.23
+  },
+  {
+    "nome": "Manga, Tommy Atkins, crua",
+    "calorias": 50.69,
+    "proteinas": 0.86,
+    "carboidratos": 12.77,
+    "gorduras": 0.22
+  },
+  {
+    "nome": "Maracujá, cru",
+    "calorias": 68.44,
+    "proteinas": 1.99,
+    "carboidratos": 12.26,
+    "gorduras": 2.1
+  },
+  {
+    "nome": "Maracujá, polpa, congelada",
+    "calorias": 38.76,
+    "proteinas": 0.81,
+    "carboidratos": 9.6,
+    "gorduras": 0.18
+  },
+  {
+    "nome": "Maracujá, suco concentrado, envasado",
+    "calorias": 41.97,
+    "proteinas": 0.77,
+    "carboidratos": 9.64,
+    "gorduras": 0.19
+  },
+  {
+    "nome": "Melancia, crua",
+    "calorias": 32.61,
+    "proteinas": 0.88,
+    "carboidratos": 8.14,
+    "gorduras": 0
+  },
+  {
+    "nome": "Melão, cru",
+    "calorias": 29.37,
+    "proteinas": 0.68,
+    "carboidratos": 7.53,
+    "gorduras": 0
+  },
+  {
+    "nome": "Mexerica, Murcote, crua",
+    "calorias": 57.59,
+    "proteinas": 0.88,
+    "carboidratos": 14.86,
+    "gorduras": 0.13
+  },
+  {
+    "nome": "Mexerica, Rio, crua",
+    "calorias": 36.87,
+    "proteinas": 0.65,
+    "carboidratos": 9.34,
+    "gorduras": 0.13
+  },
+  {
+    "nome": "Morango, cru",
+    "calorias": 30.15,
+    "proteinas": 0.89,
+    "carboidratos": 6.82,
+    "gorduras": 0.31
+  },
+  {
+    "nome": "Nêspera, crua",
+    "calorias": 42.54,
+    "proteinas": 0.31,
+    "carboidratos": 11.53,
+    "gorduras": 0
+  },
+  {
+    "nome": "Pequi, cru",
+    "calorias": 204.97,
+    "proteinas": 2.34,
+    "carboidratos": 12.97,
+    "gorduras": 17.97
+  },
+  {
+    "nome": "Pêra, Park, crua",
+    "calorias": 60.59,
+    "proteinas": 0.24,
+    "carboidratos": 16.07,
+    "gorduras": 0.23
+  },
+  {
+    "nome": "Pêra, Williams, crua",
+    "calorias": 53.31,
+    "proteinas": 0.57,
+    "carboidratos": 14.02,
+    "gorduras": 0.11
+  },
+  {
+    "nome": "Pêssego, Aurora, cru",
+    "calorias": 36.33,
+    "proteinas": 0.83,
+    "carboidratos": 9.32,
+    "gorduras": 0
+  },
+  {
+    "nome": "Pêssego, enlatado, em calda",
+    "calorias": 63.14,
+    "proteinas": 0.71,
+    "carboidratos": 16.88,
+    "gorduras": 0
+  },
+  {
+    "nome": "Pinha, crua",
+    "calorias": 88.47,
+    "proteinas": 1.49,
+    "carboidratos": 22.45,
+    "gorduras": 0.32
+  },
+  {
+    "nome": "Pitanga, crua",
+    "calorias": 41.42,
+    "proteinas": 0.93,
+    "carboidratos": 10.24,
+    "gorduras": 0.17
+  },
+  {
+    "nome": "Pitanga, polpa, congelada",
+    "calorias": 19.11,
+    "proteinas": 0.29,
+    "carboidratos": 4.76,
+    "gorduras": 0.12
+  },
+  {
+    "nome": "Romã, crua",
+    "calorias": 55.74,
+    "proteinas": 0.4,
+    "carboidratos": 15.11,
+    "gorduras": 0
+  },
+  {
+    "nome": "Tamarindo, cru",
+    "calorias": 275.7,
+    "proteinas": 3.21,
+    "carboidratos": 72.53,
+    "gorduras": 0.46
+  },
+  {
+    "nome": "Tangerina, Poncã, crua",
+    "calorias": 37.83,
+    "proteinas": 0.85,
+    "carboidratos": 9.61,
+    "gorduras": 0.07
+  },
+  {
+    "nome": "Tangerina, Poncã, suco",
+    "calorias": 36.11,
+    "proteinas": 0.52,
+    "carboidratos": 8.8,
+    "gorduras": 0
+  },
+  {
+    "nome": "Tucumã, cru",
+    "calorias": 262.02,
+    "proteinas": 2.09,
+    "carboidratos": 26.47,
+    "gorduras": 19.08
+  },
+  {
+    "nome": "Umbu, cru",
+    "calorias": 37.02,
+    "proteinas": 0.84,
+    "carboidratos": 9.4,
+    "gorduras": 0
+  },
+  {
+    "nome": "Umbu, polpa, congelada",
+    "calorias": 33.94,
+    "proteinas": 0.51,
+    "carboidratos": 8.79,
+    "gorduras": 0.07
+  },
+  {
+    "nome": "Uva, Itália, crua",
+    "calorias": 52.87,
+    "proteinas": 0.75,
+    "carboidratos": 13.57,
+    "gorduras": 0.2
+  },
+  {
+    "nome": "Uva, Rubi, crua",
+    "calorias": 49.06,
+    "proteinas": 0.61,
+    "carboidratos": 12.7,
+    "gorduras": 0.16
+  },
+  {
+    "nome": "Uva, suco concentrado, envasado",
+    "calorias": 57.66,
+    "proteinas": 0,
+    "carboidratos": 14.71,
+    "gorduras": 0
+  },
+  {
+    "nome": "Azeite, de dendê",
+    "calorias": 884,
+    "proteinas": 0,
+    "carboidratos": 0,
+    "gorduras": 100
+  },
+  {
+    "nome": "Azeite, de oliva, extra virgem",
+    "calorias": 884,
+    "proteinas": 0,
+    "carboidratos": 0,
+    "gorduras": 100
+  },
+  {
+    "nome": "Manteiga, com sal",
+    "calorias": 725.97,
+    "proteinas": 0.41,
+    "carboidratos": 0.06,
+    "gorduras": 82.36
+  },
+  {
+    "nome": "Manteiga, sem sal",
+    "calorias": 757.54,
+    "proteinas": 0.4,
+    "carboidratos": 0,
+    "gorduras": 86.04
+  },
+  {
+    "nome": "Margarina, com óleo hidrogenado, com sal (65% de lipídeos)",
+    "calorias": 596.12,
+    "proteinas": 0,
+    "carboidratos": 0,
+    "gorduras": 67.43
+  },
+  {
+    "nome": "Margarina, com óleo hidrogenado, sem sal (80% de lipídeos)",
+    "calorias": 722.53,
+    "proteinas": 0,
+    "carboidratos": 0,
+    "gorduras": 81.73
+  },
+  {
+    "nome": "Margarina, com óleo interesterificado, com sal (65%de lipídeos)",
+    "calorias": 594.45,
+    "proteinas": 0,
+    "carboidratos": 0,
+    "gorduras": 67.25
+  },
+  {
+    "nome": "Margarina, com óleo interesterificado, sem sal (65% de lipídeos)",
+    "calorias": 593.14,
+    "proteinas": 0,
+    "carboidratos": 0,
+    "gorduras": 67.1
+  },
+  {
+    "nome": "Óleo, de babaçu",
+    "calorias": 884,
+    "proteinas": 0,
+    "carboidratos": 0,
+    "gorduras": 100
+  },
+  {
+    "nome": "Óleo, de canola",
+    "calorias": 884,
+    "proteinas": 0,
+    "carboidratos": 0,
+    "gorduras": 100
+  },
+  {
+    "nome": "Óleo, de girassol",
+    "calorias": 884,
+    "proteinas": 0,
+    "carboidratos": 0,
+    "gorduras": 100
+  },
+  {
+    "nome": "Óleo, de milho",
+    "calorias": 884,
+    "proteinas": 0,
+    "carboidratos": 0,
+    "gorduras": 100
+  },
+  {
+    "nome": "Óleo, de pequi",
+    "calorias": 884,
+    "proteinas": 0,
+    "carboidratos": 0,
+    "gorduras": 100
+  },
+  {
+    "nome": "Óleo, de soja",
+    "calorias": 884,
+    "proteinas": 0,
+    "carboidratos": 0,
+    "gorduras": 100
+  },
+  {
+    "nome": "Abadejo, filé, congelado, assado",
+    "calorias": 111.62,
+    "proteinas": 23.53,
+    "carboidratos": 0,
+    "gorduras": 1.24
+  },
+  {
+    "nome": "Abadejo, filé, congelado,cozido",
+    "calorias": 91.1,
+    "proteinas": 19.35,
+    "carboidratos": 0,
+    "gorduras": 0.94
+  },
+  {
+    "nome": "Abadejo, filé, congelado, cru",
+    "calorias": 59.11,
+    "proteinas": 13.08,
+    "carboidratos": 0,
+    "gorduras": 0.36
+  },
+  {
+    "nome": "Abadejo, filé, congelado, grelhado",
+    "calorias": 129.64,
+    "proteinas": 27.61,
+    "carboidratos": 0,
+    "gorduras": 1.3
+  },
+  {
+    "nome": "Atum, conserva em óleo",
+    "calorias": 165.91,
+    "proteinas": 26.19,
+    "carboidratos": 0,
+    "gorduras": 6
+  },
+  {
+    "nome": "Atum, fresco, cru",
+    "calorias": 117.5,
+    "proteinas": 25.68,
+    "carboidratos": 0,
+    "gorduras": 0.87
+  },
+  {
+    "nome": "Bacalhau, salgado, cru",
+    "calorias": 135.89,
+    "proteinas": 29.04,
+    "carboidratos": 0,
+    "gorduras": 1.32
+  },
+  {
+    "nome": "Bacalhau, salgado, refogado",
+    "calorias": 139.66,
+    "proteinas": 23.98,
+    "carboidratos": 1.22,
+    "gorduras": 3.61
+  },
+  {
+    "nome": "Cação, posta, com farinha de trigo, frita",
+    "calorias": 208.33,
+    "proteinas": 24.95,
+    "carboidratos": 3.1,
+    "gorduras": 9.95
+  },
+  {
+    "nome": "Cação, posta, cozida",
+    "calorias": 116.01,
+    "proteinas": 25.59,
+    "carboidratos": 0,
+    "gorduras": 0.75
+  },
+  {
+    "nome": "Cação, posta, crua",
+    "calorias": 83.33,
+    "proteinas": 17.85,
+    "carboidratos": 0,
+    "gorduras": 0.79
+  },
+  {
+    "nome": "Camarão, Rio Grande, grande, cozido",
+    "calorias": 90.01,
+    "proteinas": 18.97,
+    "carboidratos": 0,
+    "gorduras": 1
+  },
+  {
+    "nome": "Camarão, Rio Grande, grande, cru",
+    "calorias": 47.18,
+    "proteinas": 9.99,
+    "carboidratos": 0,
+    "gorduras": 0.5
+  },
+  {
+    "nome": "Camarão, Sete Barbas, sem cabeça, com casca, frito",
+    "calorias": 231.25,
+    "proteinas": 18.39,
+    "carboidratos": 2.88,
+    "gorduras": 15.62
+  },
+  {
+    "nome": "Caranguejo, cozido",
+    "calorias": 82.72,
+    "proteinas": 18.48,
+    "carboidratos": 0,
+    "gorduras": 0.42
+  },
+  {
+    "nome": "Corimba, cru",
+    "calorias": 128.16,
+    "proteinas": 17.37,
+    "carboidratos": -0.03,
+    "gorduras": 5.99
+  },
+  {
+    "nome": "Corimbatá, assado",
+    "calorias": 261.45,
+    "proteinas": 19.9,
+    "carboidratos": 0,
+    "gorduras": 19.57
+  },
+  {
+    "nome": "Corimbatá, cozido",
+    "calorias": 238.7,
+    "proteinas": 20.13,
+    "carboidratos": 0,
+    "gorduras": 16.93
+  },
+  {
+    "nome": "Corvina de água doce, crua",
+    "calorias": 101.01,
+    "proteinas": 18.92,
+    "carboidratos": 0,
+    "gorduras": 2.24
+  },
+  {
+    "nome": "Corvina do mar, crua",
+    "calorias": 94,
+    "proteinas": 18.57,
+    "carboidratos": 0,
+    "gorduras": 1.58
+  },
+  {
+    "nome": "Corvina grande, assada",
+    "calorias": 146.53,
+    "proteinas": 26.77,
+    "carboidratos": 0,
+    "gorduras": 3.57
+  },
+  {
+    "nome": "Corvina grande, cozida",
+    "calorias": 100.08,
+    "proteinas": 23.44,
+    "carboidratos": 0,
+    "gorduras": 2.56
+  },
+  {
+    "nome": "Dourada de água doce, fresca",
+    "calorias": 131.21,
+    "proteinas": 18.81,
+    "carboidratos": 0,
+    "gorduras": 5.64
+  },
+  {
+    "nome": "Lambari, congelado, cru",
+    "calorias": 130.84,
+    "proteinas": 16.81,
+    "carboidratos": 0,
+    "gorduras": 6.55
+  },
+  {
+    "nome": "Lambari, congelado, frito",
+    "calorias": 326.87,
+    "proteinas": 28.43,
+    "carboidratos": 0,
+    "gorduras": 22.78
+  },
+  {
+    "nome": "Lambari, fresco,cru",
+    "calorias": 151.6,
+    "proteinas": 15.65,
+    "carboidratos": 0,
+    "gorduras": 9.4
+  },
+  {
+    "nome": "Manjuba, com farinha de trigo, frita",
+    "calorias": 343.55,
+    "proteinas": 23.45,
+    "carboidratos": 10.24,
+    "gorduras": 22.59
+  },
+  {
+    "nome": "Manjuba, frita",
+    "calorias": 349.33,
+    "proteinas": 30.14,
+    "carboidratos": 0,
+    "gorduras": 24.46
+  },
+  {
+    "nome": "Merluza, filé, assado",
+    "calorias": 121.91,
+    "proteinas": 26.6,
+    "carboidratos": 0,
+    "gorduras": 0.92
+  },
+  {
+    "nome": "Merluza, filé, cru",
+    "calorias": 89.13,
+    "proteinas": 16.61,
+    "carboidratos": 0,
+    "gorduras": 2.02
+  },
+  {
+    "nome": "Merluza, filé, frito",
+    "calorias": 191.63,
+    "proteinas": 26.93,
+    "carboidratos": 0,
+    "gorduras": 8.5
+  },
+  {
+    "nome": "Pescada, branca, crua",
+    "calorias": 110.88,
+    "proteinas": 16.26,
+    "carboidratos": 0,
+    "gorduras": 4.59
+  },
+  {
+    "nome": "Pescada, branca, frita",
+    "calorias": 223.04,
+    "proteinas": 27.36,
+    "carboidratos": 0,
+    "gorduras": 11.78
+  },
+  {
+    "nome": "Pescada, filé, com farinha de trigo, frito",
+    "calorias": 283.43,
+    "proteinas": 21.44,
+    "carboidratos": 5.03,
+    "gorduras": 19.11
+  },
+  {
+    "nome": "Pescada, filé, cru",
+    "calorias": 107.21,
+    "proteinas": 16.65,
+    "carboidratos": 0,
+    "gorduras": 4
+  },
+  {
+    "nome": "Pescada, filé, frito",
+    "calorias": 154.27,
+    "proteinas": 28.59,
+    "carboidratos": 0,
+    "gorduras": 3.57
+  },
+  {
+    "nome": "Pescada, filé, molho escabeche",
+    "calorias": 141.96,
+    "proteinas": 11.75,
+    "carboidratos": 5.02,
+    "gorduras": 8.02
+  },
+  {
+    "nome": "Pescadinha, crua",
+    "calorias": 76.41,
+    "proteinas": 15.48,
+    "carboidratos": 0,
+    "gorduras": 1.14
+  },
+  {
+    "nome": "Pintado, assado",
+    "calorias": 191.56,
+    "proteinas": 36.45,
+    "carboidratos": 0,
+    "gorduras": 3.98
+  },
+  {
+    "nome": "Pintado, cru",
+    "calorias": 91.08,
+    "proteinas": 18.56,
+    "carboidratos": 0,
+    "gorduras": 1.31
+  },
+  {
+    "nome": "Pintado, grelhado",
+    "calorias": 152.19,
+    "proteinas": 30.8,
+    "carboidratos": 0,
+    "gorduras": 2.29
+  },
+  {
+    "nome": "Porquinho, cru",
+    "calorias": 93.02,
+    "proteinas": 20.49,
+    "carboidratos": 0,
+    "gorduras": 0.61
+  },
+  {
+    "nome": "Salmão, filé, com pele, fresco,  grelhado",
+    "calorias": 228.73,
+    "proteinas": 23.92,
+    "carboidratos": 0,
+    "gorduras": 14.04
+  },
+  {
+    "nome": "Salmão, sem pele, fresco, cru",
+    "calorias": 169.78,
+    "proteinas": 19.25,
+    "carboidratos": 0,
+    "gorduras": 9.71
+  },
+  {
+    "nome": "Salmão, sem pele, fresco, grelhado",
+    "calorias": 242.71,
+    "proteinas": 26.14,
+    "carboidratos": 0,
+    "gorduras": 14.53
+  },
+  {
+    "nome": "Sardinha, assada",
+    "calorias": 164.35,
+    "proteinas": 32.18,
+    "carboidratos": 0,
+    "gorduras": 2.99
+  },
+  {
+    "nome": "Sardinha, conserva em óleo",
+    "calorias": 284.98,
+    "proteinas": 15.94,
+    "carboidratos": 0,
+    "gorduras": 24.05
+  },
+  {
+    "nome": "Sardinha, frita",
+    "calorias": 257.04,
+    "proteinas": 33.38,
+    "carboidratos": 0,
+    "gorduras": 12.69
+  },
+  {
+    "nome": "Sardinha, inteira, crua",
+    "calorias": 113.9,
+    "proteinas": 21.08,
+    "carboidratos": 0,
+    "gorduras": 2.65
+  },
+  {
+    "nome": "Tucunaré, filé, congelado, cru",
+    "calorias": 87.69,
+    "proteinas": 17.96,
+    "carboidratos": -0.05,
+    "gorduras": 1.22
+  },
+  {
+    "nome": "Apresuntado",
+    "calorias": 128.86,
+    "proteinas": 13.45,
+    "carboidratos": 2.86,
+    "gorduras": 6.69
+  },
+  {
+    "nome": "Caldo de carne, tablete",
+    "calorias": 240.62,
+    "proteinas": 7.82,
+    "carboidratos": 15.05,
+    "gorduras": 16.57
+  },
+  {
+    "nome": "Caldo de galinha, tablete",
+    "calorias": 251.45,
+    "proteinas": 6.28,
+    "carboidratos": 10.65,
+    "gorduras": 20.42
+  },
+  {
+    "nome": "Carne, bovina, acém, moído, cozido",
+    "calorias": 212.42,
+    "proteinas": 26.69,
+    "carboidratos": 0,
+    "gorduras": 10.92
+  },
+  {
+    "nome": "Carne, bovina, acém, moído, cru",
+    "calorias": 136.56,
+    "proteinas": 19.42,
+    "carboidratos": 0,
+    "gorduras": 5.95
+  },
+  {
+    "nome": "Carne, bovina, acém, sem gordura, cozido",
+    "calorias": 214.61,
+    "proteinas": 27.27,
+    "carboidratos": 0,
+    "gorduras": 10.88
+  },
+  {
+    "nome": "Carne, bovina, acém, sem gordura, cru",
+    "calorias": 144.03,
+    "proteinas": 20.82,
+    "carboidratos": 0,
+    "gorduras": 6.11
+  },
+  {
+    "nome": "Carne, bovina, almôndegas, cruas",
+    "calorias": 189.26,
+    "proteinas": 12.31,
+    "carboidratos": 9.79,
+    "gorduras": 11.2
+  },
+  {
+    "nome": "Carne, bovina, almôndegas, fritas",
+    "calorias": 271.81,
+    "proteinas": 18.16,
+    "carboidratos": 14.29,
+    "gorduras": 15.78
+  },
+  {
+    "nome": "Carne, bovina, bucho, cozido",
+    "calorias": 133.02,
+    "proteinas": 21.64,
+    "carboidratos": 0,
+    "gorduras": 4.5
+  },
+  {
+    "nome": "Carne, bovina, bucho, cru",
+    "calorias": 137.3,
+    "proteinas": 20.53,
+    "carboidratos": 0,
+    "gorduras": 5.5
+  },
+  {
+    "nome": "Carne, bovina, capa de contra-filé, com gordura, crua",
+    "calorias": 216.91,
+    "proteinas": 19.2,
+    "carboidratos": 0,
+    "gorduras": 14.96
+  },
+  {
+    "nome": "Carne, bovina, capa de contra-filé, com gordura, grelhada",
+    "calorias": 311.7,
+    "proteinas": 30.69,
+    "carboidratos": 0,
+    "gorduras": 20.03
+  },
+  {
+    "nome": "Carne, bovina, capa de contra-filé, sem gordura, crua",
+    "calorias": 131.06,
+    "proteinas": 21.54,
+    "carboidratos": 0,
+    "gorduras": 4.33
+  },
+  {
+    "nome": "Carne, bovina, capa de contra-filé, sem gordura, grelhada",
+    "calorias": 239.44,
+    "proteinas": 35.06,
+    "carboidratos": -0.01,
+    "gorduras": 9.95
+  },
+  {
+    "nome": "Carne, bovina, charque, cozido",
+    "calorias": 262.78,
+    "proteinas": 36.36,
+    "carboidratos": 0,
+    "gorduras": 11.92
+  },
+  {
+    "nome": "Carne, bovina, charque, cru",
+    "calorias": 248.86,
+    "proteinas": 22.71,
+    "carboidratos": 0,
+    "gorduras": 16.84
+  },
+  {
+    "nome": "Carne, bovina, contra-filé, à milanesa",
+    "calorias": 351.59,
+    "proteinas": 20.61,
+    "carboidratos": 12.17,
+    "gorduras": 24
+  },
+  {
+    "nome": "Carne, bovina, contra-filé de costela, cru",
+    "calorias": 202.44,
+    "proteinas": 19.8,
+    "carboidratos": 0,
+    "gorduras": 13.07
+  },
+  {
+    "nome": "Carne, bovina, contra-filé de costela, grelhado",
+    "calorias": 274.91,
+    "proteinas": 29.88,
+    "carboidratos": 0,
+    "gorduras": 16.33
+  },
+  {
+    "nome": "Carne, bovina, contra-filé, com gordura, cru",
+    "calorias": 205.86,
+    "proteinas": 21.15,
+    "carboidratos": 0,
+    "gorduras": 12.81
+  },
+  {
+    "nome": "Carne, bovina, contra-filé, com gordura, grelhado",
+    "calorias": 278.05,
+    "proteinas": 32.4,
+    "carboidratos": 0,
+    "gorduras": 15.49
+  },
+  {
+    "nome": "Carne, bovina, contra-filé, sem gordura, cru",
+    "calorias": 156.62,
+    "proteinas": 24,
+    "carboidratos": 0,
+    "gorduras": 6
+  },
+  {
+    "nome": "Carne, bovina, contra-filé, sem gordura, grelhado",
+    "calorias": 193.69,
+    "proteinas": 35.88,
+    "carboidratos": 0,
+    "gorduras": 4.49
+  },
+  {
+    "nome": "Carne, bovina, costela, assada",
+    "calorias": 373.04,
+    "proteinas": 28.81,
+    "carboidratos": 0,
+    "gorduras": 27.72
+  },
+  {
+    "nome": "Carne, bovina, costela, crua",
+    "calorias": 357.72,
+    "proteinas": 16.71,
+    "carboidratos": 0,
+    "gorduras": 31.75
+  },
+  {
+    "nome": "Carne, bovina, coxão duro, sem gordura, cozido",
+    "calorias": 216.62,
+    "proteinas": 31.88,
+    "carboidratos": 0,
+    "gorduras": 8.92
+  },
+  {
+    "nome": "Carne, bovina, coxão duro, sem gordura, cru",
+    "calorias": 147.97,
+    "proteinas": 21.51,
+    "carboidratos": 0,
+    "gorduras": 6.22
+  },
+  {
+    "nome": "Carne, bovina, coxão mole, sem gordura, cozido",
+    "calorias": 218.68,
+    "proteinas": 32.38,
+    "carboidratos": 0,
+    "gorduras": 8.91
+  },
+  {
+    "nome": "Carne, bovina, coxão mole, sem gordura, cru",
+    "calorias": 169.07,
+    "proteinas": 21.23,
+    "carboidratos": 0,
+    "gorduras": 8.69
+  },
+  {
+    "nome": "Carne, bovina, cupim, assado",
+    "calorias": 330.1,
+    "proteinas": 28.63,
+    "carboidratos": 0,
+    "gorduras": 23.04
+  },
+  {
+    "nome": "Carne, bovina, cupim, cru",
+    "calorias": 221.4,
+    "proteinas": 19.54,
+    "carboidratos": 0,
+    "gorduras": 15.3
+  },
+  {
+    "nome": "Carne, bovina, fígado, cru",
+    "calorias": 141.05,
+    "proteinas": 20.71,
+    "carboidratos": 1.11,
+    "gorduras": 5.36
+  },
+  {
+    "nome": "Carne, bovina, fígado, grelhado",
+    "calorias": 225.03,
+    "proteinas": 29.86,
+    "carboidratos": 4.2,
+    "gorduras": 9.01
+  },
+  {
+    "nome": "Carne, bovina, filé mingnon, sem gordura, cru",
+    "calorias": 142.86,
+    "proteinas": 21.6,
+    "carboidratos": 0,
+    "gorduras": 5.61
+  },
+  {
+    "nome": "Carne, bovina, filé mingnon, sem gordura, grelhado",
+    "calorias": 219.7,
+    "proteinas": 32.8,
+    "carboidratos": 0,
+    "gorduras": 8.83
+  },
+  {
+    "nome": "Carne, bovina, flanco, sem gordura, cozido",
+    "calorias": 195.58,
+    "proteinas": 29.38,
+    "carboidratos": 0,
+    "gorduras": 7.77
+  },
+  {
+    "nome": "Carne, bovina, flanco, sem gordura, cru",
+    "calorias": 141.46,
+    "proteinas": 20,
+    "carboidratos": 0,
+    "gorduras": 6.22
+  },
+  {
+    "nome": "Carne, bovina, fraldinha, com gordura, cozida",
+    "calorias": 338.45,
+    "proteinas": 24.24,
+    "carboidratos": 0,
+    "gorduras": 26.05
+  },
+  {
+    "nome": "Carne, bovina, fraldinha, com gordura, crua",
+    "calorias": 220.72,
+    "proteinas": 17.58,
+    "carboidratos": 0,
+    "gorduras": 16.15
+  },
+  {
+    "nome": "Carne, bovina, lagarto, cozido",
+    "calorias": 222.47,
+    "proteinas": 32.86,
+    "carboidratos": 0,
+    "gorduras": 9.11
+  },
+  {
+    "nome": "Carne, bovina, lagarto, cru",
+    "calorias": 134.86,
+    "proteinas": 20.54,
+    "carboidratos": 0,
+    "gorduras": 5.23
+  },
+  {
+    "nome": "Carne, bovina, língua, cozida",
+    "calorias": 314.9,
+    "proteinas": 21.37,
+    "carboidratos": 0,
+    "gorduras": 24.8
+  },
+  {
+    "nome": "Carne, bovina, língua, crua",
+    "calorias": 215.25,
+    "proteinas": 17.09,
+    "carboidratos": 0,
+    "gorduras": 15.77
+  },
+  {
+    "nome": "Carne, bovina, maminha, crua",
+    "calorias": 152.77,
+    "proteinas": 20.93,
+    "carboidratos": 0,
+    "gorduras": 7.03
+  },
+  {
+    "nome": "Carne, bovina, maminha, grelhada",
+    "calorias": 153.09,
+    "proteinas": 30.74,
+    "carboidratos": 0,
+    "gorduras": 2.42
+  },
+  {
+    "nome": "Carne, bovina, miolo de alcatra, sem gordura, cru",
+    "calorias": 162.87,
+    "proteinas": 21.61,
+    "carboidratos": 0,
+    "gorduras": 7.83
+  },
+  {
+    "nome": "Carne, bovina, miolo de alcatra, sem gordura, grelhado",
+    "calorias": 241.36,
+    "proteinas": 31.93,
+    "carboidratos": 0,
+    "gorduras": 11.64
+  },
+  {
+    "nome": "Carne, bovina, músculo, sem gordura, cozido",
+    "calorias": 193.8,
+    "proteinas": 31.23,
+    "carboidratos": 0,
+    "gorduras": 6.7
+  },
+  {
+    "nome": "Carne, bovina, músculo, sem gordura, cru",
+    "calorias": 141.58,
+    "proteinas": 21.56,
+    "carboidratos": 0,
+    "gorduras": 5.49
+  },
+  {
+    "nome": "Carne, bovina, paleta, com gordura, crua",
+    "calorias": 158.71,
+    "proteinas": 21.41,
+    "carboidratos": 0,
+    "gorduras": 7.46
+  },
+  {
+    "nome": "Carne, bovina, paleta, sem gordura, cozida",
+    "calorias": 193.65,
+    "proteinas": 29.72,
+    "carboidratos": 0,
+    "gorduras": 7.4
+  },
+  {
+    "nome": "Carne, bovina, paleta, sem gordura, crua",
+    "calorias": 140.94,
+    "proteinas": 21.03,
+    "carboidratos": 0,
+    "gorduras": 5.67
+  },
+  {
+    "nome": "Carne, bovina, patinho, sem gordura, cru",
+    "calorias": 133.47,
+    "proteinas": 21.72,
+    "carboidratos": 0,
+    "gorduras": 4.51
+  },
+  {
+    "nome": "Carne, bovina, patinho, sem gordura, grelhado",
+    "calorias": 219.26,
+    "proteinas": 35.9,
+    "carboidratos": 0,
+    "gorduras": 7.31
+  },
+  {
+    "nome": "Carne, bovina, peito, sem gordura, cozido",
+    "calorias": 338.47,
+    "proteinas": 22.25,
+    "carboidratos": 0,
+    "gorduras": 26.99
+  },
+  {
+    "nome": "Carne, bovina, peito, sem gordura, cru",
+    "calorias": 259.28,
+    "proteinas": 17.56,
+    "carboidratos": 0,
+    "gorduras": 20.43
+  },
+  {
+    "nome": "Carne, bovina, picanha, com gordura, crua",
+    "calorias": 212.88,
+    "proteinas": 18.82,
+    "carboidratos": 0,
+    "gorduras": 14.69
+  },
+  {
+    "nome": "Carne, bovina, picanha, com gordura, grelhada",
+    "calorias": 288.77,
+    "proteinas": 26.42,
+    "carboidratos": 0,
+    "gorduras": 19.51
+  },
+  {
+    "nome": "Carne, bovina, picanha, sem gordura, crua",
+    "calorias": 133.52,
+    "proteinas": 21.25,
+    "carboidratos": 0,
+    "gorduras": 4.74
+  },
+  {
+    "nome": "Carne, bovina, picanha, sem gordura, grelhada",
+    "calorias": 238.47,
+    "proteinas": 31.91,
+    "carboidratos": 0,
+    "gorduras": 11.33
+  },
+  {
+    "nome": "Carne, bovina, seca, cozida",
+    "calorias": 312.8,
+    "proteinas": 26.93,
+    "carboidratos": 0,
+    "gorduras": 21.93
+  },
+  {
+    "nome": "Carne, bovina, seca, crua",
+    "calorias": 312.75,
+    "proteinas": 19.66,
+    "carboidratos": 0,
+    "gorduras": 25.37
+  },
+  {
+    "nome": "Coxinha de frango, frita",
+    "calorias": 283.05,
+    "proteinas": 9.61,
+    "carboidratos": 34.52,
+    "gorduras": 11.84
+  },
+  {
+    "nome": "Croquete, de carne, cru",
+    "calorias": 245.77,
+    "proteinas": 12.04,
+    "carboidratos": 13.95,
+    "gorduras": 15.56
+  },
+  {
+    "nome": "Croquete, de carne, frito",
+    "calorias": 346.74,
+    "proteinas": 16.86,
+    "carboidratos": 18.15,
+    "gorduras": 22.67
+  },
+  {
+    "nome": "Empada de frango, pré-cozida, assada",
+    "calorias": 358.19,
+    "proteinas": 6.94,
+    "carboidratos": 47.49,
+    "gorduras": 15.61
+  },
+  {
+    "nome": "Empada, de frango, pré-cozida",
+    "calorias": 377.48,
+    "proteinas": 7.34,
+    "carboidratos": 35.53,
+    "gorduras": 22.89
+  },
+  {
+    "nome": "Frango, asa, com pele, crua",
+    "calorias": 213.19,
+    "proteinas": 18.1,
+    "carboidratos": 0,
+    "gorduras": 15.07
+  },
+  {
+    "nome": "Frango, caipira, inteiro, com pele, cozido",
+    "calorias": 242.89,
+    "proteinas": 23.88,
+    "carboidratos": 0,
+    "gorduras": 15.62
+  },
+  {
+    "nome": "Frango, caipira, inteiro, sem pele, cozido",
+    "calorias": 195.76,
+    "proteinas": 29.58,
+    "carboidratos": 0,
+    "gorduras": 7.7
+  },
+  {
+    "nome": "Frango, coração, cru",
+    "calorias": 221.5,
+    "proteinas": 12.58,
+    "carboidratos": 0,
+    "gorduras": 18.6
+  },
+  {
+    "nome": "Frango, coração, grelhado",
+    "calorias": 207.27,
+    "proteinas": 22.44,
+    "carboidratos": 0.61,
+    "gorduras": 12.1
+  },
+  {
+    "nome": "Frango, coxa, com pele, assada",
+    "calorias": 215.12,
+    "proteinas": 28.49,
+    "carboidratos": 0.06,
+    "gorduras": 10.36
+  },
+  {
+    "nome": "Frango, coxa, com pele, crua",
+    "calorias": 161.47,
+    "proteinas": 17.09,
+    "carboidratos": 0,
+    "gorduras": 9.81
+  },
+  {
+    "nome": "Frango, coxa, sem pele, cozida",
+    "calorias": 167.43,
+    "proteinas": 26.86,
+    "carboidratos": 0,
+    "gorduras": 5.85
+  },
+  {
+    "nome": "Frango, coxa, sem pele, crua",
+    "calorias": 119.95,
+    "proteinas": 17.81,
+    "carboidratos": 0.02,
+    "gorduras": 4.86
+  },
+  {
+    "nome": "Frango, fígado, cru",
+    "calorias": 106.48,
+    "proteinas": 17.59,
+    "carboidratos": -0.02,
+    "gorduras": 3.49
+  },
+  {
+    "nome": "Frango, filé, à milanesa",
+    "calorias": 220.87,
+    "proteinas": 28.46,
+    "carboidratos": 7.51,
+    "gorduras": 7.79
+  },
+  {
+    "nome": "Frango, inteiro, com pele, cru",
+    "calorias": 226.32,
+    "proteinas": 16.44,
+    "carboidratos": 0,
+    "gorduras": 17.31
+  },
+  {
+    "nome": "Frango, inteiro, sem pele, assado",
+    "calorias": 187.34,
+    "proteinas": 28.03,
+    "carboidratos": 0,
+    "gorduras": 7.5
+  },
+  {
+    "nome": "Frango, inteiro, sem pele, cozido",
+    "calorias": 170.39,
+    "proteinas": 24.99,
+    "carboidratos": 0,
+    "gorduras": 7.06
+  },
+  {
+    "nome": "Frango, inteiro, sem pele, cru",
+    "calorias": 129.1,
+    "proteinas": 20.59,
+    "carboidratos": 0,
+    "gorduras": 4.57
+  },
+  {
+    "nome": "Frango, peito, com pele, assado",
+    "calorias": 211.68,
+    "proteinas": 33.42,
+    "carboidratos": 0,
+    "gorduras": 7.65
+  },
+  {
+    "nome": "Frango, peito, com pele, cru",
+    "calorias": 149.47,
+    "proteinas": 20.78,
+    "carboidratos": 0,
+    "gorduras": 6.73
+  },
+  {
+    "nome": "Frango, peito, sem pele, cozido",
+    "calorias": 162.87,
+    "proteinas": 31.47,
+    "carboidratos": 0,
+    "gorduras": 3.16
+  },
+  {
+    "nome": "Frango, peito, sem pele, cru",
+    "calorias": 119.16,
+    "proteinas": 21.53,
+    "carboidratos": 0,
+    "gorduras": 3.02
+  },
+  {
+    "nome": "Frango, peito, sem pele, grelhado",
+    "calorias": 159.19,
+    "proteinas": 32.03,
+    "carboidratos": 0,
+    "gorduras": 2.48
+  },
+  {
+    "nome": "Frango, sobrecoxa, com pele, assada",
+    "calorias": 259.6,
+    "proteinas": 28.7,
+    "carboidratos": 0,
+    "gorduras": 15.19
+  },
+  {
+    "nome": "Frango, sobrecoxa, com pele, crua",
+    "calorias": 254.53,
+    "proteinas": 15.46,
+    "carboidratos": 0,
+    "gorduras": 20.9
+  },
+  {
+    "nome": "Frango, sobrecoxa, sem pele, assada",
+    "calorias": 232.88,
+    "proteinas": 29.18,
+    "carboidratos": 0,
+    "gorduras": 12.01
+  },
+  {
+    "nome": "Frango, sobrecoxa, sem pele, crua",
+    "calorias": 161.8,
+    "proteinas": 17.57,
+    "carboidratos": 0,
+    "gorduras": 9.62
+  },
+  {
+    "nome": "Hambúrguer, bovino, cru",
+    "calorias": 214.84,
+    "proteinas": 13.16,
+    "carboidratos": 4.15,
+    "gorduras": 16.18
+  },
+  {
+    "nome": "Hambúrguer, bovino, frito",
+    "calorias": 258.28,
+    "proteinas": 19.97,
+    "carboidratos": 6.32,
+    "gorduras": 17.01
+  },
+  {
+    "nome": "Hambúrguer, bovino, grelhado",
+    "calorias": 209.83,
+    "proteinas": 13.16,
+    "carboidratos": 11.33,
+    "gorduras": 12.43
+  },
+  {
+    "nome": "Lingüiça, frango, crua",
+    "calorias": 218.11,
+    "proteinas": 14.24,
+    "carboidratos": 0,
+    "gorduras": 17.44
+  },
+  {
+    "nome": "Lingüiça, frango, frita",
+    "calorias": 245.46,
+    "proteinas": 18.32,
+    "carboidratos": 0,
+    "gorduras": 18.54
+  },
+  {
+    "nome": "Lingüiça, frango, grelhada",
+    "calorias": 243.66,
+    "proteinas": 18.19,
+    "carboidratos": 0,
+    "gorduras": 18.4
+  },
+  {
+    "nome": "Lingüiça, porco, crua",
+    "calorias": 227.2,
+    "proteinas": 16.06,
+    "carboidratos": 0,
+    "gorduras": 17.58
+  },
+  {
+    "nome": "Lingüiça, porco, frita",
+    "calorias": 279.54,
+    "proteinas": 20.45,
+    "carboidratos": 0,
+    "gorduras": 21.31
+  },
+  {
+    "nome": "Lingüiça, porco, grelhada",
+    "calorias": 296.49,
+    "proteinas": 23.17,
+    "carboidratos": 0,
+    "gorduras": 21.9
+  },
+  {
+    "nome": "Mortadela",
+    "calorias": 268.82,
+    "proteinas": 11.95,
+    "carboidratos": 5.82,
+    "gorduras": 21.65
+  },
+  {
+    "nome": "Peru, congelado, assado",
+    "calorias": 163.07,
+    "proteinas": 26.2,
+    "carboidratos": 0,
+    "gorduras": 5.68
+  },
+  {
+    "nome": "Peru, congelado, cru",
+    "calorias": 93.72,
+    "proteinas": 18.08,
+    "carboidratos": 0,
+    "gorduras": 1.83
+  },
+  {
+    "nome": "Porco, bisteca, crua",
+    "calorias": 164.12,
+    "proteinas": 21.5,
+    "carboidratos": 0,
+    "gorduras": 8.02
+  },
+  {
+    "nome": "Porco, bisteca, frita",
+    "calorias": 311.17,
+    "proteinas": 33.75,
+    "carboidratos": 0,
+    "gorduras": 18.52
+  },
+  {
+    "nome": "Porco, bisteca, grelhada",
+    "calorias": 280.08,
+    "proteinas": 28.89,
+    "carboidratos": 0,
+    "gorduras": 17.38
+  },
+  {
+    "nome": "Porco, costela, assada",
+    "calorias": 402.17,
+    "proteinas": 30.22,
+    "carboidratos": 0,
+    "gorduras": 30.28
+  },
+  {
+    "nome": "Porco, costela, crua",
+    "calorias": 255.61,
+    "proteinas": 18,
+    "carboidratos": 0,
+    "gorduras": 19.82
+  },
+  {
+    "nome": "Porco, lombo, assado",
+    "calorias": 210.23,
+    "proteinas": 35.73,
+    "carboidratos": 0,
+    "gorduras": 6.4
+  },
+  {
+    "nome": "Porco, lombo, cru",
+    "calorias": 175.63,
+    "proteinas": 22.6,
+    "carboidratos": 0,
+    "gorduras": 8.77
+  },
+  {
+    "nome": "Porco, orelha, salgada, crua",
+    "calorias": 258.49,
+    "proteinas": 18.52,
+    "carboidratos": 0,
+    "gorduras": 19.89
+  },
+  {
+    "nome": "Porco, pernil, assado",
+    "calorias": 262.26,
+    "proteinas": 32.13,
+    "carboidratos": 0,
+    "gorduras": 13.86
+  },
+  {
+    "nome": "Porco, pernil, cru",
+    "calorias": 186.06,
+    "proteinas": 20.13,
+    "carboidratos": 0,
+    "gorduras": 11.1
+  },
+  {
+    "nome": "Porco, rabo, salgado, cru",
+    "calorias": 377.42,
+    "proteinas": 15.58,
+    "carboidratos": 0,
+    "gorduras": 34.47
+  },
+  {
+    "nome": "Presunto, com capa de gordura",
+    "calorias": 127.85,
+    "proteinas": 14.37,
+    "carboidratos": 1.4,
+    "gorduras": 6.77
+  },
+  {
+    "nome": "Presunto, sem capa de gordura",
+    "calorias": 93.74,
+    "proteinas": 14.29,
+    "carboidratos": 2.15,
+    "gorduras": 2.71
+  },
+  {
+    "nome": "Quibe, assado",
+    "calorias": 136.23,
+    "proteinas": 14.59,
+    "carboidratos": 12.86,
+    "gorduras": 2.68
+  },
+  {
+    "nome": "Quibe, cru",
+    "calorias": 109.49,
+    "proteinas": 12.35,
+    "carboidratos": 10.77,
+    "gorduras": 1.67
+  },
+  {
+    "nome": "Quibe, frito",
+    "calorias": 253.83,
+    "proteinas": 14.89,
+    "carboidratos": 12.34,
+    "gorduras": 15.8
+  },
+  {
+    "nome": "Salame",
+    "calorias": 397.84,
+    "proteinas": 25.81,
+    "carboidratos": 2.91,
+    "gorduras": 30.64
+  },
+  {
+    "nome": "Toucinho, cru",
+    "calorias": 592.53,
+    "proteinas": 11.48,
+    "carboidratos": 0,
+    "gorduras": 60.26
+  },
+  {
+    "nome": "Toucinho, frito",
+    "calorias": 696.56,
+    "proteinas": 27.28,
+    "carboidratos": 0,
+    "gorduras": 64.31
+  },
+  {
+    "nome": "Bebida láctea, pêssego",
+    "calorias": 55.16,
+    "proteinas": 2.13,
+    "carboidratos": 7.57,
+    "gorduras": 1.91
+  },
+  {
+    "nome": "Creme de Leite",
+    "calorias": 221.48,
+    "proteinas": 1.51,
+    "carboidratos": 4.51,
+    "gorduras": 22.48
+  },
+  {
+    "nome": "Iogurte, natural",
+    "calorias": 51.49,
+    "proteinas": 4.06,
+    "carboidratos": 1.92,
+    "gorduras": 3.04
+  },
+  {
+    "nome": "Iogurte, natural, desnatado",
+    "calorias": 41.49,
+    "proteinas": 3.83,
+    "carboidratos": 5.77,
+    "gorduras": 0.32
+  },
+  {
+    "nome": "Iogurte, sabor abacaxi",
+    "calorias": 0,
+    "proteinas": 0,
+    "carboidratos": 0,
+    "gorduras": 0
+  },
+  {
+    "nome": "Iogurte, sabor morango",
+    "calorias": 69.57,
+    "proteinas": 2.71,
+    "carboidratos": 9.69,
+    "gorduras": 2.33
+  },
+  {
+    "nome": "Iogurte, sabor pêssego",
+    "calorias": 67.85,
+    "proteinas": 2.53,
+    "carboidratos": 9.43,
+    "gorduras": 2.34
+  },
+  {
+    "nome": "Leite, condensado",
+    "calorias": 312.57,
+    "proteinas": 7.67,
+    "carboidratos": 57,
+    "gorduras": 6.74
+  },
+  {
+    "nome": "Leite, de cabra",
+    "calorias": 66.42,
+    "proteinas": 3.07,
+    "carboidratos": 5.25,
+    "gorduras": 3.75
+  },
+  {
+    "nome": "Leite, de vaca, achocolatado",
+    "calorias": 82.82,
+    "proteinas": 2.1,
+    "carboidratos": 14.16,
+    "gorduras": 2.17
+  },
+  {
+    "nome": "Leite, de vaca, desnatado, pó",
+    "calorias": 361.61,
+    "proteinas": 34.69,
+    "carboidratos": 53.04,
+    "gorduras": 0.93
+  },
+  {
+    "nome": "Leite, de vaca, desnatado, UHT",
+    "calorias": 0,
+    "proteinas": 0,
+    "carboidratos": 0,
+    "gorduras": 0
+  },
+  {
+    "nome": "Leite, de vaca, integral",
+    "calorias": 0,
+    "proteinas": 0,
+    "carboidratos": 0,
+    "gorduras": 0
+  },
+  {
+    "nome": "Leite, de vaca, integral, pó",
+    "calorias": 496.65,
+    "proteinas": 25.42,
+    "carboidratos": 39.18,
+    "gorduras": 26.9
+  },
+  {
+    "nome": "Leite, fermentado",
+    "calorias": 69.62,
+    "proteinas": 1.89,
+    "carboidratos": 15.67,
+    "gorduras": 0.1
+  },
+  {
+    "nome": "Queijo, minas, frescal",
+    "calorias": 264.27,
+    "proteinas": 17.41,
+    "carboidratos": 3.24,
+    "gorduras": 20.18
+  },
+  {
+    "nome": "Queijo, minas, meia cura",
+    "calorias": 320.72,
+    "proteinas": 21.21,
+    "carboidratos": 3.57,
+    "gorduras": 24.61
+  },
+  {
+    "nome": "Queijo, mozarela",
+    "calorias": 329.87,
+    "proteinas": 22.65,
+    "carboidratos": 3.05,
+    "gorduras": 25.18
+  },
+  {
+    "nome": "Queijo, parmesão",
+    "calorias": 452.96,
+    "proteinas": 35.55,
+    "carboidratos": 1.66,
+    "gorduras": 33.53
+  },
+  {
+    "nome": "Queijo, pasteurizado",
+    "calorias": 303.08,
+    "proteinas": 9.36,
+    "carboidratos": 5.68,
+    "gorduras": 27.44
+  },
+  {
+    "nome": "Queijo, petit suisse, morango",
+    "calorias": 121.11,
+    "proteinas": 5.79,
+    "carboidratos": 18.46,
+    "gorduras": 2.84
+  },
+  {
+    "nome": "Queijo, prato",
+    "calorias": 359.88,
+    "proteinas": 22.66,
+    "carboidratos": 1.88,
+    "gorduras": 29.11
+  },
+  {
+    "nome": "Maria mole",
+    "calorias": 256.58,
+    "proteinas": 9.63,
+    "carboidratos": 2.43,
+    "gorduras": 23.44
+  },
+  {
+    "nome": "Queijo, ricota",
+    "calorias": 139.73,
+    "proteinas": 12.6,
+    "carboidratos": 3.79,
+    "gorduras": 8.11
+  },
+  {
+    "nome": "Bebida isotônica, sabores variados",
+    "calorias": 25.61,
+    "proteinas": 0,
+    "carboidratos": 6.4,
+    "gorduras": 0
+  },
+  {
+    "nome": "Café, infusão 10%",
+    "calorias": 9.07,
+    "proteinas": 0.71,
+    "carboidratos": 1.48,
+    "gorduras": 0.07
+  },
+  {
+    "nome": "Cana, aguardente 1",
+    "calorias": 215.66,
+    "proteinas": 0,
+    "carboidratos": 0,
+    "gorduras": 0
+  },
+  {
+    "nome": "Cana, caldo de",
+    "calorias": 65.34,
+    "proteinas": 0,
+    "carboidratos": 18.15,
+    "gorduras": 0
+  },
+  {
+    "nome": "Cerveja, pilsen 2",
+    "calorias": 40.72,
+    "proteinas": 0.56,
+    "carboidratos": 3.32,
+    "gorduras": 0
+  },
+  {
+    "nome": "Chá, erva-doce, infusão 5%",
+    "calorias": 1.4,
+    "proteinas": 0,
+    "carboidratos": 0.39,
+    "gorduras": 0
+  },
+  {
+    "nome": "Chá, mate, infusão 5%",
+    "calorias": 2.73,
+    "proteinas": 0,
+    "carboidratos": 0.64,
+    "gorduras": 0.05
+  },
+  {
+    "nome": "Chá, preto, infusão 5%",
+    "calorias": 2.25,
+    "proteinas": 0,
+    "carboidratos": 0.63,
+    "gorduras": 0
+  },
+  {
+    "nome": "Coco, água de",
+    "calorias": 21.51,
+    "proteinas": 0,
+    "carboidratos": 5.28,
+    "gorduras": 0
+  },
+  {
+    "nome": "Refrigerante, tipo água tônica",
+    "calorias": 30.78,
+    "proteinas": 0,
+    "carboidratos": 7.95,
+    "gorduras": 0
+  },
+  {
+    "nome": "Refrigerante, tipo cola",
+    "calorias": 33.51,
+    "proteinas": 0,
+    "carboidratos": 8.66,
+    "gorduras": 0
+  },
+  {
+    "nome": "Refrigerante, tipo guaraná",
+    "calorias": 38.7,
+    "proteinas": 0,
+    "carboidratos": 10,
+    "gorduras": 0
+  },
+  {
+    "nome": "Refrigerante, tipo laranja",
+    "calorias": 45.63,
+    "proteinas": 0,
+    "carboidratos": 11.79,
+    "gorduras": 0
+  },
+  {
+    "nome": "Refrigerante, tipo limão",
+    "calorias": 39.72,
+    "proteinas": 0,
+    "carboidratos": 10.26,
+    "gorduras": 0
+  },
+  {
+    "nome": "Omelete, de queijo",
+    "calorias": 268.01,
+    "proteinas": 15.57,
+    "carboidratos": 0.44,
+    "gorduras": 22.01
+  },
+  {
+    "nome": "Ovo, de codorna, inteiro, cru",
+    "calorias": 176.89,
+    "proteinas": 13.69,
+    "carboidratos": 0.77,
+    "gorduras": 12.68
+  },
+  {
+    "nome": "Ovo, de galinha, clara, cozida/10minutos",
+    "calorias": 59.44,
+    "proteinas": 13.45,
+    "carboidratos": 0,
+    "gorduras": 0.09
+  },
+  {
+    "nome": "Ovo, de galinha, gema, cozida/10minutos",
+    "calorias": 352.67,
+    "proteinas": 15.9,
+    "carboidratos": 1.56,
+    "gorduras": 30.78
+  },
+  {
+    "nome": "Ovo, de galinha, inteiro, cozido/10minutos",
+    "calorias": 145.7,
+    "proteinas": 13.29,
+    "carboidratos": 0.61,
+    "gorduras": 9.48
+  },
+  {
+    "nome": "Ovo, de galinha, inteiro, cru",
+    "calorias": 143.11,
+    "proteinas": 13.03,
+    "carboidratos": 1.64,
+    "gorduras": 8.9
+  },
+  {
+    "nome": "Ovo, de galinha, inteiro, frito",
+    "calorias": 240.19,
+    "proteinas": 15.62,
+    "carboidratos": 1.19,
+    "gorduras": 18.59
+  },
+  {
+    "nome": "Achocolatado, pó",
+    "calorias": 401.02,
+    "proteinas": 4.2,
+    "carboidratos": 91.18,
+    "gorduras": 2.17
+  },
+  {
+    "nome": "Açúcar, cristal",
+    "calorias": 386.85,
+    "proteinas": 0.32,
+    "carboidratos": 99.61,
+    "gorduras": 0
+  },
+  {
+    "nome": "Açúcar, mascavo",
+    "calorias": 368.55,
+    "proteinas": 0.76,
+    "carboidratos": 94.45,
+    "gorduras": 0.09
+  },
+  {
+    "nome": "Açúcar, refinado",
+    "calorias": 386.57,
+    "proteinas": 0.32,
+    "carboidratos": 99.54,
+    "gorduras": 0
+  },
+  {
+    "nome": "Chocolate, ao leite",
+    "calorias": 539.59,
+    "proteinas": 7.22,
+    "carboidratos": 59.58,
+    "gorduras": 30.27
+  },
+  {
+    "nome": "Chocolate, ao leite, com castanha do Pará",
+    "calorias": 558.88,
+    "proteinas": 7.41,
+    "carboidratos": 55.38,
+    "gorduras": 34.19
+  },
+  {
+    "nome": "Chocolate, ao leite, dietético",
+    "calorias": 556.82,
+    "proteinas": 6.9,
+    "carboidratos": 56.32,
+    "gorduras": 33.77
+  },
+  {
+    "nome": "Chocolate, meio amargo",
+    "calorias": 474.92,
+    "proteinas": 4.86,
+    "carboidratos": 62.42,
+    "gorduras": 29.86
+  },
+  {
+    "nome": "Cocada branca",
+    "calorias": 448.85,
+    "proteinas": 1.12,
+    "carboidratos": 81.38,
+    "gorduras": 13.59
+  },
+  {
+    "nome": "Doce, de abóbora, cremoso",
+    "calorias": 198.94,
+    "proteinas": 0.92,
+    "carboidratos": 54.61,
+    "gorduras": 0.21
+  },
+  {
+    "nome": "Doce, de leite, cremoso",
+    "calorias": 306.31,
+    "proteinas": 5.48,
+    "carboidratos": 59.49,
+    "gorduras": 5.99
+  },
+  {
+    "nome": "Geléia, mocotó, natural",
+    "calorias": 106.09,
+    "proteinas": 2.13,
+    "carboidratos": 24.23,
+    "gorduras": 0.07
+  },
+  {
+    "nome": "Glicose de milho",
+    "calorias": 292.12,
+    "proteinas": 0,
+    "carboidratos": 79.38,
+    "gorduras": 0
+  },
+  {
+    "nome": "Maria mole, coco queimado",
+    "calorias": 306.63,
+    "proteinas": 3.93,
+    "carboidratos": 75.06,
+    "gorduras": 0.09
+  },
+  {
+    "nome": "Marmelada",
+    "calorias": 257.24,
+    "proteinas": 0.4,
+    "carboidratos": 70.76,
+    "gorduras": 0.14
+  },
+  {
+    "nome": "Mel, de abelha",
+    "calorias": 309.24,
+    "proteinas": 0,
+    "carboidratos": 84.03,
+    "gorduras": 0
+  },
+  {
+    "nome": "Melado",
+    "calorias": 296.51,
+    "proteinas": 0,
+    "carboidratos": 76.62,
+    "gorduras": 0
+  },
+  {
+    "nome": "Quindim",
+    "calorias": 411.35,
+    "proteinas": 4.74,
+    "carboidratos": 46.3,
+    "gorduras": 24.43
+  },
+  {
+    "nome": "Rapadura",
+    "calorias": 351.96,
+    "proteinas": 0.99,
+    "carboidratos": 90.79,
+    "gorduras": 0.07
+  },
+  {
+    "nome": "Café, pó, torrado",
+    "calorias": 418.62,
+    "proteinas": 14.7,
+    "carboidratos": 65.75,
+    "gorduras": 11.95
+  },
+  {
+    "nome": "Capuccino, pó",
+    "calorias": 417.41,
+    "proteinas": 11.31,
+    "carboidratos": 73.61,
+    "gorduras": 8.63
+  },
+  {
+    "nome": "Fermento em pó, químico",
+    "calorias": 89.72,
+    "proteinas": 0.48,
+    "carboidratos": 43.91,
+    "gorduras": 0.07
+  },
+  {
+    "nome": "Fermento, biológico, levedura, tablete",
+    "calorias": 89.79,
+    "proteinas": 16.96,
+    "carboidratos": 7.7,
+    "gorduras": 1.52
+  },
+  {
+    "nome": "Gelatina, sabores variados, pó",
+    "calorias": 380.22,
+    "proteinas": 8.89,
+    "carboidratos": 89.22,
+    "gorduras": 0
+  },
+  {
+    "nome": "Sal, dietético",
+    "calorias": 0,
+    "proteinas": 0,
+    "carboidratos": 0,
+    "gorduras": 0
+  },
+  {
+    "nome": "Sal, grosso",
+    "calorias": 0,
+    "proteinas": 0,
+    "carboidratos": 0,
+    "gorduras": 0
+  },
+  {
+    "nome": "Shoyu",
+    "calorias": 60.93,
+    "proteinas": 3.31,
+    "carboidratos": 11.65,
+    "gorduras": 0.33
+  },
+  {
+    "nome": "Tempero a base de sal",
+    "calorias": 21.33,
+    "proteinas": 2.67,
+    "carboidratos": 2.07,
+    "gorduras": 0.26
+  },
+  {
+    "nome": "Azeitona, preta, conserva",
+    "calorias": 194.15,
+    "proteinas": 1.16,
+    "carboidratos": 5.54,
+    "gorduras": 20.35
+  },
+  {
+    "nome": "Azeitona, verde, conserva",
+    "calorias": 136.94,
+    "proteinas": 0.95,
+    "carboidratos": 4.1,
+    "gorduras": 14.22
+  },
+  {
+    "nome": "Chantilly, spray, com gordura vegetal",
+    "calorias": 314.96,
+    "proteinas": 0.53,
+    "carboidratos": 16.86,
+    "gorduras": 27.27
+  },
+  {
+    "nome": "Leite, de coco",
+    "calorias": 166.16,
+    "proteinas": 1.01,
+    "carboidratos": 2.19,
+    "gorduras": 18.36
+  },
+  {
+    "nome": "Maionese, tradicional com ovos",
+    "calorias": 302.15,
+    "proteinas": 0.58,
+    "carboidratos": 7.9,
+    "gorduras": 30.5
+  },
+  {
+    "nome": "Acarajé",
+    "calorias": 289.21,
+    "proteinas": 8.35,
+    "carboidratos": 19.11,
+    "gorduras": 19.93
+  },
+  {
+    "nome": "Arroz carreteiro",
+    "calorias": 153.77,
+    "proteinas": 10.83,
+    "carboidratos": 11.58,
+    "gorduras": 7.12
+  },
+  {
+    "nome": "Baião de dois, arroz e feijão-de-corda",
+    "calorias": 135.68,
+    "proteinas": 6.24,
+    "carboidratos": 20.42,
+    "gorduras": 3.23
+  },
+  {
+    "nome": "Barreado",
+    "calorias": 164.98,
+    "proteinas": 18.27,
+    "carboidratos": 0.24,
+    "gorduras": 9.53
+  },
+  {
+    "nome": "Bife à cavalo, com contra filé",
+    "calorias": 291.23,
+    "proteinas": 23.66,
+    "carboidratos": 0,
+    "gorduras": 21.15
+  },
+  {
+    "nome": "Bolinho de arroz",
+    "calorias": 273.51,
+    "proteinas": 8.04,
+    "carboidratos": 41.68,
+    "gorduras": 8.29
+  },
+  {
+    "nome": "Camarão à baiana",
+    "calorias": 100.78,
+    "proteinas": 7.94,
+    "carboidratos": 3.17,
+    "gorduras": 5.97
+  },
+  {
+    "nome": "Charuto, de repolho",
+    "calorias": 78.23,
+    "proteinas": 6.78,
+    "carboidratos": 10.13,
+    "gorduras": 1.12
+  },
+  {
+    "nome": "Cuscuz, de milho, cozido com sal",
+    "calorias": 113.46,
+    "proteinas": 2.16,
+    "carboidratos": 25.28,
+    "gorduras": 0.68
+  },
+  {
+    "nome": "Cuscuz, paulista",
+    "calorias": 142.12,
+    "proteinas": 2.56,
+    "carboidratos": 22.51,
+    "gorduras": 4.65
+  },
+  {
+    "nome": "Cuxá, molho",
+    "calorias": 80.09,
+    "proteinas": 5.64,
+    "carboidratos": 5.74,
+    "gorduras": 3.59
+  },
+  {
+    "nome": "Dobradinha",
+    "calorias": 124.5,
+    "proteinas": 19.77,
+    "carboidratos": 0,
+    "gorduras": 4.44
+  },
+  {
+    "nome": "Estrogonofe de carne",
+    "calorias": 173.14,
+    "proteinas": 15.03,
+    "carboidratos": 2.98,
+    "gorduras": 10.8
+  },
+  {
+    "nome": "Estrogonofe de frango",
+    "calorias": 156.81,
+    "proteinas": 17.55,
+    "carboidratos": 2.59,
+    "gorduras": 7.96
+  },
+  {
+    "nome": "Feijão tropeiro mineiro",
+    "calorias": 151.56,
+    "proteinas": 10.17,
+    "carboidratos": 19.58,
+    "gorduras": 6.79
+  },
+  {
+    "nome": "Feijoada",
+    "calorias": 116.93,
+    "proteinas": 8.67,
+    "carboidratos": 11.64,
+    "gorduras": 6.48
+  },
+  {
+    "nome": "Frango, com açafrão",
+    "calorias": 112.78,
+    "proteinas": 9.7,
+    "carboidratos": 4.06,
+    "gorduras": 6.17
+  },
+  {
+    "nome": "Macarrão, molho bolognesa",
+    "calorias": 119.53,
+    "proteinas": 4.93,
+    "carboidratos": 22.52,
+    "gorduras": 0.89
+  },
+  {
+    "nome": "Maniçoba",
+    "calorias": 134.22,
+    "proteinas": 9.96,
+    "carboidratos": 3.42,
+    "gorduras": 8.7
+  },
+  {
+    "nome": "Quibebe",
+    "calorias": 86.35,
+    "proteinas": 8.56,
+    "carboidratos": 6.64,
+    "gorduras": 2.67
+  },
+  {
+    "nome": "Salada, de legumes, com maionese",
+    "calorias": 96.1,
+    "proteinas": 1.05,
+    "carboidratos": 8.92,
+    "gorduras": 7.04
+  },
+  {
+    "nome": "Salada, de legumes, cozida no vapor",
+    "calorias": 35.41,
+    "proteinas": 2.01,
+    "carboidratos": 7.09,
+    "gorduras": 0.31
+  },
+  {
+    "nome": "Salpicão, de frango",
+    "calorias": 147.86,
+    "proteinas": 13.93,
+    "carboidratos": 4.57,
+    "gorduras": 7.84
+  },
+  {
+    "nome": "Sarapatel",
+    "calorias": 122.98,
+    "proteinas": 18.47,
+    "carboidratos": 1.09,
+    "gorduras": 4.42
+  },
+  {
+    "nome": "Tabule",
+    "calorias": 57.45,
+    "proteinas": 2.05,
+    "carboidratos": 10.58,
+    "gorduras": 1.21
+  },
+  {
+    "nome": "Tacacá",
+    "calorias": 46.89,
+    "proteinas": 6.96,
+    "carboidratos": 3.39,
+    "gorduras": 0.36
+  },
+  {
+    "nome": "Tapioca, com manteiga",
+    "calorias": 347.83,
+    "proteinas": 0.09,
+    "carboidratos": 63.59,
+    "gorduras": 10.91
+  },
+  {
+    "nome": "Tucupi, com pimenta-de-cheiro",
+    "calorias": 27.18,
+    "proteinas": 2.06,
+    "carboidratos": 4.74,
+    "gorduras": 0.28
+  },
+  {
+    "nome": "Vaca atolada",
+    "calorias": 144.9,
+    "proteinas": 5.12,
+    "carboidratos": 10.06,
+    "gorduras": 9.32
+  },
+  {
+    "nome": "Vatapá",
+    "calorias": 254.89,
+    "proteinas": 6,
+    "carboidratos": 9.75,
+    "gorduras": 23.23
+  },
+  {
+    "nome": "Virado à paulista",
+    "calorias": 306.95,
+    "proteinas": 10.18,
+    "carboidratos": 14.11,
+    "gorduras": 25.59
+  },
+  {
+    "nome": "Yakisoba",
+    "calorias": 112.8,
+    "proteinas": 7.52,
+    "carboidratos": 18.25,
+    "gorduras": 2.61
+  },
+  {
+    "nome": "Amendoim, grão, cru",
+    "calorias": 544.05,
+    "proteinas": 27.19,
+    "carboidratos": 20.31,
+    "gorduras": 43.85
+  },
+  {
+    "nome": "Amendoim, torrado, salgado",
+    "calorias": 605.78,
+    "proteinas": 22.48,
+    "carboidratos": 18.7,
+    "gorduras": 53.96
+  },
+  {
+    "nome": "Ervilha, em vagem",
+    "calorias": 88.09,
+    "proteinas": 7.45,
+    "carboidratos": 14.23,
+    "gorduras": 0.47
+  },
+  {
+    "nome": "Ervilha, enlatada, drenada",
+    "calorias": 73.84,
+    "proteinas": 4.6,
+    "carboidratos": 13.44,
+    "gorduras": 0.38
+  },
+  {
+    "nome": "Feijão, carioca, cozido",
+    "calorias": 76.42,
+    "proteinas": 4.78,
+    "carboidratos": 13.59,
+    "gorduras": 0.54
+  },
+  {
+    "nome": "Feijão, carioca, cru",
+    "calorias": 329.03,
+    "proteinas": 19.98,
+    "carboidratos": 61.22,
+    "gorduras": 1.26
+  },
+  {
+    "nome": "Feijão, fradinho, cozido",
+    "calorias": 78.01,
+    "proteinas": 5.09,
+    "carboidratos": 13.5,
+    "gorduras": 0.64
+  },
+  {
+    "nome": "Feijão, fradinho, cru",
+    "calorias": 339.16,
+    "proteinas": 20.21,
+    "carboidratos": 61.24,
+    "gorduras": 2.37
+  },
+  {
+    "nome": "Feijão, jalo, cozido",
+    "calorias": 92.74,
+    "proteinas": 6.14,
+    "carboidratos": 16.5,
+    "gorduras": 0.51
+  },
+  {
+    "nome": "Feijão, jalo, cru",
+    "calorias": 327.91,
+    "proteinas": 20.1,
+    "carboidratos": 61.48,
+    "gorduras": 0.95
+  },
+  {
+    "nome": "Feijão, preto, cozido",
+    "calorias": 77.03,
+    "proteinas": 4.48,
+    "carboidratos": 14.01,
+    "gorduras": 0.54
+  },
+  {
+    "nome": "Feijão, preto, cru",
+    "calorias": 323.57,
+    "proteinas": 21.34,
+    "carboidratos": 58.75,
+    "gorduras": 1.24
+  },
+  {
+    "nome": "Feijão, rajado, cozido",
+    "calorias": 84.7,
+    "proteinas": 5.54,
+    "carboidratos": 15.27,
+    "gorduras": 0.4
+  },
+  {
+    "nome": "Feijão, rajado, cru",
+    "calorias": 325.84,
+    "proteinas": 17.27,
+    "carboidratos": 62.93,
+    "gorduras": 1.17
+  },
+  {
+    "nome": "Feijão, rosinha, cozido",
+    "calorias": 67.87,
+    "proteinas": 4.54,
+    "carboidratos": 11.82,
+    "gorduras": 0.48
+  },
+  {
+    "nome": "Feijão, rosinha, cru",
+    "calorias": 336.96,
+    "proteinas": 20.92,
+    "carboidratos": 62.22,
+    "gorduras": 1.33
+  },
+  {
+    "nome": "Feijão, roxo, cozido",
+    "calorias": 76.89,
+    "proteinas": 5.72,
+    "carboidratos": 12.91,
+    "gorduras": 0.54
+  },
+  {
+    "nome": "Feijão, roxo, cru",
+    "calorias": 331.41,
+    "proteinas": 22.17,
+    "carboidratos": 59.99,
+    "gorduras": 1.24
+  },
+  {
+    "nome": "Grão-de-bico, cru",
+    "calorias": 354.7,
+    "proteinas": 21.23,
+    "carboidratos": 57.88,
+    "gorduras": 5.43
+  },
+  {
+    "nome": "Guandu, cru",
+    "calorias": 344.13,
+    "proteinas": 18.96,
+    "carboidratos": 64,
+    "gorduras": 2.13
+  },
+  {
+    "nome": "Lentilha, cozida",
+    "calorias": 92.64,
+    "proteinas": 6.31,
+    "carboidratos": 16.3,
+    "gorduras": 0.52
+  },
+  {
+    "nome": "Lentilha, crua",
+    "calorias": 339.14,
+    "proteinas": 23.15,
+    "carboidratos": 62,
+    "gorduras": 0.77
+  },
+  {
+    "nome": "Paçoca, amendoim",
+    "calorias": 486.93,
+    "proteinas": 16,
+    "carboidratos": 52.38,
+    "gorduras": 26.08
+  },
+  {
+    "nome": "Pé-de-moleque, amendoim",
+    "calorias": 503.19,
+    "proteinas": 13.16,
+    "carboidratos": 54.73,
+    "gorduras": 28.05
+  },
+  {
+    "nome": "Soja, farinha",
+    "calorias": 403.96,
+    "proteinas": 36.03,
+    "carboidratos": 38.44,
+    "gorduras": 14.63
+  },
+  {
+    "nome": "Soja, extrato solúvel, natural, fluido",
+    "calorias": 39.1,
+    "proteinas": 2.38,
+    "carboidratos": 4.28,
+    "gorduras": 1.61
+  },
+  {
+    "nome": "Soja, extrato solúvel, pó",
+    "calorias": 458.9,
+    "proteinas": 35.69,
+    "carboidratos": 28.48,
+    "gorduras": 26.18
+  },
+  {
+    "nome": "Soja, queijo (tofu)",
+    "calorias": 64.49,
+    "proteinas": 6.55,
+    "carboidratos": 2.13,
+    "gorduras": 3.95
+  },
+  {
+    "nome": "Tremoço, cru",
+    "calorias": 381.28,
+    "proteinas": 33.58,
+    "carboidratos": 43.79,
+    "gorduras": 10.34
+  },
+  {
+    "nome": "Tremoço, em conserva",
+    "calorias": 120.64,
+    "proteinas": 11.11,
+    "carboidratos": 12.39,
+    "gorduras": 3.78
+  },
+  {
+    "nome": "Amêndoa, torrada, salgada",
+    "calorias": 580.75,
+    "proteinas": 18.55,
+    "carboidratos": 29.55,
+    "gorduras": 47.32
+  },
+  {
+    "nome": "Castanha-de-caju, torrada, salgada",
+    "calorias": 570.17,
+    "proteinas": 18.51,
+    "carboidratos": 29.13,
+    "gorduras": 46.28
+  },
+  {
+    "nome": "Castanha-do-Brasil, crua",
+    "calorias": 642.96,
+    "proteinas": 14.54,
+    "carboidratos": 15.08,
+    "gorduras": 63.46
+  },
+  {
+    "nome": "Coco, cru",
+    "calorias": 406.49,
+    "proteinas": 3.69,
+    "carboidratos": 10.4,
+    "gorduras": 41.98
+  },
+  {
+    "nome": "Coco, verde, cru",
+    "calorias": 0,
+    "proteinas": 0,
+    "carboidratos": 0,
+    "gorduras": 0
+  },
+  {
+    "nome": "Farinha, de mesocarpo de babaçu, crua",
+    "calorias": 328.77,
+    "proteinas": 1.41,
+    "carboidratos": 79.17,
+    "gorduras": 0.2
+  },
+  {
+    "nome": "Gergelim, semente",
+    "calorias": 583.55,
+    "proteinas": 21.16,
+    "carboidratos": 21.62,
+    "gorduras": 50.43
+  },
+  {
+    "nome": "Linhaça, semente",
+    "calorias": 495.1,
+    "proteinas": 14.08,
+    "carboidratos": 43.31,
+    "gorduras": 32.25
+  },
+  {
+    "nome": "Pinhão, cozido",
+    "calorias": 174.37,
+    "proteinas": 2.98,
+    "carboidratos": 43.92,
+    "gorduras": 0.75
+  },
+  {
+    "nome": "Pupunha, cozida",
+    "calorias": 218.53,
+    "proteinas": 2.52,
+    "carboidratos": 29.57,
+    "gorduras": 12.76
+  },
+  {
+    "nome": "Noz, crua",
+    "calorias": 620.06,
+    "proteinas": 13.97,
+    "carboidratos": 18.36,
+    "gorduras": 59.36
+  }
+]
