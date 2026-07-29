@@ -14,8 +14,22 @@
 -- régua de mínimo privilégio já aplicada a
 -- resolver_usuario_id_por_email, que É `security definer` porque
 -- PRECISA ler auth.users — este caso é o oposto).
+--
+-- `set local search_path`: BUG CORRIGIDO (rodando pela primeira vez contra o
+-- banco real) — `vector` sem qualificar deu `ERROR: type vector does not
+-- exist (SQLSTATE 42704)`. `extra_search_path` do supabase/config.toml só
+-- vale para a sessão do PostgREST; a conexão que `supabase db push` usa para
+-- rodar esta migration não inclui `extensions` no search_path por padrão. E
+-- diferente de PL/pgSQL, uma função `language sql` tem o corpo analisado já
+-- no CREATE (não só na primeira chamada), então tanto o tipo do parâmetro
+-- quanto o operador `<=>` (também definido no schema `extensions` pelo
+-- pgvector) precisam resolver já nesse momento — daí o `set local`
+-- explícito ANTES do `create function`, além de qualificar o tipo do
+-- parâmetro por precaução.
+set local search_path = public, extensions;
+
 create or replace function match_alimentos(
-  query_embedding vector(768),
+  query_embedding extensions.vector(768),
   match_threshold float,
   match_count int
 )
@@ -59,6 +73,6 @@ $$;
 -- `service_role` (o caminho real hoje — `search-food` chama com a service
 -- role, mesmo padrão de toda Edge Function deste projeto que já segura
 -- essa chave).
-revoke execute on function match_alimentos(vector(768), float, int) from public;
-grant execute on function match_alimentos(vector(768), float, int) to authenticated;
-grant execute on function match_alimentos(vector(768), float, int) to service_role;
+revoke execute on function match_alimentos(extensions.vector(768), float, int) from public;
+grant execute on function match_alimentos(extensions.vector(768), float, int) to authenticated;
+grant execute on function match_alimentos(extensions.vector(768), float, int) to service_role;
