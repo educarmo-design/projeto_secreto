@@ -375,30 +375,24 @@ class CadastroController extends ValueNotifier<CadastroCepState> {
     }
   }
 
-  /// Etapa 1 (LGPD art. 11 — dado sensível): `email` sai daqui cifrado com
-  /// o mesmo padrão AES-256-GCM já usado para `nome`/`telefone`
-  /// ([CryptoStorageService.encryptSensitiveField]) — nunca em texto plano.
-  /// `perfis_usuarios.email` é só uma cópia de conveniência de
-  /// `auth.users.email` (que o próprio Supabase Auth já guarda isolado);
-  /// nenhuma tela ou serviço lê essa coluna de volta, então cifrar aqui não
-  /// exige nenhum caminho de decriptação novo em lugar nenhum do app.
+  /// Etapa 1 (LGPD art. 11 — dado sensível): `nome`/`telefone`/`email` saem
+  /// daqui em TEXTO PLANO, protegidos em trânsito por TLS. A cifra EM REPOUSO
+  /// é responsabilidade do banco agora (D2): um trigger `before insert/update`
+  /// em `perfis_usuarios` cifra esses 3 campos com pgcrypto + chave no Vault
+  /// (ver `*_d2_pii_criptografia_repouso.sql`) — o cliente não guarda mais
+  /// nenhuma chave de PII. `perfis_usuarios.email` é só uma cópia de
+  /// conveniência de `auth.users.email` (que o Supabase Auth já isola).
   Future<void> _persistirPerfil({
     required String userId,
     required String email,
     required CadastroPerfilPendente perfil,
   }) async {
-    final nomeCriptografado =
-        await cryptoStorage.encryptSensitiveField(perfil.nomeCompleto);
-    final telefoneCriptografado =
-        await cryptoStorage.encryptSensitiveField(perfil.telefone);
-    final emailCriptografado = await cryptoStorage.encryptSensitiveField(email);
-
     await supabaseManager.client.from('perfis_usuarios').upsert({
       'id': userId,
       'nickname': perfil.nickname,
-      'nome': nomeCriptografado,
-      'telefone': telefoneCriptografado,
-      'email': emailCriptografado,
+      'nome': perfil.nomeCompleto,
+      'telefone': perfil.telefone,
+      'email': email,
       'pais': perfil.pais,
       'cep': perfil.cep,
       'logradouro': perfil.logradouro,

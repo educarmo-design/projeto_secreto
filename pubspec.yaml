@@ -24,10 +24,6 @@ dependencies:
   # release the Supabase session token from Keystore/Keychain storage.
   local_auth: ^2.3.0
 
-  # Client-side AES-GCM for sensitive perfis_usuarios columns (nome,
-  # telefone) before they ever leave the device.
-  encrypt: ^5.0.3
-
   # Routing
   go_router: ^12.0.0
 

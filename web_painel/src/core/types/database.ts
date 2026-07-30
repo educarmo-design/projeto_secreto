@@ -182,7 +182,29 @@ export interface Database {
         Relationships: [];
       };
     };
-    Functions: Record<string, never>;
+    Functions: {
+      /**
+       * D2 (server-side PII crypto) — RPC SECURITY DEFINER escopada a
+       * `auth.uid()` que devolve a PRÓPRIA linha de `perfis_usuarios` com
+       * `nome`/`telefone`/`email` já DECIFRADOS server-side. Substitui o
+       * `select nome from perfis_usuarios` direto (que agora só devolveria
+       * ciphertext). Ver `*_d2_pii_criptografia_repouso.sql`.
+       */
+      meu_perfil_seguro: {
+        Args: Record<string, never>;
+        Returns: {
+          id: string;
+          nome: string | null;
+          telefone: string | null;
+          email: string | null;
+          nickname: string | null;
+          eh_profissional: boolean;
+          tipo_profissional: TipoProfissionalSaude | null;
+          status_aprovacao: StatusAprovacaoUsuario;
+          is_admin: boolean;
+        }[];
+      };
+    };
     Enums: {
       tipo_profissional_saude: TipoProfissionalSaude;
       status_aprovacao_usuario: StatusAprovacaoUsuario;

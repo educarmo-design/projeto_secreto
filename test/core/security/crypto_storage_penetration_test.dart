@@ -119,83 +119,15 @@ void main() {
       );
     });
 
-    test(
-        'campos sensíveis (nome/telefone) nunca saem como texto plano — o '
-        'ciphertext jamais é igual, nem contém como substring, o valor '
-        'original', () async {
-      debugPrint(
-        '[PENTEST-A3] Criptografando um campo sensível e inspecionando o '
-        'ciphertext em busca de vazamento de texto plano...',
-      );
-
-      final storageReal = FakeSecureStorage();
-      final servicoLocal = CryptoStorageService(
-        secureStorage: storageReal,
-        localAuth: localAuth,
-      );
-
-      const plaintext = 'Maria da Silva - CPF simulado 000.000.000-00';
-      final ciphertext = await servicoLocal.encryptSensitiveField(plaintext);
-
-      expect(ciphertext, isNotEmpty);
-      expect(ciphertext, isNot(equals(plaintext)));
-      expect(
-        ciphertext.toLowerCase().contains(plaintext.toLowerCase()),
-        isFalse,
-        reason: 'O ciphertext não pode conter o plaintext como substring '
-            '— isso indicaria uma "criptografia" que só ofusca (ex.: '
-            'concatenação/Base64 direto) em vez de cifrar de verdade.',
-      );
-
-      // Prova que é criptografia simétrica real (reversível pela mesma
-      // chave), não apenas ofuscação de mão única.
-      final roundTrip = await servicoLocal.decryptSensitiveField(ciphertext);
-      expect(roundTrip, equals(plaintext));
-
-      debugPrint(
-        '[PENTEST-A3] OK: ciphertext não vaza o plaintext e só é '
-        'reversível através do próprio serviço (mesma chave AES-256-GCM).',
-      );
-    });
-
-    test(
-        'um invasor que rouba apenas o ciphertext (ex.: dump do banco) mas '
-        'não tem a chave presa ao Keystore/Keychain do aparelho original '
-        'não consegue decriptar o campo', () async {
-      debugPrint(
-        '[PENTEST-A4] Simulando exfiltração de ciphertext sem acesso ao '
-        'Keystore original (chave AES gerada em outro device)...',
-      );
-
-      final storageDoAparelhoOriginal = FakeSecureStorage();
-      final servicoDoAparelhoOriginal = CryptoStorageService(
-        secureStorage: storageDoAparelhoOriginal,
-        localAuth: localAuth,
-      );
-      final ciphertextRoubado = await servicoDoAparelhoOriginal
-          .encryptSensitiveField('dado clínico sigiloso');
-
-      // Keystore/Keychain de um aparelho diferente — chave AES distinta.
-      final storageDoInvasor = FakeSecureStorage();
-      final servicoDoInvasor = CryptoStorageService(
-        secureStorage: storageDoInvasor,
-        localAuth: localAuth,
-      );
-
-      final tentativaDeLeitura =
-          await servicoDoInvasor.decryptSensitiveField(ciphertextRoubado);
-
-      // decryptSensitiveField() engole a falha de autenticação do GCM (tag
-      // inválida com a chave errada) e devolve string vazia — nunca uma
-      // decodificação parcial, nunca uma exceção que poderia vazar
-      // metadados em um log de crash.
-      expect(tentativaDeLeitura, isEmpty);
-
-      debugPrint(
-        '[PENTEST-A4] OK: sem a chave do Keystore original, o ciphertext é '
-        'inutilizável — decriptação falhou de forma segura (string vazia).',
-      );
-    });
+    // NOTA (D2): os antigos testes A3/A4 exercitavam
+    // `encryptSensitiveField`/`decryptSensitiveField` — a cifra de PII
+    // client-side, REMOVIDA em D2. A PII de `perfis_usuarios` agora é cifrada
+    // EM REPOUSO pelo banco (pgcrypto + Vault, ver
+    // `*_d2_pii_criptografia_repouso.sql`); a garantia "root vê ciphertext,
+    // dono vê texto decifrado via RLS" é do lado servidor e é coberta pelo
+    // autoteste de round-trip embutido na própria migration + pelo critério
+    // de aceite manual (abrir o Studio e ver o bloco PGP). Não há mais chave
+    // de PII no cliente para um teste de unidade Dart exercitar.
   });
 
   group('Ataque (b): Bypass de Validação Biométrica Local', () {

@@ -1,6 +1,3 @@
-import 'dart:convert';
-
-import 'package:encrypt/encrypt.dart' as enc;
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:local_auth/local_auth.dart';
@@ -13,15 +10,17 @@ import 'package:local_auth/local_auth.dart';
 /// 2. Gates release of the biometric quick-login token behind [local_auth]:
 ///    the encrypted token is written freely, but it can only be *read* after
 ///    a successful FaceID/fingerprint challenge.
-/// 3. Provides AES-GCM field encryption for sensitive `perfis_usuarios`
-///    columns (nome, telefone) using a random 256-bit key that is generated
-///    once and never leaves the device's secure storage.
 ///
-/// Caveat (documented, not hidden): the AES key here is device-bound. It
-/// protects PII at rest against DB-level exposure (backups, support access,
-/// a compromised read-replica) but a fresh install/device cannot decrypt
-/// rows written by a previous device — by design, the key never leaves the
-/// Keystore/Keychain to be synced anywhere.
+/// This service is now purely about LOCAL DEVICE secrets (the biometric
+/// session token). Field-level PII encryption used to live here too
+/// (`encryptSensitiveField`/`decryptSensitiveField`) but was removed in D2:
+/// `perfis_usuarios.nome/telefone/email` are now encrypted AT REST by the
+/// database (pgcrypto + Supabase Vault, see
+/// `*_d2_pii_criptografia_repouso.sql`). The old device-bound AES key was
+/// write-only in practice — it never left the Keystore, so nothing outside
+/// the original device (not the server, not the B2B panel, not a reinstall)
+/// could ever decrypt it. Server-side crypto fixes that while keeping the key
+/// off the client entirely.
 class CryptoStorageService {
   CryptoStorageService({
     FlutterSecureStorage? secureStorage,
@@ -40,7 +39,6 @@ class CryptoStorageService {
   final LocalAuthentication _localAuth;
 
   static const String _biometricTokenKey = 'biometric_gated_session_token';
-  static const String _fieldEncryptionKeyKey = 'field_encryption_key_v1';
 
   // ---------------------------------------------------------------------
   // Biometria + token de sessão
@@ -102,55 +100,6 @@ class CryptoStorageService {
       debugPrint('Falha na autenticação biométrica: $e');
       return false;
     }
-  }
-
-  // ---------------------------------------------------------------------
-  // Criptografia de campos sensíveis (nome/telefone em perfis_usuarios)
-  // ---------------------------------------------------------------------
-
-  /// Encrypts [plaintext] with AES-256-GCM. The IV is random per call and
-  /// prefixed to the ciphertext so a single stored key can decrypt every
-  /// row; the whole payload is base64-encoded to fit a `text` column.
-  Future<String> encryptSensitiveField(String plaintext) async {
-    if (plaintext.isEmpty) return '';
-    final key = await _getOrCreateFieldEncryptionKey();
-    final iv = enc.IV.fromSecureRandom(12);
-    final encrypter = enc.Encrypter(enc.AES(key, mode: enc.AESMode.gcm));
-    final encrypted = encrypter.encrypt(plaintext, iv: iv);
-    final payload = Uint8List.fromList([...iv.bytes, ...encrypted.bytes]);
-    return base64Encode(payload);
-  }
-
-  /// Reverses [encryptSensitiveField]. Returns an empty string for empty or
-  /// malformed input rather than throwing — a corrupt/legacy plaintext value
-  /// must never crash the profile screen.
-  Future<String> decryptSensitiveField(String ciphertextBase64) async {
-    if (ciphertextBase64.isEmpty) return '';
-    try {
-      final key = await _getOrCreateFieldEncryptionKey();
-      final payload = base64Decode(ciphertextBase64);
-      if (payload.length <= 12) return '';
-      final iv = enc.IV(Uint8List.sublistView(payload, 0, 12));
-      final cipherBytes = Uint8List.sublistView(payload, 12);
-      final encrypter = enc.Encrypter(enc.AES(key, mode: enc.AESMode.gcm));
-      return encrypter.decrypt(enc.Encrypted(cipherBytes), iv: iv);
-    } on Exception catch (e) {
-      debugPrint('Erro ao decriptar campo sensível: $e');
-      return '';
-    }
-  }
-
-  Future<enc.Key> _getOrCreateFieldEncryptionKey() async {
-    final existing = await _secureStorage.read(key: _fieldEncryptionKeyKey);
-    if (existing != null) {
-      return enc.Key(base64Decode(existing));
-    }
-    final generated = enc.Key.fromSecureRandom(32);
-    await _secureStorage.write(
-      key: _fieldEncryptionKeyKey,
-      value: base64Encode(generated.bytes),
-    );
-    return generated;
   }
 }
 

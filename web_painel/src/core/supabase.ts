@@ -235,16 +235,18 @@ export function onAuthStateChange(callback: (session: Session | null) => void): 
 }
 
 /**
- * Nota de arquitetura (por que `nome` nunca aparece nas telas de paciente):
- * `perfis_usuarios.nome` de um PACIENTE cadastrado pelo app mobile é
- * gravado como ciphertext AES-256-GCM (`CryptoStorageService`,
- * `cadastro_controller.dart`) — a chave de decriptação vive presa ao
- * Keystore/Keychain do aparelho do paciente e nunca sai dele. Mesmo que
- * uma tela deste painel selecionasse essa coluna, o navegador exibiria
- * apenas o blob cifrado, ilegível. As telas de paciente (`PatientDetails`,
- * `PatientList`) são desenhadas em torno do UUID anônimo por essa razão
- * estrutural, não só por escolha de produto — não há decriptação possível
- * fora do dispositivo original.
+ * Nota de arquitetura (D2 — PII cifrada server-side, em repouso):
+ * `perfis_usuarios.nome/telefone/email` agora são cifrados NO BANCO
+ * (pgcrypto + chave no Vault, ver `*_d2_pii_criptografia_repouso.sql`) — um
+ * `select nome from perfis_usuarios` devolve só o bloco PGP ilegível. A
+ * decifra do PRÓPRIO nome do profissional passa pela RPC `meu_perfil_seguro`
+ * (SECURITY DEFINER, escopada a `auth.uid()`).
+ *
+ * As telas de PACIENTE (`PatientDetails`, `PatientList`) seguem girando em
+ * torno do UUID/nickname anônimo — a decifra do nome de um paciente por um
+ * profissional com vínculo ativo é uma capacidade que a infra de D2 já
+ * suporta (Parte 7.4), mas que NÃO foi ligada aqui de propósito: manter a
+ * postura de privacidade atual e não alargar o escopo desta tarefa.
  */
 interface PerfilBruto {
   id: string;
@@ -256,14 +258,22 @@ interface PerfilBruto {
 }
 
 async function buscarPerfilBruto(userId: string): Promise<PerfilBruto | null> {
-  const { data, error } = await supabase
-    .from('perfis_usuarios')
-    .select('id, nome, eh_profissional, tipo_profissional, status_aprovacao, is_admin')
-    .eq('id', userId)
-    .maybeSingle();
+  // `meu_perfil_seguro` ignora o argumento e usa sempre `auth.uid()` no
+  // servidor — `userId` aqui é só a asserção de qual sessão esperamos; a RPC
+  // nunca devolve a linha de outro usuário, então validamos a coerência.
+  const { data, error } = await supabase.rpc('meu_perfil_seguro');
 
   if (error || !data) return null;
-  return data;
+  const perfil = data[0];
+  if (!perfil || perfil.id !== userId) return null;
+  return {
+    id: perfil.id,
+    nome: perfil.nome,
+    eh_profissional: perfil.eh_profissional,
+    tipo_profissional: perfil.tipo_profissional,
+    status_aprovacao: perfil.status_aprovacao,
+    is_admin: perfil.is_admin,
+  };
 }
 
 function paraProfissionalAutenticado(perfil: PerfilBruto): ProfissionalAutenticado {
