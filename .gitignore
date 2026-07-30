@@ -23,6 +23,7 @@ AppData/
 web_painel/node_modules/
 web_painel/dist/
 web_painel/.env
+web_painel/config.env
 web_painel/*.local
 web_painel/*.tsbuildinfo
 NTUSER.DAT* 

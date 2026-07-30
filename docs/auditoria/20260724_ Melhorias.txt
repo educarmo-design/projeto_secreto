@@ -1,0 +1,38 @@
+24-07-2026 Melhorias
+
+======   web   =======
+
+- Ter a opção de criar usuário com conta google e apple
+
+
+=======  APP ====== 
+- Não esta habilitando a solicitação de digital, conforme definido na especificação do projeto
+- Tenho duvida se a segurança tipo "banco" esta implementada
+- Habilitar email de confirmação
+- Na tela de cadastro fazer as seguintes correções
+	- o usuário deve informa a data de nascimento e não a idade
+	- O campo telefone precisa ser formatado de forma que no futuro conseguimos utilizar-lo para comunicar com o usuário pelo Whatsapp, acredito que sera necessário incluir o código do Pais
+	- No endereço incluir o campo numero e complemento
+	
+- O perfil atleta pode ter a necessidade de fazer controle da glicose, ele tb precisa da tela de leitura do glicosimentro
+
+- Pelo andamento do projeto já foram construídas varias coisa para o aplicativo e as mesmas não estão sendo apresentadas
+
+- No aplicativo o mesmo não esta lendo dados de interface de saúde (Android e apple)
+- Na tela de configuração pode ter um liga / desliga da interface de saúde ( Android e apple)
+- Na vamos criar uma função de diagnostico de coleta de dados (Detalhar depois)
+- Devera ser criado um wildget único para as leituras através da câmera o mesmo terá botões (Alimentação, Rotulo, pressão , glicosimentro e balança) os botões pode ser os incones do wildget, ao clicar abre a função do wildget especifico de cada função, não devera excluir os wildget o usuário poderá escolher o qual ele quer que fica na tela 
+
+- Ter modelo ia destinto para cada tipo de aplicação, com o foco de otimizar os custo
+
+
+- Resolver isso
+
+Esses 21 apontamentos que apareceram são apenas avisos de nível info (sugestões de boas práticas do linter), e a grande maioria é apenas o Flutter pedindo para você colocar a palavra const antes de alguns widgets para melhorar a performance. Nenhuma classe quebrou, nenhuma função sumiu.
+
+Um Detalhe Interessante (Efeito Colateral da Atualização)
+Note este aviso específico que apareceu no seu log:
+
+info - 'isInDebugMode' is deprecated and shouldn't be used... lib\features\dashboard\data\services\background_sync_manager.dart:72:7
+
+Isso é a prova de que a nossa atualização funcionou! Como nós forçamos o pacote workmanager para a versão mais recente, os autores do pacote avisam que o parâmetro isInDebugMode não faz mais nada nas versões novas e foi depreciado. Isso não quebra o seu app (o próprio log diz "This parameter has no effect"), mas você pode simplesmente apagar essa linha isInDebugMode: true do seu código depois para deixar 100% limpo.

@@ -1,0 +1,128 @@
+
+Rebaixe F10, F03, F06, F08, F09 e F21 de ✅ para ⚠️ (Implementação parcial/desconectada).
+
+Adicione ao Log (Parte 11): "Auditoria revelou desconexão no roteamento e falta das Edge Functions do Gemini. E-mails requerem criptografia."
+
+Não podemos empilhar as tabelas complexas do Adendo v4.0 (como os vínculos multi-profissional) em cima de um roteador desconectado e lógicas no lado do cliente. Precisamos de uma Etapa 0.5 (Faxina e Fiação).
+
+
+Parte 11 (Log): Registre: "Etapa 0.5 concluída. Rotas religadas com adição da ProfileSelectionPage. Tabelas órfãs removidas. Lógica do Modo Recuperação (F21) movida para stub no servidor."
+
+Parte 3.2 (Matriz): Mantenha o F21 como ⚠️ (pois agora é um stub HTTP 501, aguardando a lógica real).
+
+Data Decisão Motivo
+12/Jul/2026 Etapa 0.5: Rotas UI religadas e criação de ProfileSelectionPageEvitar "beco sem saída" no fluxo de cadastro entre os perfis Atleta/Guardião.
+12/Jul/2026 Etapa 0.5: Remoção das tabelas órfãs metricas_saude e ciclo_menstrualHigiene de banco de dados e prevenção de dívida técnica antes da aplicação do Adendo v4.0.
+12/Jul/2026 Etapa 0.5: Cálculo do Modo Recuperação (F21) movido para stub em Edge FunctionAdequação à regra inegociável de arquitetura (lógica sensível estritamente server-side).
+12/Jul/2026 Etapa 1: Criptografia de e-mai l Client-Side (em perfis_usuarios)Conformidade LGPD sem onerar o BD com gestão de chaves; reaproveitamento do CryptoStorageService.
+12/Jul/2026Etapa 1: Algoritmo Server-Side do Trial (F21) atrelado ao auth.users.created_atPrevenção de fraude de data via manipulação no cliente; lógica 100% no servidor garantida.
+13/Jul/2026 Etapa Estrutural B2B: resultados_exames refatorada in-place para EAVPreservação de dados existentes da Onda 1.5, adaptando ao modelo G.1 do Adendo v4.0.
+13/Jul/2026 Etapa Estrutural B2B: Sem RLS de INSERT em vinculos_profissional_pacienteProteção contra fraude B2B. Criação de vínculos será restrita a Edge Function atrelada ao faturamento.
+13/Jul/2026 Etapa Estrutural B2B: faixa_referencia nula no DicionárioMitigação de risco SaMD. O sistema usará como prioridade a faixa contida no PDF original do laboratório.
+13/Jul/2026 Arquitetura B2B: Validação estrita do RLS (Zero Trust) em resultados_examesConfirmado em 6 cenários que o isolamento de dados entre pacientes e profissionais funciona via vinculos_profissional_paciente.
+13/Jul/2026 Banco de Dados: Exigência de GRANT explícito para papel authenticated nas migraçõesMudança no Supabase retira privilégios default de tabelas public. Sem GRANT explícito, o app perde acesso DML (read/write) independentemente do RLS.
+13/Jul/2026 Saneamento de GRANTs com engenharia defensivaAplicação de privilégios com exclusões intencionais: garmin_conexoes (proteção de tokens), Caixa Preta (apenas INSERT) e Trial (apenas SELECT).
+13/Jul/2026 Correção RLS na view B2B perfis_pacientes_vinculadosRemoção do security_invoker para permitir que o profissional visualize perfis via view, contornando o bloqueio da tabela base.
+13/Jul/2026 RLS unificado para métricas e anomalias sob a tabela vinculos_profissional_pacienteÚnica fonte da verdade de segurança. Consequência: exige Edge Function para criação de vínculos e backfill do legado.
+
+13/Jul/2026 Arquitetura de Consentimento: Vínculos SaaS nascem pendenteExigência LGPD. Profissional não pode forçar leitura de dados. Paciente precisa chamar aceitar_vinculo para liberar RLS (Zero Trust).
+13/Jul/2026 Migração Backfill de Prescrições Legadas para Vínculos ativosPreservar acesso B2B de pacientes antigos, com deduplicação de pares e data baseada na prescrição mais antiga.
+13/Jul/2026 Testes Deno (Edge Functions): Exigência da flag --configO diretório base de execução do Deno exige apontamento explícito do deno.json para testar funções isoladas corretamente.
+
+13/Jul/2026 B2C: Criação da view perfis_profissionais_vinculadosPermitir leitura segura do nickname do profissional no card de convite do app, contornando a criptografia client-side do nome real.
+13/Jul/2026 Backend: Recusa de convite mapeada para ação encerrar_vinculoReaproveitamento da Edge Function; a recusa apenas transita o status de pendente para encerrado.
+13/Jul/2026 UX B2C: Tela de Gestão de Convites adicionadaConformidade LGPD implementada no app Flutter com consentimento explícito, acessível via ConfiguracoesPerfilPage.
+
+13/Jul/2026 Segurança DB: Função SQL resolver_usuario_id_por_email restrita à service_rolePermitir convite via e-mail no B2B sem contornar a criptografia client-side do e-mail na perfis_usuarios. Prevenção de injeção de schema.
+13/Jul/2026 B2B UI: Modal de Convites e Toast nativo construídos em React puro/TailwindManter o frontend B2B leve, sem dependências de terceiros, respeitando o Design System e o bloqueio de exibição para contas de Seguradoras.
+(Nota: Na seção K do Adendo v4.0, você pode finalmente marcar a F36 como ✅ DECLARADO-IMPLEMENTADO).
+
+14/Jul/2026 B2B Auth: Correção de Race Condition no onAuthStateChangeEvitar conflito de estados entre o signup (solicitar acesso) e logins subsequentes, forçando um signOut() explícito.
+14/Jul/2026 B2B Auth: Bypass de validação clínica para AdministradoresPermitir que contas is_admin = true acessem o backoffice de aprovação sem precisarem de atributos clínicos obrigatórios (eh_profissional, tipo_profissional).
+
+16/Jul/2026 B2B Backend: Implementação do seed_cloud.ts via Admin APISubstituir o seed.sql tradicional por um script Node.js. Necessário porque o Supabase Cloud bloqueia comandos INSERT diretos na tabela auth.users por questões de segurança.
+16/Jul/2026 B2B UX/UI: Criação do DashboardLayout e SidebarEstabelecer a navegação principal (Sidebar) com renderização condicional baseada na role (Admin vs Profissional). Obs: Layout inicial apresentou falha de responsividade no mobile.
+
+1. Resolução de Autenticação e Regras do Supabase
+Sintoma: Falhas no registro e login na interface B2B, retornando erros HTTP 400 (Bad Request), 422 (Unprocessable Content) e, por fim, o código email_provider_disabled.
+
+Causa Raiz:
+
+O provedor de e-mail e senha havia sido desativado globalmente nas configurações do Supabase.
+
+O Supabase impõe validações rigorosas pré-banco (ex: senhas com mínimo de 6 caracteres e rejeição de e-mails com espaços invisíveis finais).
+
+Ação Corretiva: Reativação da chave "Enable Email provider" no painel Authentication > Providers do Supabase. Padronização das credenciais de teste para respeitar os limites de segurança da API.
+
+2. Governança de Acesso e Roteamento Zero Trust
+Sintoma: O usuário com credenciais de Profissional não conseguia visualizar o menu clínico, sendo redirecionado compulsoriamente para o painel de Administração (/admin).
+
+Causa Raiz: O usuário de teste estava configurado como um "Super Usuário" (is_admin = true E eh_profissional = true). O React Router foi programado com base no Princípio do Menor Privilégio: se a conta for Admin, ela é travada no painel de gestão para evitar que gestores tenham acesso a dados clínicos de pacientes (Blast Radius). Além disso, o acesso clínico exigia que a flag status_aprovacao estivesse estritamente como 'aprovado'.
+
+Ação Corretiva: Validação de que a trava de segurança atua conforme exigido pela LGPD/HIPAA. Estabelecimento da diretriz de testes utilizando duas contas segregadas em vez de contas híbridas, garantindo a separação de responsabilidades. Ajuste manual do status_aprovacao via banco.
+
+3. Estratégia de Semeadura de Dados (Seed) em Ambiente Cloud
+Sintoma: Erro ERROR: 42501: must be owner of table users ao tentar executar o script seed.sql diretamente no SQL Editor do Supabase hospedado.
+
+Causa Raiz: Bloqueio de segurança arquitetural do Supabase. A tabela auth.users é gerenciada exclusivamente pela role supabase_auth_admin. Usuários normais (mesmo o administrador do projeto usando o SQL Editor) não têm privilégios para executar INSERT, DROP ou TRUNCATE diretamente nessa tabela na nuvem.
+
+Ação Corretiva (Migração de Estratégia):
+
+Abandono do uso do arquivo seed.sql puro para o ambiente em nuvem (mantido apenas para resets locais via Docker).
+
+Desenvolvimento de um script em Node.js/TypeScript (scripts/seed_cloud.ts).
+
+Utilização da Admin API do Supabase através da Service Role Key (chave mestra injetada via variável de ambiente .env temporária) para criar 10 pacientes fictícios e gravar 6 meses de histórico clínico contornando as restrições de forma segura e automatizada.
+
+4. Sincronia de Branches e Servidor de Desenvolvimento
+Sintoma: As atualizações de interface (como a correção do menu mobile) não refletiam no navegador local, mesmo após o commit ser confirmado pelo Claude.
+
+Causa Raiz: O terminal executando o servidor do Vite (npm run dev) ficou dessincronizado em relação à árvore do Git (preso na branch antiga).
+
+Ação Corretiva: Parada do servidor local (Ctrl+C), execução de git checkout para a branch correta e limpeza de cache do navegador (Hard Refresh).
+
+1. Governança de Acesso e Roteamento "Zero Trust" (SecOps)
+Desafio: O React Router precisava refletir com exatidão a separação de papéis na plataforma para evitar acessos indevidos a dados de saúde (LGPD/HIPAA).
+
+Sintoma: Usuários de teste configurados como "Super Usuários" (is_admin = true e eh_profissional = true) eram barrados da área clínica.
+
+Resolução: Validação da arquitetura de menor privilégio. O sistema foi intencionalmente programado para priorizar o bloqueio administrativo (Blast Radius). Se a conta for Admin, ela fica presa no painel de gestão para evitar que gestores leiam dados de pacientes. Estabeleceu-se a obrigatoriedade de testes com contas segregadas e a exigência estrita do campo status_aprovacao = 'aprovado' no banco de dados para liberar a interface de consultas.
+
+2. Autenticação e Configuração do Provedor (Supabase Auth)
+Desafio: Falhas de login no ambiente web retornando HTTP 422 (Unprocessable Content).
+
+Causa Raiz: O serviço de autenticação por e-mail estava com a chave email_provider_disabled ativa nas configurações do projeto na nuvem, bloqueando qualquer tentativa de entrada por e-mail e senha.
+
+Resolução: Reativação manual do Email Provider no painel do Supabase. Também foi documentada a sensibilidade da API a espaços em branco invisíveis no input de e-mail e limites mínimos de senha.
+
+3. Criptografia e Proteção de Dados Pessoais (PII)
+Desafio: Como popular dados de pacientes (Nomes e E-mails) no banco de testes sem quebrar a aplicação.
+
+Decisão Arquitetural: O Claude Code identificou que a tabela perfis_usuarios utiliza criptografia de ponta a ponta (AES-256-GCM) no lado do cliente. Escrever texto plano (Plaintext) nessa tabela via SQL faria o frontend React quebrar ao tentar descriptografar. Os dados fictícios foram alocados nos metadados da tabela auth.users para simular a arquitetura real de segurança, garantindo que PII (Informação Pessoalmente Identificável) não fique exposta.
+
+4. Estratégia de Semeadura de Dados (Database Seeding) - Local vs Nuvem
+Desafio: O script seed.sql falhou ao ser executado no Supabase Cloud com o erro ERROR: 42501: must be owner of table users.
+
+Causa Raiz: Restrição nativa de segurança do Supabase. A tabela auth.users é propriedade do papel supabase_auth_admin. Comandos diretos de INSERT, TRUNCATE ou DELETE são bloqueados via SQL Editor no ambiente em nuvem.
+
+Resolução:
+
+Local (Docker): O seed.sql foi preservado exclusivamente para o comando supabase db reset.
+
+Nuvem (Cloud): Criação do utilitário scripts/seed_cloud.ts (Node.js/TypeScript). Este script utiliza a Admin API e a Service Role Key para injetar 10 pacientes fictícios e 6 meses de métricas diárias, garantindo idempotência (sem duplicação de dados).
+
+5. Gestão de Variáveis de Ambiente e Segurança de Chaves
+Desafio: Proteger a Service Role Key (Chave Mestra) de vazamentos no repositório.
+
+Resolução: O arquivo .env.example foi atualizado para conter apenas placeholders. A chave mestra foi isolada em uma variável estrita de backend (SUPABASE_SERVICE_ROLE_KEY), sem o prefixo VITE_, garantindo que ela jamais seja exposta no pacote do frontend (build).
+
+6. Fluxo de Trabalho Git (Stacked Branches) e Ambiente de Desenvolvimento (DX)
+Desafio: Gerenciar código em desenvolvimento progressivo sem poluir a branch principal (main) e lidar com falhas de sincronia de cache local (UI mobile não refletindo no navegador do usuário).
+
+Resolução:
+
+Git Flow: Adoção do modelo de Stacked Branches (Branches empilhadas). A correção de layout (fix/sidebar-responsiveness) foi apontada para sofrer merge em sua branch pai (feat/layout-and-seed-data), em vez de ser enviada isoladamente para a main, evitando "Git Hell" e preservando a integridade das 13 atualizações acumuladas.
+
+Developer Experience (DX): Padronização de comandos para testes de UI (git checkout, npm run dev, Hard Refresh do Vite).
+
+Testes Automatizados: Utilização de ferramentas Headless (Playwright) pelo agente autônomo para validação visual (375px e 1280px) simulando o DOM real sem depender apenas da leitura de código.

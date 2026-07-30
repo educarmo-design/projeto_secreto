@@ -1,0 +1,105 @@
+Li os dois documentos mestres (v3.0 + Adendo v4.0) e varri o repositório inteiro, ficheiro a ficheiro, sem alterar nada. Aqui está o que encontrei, em linguagem simples.
+
+---
+1. Auditoria de Segurança
+
+🟢 Boas notícias
+
+- Nenhuma chave real foi encontrada no código. Vasculhei tudo à procura de padrões de chaves Google/Supabase/senhas hardcoded. O .env está vazio (0 bytes) e nunca foi enviado ao Git (confirmei no histórico completo). O .env.example e o web_painel/.env.example só têm textos de exemplo tipo your-anon-key-here.
+- O .gitignore está bem configurado: bloqueia .env, as pastas temporárias do Supabase CLI (supabase/.temp/, supabase/.branches/) e o .env do painel web.
+- As chaves realmente sensíveis (a "chave mestra" do Supabase e as credenciais da Garmin) só existem como variáveis de ambiente do lado do servidor (Deno.env.get(...) dentro da Edge Function garmin-gateway) — nunca aparecem no código. Isto é exatamente o padrão certo.
+- O app mobile também está bem desenhado: se alguém esquecer de configurar as credenciais do Supabase, o app recusa-se a arrancar em vez de rodar silenciosamente contra um projeto inexistente. Isto é uma boa prática de "falha segura".
+
+🟡 Pontos de atenção (não são "chaves roubadas", mas merecem revisão humana antes de lançar)
+
+1. E-mail dos utilizadores guardado sem cifra. O documento mestre exige "criptografia em repouso" para a tabela perfis_usuarios (dado de sigilo máximo). Na prática, nome e telefone já saem do telemóvel cifrados (AES-256) antes de chegarem à base de dados — mas o e-mail vai em texto simples. Isto está confirmado no próprio comentário de uma das migrações SQL. É uma discrepância entre o que o documento promete e o que o código faz.
+2. Tokens da Garmin (OAuth) guardados em texto simples na base de dados. A decisão está documentada e tem justificação razoável (só a "chave mestra" do servidor consegue ler essa linha, nunca o telemóvel do utilizador), mas como envolve um segredo de terceiros, vale a pena um segundo par de olhos antes do lançamento.
+3. O código do "Motor de Sinistralidade" (item proibido, EM HOLD) ainda está no teu computador, em 3 ficheiros que não foram enviados ao Git — o que é bom, ninguém os "commitou" por engano. Confirmei também que nenhuma outra parte do app importa ou usa esses ficheiros — não há botão, ecrã ou rota que leve até eles. Porém, não existe um "interruptor" (feature flag) explícito a bloqueá-los, como o protocolo pede — hoje eles só estão isolados "por ninguém lhes tocar", o que é frágil se um futuro assistente de IA decidir ligá-los sem perceber que são proibidos.
+
+Conclusão de segurança: não há vazamento de segredos ativo. O maior risco real hoje é de processo (chaves proibidas sentadas na tua pasta de trabalho, prontas a ser commitadas por engano) e não de exposição.
+
+---
+2. Estado das políticas RLS (quem pode ver os dados de quem)
+
+RLS é a trava que impede um utilizador de ler os dados de outro diretamente pela API. Boas notícias aqui também:
+
+- Todas as 13 tabelas existentes têm RLS ativado, cada uma com uma política que só permite ao próprio dono (auth.uid()) ler/escrever a sua linha. Não encontrei nenhuma tabela desprotegida.
+- O painel web dos profissionais (nutricionistas/médicos) está bem desenhado: um profissional só vê os dados de um paciente se já existir uma prescrição registada ligando os dois (planejamento_clinico). Não há "profissional vê tudo" — é sempre escopado a uma relação real já existente na base de dados. Isto é o padrão "Zero Trust" que o documento pede.
+- Existe até uma "view" especial (perfis_pacientes_vinculados) desenhada só para não vazar o e-mail/telefone do paciente ao profissional, mesmo que ele tenha acesso aos dados de saúde. Bom detalhe de engenharia.
+
+Pontos a resolver
+
+- metricas_saude (tabela antiga) ficou órfã no banco: foi substituída por 5 tabelas mais específicas numa migração posterior, mas nunca foi apagada, e nenhum código a usa hoje. Tem RLS correto (não é insegura), mas é "peso morto" — vale limpar.
+- ciclo_menstrual existe no banco com RLS correto, mas não aparece em nenhum dos dois documentos mestres nem é usada por nenhum ecrã do app. Ou foi esquecida na documentação, ou é código morto — precisa de decisão.
+- Não existe nenhuma política de "apagar" (DELETE) em nenhuma tabela. Isto é seguro por padrão (ninguém consegue apagar dados pela API pública), mas significa que quando implementares a exportação/exclusão de dados (F16, exigência da lei LGPD), vais precisar de um caminho especial passando pela "chave mestra" do servidor.
+- Não consegui fazer o teste prático "2 utilizadores tentam ler dados um do outro" porque isso exigiria criar utilizadores de teste reais no Supabase — é uma auditoria só de leitura de código. Recomendo como próximo passo prático.
+
+---
+3. Matriz de Realidade vs. Documento — o que está pronto de verdade
+
+Item do documento: F10 — Motor de IA (Gemini) + Zero Storage
+O que os documentos dizem: ✅ Declarado pronto
+O que encontrei no código: ⚠️ Só metade existe. O código do telemóvel está pronto e correto (nunca guarda a chave do Gemini, só fala
+ com o próprio servidor). Mas as 4 "portas dos fundos" no servidor que ele tenta chamar (extract-metric-photo,
+generate-preventive-insight, upload-exam-pdf, ingest-b2b-analytics) não existem. Só existe uma função no servidor: a da Garmin.
+Isto é o achado mais importante da auditoria — a peça que realmente fala com a Inteligência Artificial ainda não foi construída.
+────────────────────────────────────────
+Item do documento: F03/F06/F08/F09 — Login, cadastro, dashboard, esteira de 14 dias
+O que os documentos dizem: ✅ Declarados prontos
+O que encontrei no código: ⚠️ Código existe, mas está desligado da "tomada". Escrevi e revi os ecrãs reais (login, cadastro,
+dashboard sénior, etc.) — são completos e bem feitos. Só que o "mapa de navegação" do app (app_router.dart), que é o que decide
+qual ecrã aparece, ainda usa ecrãs de rascunho ("Login Screen", texto simples) em vez de ligar a estes ecrãs reais. Ou seja: se
+ligares o app hoje, não vês nenhum destes  ecrãs bem construídos — vês placeholders. É um "cabo por ligar", não um problema de
+qualidade do código já feito.
+────────────────────────────────────────
+Item do documento: F04 — Cofre de hardware + biometria
+O que os documentos dizem: ✅ Declarado pronto
+O que encontrei no código: 🟢 Código existe e tem uma suíte de testes séria e honesta (ela própria admite no comentário o que não
+consegue provar sem um telemóvel real). Falta só o teste em aparelho físico.
+────────────────────────────────────────
+Item do documento: F11 — Painel Web B2B
+O que os documentos dizem: ✅ Declarado pronto, "no ar sem dados"
+O que encontrei no código: 🟢 Confirmado e é o item mais maduro do projeto. Login obrigatório real, RLS correta, rotas por paciente.
+────────────────────────────────────────
+Item do documento: F13 — Garmin Training API
+O que os documentos dizem: ✅ Declarado pronto
+O que encontrei no código: 🟢 Confirmado. Código completo, com testes próprios, autenticação OAuth bem implementada. Segundo item
+mais maduro.
+────────────────────────────────────────
+Item do documento: F14 — Motor de Sinistralidade
+O que os documentos dizem: ⛔ EM HOLD
+O que encontrei no código: 🟢 Confirmado isolado (ver secção de segurança acima) — mas sem "interruptor" formal.
+────────────────────────────────────────
+Item do documento: F21 — Modo Recuperação Humano
+O que os documentos dizem: ✅/🔲 (auditar)
+O que encontrei no código: ⚠️ Encontrado e funcional — mas calculado no telemóvel, não no servidor. O documento tem uma regra
+"inegociável": toda lógica de jogo sensível (streaks, pontos) deve ser calculada no servidor, nunca no cliente, porque o cliente
+pode ser manipulado. Este item quebra essa regra.
+────────────────────────────────────────
+Item do documento: F15 — Script de seed (dados de teste)
+O que os documentos dizem: 🔲 "PRÓXIMA TAREFA"
+O que encontrei no código: 🔲 Confirmado: não existe. Nada foi feito ainda aqui.
+────────────────────────────────────────
+Item do documento: F05 — Suíte de testes de segurança
+O que os documentos dizem: ✅ Declarado, "ceticismo alto" pedido pelo documento
+O que encontrei no código: ⚠️ Existe um único ficheiro de teste, bem escrito e honesto sobre os seus próprios limites — mas cobre só
+ o cofre de tokens. Não há testes de RLS, de limite de uso da IA, nem de deteção de root/jailbreak.
+────────────────────────────────────────
+Item do documento: F16–F20, F22–F30 (exportação de dados, alerta de tendência, widget, modo cuidador, 2FA, etc.)
+O que os documentos dizem: 🔲 Pendentes
+O que encontrei no código: 🔲 Confirmado pendente — bate certo com o documento. Uma exceção positiva: já existe um formulário de
+prescrição de treino no painel web (GarminPrescriptionForm.tsx), que é parte do F26, previsto só para a Onda 4 — está adiantado.
+────────────────────────────────────────
+Item do documento: F31–F41 (Adendo v4.0 — biomarcadores, vínculos, etc.)
+O que os documentos dizem: 🔲 Todos pendentes
+O que encontrei no código: 🔲 Confirmado: nenhuma destas tabelas/entidades existe ainda no banco. marcadores_referencia e
+vinculos_profissional_paciente (as que queres criar a seguir) partem de uma folha em branco — sem conflito com nada existente.
+
+---
+4. Plano de Ação Sugerido (3 passos antes de criar as tabelas novas)
+
+1. "Ligar os cabos" do app existente antes de construir por cima. Achado mais urgente: o app tem ecrãs bem feitos (login, cadastro, dashboards) que estão desconectados do mapa de navegação real. Antes de adicionares marcadores_referencia e vinculos_profissional_paciente, vale a pena confirmar com o teu assistente de IA se esse é um problema conhecido (talvez seja código de uma sessão antiga já substituído) ou se precisa mesmo de ser religado — porque as novas tabelas vão alimentar ecrãs que, tecnicamente, ninguém consegue alcançar hoje.
+2. Decidir o destino de 3 coisas "soltas": (a) construir de facto as Edge Functions do Gemini que faltam (sem elas, F10 é só teoria); (b) apagar ou formalizar a tabela metricas_saude órfã e a ciclo_menstrual não-documentada; (c) mover o cálculo do Modo Recuperação para o servidor, para cumprir a regra "inegociável" do documento.
+3. Antes de mexer em RLS de novo: faz o teste prático com 2 utilizadores reais (item 4 do Protocolo 3.3) — é rápido de fazer no Supabase Studio e dá-te confiança real (não só teórica) de que a base está sólida antes de empilhares vinculos_profissional_paciente em cima, que é uma tabela com uma lógica de permissão mais complexa (vários profissionais, escopos por classe de dado).
+
+Depois destes 3 passos, o terreno está limpo para criar as tabelas novas do Adendo v4.0 sem herdar dívida técnica escondida.
