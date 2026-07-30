@@ -179,6 +179,10 @@
     "weight_test_subtitle": "Lê o registro mais recente de peso do Health Connect (últimos 30 dias) — dado bruto, sem gravar em lugar nenhum.",
     "weight_test_button": "Ler Peso",
     "weight_test_empty": "Nenhum registro de peso nos últimos 30 dias.",
+    "sleep_test_title": "Teste: Sono",
+    "sleep_test_subtitle": "Lê as sessões de sono dos últimos 7 dias do Health Connect — dado bruto, sem gravar em lugar nenhum.",
+    "sleep_test_button": "Ler Histórico de Sono",
+    "sleep_test_empty": "Nenhuma sessão de sono nos últimos 7 dias.",
     "sync_never": "Ainda não sincronizado",
     "sync_last_today": "Última atualização: Hoje às {{hora}}",
     "sync_last_yesterday": "Última atualização: Ontem às {{hora}}",
@@ -328,7 +332,8 @@
 
     "manage_links_item": "Convites de Profissionais",
     "heart_rate_test_item": "Testar Leitura de Frequência Cardíaca",
-    "weight_test_item": "Testar Leitura de Peso"
+    "weight_test_item": "Testar Leitura de Peso",
+    "sleep_test_item": "Testar Leitura de Sono"
   },
 
   "vinculos": {

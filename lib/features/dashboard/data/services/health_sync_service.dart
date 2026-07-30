@@ -299,6 +299,26 @@ class HealthSyncService {
     );
   }
 
+  /// Leitura pontual, só de [HealthDataType.SLEEP_SESSION], dos últimos
+  /// [dias] (padrão 7) — mesmo gatilho manual de teste/validação do
+  /// fundador que [lerFrequenciaCardiacaRecente]/[lerPesoRecente] já servem.
+  /// Existe para isolar uma dúvida específica (Adendo v5.1): se um backfill
+  /// de histórico falhar para um dispositivo/app de terceiros (ex.: uma
+  /// balança), este método prova se o problema é o pipeline de leitura
+  /// deste app ou o app de terceiros — sessões de sono de um Garmin já
+  /// sincronizado servem de referência "conhecida boa" porque o Garmin
+  /// mantém histórico contínuo e confiável no Health Connect. Diferente de
+  /// [lerFrequenciaCardiacaRecente]/[lerPesoRecente] (que mostram só a
+  /// leitura mais recente via [ultimaLeituraOuNula]), quem chama este
+  /// método normalmente quer a LISTA inteira de [HealthSyncResult.points]
+  /// — provar múltiplas noites, não uma só. Não grava nada.
+  Future<HealthSyncResult> lerSonoRecente({int dias = 7}) {
+    return _lerComPermissao(
+      const [HealthDataType.SLEEP_SESSION],
+      start: DateTime.now().subtract(Duration(days: dias)),
+    );
+  }
+
   /// O ponto mais recente (`dateTo` mais tardio) dentre [points] — o
   /// "último registro" que a leitura pontual de frequência cardíaca (ou de
   /// peso, ver [lerPesoRecente]) precisa mostrar, já que o Health Connect

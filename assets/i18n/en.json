@@ -179,6 +179,10 @@
     "weight_test_subtitle": "Reads the most recent weight reading from Health Connect (last 30 days) — raw data, not saved anywhere.",
     "weight_test_button": "Read Weight",
     "weight_test_empty": "No weight reading in the last 30 days.",
+    "sleep_test_title": "Test: Sleep",
+    "sleep_test_subtitle": "Reads sleep sessions from the last 7 days from Health Connect — raw data, not saved anywhere.",
+    "sleep_test_button": "Read Sleep History",
+    "sleep_test_empty": "No sleep session in the last 7 days.",
     "sync_never": "Not synced yet",
     "sync_last_today": "Last update: Today at {{hora}}",
     "sync_last_yesterday": "Last update: Yesterday at {{hora}}",
@@ -328,7 +332,8 @@
 
     "manage_links_item": "Professional Invitations",
     "heart_rate_test_item": "Test Heart Rate Reading",
-    "weight_test_item": "Test Weight Reading"
+    "weight_test_item": "Test Weight Reading",
+    "sleep_test_item": "Test Sleep Reading"
   },
 
   "vinculos": {

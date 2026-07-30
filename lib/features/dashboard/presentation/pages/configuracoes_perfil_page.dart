@@ -6,6 +6,7 @@ import '../../../auth/models/auth_models.dart' show ProfileUsageType;
 import '../../../vinculos/presentation/pages/gerir_vinculos_page.dart';
 import 'teste_frequencia_cardiaca_page.dart';
 import 'teste_peso_page.dart';
+import 'teste_sono_page.dart';
 
 /// Tela de Configurações de Perfil — PRD Mestre §1/§2/§4.
 ///
@@ -103,6 +104,17 @@ class ConfiguracoesPerfilPage extends StatelessWidget {
                   onTap: () => Navigator.of(context).push(
                     MaterialPageRoute<void>(
                       builder: (_) => const TestePesoPage(),
+                    ),
+                  ),
+                ),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.bedtime_outlined),
+                  title: Text(i18n.tr('profile.sleep_test_item')),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const TesteSonoPage(),
                     ),
                   ),
                 ),
