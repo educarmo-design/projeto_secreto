@@ -38,6 +38,14 @@ class ProjecaoLongevidadeResult {
   });
 }
 
+/// ⚠️ Sem chamador de produção e dependente de [GeminiGatewayService], que
+/// está QUEBRADO (ver o comentário no topo daquele arquivo e a memória
+/// `auditoria-codigo-morto-e-sem-especificacao`, achado de 30/jul/2026) —
+/// [calcularProjecaoLongevidadeDia7] chama um endpoint
+/// (`generate-preventive-insight`) que não existe no servidor. Decisão
+/// registrada: não apagar ainda, só documentar; revisitar numa tarefa
+/// futura.
+///
 /// Orquestra as chamadas ao [GeminiGatewayService] e estrutura seus
 /// resultados para consumo pela UI — nem esta classe nem o gateway que ela
 /// chama jamais tocam uma API key de IA; toda a chamada real ao Gemini

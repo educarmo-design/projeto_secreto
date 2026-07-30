@@ -9,6 +9,32 @@ import '../../../../core/i18n/i18n_manager.dart';
 import '../../../dashboard/data/models/health_payload_model.dart';
 import '../../../dashboard/data/services/health_sync_service.dart' show EventoAnomaliaSaude;
 
+/// ⚠️ QUEBRADO E MORTO (achado em 30/jul/2026, ver RELATÓRIO/memória
+/// `auditoria-codigo-morto-e-sem-especificacao`) — não é só código sem
+/// chamador, as duas chamadas de rede aqui dentro FALHARIAM se alguém as
+/// disparasse:
+///   1. [processarImagemVisorPrato] faz POST em
+///      [AppConfig.metricPhotoExtractionEndpoint] (`extract-metric-photo`),
+///      mas parseia o formato de resposta ANTIGO
+///      (`descricao_alimento`/`calorias` no nível raiz do JSON) — a Edge
+///      Function real hoje roteia por `X-Tipo-Aparelho` e devolve
+///      `itens`/`totais` (ver `supabase/functions/extract-metric-photo/
+///      index.ts`). Este método nem manda o header `X-Tipo-Aparelho`.
+///   2. [gerarRelatorioPreventivo] faz POST em
+///      [AppConfig.preventiveInsightEndpoint]
+///      (`generate-preventive-insight`) — Edge Function que **não existe**
+///      em `supabase/functions/` (confirmado: só existem
+///      `calculate-recovery-mode`, `extract-metric-photo`,
+///      `garmin-gateway`, `manage-professional-link`, `search-food`).
+///      Qualquer chamada real receberia 404.
+/// Único chamador é [IntelligenceController] (também sem nenhum chamador de
+/// produção — nunca instanciado por nenhuma tela real). Decisão registrada:
+/// não apagar ainda (IntelligenceController/GeminiGatewayService formam uma
+/// unidade — apagar um sem o outro deixaria o outro quebrado ou oco), só
+/// documentar. Fica como pendência explícita para uma tarefa futura
+/// decidir: apagar os dois juntos, ou reconstruir
+/// `generate-preventive-insight` de verdade e religar.
+///
 /// Custo Zero / Zero Trust (PRD Mestre §3/§5): this service never talks to
 /// Google's Generative AI API directly and never holds a Gemini API key —
 /// an AI Studio key baked into a mobile binary via `--dart-define`/`.env`
