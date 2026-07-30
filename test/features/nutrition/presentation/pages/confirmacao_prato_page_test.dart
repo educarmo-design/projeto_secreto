@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:atleta_gamificacao/core/i18n/i18n_manager.dart';
 import 'package:atleta_gamificacao/features/nutrition/data/models/prato_refeicao_extracao_model.dart';
+import 'package:atleta_gamificacao/features/nutrition/data/repositories/coleta_diaria_repository.dart';
 import 'package:atleta_gamificacao/features/nutrition/presentation/controllers/confirmacao_prato_controller.dart';
 import 'package:atleta_gamificacao/features/nutrition/presentation/pages/confirmacao_prato_page.dart';
 
@@ -154,22 +155,29 @@ void main() {
     expect(botao.onPressed, isNull);
   });
 
-  testWidgets('confirmar com itens fecha a tela devolvendo o payload revisado', (tester) async {
+  /// Monta a tela por trás de um botão "abrir" (Navigator de verdade),
+  /// injetando um [ConfirmacaoPratoController] com repositório fake — nunca
+  /// toca `Supabase.instance`. Devolve o `bool` que a tela popa.
+  Future<bool?> pumpEConfirmar(
+    WidgetTester tester, {
+    required _FakeColetaDiariaRepository fake,
+  }) async {
     final controller = ConfirmacaoPratoController(
       PratoRefeicaoExtracaoModel(
         itens: [item()],
         itensNaoReconhecidos: const [],
         possivelFotoDeTela: false,
       ),
+      repositorio: fake,
     );
 
-    Map<String, dynamic>? resultado;
+    bool? resultado;
     await tester.pumpWidget(
       MaterialApp(
         home: Builder(
           builder: (context) => ElevatedButton(
             onPressed: () async {
-              resultado = await Navigator.of(context).push<Map<String, dynamic>>(
+              resultado = await Navigator.of(context).push<bool>(
                 MaterialPageRoute(
                   // `extracao` é ignorado quando `controller` é passado —
                   // ver ConfirmacaoPratoPage: só usado para construir um
@@ -195,10 +203,140 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Confirmar'));
-    await tester.pumpAndSettle();
+    // `pumpAndSettle()` só continua enquanto um FRAME fica agendado — um
+    // `Future.delayed` parado no meio (sem nenhuma animação em andamento)
+    // não conta como isso, então ele pode voltar cedo demais e deixar o
+    // Timer de 900ms pendente. Por isso avançamos o relógio simulado
+    // explicitamente: cobre o atraso do fake (até 200ms nestes testes) + o
+    // delay de UX pós-sucesso (900ms) numa tacada só.
+    await tester.pump(const Duration(milliseconds: 1200));
+    if (fake.chamadas.isNotEmpty && fake.resultado.success) {
+      expect(find.text('Refeição salva com sucesso!'), findsOneWidget);
+    }
 
-    expect(resultado, isNotNull);
-    expect((resultado!['itens'] as List), hasLength(1));
+    // Resolve a transição de rota do pop (ou, na falha, fica parado mesmo —
+    // não há mais timer pendente nesse caso) — nenhum timer sobra ao fim.
+    await tester.pumpAndSettle();
+    return resultado;
+  }
+
+  testWidgets('confirmar com sucesso grava, mostra snack e fecha devolvendo true', (tester) async {
+    final fake = _FakeColetaDiariaRepository(resultado: const ColetaDiariaResult(success: true));
+
+    final resultado = await pumpEConfirmar(tester, fake: fake);
+
+    expect(fake.chamadas, hasLength(1));
+    expect((fake.chamadas.single.payload['itens'] as List), hasLength(1));
+    expect(resultado, true);
     expect(find.text('abrir'), findsOneWidget); // voltou pra tela anterior
   });
+
+  testWidgets('confirmar com falha mantém a tela aberta e mostra o erro', (tester) async {
+    final fake = _FakeColetaDiariaRepository(
+      resultado: const ColetaDiariaResult(
+        success: false,
+        errorMessage: 'Não foi possível salvar a refeição agora. Tente novamente.',
+      ),
+    );
+
+    final resultado = await pumpEConfirmar(tester, fake: fake);
+
+    expect(resultado, isNull); // nada foi popado — a tela continua aberta
+    expect(find.text('abrir'), findsNothing);
+    expect(
+      find.text('Não foi possível salvar a refeição agora. Tente novamente.'),
+      findsOneWidget,
+    );
+    // O item continua na lista — nada se perde numa falha de gravação.
+    expect(find.text('Carne bovina, patinho, cru'), findsOneWidget);
+  });
+
+  testWidgets('confirmar com atraso de rede: botão só reabilita depois do resultado',
+      (tester) async {
+    final fake = _FakeColetaDiariaRepository(
+      resultado: const ColetaDiariaResult(success: true),
+      atraso: const Duration(milliseconds: 50),
+    );
+
+    final resultado = await pumpEConfirmar(tester, fake: fake);
+
+    expect(fake.chamadas, hasLength(1)); // um único envio, mesmo com rede lenta
+    expect(resultado, true);
+  });
+
+  testWidgets('mostra "Salvando..." enquanto a chamada ao repositório está em voo', (tester) async {
+    final fake = _FakeColetaDiariaRepository(
+      resultado: const ColetaDiariaResult(success: true),
+      atraso: const Duration(milliseconds: 200),
+    );
+    final controller = ConfirmacaoPratoController(
+      PratoRefeicaoExtracaoModel(
+        itens: [item()],
+        itensNaoReconhecidos: const [],
+        possivelFotoDeTela: false,
+      ),
+      repositorio: fake,
+    );
+
+    // Navigator com uma tela "abrir" por baixo — evita popar a última rota
+    // (o pop de sucesso, depois do delay de 900ms, precisa de algo por
+    // baixo pra revelar).
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => ElevatedButton(
+            onPressed: () => Navigator.of(context).push<void>(
+              MaterialPageRoute(
+                builder: (_) => ConfirmacaoPratoPage(
+                  // `extracao` é ignorado quando `controller` é passado.
+                  extracao: const PratoRefeicaoExtracaoModel(
+                    itens: [],
+                    itensNaoReconhecidos: [],
+                    possivelFotoDeTela: false,
+                  ),
+                  controller: controller,
+                ),
+              ),
+            ),
+            child: const Text('abrir'),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('abrir'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Confirmar'));
+    await tester.pump(); // salvando=true já é síncrono; o atraso de 200ms ainda não venceu
+
+    expect(find.text('Salvando...'), findsOneWidget);
+    expect(find.text('Confirmar'), findsNothing);
+
+    // Avança o relógio simulado explicitamente (ver comentário em
+    // `pumpEConfirmar`) para vencer o atraso do fake (200ms) + o delay
+    // pós-sucesso (900ms), e só então deixa o `pumpAndSettle` limpar o
+    // resto (transição de rota, snack) sem deixar nenhum timer pendente.
+    await tester.pump(const Duration(milliseconds: 1200));
+    await tester.pumpAndSettle();
+  });
+}
+
+/// Fake em memória — nunca toca `Supabase.instance`.
+class _FakeColetaDiariaRepository implements ColetaDiariaRepository {
+  _FakeColetaDiariaRepository({required this.resultado, this.atraso});
+
+  final ColetaDiariaResult resultado;
+  final Duration? atraso;
+  final List<({Map<String, dynamic> payload, double? confianca})> chamadas = [];
+
+  @override
+  Future<ColetaDiariaResult> gravarRefeicao({
+    required Map<String, dynamic> payloadRevisado,
+    required double? confianca,
+    DateTime? dataColeta,
+  }) async {
+    if (atraso != null) await Future<void>.delayed(atraso!);
+    chamadas.add((payload: payloadRevisado, confianca: confianca));
+    return resultado;
+  }
 }

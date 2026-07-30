@@ -4,15 +4,13 @@ import '../../../../core/i18n/i18n_manager.dart';
 import '../../data/models/prato_refeicao_extracao_model.dart';
 import '../controllers/confirmacao_prato_controller.dart';
 
-/// Tela de Confirmação do Prato (F10 Passo 3, Parte 11.3 — "IA estima +
-/// usuário edita"): recebe a extração já calculada pelo backend
-/// ([PratoRefeicaoExtracaoModel]) e deixa o usuário revisar antes de
-/// qualquer gravação. "Completa funcionalmente, crua visualmente" (Parte 8):
-/// todo botão (editar quantidade, remover, confirmar) funciona de ponta a
-/// ponta; nenhum polimento visual além do mínimo (`Card`/`ListTile`).
-///
-/// Nunca grava sozinha — [_confirmar] só imprime o payload revisado no
-/// console (persistir é escopo do F34).
+/// Tela de Confirmação do Prato (F10 Passo 3 + F34, Parte 11.3 — "IA estima
+/// + usuário edita"): recebe a extração já calculada pelo backend
+/// ([PratoRefeicaoExtracaoModel]), deixa o usuário revisar, e ao confirmar
+/// grava em `coleta_diaria` via [ConfirmacaoPratoController.confirmar].
+/// "Completa funcionalmente, crua visualmente" (Parte 8): todo botão (editar
+/// quantidade, remover, confirmar) funciona de ponta a ponta; nenhum
+/// polimento visual além do mínimo (`Card`/`ListTile`).
 class ConfirmacaoPratoPage extends StatefulWidget {
   const ConfirmacaoPratoPage({super.key, required this.extracao, this.controller});
 
@@ -36,12 +34,22 @@ class _ConfirmacaoPratoPageState extends State<ConfirmacaoPratoPage> {
     super.dispose();
   }
 
-  void _confirmar() {
-    final payload = _controller.payloadRevisado();
-    // Critério de Aceite #6: gravação real é escopo do F34 — por ora, só
-    // registra o payload final (já revisado pelo usuário) no console.
-    debugPrint('ConfirmacaoPratoPage — payload revisado (F34 grava): $payload');
-    Navigator.of(context).pop(payload);
+  /// F34: grava em `coleta_diaria` e só então sai da tela — o
+  /// `SnackBar` de sucesso é mostrado ANTES do pop (senão o
+  /// `ScaffoldMessenger` desta tela some junto com ela) e a navegação
+  /// espera sua duração mínima, para o usuário realmente ver a confirmação
+  /// em vez de "piscar". Em falha, a tela permanece — o erro (e, em debug,
+  /// o detalhe técnico real) aparece via [_ErroSalvarBanner] e o usuário
+  /// pode tentar de novo sem perder as edições.
+  Future<void> _confirmar() async {
+    final sucesso = await _controller.confirmar();
+    if (!mounted || !sucesso) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(i18n.tr('confirmacao_prato.save_success'))),
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 900));
+    if (mounted) Navigator.of(context).pop(true);
   }
 
   @override
@@ -55,13 +63,31 @@ class _ConfirmacaoPratoPageState extends State<ConfirmacaoPratoPage> {
             return Column(
               children: [
                 if (state.possivelFotoDeTela) const _AvisoPossivelFotoDeTela(),
+                if (state.erroSalvar != null)
+                  _ErroSalvarBanner(
+                    mensagem: state.erroSalvar!,
+                    debugDetalhe: state.debugDetalheErroSalvar,
+                  ),
                 Expanded(child: _buildLista(context, state)),
                 _TotaisBar(state: state),
                 Padding(
                   padding: const EdgeInsets.all(16),
                   child: FilledButton(
-                    onPressed: state.itens.isEmpty ? null : _confirmar,
-                    child: Text(i18n.tr('confirmacao_prato.confirm_button')),
+                    onPressed: (state.itens.isEmpty || state.salvando) ? null : _confirmar,
+                    child: state.salvando
+                        ? Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              ),
+                              const SizedBox(width: 12),
+                              Text(i18n.tr('confirmacao_prato.saving')),
+                            ],
+                          )
+                        : Text(i18n.tr('confirmacao_prato.confirm_button')),
                   ),
                 ),
               ],
@@ -112,6 +138,45 @@ class _AvisoPossivelFotoDeTela extends StatelessWidget {
       child: Text(
         i18n.tr('confirmacao_prato.possivel_foto_de_tela'),
         style: TextStyle(color: Theme.of(context).colorScheme.onErrorContainer),
+      ),
+    );
+  }
+}
+
+class _ErroSalvarBanner extends StatelessWidget {
+  const _ErroSalvarBanner({required this.mensagem, this.debugDetalhe});
+
+  final String mensagem;
+  final String? debugDetalhe;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      color: Theme.of(context).colorScheme.errorContainer,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            mensagem,
+            style: TextStyle(color: Theme.of(context).colorScheme.onErrorContainer),
+          ),
+          // Só aparece em build de debug/homolog (ver _podeExibirDetalheTecnico
+          // no controller) — nunca em produção. Regra 0.15: o erro real por
+          // trás da mensagem amigável acima, para quem está depurando.
+          if (debugDetalhe != null) ...[
+            const SizedBox(height: 6),
+            Text(
+              debugDetalhe!,
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onErrorContainer,
+                fontSize: 12,
+                fontFamily: 'monospace',
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }

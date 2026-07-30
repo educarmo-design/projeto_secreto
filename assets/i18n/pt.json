@@ -384,6 +384,8 @@
     "macros_resumo": "{{calorias}} kcal · {{proteinas}}g prot · {{carboidratos}}g carb · {{gorduras}}g gord",
     "totais": "Total: {{calorias}} kcal · {{proteinas}}g prot · {{carboidratos}}g carb · {{gorduras}}g gord",
     "confirm_button": "Confirmar",
+    "saving": "Salvando...",
+    "save_success": "Refeição salva com sucesso!",
     "motivo": {
       "alimento_nao_encontrado": "Alimento não encontrado no catálogo",
       "medida_nao_encontrada": "Medida não cadastrada para este alimento"

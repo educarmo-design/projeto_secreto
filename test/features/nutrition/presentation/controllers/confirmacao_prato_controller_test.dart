@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:atleta_gamificacao/features/nutrition/data/models/prato_refeicao_extracao_model.dart';
+import 'package:atleta_gamificacao/features/nutrition/data/repositories/coleta_diaria_repository.dart';
 import 'package:atleta_gamificacao/features/nutrition/presentation/controllers/confirmacao_prato_controller.dart';
 
 void main() {
@@ -166,6 +167,156 @@ void main() {
     expect(totais['calorias'], 260.0);
   });
 
+  test('payloadRevisado inclui nome_identificado, confianca por item e itens_nao_reconhecidos', () {
+    const naoReconhecido = ItemPratoNaoReconhecidoModel(
+      nome: 'sushi',
+      medida: 'peça',
+      motivo: 'alimento_nao_encontrado',
+    );
+    final controller = ConfirmacaoPratoController(
+      extracaoCom(
+        itens: [item(nomeIdentificado: 'bifinho', confianca: 0.85)],
+        itensNaoReconhecidos: [naoReconhecido],
+      ),
+    );
+
+    final payload = controller.payloadRevisado();
+
+    final itemPayload = (payload['itens'] as List).single as Map<String, dynamic>;
+    expect(itemPayload['nome_identificado'], 'bifinho');
+    expect(itemPayload['confianca'], 0.85);
+
+    final naoReconhecidos = payload['itens_nao_reconhecidos'] as List;
+    expect(naoReconhecidos, hasLength(1));
+    final naoReconhecidoPayload = naoReconhecidos.single as Map<String, dynamic>;
+    expect(naoReconhecidoPayload['nome'], 'sushi');
+    expect(naoReconhecidoPayload['motivo'], 'alimento_nao_encontrado');
+  });
+
+  test('confiancaMinima é o menor valor entre os itens confirmados', () {
+    final controller = ConfirmacaoPratoController(
+      extracaoCom(itens: [
+        item(nomeCasado: 'Arroz', confianca: 0.95),
+        item(nomeCasado: 'Feijão', confianca: 0.62),
+        item(nomeCasado: 'Carne', confianca: 0.88),
+      ]),
+    );
+
+    expect(controller.value.confiancaMinima, 0.62);
+  });
+
+  test('confiancaMinima ignora item removido', () {
+    final controller = ConfirmacaoPratoController(
+      extracaoCom(itens: [
+        item(nomeCasado: 'Arroz', confianca: 0.95),
+        item(nomeCasado: 'Feijão', confianca: 0.62),
+      ]),
+    );
+
+    controller.remover(1); // remove Feijão (pior confiança)
+
+    expect(controller.value.confiancaMinima, 0.95);
+  });
+
+  test('confiancaMinima é null quando não há itens', () {
+    final controller = ConfirmacaoPratoController(extracaoCom());
+    controller.remover(0);
+
+    expect(controller.value.confiancaMinima, isNull);
+  });
+
+  test('confirmar com sucesso grava via repositório e retorna true', () async {
+    final fake = _FakeColetaDiariaRepository(resultado: const ColetaDiariaResult(success: true));
+    final controller = ConfirmacaoPratoController(extracaoCom(), repositorio: fake);
+    controller.incrementar(0); // garante que o payload gravado reflete a edição
+
+    final sucesso = await controller.confirmar();
+
+    expect(sucesso, true);
+    expect(fake.chamadas, hasLength(1));
+    expect(fake.chamadas.single.confianca, 0.9);
+    final itensGravados = fake.chamadas.single.payload['itens'] as List;
+    expect((itensGravados.single as Map)['quantidade'], 2.0);
+    expect(controller.value.salvando, false);
+    expect(controller.value.erroSalvar, isNull);
+  });
+
+  test('confirmar preenche salvando=true durante a chamada', () async {
+    final fake = _FakeColetaDiariaRepository(
+      resultado: const ColetaDiariaResult(success: true),
+      atraso: const Duration(milliseconds: 10),
+    );
+    final controller = ConfirmacaoPratoController(extracaoCom(), repositorio: fake);
+
+    final future = controller.confirmar();
+    expect(controller.value.salvando, true);
+
+    await future;
+    expect(controller.value.salvando, false);
+  });
+
+  test('confirmar bloqueia envio duplicado enquanto já está salvando', () async {
+    final fake = _FakeColetaDiariaRepository(
+      resultado: const ColetaDiariaResult(success: true),
+      atraso: const Duration(milliseconds: 10),
+    );
+    final controller = ConfirmacaoPratoController(extracaoCom(), repositorio: fake);
+
+    final primeira = controller.confirmar();
+    final segunda = controller.confirmar(); // deve ser recusado imediatamente
+
+    expect(await segunda, false);
+    expect(await primeira, true);
+    expect(fake.chamadas, hasLength(1)); // só a primeira chegou a chamar o repositório
+  });
+
+  test('confirmar com prato vazio nunca chama o repositório', () async {
+    final fake = _FakeColetaDiariaRepository(resultado: const ColetaDiariaResult(success: true));
+    final controller = ConfirmacaoPratoController(extracaoCom(), repositorio: fake);
+    controller.remover(0);
+
+    final sucesso = await controller.confirmar();
+
+    expect(sucesso, false);
+    expect(fake.chamadas, isEmpty);
+  });
+
+  test('confirmar com falha expõe a mensagem amigável e preserva os itens', () async {
+    final fake = _FakeColetaDiariaRepository(
+      resultado: const ColetaDiariaResult(
+        success: false,
+        errorMessage: 'Não foi possível salvar a refeição agora. Tente novamente.',
+        debugDetail: 'PostgrestException 42501: permission denied',
+      ),
+    );
+    final controller = ConfirmacaoPratoController(extracaoCom(), repositorio: fake);
+
+    final sucesso = await controller.confirmar();
+
+    expect(sucesso, false);
+    expect(controller.value.salvando, false);
+    expect(
+      controller.value.erroSalvar,
+      'Não foi possível salvar a refeição agora. Tente novamente.',
+    );
+    expect(controller.value.itens, hasLength(1)); // nada foi perdido
+  });
+
+  test('confirmar de novo depois de uma falha limpa o erro anterior', () async {
+    final falha = _FakeColetaDiariaRepository(
+      resultado: const ColetaDiariaResult(success: false, errorMessage: 'Erro de rede.'),
+    );
+    final controller = ConfirmacaoPratoController(extracaoCom(), repositorio: falha);
+    await controller.confirmar();
+    expect(controller.value.erroSalvar, isNotNull);
+
+    falha.resultado = const ColetaDiariaResult(success: true);
+    final sucesso = await controller.confirmar();
+
+    expect(sucesso, true);
+    expect(controller.value.erroSalvar, isNull);
+  });
+
   test('totais somam múltiplos itens corretamente', () {
     final controller = ConfirmacaoPratoController(
       extracaoCom(itens: [
@@ -187,4 +338,26 @@ void main() {
     expect(controller.value.itens, isEmpty);
     expect(controller.value.totalCalorias, 0.0);
   });
+}
+
+/// Fake em memória — nunca toca `Supabase.instance` (mesmo espírito do
+/// `_FakeGateway` de vinculos_controller_test.dart). [atraso] simula uma
+/// chamada de rede em voo, para testar `salvando`/bloqueio de duplo envio.
+class _FakeColetaDiariaRepository implements ColetaDiariaRepository {
+  _FakeColetaDiariaRepository({required this.resultado, this.atraso});
+
+  ColetaDiariaResult resultado;
+  final Duration? atraso;
+  final List<({Map<String, dynamic> payload, double? confianca})> chamadas = [];
+
+  @override
+  Future<ColetaDiariaResult> gravarRefeicao({
+    required Map<String, dynamic> payloadRevisado,
+    required double? confianca,
+    DateTime? dataColeta,
+  }) async {
+    if (atraso != null) await Future<void>.delayed(atraso!);
+    chamadas.add((payload: payloadRevisado, confianca: confianca));
+    return resultado;
+  }
 }
