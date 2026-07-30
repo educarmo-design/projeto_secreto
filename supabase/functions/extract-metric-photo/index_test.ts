@@ -17,6 +17,9 @@
 import { assertEquals, assertAlmostEquals, assertStringIncludes } from '@std/assert';
 import {
   avaliarLeitura,
+  avaliarLeituraBalanca,
+  avaliarLeituraPressao,
+  avaliarLeituraRotulo,
   calcularPrato,
   createHandler,
   criarChamadorGeminiReal,
@@ -24,8 +27,12 @@ import {
   encontrarMedida,
   normalizarTexto,
   parseRespostaGemini,
+  parseRespostaGeminiBalanca,
   parseRespostaGeminiPrato,
+  parseRespostaGeminiPressao,
+  parseRespostaGeminiRotulo,
   resolverComBuscaSemantica,
+  resolverModeloParaTipo,
   type AlimentoCatalogo,
   type AutenticadorLike,
   type BuscaSemanticaLike,
@@ -124,6 +131,268 @@ Deno.test('avaliarLeitura: foto de tela é propagada, não bloqueia (Passo 1)', 
   const a = avaliarLeitura(extracao({ possivelFotoDeTela: true }));
   assertEquals(a.aceita, true);
   assertEquals(a.possivelFotoDeTela, true);
+});
+
+// ============================================================================
+// (a.2) parseRespostaGeminiBalanca / avaliarLeituraBalanca (Passo 3)
+// ============================================================================
+Deno.test('parseRespostaGeminiBalanca: JSON limpo e legível', () => {
+  const r = parseRespostaGeminiBalanca(
+    '{"legivel":true,"peso_kg":72.4,"confianca":0.95,"possivel_foto_de_tela":false,"motivo":null}',
+  );
+  assertEquals(r.legivel, true);
+  assertEquals(r.pesoKg, 72.4);
+});
+
+Deno.test('parseRespostaGeminiBalanca: texto sujo vira ilegível (não lança)', () => {
+  const r = parseRespostaGeminiBalanca('desculpe, não consegui ler a balança');
+  assertEquals(r.legivel, false);
+  assertEquals(r.pesoKg, null);
+  assertEquals(r.motivo, 'json_invalido');
+});
+
+Deno.test('avaliarLeituraBalanca: leitura boa é aceita e arredondada a 1 casa', () => {
+  const a = avaliarLeituraBalanca({
+    legivel: true,
+    pesoKg: 72.45,
+    confianca: 0.9,
+    possivelFotoDeTela: false,
+    motivo: null,
+  });
+  assertEquals(a.aceita, true);
+  assertEquals(a.pesoKg, 72.5);
+});
+
+Deno.test('avaliarLeituraBalanca: confiança abaixo do piso -> rejeita', () => {
+  const a = avaliarLeituraBalanca({
+    legivel: true,
+    pesoKg: 70,
+    confianca: 0.5,
+    possivelFotoDeTela: false,
+    motivo: null,
+  });
+  assertEquals(a.aceita, false);
+  assertEquals(a.motivo, 'confianca_baixa');
+});
+
+Deno.test('avaliarLeituraBalanca: peso fora da faixa plausível -> rejeita (ex.: erro de casa decimal)', () => {
+  const a = avaliarLeituraBalanca({
+    legivel: true,
+    pesoKg: 705, // provável "70.5" lido sem o ponto
+    confianca: 0.9,
+    possivelFotoDeTela: false,
+    motivo: null,
+  });
+  assertEquals(a.aceita, false);
+  assertEquals(a.motivo, 'fora_da_faixa');
+});
+
+// ============================================================================
+// (a.3) parseRespostaGeminiPressao / avaliarLeituraPressao (Passo 3)
+// ============================================================================
+Deno.test('parseRespostaGeminiPressao: JSON limpo e legível, com pulso', () => {
+  const r = parseRespostaGeminiPressao(
+    '{"legivel":true,"sistolica_mmhg":120,"diastolica_mmhg":80,"pulso_bpm":72,"confianca":0.9,"possivel_foto_de_tela":false,"motivo":null}',
+  );
+  assertEquals(r.sistolicaMmhg, 120);
+  assertEquals(r.diastolicaMmhg, 80);
+  assertEquals(r.pulsoBpm, 72);
+});
+
+Deno.test('parseRespostaGeminiPressao: pulso ausente vira null, não derruba os outros campos', () => {
+  const r = parseRespostaGeminiPressao(
+    '{"legivel":true,"sistolica_mmhg":120,"diastolica_mmhg":80,"pulso_bpm":null,"confianca":0.9,"possivel_foto_de_tela":false,"motivo":null}',
+  );
+  assertEquals(r.pulsoBpm, null);
+  assertEquals(r.sistolicaMmhg, 120);
+});
+
+Deno.test('avaliarLeituraPressao: leitura boa com pulso é aceita e arredondada', () => {
+  const a = avaliarLeituraPressao({
+    legivel: true,
+    sistolicaMmhg: 119.6,
+    diastolicaMmhg: 79.4,
+    pulsoBpm: 71.6,
+    confianca: 0.9,
+    possivelFotoDeTela: false,
+    motivo: null,
+  });
+  assertEquals(a.aceita, true);
+  assertEquals(a.sistolicaMmhg, 120);
+  assertEquals(a.diastolicaMmhg, 79);
+  assertEquals(a.pulsoBpm, 72);
+});
+
+Deno.test('avaliarLeituraPressao: sem pulso legível ainda aceita sistólica/diastólica (A.6 — não descarta dado bom por campo secundário ausente)', () => {
+  const a = avaliarLeituraPressao({
+    legivel: true,
+    sistolicaMmhg: 120,
+    diastolicaMmhg: 80,
+    pulsoBpm: null,
+    confianca: 0.9,
+    possivelFotoDeTela: false,
+    motivo: null,
+  });
+  assertEquals(a.aceita, true);
+  assertEquals(a.pulsoBpm, undefined);
+});
+
+Deno.test('avaliarLeituraPressao: sistólica/diastólica ausentes -> rejeita', () => {
+  const a = avaliarLeituraPressao({
+    legivel: true,
+    sistolicaMmhg: null,
+    diastolicaMmhg: null,
+    pulsoBpm: null,
+    confianca: 0.9,
+    possivelFotoDeTela: false,
+    motivo: null,
+  });
+  assertEquals(a.aceita, false);
+  assertEquals(a.motivo, 'sem_numero');
+});
+
+Deno.test('avaliarLeituraPressao: sistólica <= diastólica -> rejeita como inconsistente', () => {
+  const a = avaliarLeituraPressao({
+    legivel: true,
+    sistolicaMmhg: 80,
+    diastolicaMmhg: 120, // invertido — erro de leitura
+    pulsoBpm: null,
+    confianca: 0.9,
+    possivelFotoDeTela: false,
+    motivo: null,
+  });
+  assertEquals(a.aceita, false);
+  assertEquals(a.motivo, 'inconsistente');
+});
+
+Deno.test('avaliarLeituraPressao: valores fora da faixa plausível -> rejeita', () => {
+  const a = avaliarLeituraPressao({
+    legivel: true,
+    sistolicaMmhg: 500,
+    diastolicaMmhg: 80,
+    pulsoBpm: null,
+    confianca: 0.9,
+    possivelFotoDeTela: false,
+    motivo: null,
+  });
+  assertEquals(a.aceita, false);
+  assertEquals(a.motivo, 'fora_da_faixa');
+});
+
+// ============================================================================
+// (a.4) parseRespostaGeminiRotulo / avaliarLeituraRotulo (Passo 3)
+// ============================================================================
+Deno.test('parseRespostaGeminiRotulo: JSON limpo com todos os campos', () => {
+  const r = parseRespostaGeminiRotulo(
+    '{"legivel":true,"porcao_descricao":"30 g","calorias_kcal":150,"proteinas_g":3,"carboidratos_g":20,"gorduras_g":6,"ingredientes_principais":["farinha de trigo","acucar","oleo de palma"],"confianca":0.9,"possivel_foto_de_tela":false,"motivo":null}',
+  );
+  assertEquals(r.caloriasKcal, 150);
+  assertEquals(r.ingredientesPrincipais, ['farinha de trigo', 'acucar', 'oleo de palma']);
+});
+
+Deno.test('parseRespostaGeminiRotulo: ingredientes é capado em MAX_INGREDIENTES_ROTULO (10)', () => {
+  const ingredientes = Array.from({ length: 25 }, (_, i) => `ingrediente${i}`);
+  const r = parseRespostaGeminiRotulo(
+    JSON.stringify({ legivel: true, confianca: 0.9, calorias_kcal: 100, ingredientes_principais: ingredientes }),
+  );
+  assertEquals(r.ingredientesPrincipais.length, 10);
+  assertEquals(r.ingredientesPrincipais[0], 'ingrediente0');
+});
+
+Deno.test('parseRespostaGeminiRotulo: campo nutricional ausente no rótulo vira null, não derruba os outros', () => {
+  const r = parseRespostaGeminiRotulo(
+    '{"legivel":true,"calorias_kcal":150,"confianca":0.9}',
+  );
+  assertEquals(r.caloriasKcal, 150);
+  assertEquals(r.gordurasG, null);
+});
+
+Deno.test('avaliarLeituraRotulo: leitura boa é aceita com macros arredondados', () => {
+  const a = avaliarLeituraRotulo({
+    legivel: true,
+    porcaoDescricao: '30 g',
+    caloriasKcal: 150.4,
+    proteinasG: 3.26,
+    carboidratosG: 20,
+    gordurasG: 6,
+    ingredientesPrincipais: ['acucar'],
+    confianca: 0.9,
+    possivelFotoDeTela: false,
+    motivo: null,
+  });
+  assertEquals(a.aceita, true);
+  assertEquals(a.caloriasKcal, 150);
+  assertEquals(a.proteinasG, 3.3);
+});
+
+Deno.test('avaliarLeituraRotulo: legível mas sem nenhum macro numérico -> rejeita (extração não achou nada de verdade)', () => {
+  const a = avaliarLeituraRotulo({
+    legivel: true,
+    porcaoDescricao: null,
+    caloriasKcal: null,
+    proteinasG: null,
+    carboidratosG: null,
+    gordurasG: null,
+    ingredientesPrincipais: [],
+    confianca: 0.9,
+    possivelFotoDeTela: false,
+    motivo: null,
+  });
+  assertEquals(a.aceita, false);
+  assertEquals(a.motivo, 'sem_numero');
+});
+
+Deno.test('avaliarLeituraRotulo: calorias absurdas (fora do teto de sanidade) -> rejeita', () => {
+  const a = avaliarLeituraRotulo({
+    legivel: true,
+    porcaoDescricao: null,
+    caloriasKcal: 50000,
+    proteinasG: null,
+    carboidratosG: null,
+    gordurasG: null,
+    ingredientesPrincipais: [],
+    confianca: 0.9,
+    possivelFotoDeTela: false,
+    motivo: null,
+  });
+  assertEquals(a.aceita, false);
+  assertEquals(a.motivo, 'fora_da_faixa');
+});
+
+// ============================================================================
+// (a.5) Model Routing — resolverModeloParaTipo (ver bloco no topo do arquivo)
+// ============================================================================
+Deno.test('resolverModeloParaTipo: OCR simples (glicosímetro/balança/pressão) usa o nível LITE', () => {
+  assertEquals(resolverModeloParaTipo('glicosimetro'), 'gemini-flash-lite-latest');
+  assertEquals(resolverModeloParaTipo('balanca'), 'gemini-flash-lite-latest');
+  assertEquals(resolverModeloParaTipo('pressaoArterial'), 'gemini-flash-lite-latest');
+});
+
+Deno.test('resolverModeloParaTipo: extração estruturada (prato/rótulo) usa o nível CORE', () => {
+  assertEquals(resolverModeloParaTipo('pratoRefeicao'), 'gemini-flash-latest');
+  assertEquals(resolverModeloParaTipo('rotulo'), 'gemini-flash-latest');
+});
+
+Deno.test('resolverModeloParaTipo: tipo desconhecido cai em CORE por padrão (mais seguro que LITE)', () => {
+  assertEquals(resolverModeloParaTipo('tipo-futuro-nao-classificado'), 'gemini-flash-latest');
+});
+
+Deno.test('resolverModeloParaTipo: GEMINI_MODEL_LITE sobrescreve o padrão do nível lite', () => {
+  Deno.env.set('GEMINI_MODEL_LITE', 'modelo-lite-customizado');
+  try {
+    assertEquals(resolverModeloParaTipo('glicosimetro'), 'modelo-lite-customizado');
+  } finally {
+    Deno.env.delete('GEMINI_MODEL_LITE');
+  }
+});
+
+Deno.test('resolverModeloParaTipo: GEMINI_MODEL_CORE sobrescreve o padrão do nível core', () => {
+  Deno.env.set('GEMINI_MODEL_CORE', 'modelo-core-customizado');
+  try {
+    assertEquals(resolverModeloParaTipo('pratoRefeicao'), 'modelo-core-customizado');
+  } finally {
+    Deno.env.delete('GEMINI_MODEL_CORE');
+  }
 });
 
 // ============================================================================
@@ -460,14 +729,13 @@ Deno.test('handler: tipo desconhecido -> 400', async () => {
   assertEquals(res.status, 400);
 });
 
-Deno.test('handler: tipo conhecido mas ainda não implementado -> 422', async () => {
-  const res = await createHandler({ autenticador: AUTH_OK })(
-    reqComImagem({ 'X-Tipo-Aparelho': 'balanca' }),
-  );
-  assertEquals(res.status, 422);
-  const body = await res.json();
-  assertEquals(body.error, 'extrator_nao_implementado');
-});
+// A antiga "tipo conhecido mas ainda não implementado -> 422" (usava
+// 'balanca' como exemplo) não existe mais como caso possível: todo tipo em
+// TIPOS_CONHECIDOS tem extrator implementado agora (Passo 3). O caminho
+// 422 `extrator_nao_implementado` continua existindo no código para um
+// tipo futuro que seja adicionado a TIPOS_CONHECIDOS antes do extrator
+// correspondente — só não há, hoje, nenhum valor de X-Tipo-Aparelho que
+// exercite esse caminho.
 
 Deno.test('handler: corpo vazio -> 400', async () => {
   const res = await createHandler({ autenticador: AUTH_OK })(
@@ -526,6 +794,178 @@ Deno.test('handler: Gemini devolve texto sujo -> 422 (fallback de parsing)', asy
   })(reqComImagem({ 'X-Tipo-Aparelho': 'glicosimetro' }));
 
   assertEquals(res.status, 422);
+});
+
+// ============================================================================
+// (c.2) Handler HTTP — balanca (Passo 3)
+// ============================================================================
+Deno.test('handler: balança, leitura boa -> 200 com peso_kg', async () => {
+  const res = await createHandler({
+    autenticador: AUTH_OK,
+    chamarGemini: geminiRespondendo(
+      '{"legivel":true,"peso_kg":72.4,"confianca":0.9,"possivel_foto_de_tela":false,"motivo":null}',
+    ),
+  })(reqComImagem({ 'X-Tipo-Aparelho': 'balanca' }));
+
+  assertEquals(res.status, 200);
+  const body = await res.json();
+  assertEquals(body.peso_kg, 72.4);
+  assertEquals(body.tipo_captura, 'balanca');
+});
+
+Deno.test('handler: balança, leitura ilegível -> 422', async () => {
+  const res = await createHandler({
+    autenticador: AUTH_OK,
+    chamarGemini: geminiRespondendo(
+      '{"legivel":false,"peso_kg":null,"confianca":0.1,"possivel_foto_de_tela":false,"motivo":"visor apagado"}',
+    ),
+  })(reqComImagem({ 'X-Tipo-Aparelho': 'balanca' }));
+
+  assertEquals(res.status, 422);
+  const body = await res.json();
+  assertEquals(body.error, 'leitura_ilegivel');
+});
+
+Deno.test('handler: balança usa o modelo LITE (roteamento por complexidade)', async () => {
+  let urlChamada = '';
+  const restaurar = stubFetch(((input: RequestInfo | URL) => {
+    urlChamada = String(input);
+    return Promise.resolve(
+      new Response(
+        JSON.stringify({
+          candidates: [
+            {
+              content: {
+                parts: [
+                  {
+                    text: '{"legivel":true,"peso_kg":70,"confianca":0.9,"possivel_foto_de_tela":false,"motivo":null}',
+                  },
+                ],
+              },
+            },
+          ],
+        }),
+        { status: 200 },
+      ),
+    );
+  }) as typeof fetch);
+
+  try {
+    Deno.env.set('GEMINI_API_KEY', 'fake-key');
+    const res = await createHandler({ autenticador: AUTH_OK })(
+      reqComImagem({ 'X-Tipo-Aparelho': 'balanca' }),
+    );
+    assertEquals(res.status, 200);
+    assertStringIncludes(urlChamada, 'gemini-flash-lite-latest:generateContent');
+  } finally {
+    Deno.env.delete('GEMINI_API_KEY');
+    restaurar();
+  }
+});
+
+// ============================================================================
+// (c.3) Handler HTTP — pressaoArterial (Passo 3)
+// ============================================================================
+Deno.test('handler: pressão, leitura boa -> 200 com sistólica/diastólica/fc_repouso', async () => {
+  const res = await createHandler({
+    autenticador: AUTH_OK,
+    chamarGemini: geminiRespondendo(
+      '{"legivel":true,"sistolica_mmhg":120,"diastolica_mmhg":80,"pulso_bpm":72,"confianca":0.9,"possivel_foto_de_tela":false,"motivo":null}',
+    ),
+  })(reqComImagem({ 'X-Tipo-Aparelho': 'pressaoArterial' }));
+
+  assertEquals(res.status, 200);
+  const body = await res.json();
+  assertEquals(body.pressao_sistolica, 120);
+  assertEquals(body.pressao_diastolica, 80);
+  assertEquals(body.fc_repouso, 72);
+  assertEquals(body.tipo_captura, 'pressaoArterial');
+});
+
+Deno.test('handler: pressão sem pulso legível -> 200 sem a chave fc_repouso (nunca null/zero inventado)', async () => {
+  const res = await createHandler({
+    autenticador: AUTH_OK,
+    chamarGemini: geminiRespondendo(
+      '{"legivel":true,"sistolica_mmhg":120,"diastolica_mmhg":80,"pulso_bpm":null,"confianca":0.9,"possivel_foto_de_tela":false,"motivo":null}',
+    ),
+  })(reqComImagem({ 'X-Tipo-Aparelho': 'pressaoArterial' }));
+
+  assertEquals(res.status, 200);
+  const body = await res.json();
+  assertEquals('fc_repouso' in body, false);
+});
+
+Deno.test('handler: pressão, leitura ilegível -> 422', async () => {
+  const res = await createHandler({
+    autenticador: AUTH_OK,
+    chamarGemini: geminiRespondendo(
+      '{"legivel":false,"sistolica_mmhg":null,"diastolica_mmhg":null,"pulso_bpm":null,"confianca":0.1,"possivel_foto_de_tela":false,"motivo":"reflexo no visor"}',
+    ),
+  })(reqComImagem({ 'X-Tipo-Aparelho': 'pressaoArterial' }));
+
+  assertEquals(res.status, 422);
+});
+
+// ============================================================================
+// (c.4) Handler HTTP — rotulo (Passo 3)
+// ============================================================================
+Deno.test('handler: rótulo, leitura boa -> 200 com macros e ingredientes', async () => {
+  const res = await createHandler({
+    autenticador: AUTH_OK,
+    chamarGemini: geminiRespondendo(
+      '{"legivel":true,"porcao_descricao":"30 g","calorias_kcal":150,"proteinas_g":3,"carboidratos_g":20,"gorduras_g":6,"ingredientes_principais":["acucar","farinha de trigo"],"confianca":0.9,"possivel_foto_de_tela":false,"motivo":null}',
+    ),
+  })(reqComImagem({ 'X-Tipo-Aparelho': 'rotulo' }));
+
+  assertEquals(res.status, 200);
+  const body = await res.json();
+  assertEquals(body.calorias_kcal, 150);
+  assertEquals(body.ingredientes_principais, ['acucar', 'farinha de trigo']);
+  assertEquals(body.tipo_captura, 'rotulo');
+});
+
+Deno.test('handler: rótulo, leitura ilegível -> 422', async () => {
+  const res = await createHandler({
+    autenticador: AUTH_OK,
+    chamarGemini: geminiRespondendo(
+      '{"legivel":false,"confianca":0.1,"possivel_foto_de_tela":false,"motivo":"nao e um rotulo nutricional","ingredientes_principais":[]}',
+    ),
+  })(reqComImagem({ 'X-Tipo-Aparelho': 'rotulo' }));
+
+  assertEquals(res.status, 422);
+});
+
+Deno.test('handler: rótulo usa o modelo CORE (roteamento por complexidade)', async () => {
+  let urlChamada = '';
+  const restaurar = stubFetch(((input: RequestInfo | URL) => {
+    urlChamada = String(input);
+    return Promise.resolve(
+      new Response(
+        JSON.stringify({
+          candidates: [
+            {
+              content: {
+                parts: [{ text: '{"legivel":true,"calorias_kcal":100,"confianca":0.9,"possivel_foto_de_tela":false,"motivo":null}' }],
+              },
+            },
+          ],
+        }),
+        { status: 200 },
+      ),
+    );
+  }) as typeof fetch);
+
+  try {
+    Deno.env.set('GEMINI_API_KEY', 'fake-key');
+    const res = await createHandler({ autenticador: AUTH_OK })(
+      reqComImagem({ 'X-Tipo-Aparelho': 'rotulo' }),
+    );
+    assertEquals(res.status, 200);
+    assertStringIncludes(urlChamada, 'gemini-flash-latest:generateContent');
+  } finally {
+    Deno.env.delete('GEMINI_API_KEY');
+    restaurar();
+  }
 });
 
 // ============================================================================

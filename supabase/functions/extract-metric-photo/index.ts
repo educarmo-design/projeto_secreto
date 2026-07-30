@@ -1,14 +1,19 @@
 // extract-metric-photo — F10 (Pipeline Gemini / "tratamento das fotos"),
 // Metade 1 (Tubulação Zero Storage) + extratores. Ver Documento Mestre v5.0
-// §3.1/§6 e Adendo v5.1 A.1/A.2/A.3/A.4/A.5/A.8.
+// §3.1/§6 e Adendo v5.1 A.1/A.2/A.3/A.4/A.5/A.8/C.3.
 //
 // Passo 1 (glicosímetro): tubulação Zero Storage ponta a ponta + leitura de
-// visor. Passo 2 (este incremento, A.8.2): extrator de prato de comida —
-// "IA traduz, backend calcula" (A.2). Os dois tipos de captura compartilham
-// a MESMA tubulação (auth, leitura da imagem em RAM, chamada ao Gemini,
-// destruição da mídia); só o prompt e o pós-processamento divergem por
-// `X-Tipo-Aparelho`, exatamente como A.8 pede ("a tubulação é construída
-// uma vez; os extratores são incrementais").
+// visor. Passo 2: extrator de prato de comida — "IA traduz, backend
+// calcula" (A.2). Passo 3 (este incremento): balança/pressão arterial
+// (mesmo padrão de OCR estrito do glicosímetro) e rótulo nutricional
+// (transcrição de vários campos já impressos, não estimativa). Todos os
+// tipos de captura compartilham a MESMA tubulação (auth, leitura da imagem
+// em RAM, chamada ao Gemini, destruição da mídia); só o prompt e o
+// pós-processamento divergem por `X-Tipo-Aparelho`, exatamente como A.8
+// pede ("a tubulação é construída uma vez; os extratores são
+// incrementais"). O MODELO Gemini usado também varia por tipo — ver "Model
+// Routing" mais abaixo (C.3): OCR simples usa um modelo mais leve/barato
+// que extração estruturada.
 //
 // É a contraparte servidora que faltava para o cliente que JÁ existe: o
 // `CameraCaptureController` (Flutter) força a câmera nativa, segura os bytes
@@ -83,6 +88,29 @@ const GLICOSE_MAX_MG_DL = 600;
 const QUANTIDADE_MAXIMA_ITEM_PRATO = 20;
 const MAX_ITENS_PRATO = 15;
 
+// Faixa fisiologicamente plausível de peso corporal adulto em kg. Mesmo
+// espírito de GLICOSE_MIN_MG_DL/MAX — um "705" lido por engano em vez de
+// "70.5" precisa ser rejeitado, não gravado.
+const PESO_MIN_KG = 20;
+const PESO_MAX_KG = 300;
+
+// Faixas fisiologicamente plausíveis para o extrator de pressão arterial —
+// mesmo espírito de GLICOSE_MIN_MG_DL/MAX. Sistólica sempre maior que
+// diastólica é checagem de consistência, não só faixa isolada.
+const SISTOLICA_MIN_MMHG = 60;
+const SISTOLICA_MAX_MMHG = 260;
+const DIASTOLICA_MIN_MMHG = 30;
+const DIASTOLICA_MAX_MMHG = 150;
+const PULSO_MIN_BPM = 30;
+const PULSO_MAX_BPM = 220;
+
+// Tetos de sanidade para o extrator de rótulo (não são regra clínica — só
+// evitam um valor absurdo do modelo). "ingredientes_principais" cru nunca
+// vem sem limite do Gemini — capado aqui mesmo assim, defesa em
+// profundidade (mesmo padrão de MAX_ITENS_PRATO).
+const CALORIAS_MAX_ROTULO_KCAL = 2000;
+const MAX_INGREDIENTES_ROTULO = 10;
+
 // BUG CORRIGIDO (23/jul/2026): 'gemini-2.5-flash' passou a devolver 404 —
 // mensagem real do Google: "This model models/gemini-2.5-flash is no
 // longer available to new users" (confirmado chamando ListModels contra a
@@ -95,15 +123,57 @@ const MAX_ITENS_PRATO = 15;
 // 'gemini-flash-latest' é um ALIAS que o próprio Google mantém apontado
 // para o modelo flash corrente — testado e confirmado funcionando (ver
 // RELATÓRIO DE FIM DE TAREFA). Usar o alias em vez de uma versão fixa é
-// deliberado: é o que evita esta 3ª rodada do mesmo bug na próxima vez que
-// o Google aposentar uma versão numerada.
-//
-// Configurável via a variável de ambiente opcional GEMINI_MODEL_NAME — se
-// o Google trocar de novo (ou aposentar o próprio alias), dá para corrigir
-// com `supabase secrets set` sem novo deploy de código.
-const MODELO_GEMINI_PADRAO = 'gemini-flash-latest';
+// deliberado: é o que evita repetir esse bug na próxima vez que o Google
+// aposentar uma versão numerada.
 const GEMINI_ENDPOINT_BASE =
   'https://generativelanguage.googleapis.com/v1beta/models';
+
+// ─────────────────────────────────────────────────────────────────────────
+// Model Routing por complexidade (Adendo v5.1 A.4/C.3)
+// ─────────────────────────────────────────────────────────────────────────
+// Cada tipo_captura usa o modelo Gemini proporcional à dificuldade real da
+// tarefa: OCR de um único valor isolado (glicosímetro/balança/pressão) não
+// precisa do mesmo raciocínio visual que estruturar uma tabela nutricional
+// inteira (prato/rótulo) — e um futuro exame laboratorial de várias
+// páginas (HEAVY, ver abaixo) precisa de ainda mais.
+//
+// DESVIO REGISTRADO (ver RELATÓRIO): a tarefa pedia os nomes fixos
+// 'gemini-3.5-flash-lite'/'gemini-3.5-flash'/'gemini-3.5-pro' como padrão
+// de cada nível. Antes de hardcodar qualquer nome de modelo neste arquivo
+// DE NOVO (é a mesma classe de bug do parágrafo acima, 2ª vez que uma
+// suposição sobre nome de modelo precisa ser verificada contra a API real
+// antes de virar código), testei os três contra a própria chave do
+// projeto: 'gemini-3.5-flash-lite' e 'gemini-3.5-flash' respondem 200 (o
+// segundo com um 503 passageiro de alta demanda no momento do teste — não
+// é problema de nome), mas 'gemini-3.5-pro' devolve 404 HOJE — não existe
+// para esta chave. Os ALIASES abaixo ('-latest', mesmo padrão já em uso
+// neste arquivo desde o bug de 23/jul) são os padrões reais — testados e
+// confirmados funcionando os três (`gemini-flash-lite-latest`,
+// `gemini-flash-latest`, `gemini-pro-latest`). Continuam 100%
+// configuráveis por env var: se um dia `gemini-3.5-flash` (ou qualquer
+// outro nome fixo) for realmente o que se quer travar, basta
+// `supabase secrets set GEMINI_MODEL_CORE=gemini-3.5-flash` sem tocar em
+// código.
+type NivelModelo = 'lite' | 'core' | 'heavy';
+
+const MODELO_LITE_PADRAO = 'gemini-flash-lite-latest';
+const MODELO_CORE_PADRAO = 'gemini-flash-latest';
+// HEAVY: terreno preparado (tipo + resolução existem), mas nenhum
+// tipo_captura usa 'heavy' ainda — reservado para o extrator de exame
+// (PDF/foto de laudo laboratorial, item futuro do F10/A.8), fora do escopo
+// desta tarefa.
+const MODELO_HEAVY_PADRAO = 'gemini-pro-latest';
+
+function resolverModelo(nivel: NivelModelo): string {
+  switch (nivel) {
+    case 'lite':
+      return Deno.env.get('GEMINI_MODEL_LITE') || MODELO_LITE_PADRAO;
+    case 'core':
+      return Deno.env.get('GEMINI_MODEL_CORE') || MODELO_CORE_PADRAO;
+    case 'heavy':
+      return Deno.env.get('GEMINI_MODEL_HEAVY') || MODELO_HEAVY_PADRAO;
+  }
+}
 
 // Busca semântica (Missão F45/Adendo v5.1 A.3) — fallback só para itens que
 // `encontrarAlimento` (exato/substring) não achou. Mesmo modelo/dimensão de
@@ -132,18 +202,53 @@ const DIMENSOES_EMBEDDING = 768;
 const BUSCA_SEMANTICA_THRESHOLD = 0.68;
 
 // Nomes que o cliente manda em `X-Tipo-Aparelho` (é `TipoAparelho.name` do
-// enum Dart). glicosimetro (Passo 1) e pratoRefeicao (Passo 2) estão
-// implementados; os demais respondem 422 "ainda não implementado" — honesto
-// e incremental (A.8), não um 500 confuso.
+// enum Dart em `camera_capture_controller.dart` — glicosimetro/
+// pressaoArterial/balanca/pratoRefeicao já existem lá). `TIPO_ROTULO` é
+// NOVO: o enum Dart ainda não tem esse caso (ver RELATÓRIO) — o servidor
+// já aceita o tipo, mas nenhuma tela do app ainda manda essa captura.
 const TIPO_GLICOSIMETRO = 'glicosimetro';
+const TIPO_PRESSAO_ARTERIAL = 'pressaoArterial';
+const TIPO_BALANCA = 'balanca';
 const TIPO_PRATO_REFEICAO = 'pratoRefeicao';
+const TIPO_ROTULO = 'rotulo';
 const TIPOS_CONHECIDOS = [
   TIPO_GLICOSIMETRO,
-  'pressaoArterial',
-  'balanca',
+  TIPO_PRESSAO_ARTERIAL,
+  TIPO_BALANCA,
   TIPO_PRATO_REFEICAO,
+  TIPO_ROTULO,
 ] as const;
-const TIPOS_IMPLEMENTADOS = new Set([TIPO_GLICOSIMETRO, TIPO_PRATO_REFEICAO]);
+// Todos os tipos conhecidos têm extrator implementado agora — não sobra
+// nenhum caso "conhecido mas ainda não implementado" (o 422
+// `extrator_nao_implementado` abaixo continua existindo para um tipo
+// futuro que venha a ser adicionado a TIPOS_CONHECIDOS antes do extrator
+// correspondente, mesmo espírito incremental de A.8).
+const TIPOS_IMPLEMENTADOS = new Set([
+  TIPO_GLICOSIMETRO,
+  TIPO_PRESSAO_ARTERIAL,
+  TIPO_BALANCA,
+  TIPO_PRATO_REFEICAO,
+  TIPO_ROTULO,
+]);
+
+/// Nível de modelo por tipo de captura (ver Model Routing acima) — OCR de
+/// um único valor isolado usa LITE; extração estruturada com vários campos
+/// usa CORE. Tipo sem entrada aqui cai em 'core' por padrão (mais seguro
+/// que 'lite' para um extrator futuro ainda não classificado).
+const NIVEL_POR_TIPO: Record<string, NivelModelo> = {
+  [TIPO_GLICOSIMETRO]: 'lite',
+  [TIPO_BALANCA]: 'lite',
+  [TIPO_PRESSAO_ARTERIAL]: 'lite',
+  [TIPO_PRATO_REFEICAO]: 'core',
+  [TIPO_ROTULO]: 'core',
+};
+
+/// Resolve o modelo real para um `tipo_captura` — exportada para teste
+/// direto do roteador, sem precisar montar uma requisição HTTP completa.
+export function resolverModeloParaTipo(tipo: string): string {
+  const nivel = NIVEL_POR_TIPO[tipo] ?? 'core';
+  return resolverModelo(nivel);
+}
 
 // Os prompts ficam em inglês de propósito: o Gemini segue instrução de "só
 // JSON, nada além" de forma mensuravelmente mais confiável em inglês (mesma
@@ -192,6 +297,76 @@ Rules:
 - If the plate is empty, unclear, or you cannot identify any food with reasonable confidence, return "itens": [] — do not invent an item.
 - Do not include any field other than the ones described above.`;
 
+// Mesmo padrão estrito de OCR do glicosímetro acima — visor de balança
+// doméstica, um único valor.
+const SYSTEM_PROMPT_BALANCA = `You are a strict OCR engine that reads the digital display of a home body-weight scale (bathroom scale) from a single photograph. You do NOT diagnose, interpret, or give advice. You only read the number on the screen.
+
+Respond with RAW JSON ONLY — no markdown, no code fences, no text before or after the object. The object has exactly these fields:
+{
+  "legivel": boolean,
+  "peso_kg": number | null,         // the weight in kilograms as shown; null if not legible
+  "confianca": number,              // 0.0 to 1.0, how sure you are of every digit
+  "possivel_foto_de_tela": boolean, // true if this looks like a photo OF ANOTHER SCREEN (moiré, pixel grid, glare of a monitor)
+  "motivo": string | null           // short reason when not legible; null when legible
+}
+
+Rules:
+- Brazilian home scales display kg by default. If the display clearly shows "lb" instead, convert to kg (1 lb = 0.453592 kg) and still report "peso_kg" in kilograms.
+- If the display is blurry, reflective, partially cut off, shows an error code, or is not a body-weight scale at all: set "legivel" to false, "peso_kg" to null, a low "confianca", and fill "motivo".
+- NEVER guess a digit you cannot clearly see. When unsure, lower "confianca" — do not fabricate a number.
+- If you can read the digits, report them even if the photo appears to be of a screen — but still set "possivel_foto_de_tela" accordingly.
+- Do not include any field other than the five above.`;
+
+// Mesmo padrão estrito de OCR — visor de aparelho de pressão, até três
+// valores (sistólica/diastólica sempre presentes; pulso só se o aparelho
+// mostrar).
+const SYSTEM_PROMPT_PRESSAO = `You are a strict OCR engine that reads the digital display of a home blood pressure monitor from a single photograph. You do NOT diagnose, interpret, or give advice. You only read the numbers on the screen.
+
+Respond with RAW JSON ONLY — no markdown, no code fences, no text before or after the object. The object has exactly these fields:
+{
+  "legivel": boolean,
+  "sistolica_mmhg": number | null,  // systolic (top/highest number, often labeled SYS); null if not legible
+  "diastolica_mmhg": number | null, // diastolic (bottom/lower number, DIA); null if not legible
+  "pulso_bpm": number | null,       // pulse rate, if shown (heart icon or PUL); null if not shown or not legible
+  "confianca": number,              // 0.0 to 1.0, how sure you are of every digit
+  "possivel_foto_de_tela": boolean, // true if this looks like a photo OF ANOTHER SCREEN (moiré, pixel grid, glare of a monitor)
+  "motivo": string | null           // short reason when not legible; null when legible
+}
+
+Rules:
+- If the display is blurry, reflective, partially cut off, shows an error code, or is not a blood pressure monitor at all: set "legivel" to false, all three numbers to null, a low "confianca", and fill "motivo".
+- NEVER guess a digit you cannot clearly see. When unsure, lower "confianca" — do not fabricate a number. If only the pulse is unclear but systolic/diastolic are clearly readable, still report systolic/diastolic and leave "pulso_bpm" null.
+- If you can read the numbers, report them even if the photo appears to be of a screen — but still set "possivel_foto_de_tela" accordingly.
+- Do not include any field other than the six above.`;
+
+// Diferente dos três acima: aqui o Gemini não está lendo UM valor de
+// visor, está transcrevendo VÁRIOS números já IMPRESSOS num rótulo — ainda
+// assim é OCR puro (A.2), nunca cálculo/estimativa, porque cada número já
+// está escrito no rótulo.
+const SYSTEM_PROMPT_ROTULO = `You are a strict OCR engine that transcribes the printed Nutrition Facts label ("Tabela Nutricional" / "Informação Nutricional") of a packaged food product from a single photograph. You are NOT estimating or calculating anything — every number here is already printed on the label; you only read it.
+
+Respond with RAW JSON ONLY — no markdown, no code fences, no text before or after the object. The object has exactly these fields:
+{
+  "legivel": boolean,
+  "porcao_descricao": string | null,    // the serving size exactly as printed, e.g. "30 g (2 colheres de sopa)"; null if not legible
+  "calorias_kcal": number | null,       // calories per serving as printed; null if not present/legible
+  "proteinas_g": number | null,
+  "carboidratos_g": number | null,
+  "gorduras_g": number | null,
+  "ingredientes_principais": string[],  // up to 10 main ingredients from the ingredients list, in the order printed, exactly as written (Brazilian Portuguese)
+  "confianca": number,                  // 0.0 to 1.0, how sure you are of every number transcribed
+  "possivel_foto_de_tela": boolean,     // true if this looks like a photo OF ANOTHER SCREEN (moiré, pixel grid, glare of a monitor)
+  "motivo": string | null               // short reason when not legible; null when legible
+}
+
+Rules:
+- Transcribe ONLY numbers that are actually printed on the label — never calculate, estimate, or infer a value that isn't shown.
+- If a specific field (e.g. gorduras_g) is not present on this particular label, leave it null — do not guess.
+- If the label is blurry, reflective, partially cut off, or this is not a nutrition facts label at all: set "legivel" to false, all numeric fields to null, "ingredientes_principais" to an empty array, a low "confianca", and fill "motivo".
+- "ingredientes_principais" is capped at 10 items — list the first ones as printed, do not summarize or paraphrase them.
+- If you can read the label, report it even if the photo appears to be of a screen — but still set "possivel_foto_de_tela" accordingly.
+- Do not include any field other than the ones described above.`;
+
 // ─────────────────────────────────────────────────────────────────────────
 // Tipos — glicosímetro (Passo 1)
 // ─────────────────────────────────────────────────────────────────────────
@@ -214,6 +389,83 @@ export interface AvaliacaoLeitura {
   confianca: number;
   possivelFotoDeTela: boolean;
   /// Presente só quando NÃO `aceita` — código curto do porquê da rejeição.
+  motivo?: string;
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Tipos — balança (Passo 3)
+// ─────────────────────────────────────────────────────────────────────────
+
+export interface ExtracaoBalanca {
+  legivel: boolean;
+  pesoKg: number | null;
+  confianca: number;
+  possivelFotoDeTela: boolean;
+  motivo: string | null;
+}
+
+export interface AvaliacaoBalanca {
+  aceita: boolean;
+  pesoKg?: number;
+  confianca: number;
+  possivelFotoDeTela: boolean;
+  motivo?: string;
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Tipos — pressão arterial (Passo 3)
+// ─────────────────────────────────────────────────────────────────────────
+
+export interface ExtracaoPressao {
+  legivel: boolean;
+  sistolicaMmhg: number | null;
+  diastolicaMmhg: number | null;
+  pulsoBpm: number | null;
+  confianca: number;
+  possivelFotoDeTela: boolean;
+  motivo: string | null;
+}
+
+export interface AvaliacaoPressao {
+  aceita: boolean;
+  sistolicaMmhg?: number;
+  diastolicaMmhg?: number;
+  /// Ausente quando o aparelho não mostrou pulso ou o Gemini não conseguiu
+  /// lê-lo — diferente de sistólica/diastólica, pulso nunca derruba a
+  /// leitura inteira (ver `avaliarLeituraPressao`).
+  pulsoBpm?: number;
+  confianca: number;
+  possivelFotoDeTela: boolean;
+  motivo?: string;
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Tipos — rótulo nutricional (Passo 3)
+// ─────────────────────────────────────────────────────────────────────────
+
+export interface ExtracaoRotulo {
+  legivel: boolean;
+  porcaoDescricao: string | null;
+  caloriasKcal: number | null;
+  proteinasG: number | null;
+  carboidratosG: number | null;
+  gordurasG: number | null;
+  ingredientesPrincipais: string[];
+  confianca: number;
+  possivelFotoDeTela: boolean;
+  motivo: string | null;
+}
+
+export interface AvaliacaoRotulo {
+  aceita: boolean;
+  porcaoDescricao?: string | null;
+  caloriasKcal?: number | null;
+  proteinasG?: number | null;
+  carboidratosG?: number | null;
+  gordurasG?: number | null;
+  ingredientesPrincipais?: string[];
+  confianca: number;
+  possivelFotoDeTela: boolean;
   motivo?: string;
 }
 
@@ -448,7 +700,237 @@ export function avaliarLeitura(extracao: ExtracaoGlicose): AvaliacaoLeitura {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// Parsing e cálculo — prato de comida (puros — sem I/O, 100% testáveis)
+// Parsing e decisão — balança (Passo 3, puros — sem I/O, 100% testáveis)
+// ─────────────────────────────────────────────────────────────────────────
+
+/// Mesmo tratamento robusto de A.5 de `parseRespostaGemini` — deliberadamente
+/// uma função própria, não compartilhada com o glicosímetro (mesmo padrão já
+/// estabelecido entre glicosímetro e prato: extratores parecidos, mas cada
+/// um com seu parser/validador independente, para nunca acoplar a evolução
+/// de um ao outro).
+export function parseRespostaGeminiBalanca(textoCru: string): ExtracaoBalanca {
+  const ilegivel = (motivo: string): ExtracaoBalanca => ({
+    legivel: false,
+    pesoKg: null,
+    confianca: 0,
+    possivelFotoDeTela: false,
+    motivo,
+  });
+
+  const bruto = extrairObjetoJson(textoCru);
+  if (!bruto) return ilegivel('json_invalido');
+
+  const valor = bruto['peso_kg'];
+  return {
+    legivel: bruto['legivel'] === true,
+    pesoKg: typeof valor === 'number' && Number.isFinite(valor) ? valor : null,
+    confianca: normalizarConfianca(bruto['confianca']),
+    possivelFotoDeTela: bruto['possivel_foto_de_tela'] === true,
+    motivo: typeof bruto['motivo'] === 'string' ? bruto['motivo'] : null,
+  };
+}
+
+export function avaliarLeituraBalanca(extracao: ExtracaoBalanca): AvaliacaoBalanca {
+  const base = {
+    confianca: extracao.confianca,
+    possivelFotoDeTela: extracao.possivelFotoDeTela,
+  };
+
+  if (!extracao.legivel) {
+    return { aceita: false, motivo: extracao.motivo ?? 'ilegivel', ...base };
+  }
+  if (extracao.confianca < CONFIANCA_MINIMA) {
+    return { aceita: false, motivo: 'confianca_baixa', ...base };
+  }
+  if (extracao.pesoKg === null) {
+    return { aceita: false, motivo: 'sem_numero', ...base };
+  }
+  if (extracao.pesoKg < PESO_MIN_KG || extracao.pesoKg > PESO_MAX_KG) {
+    return { aceita: false, motivo: 'fora_da_faixa', ...base };
+  }
+  return { aceita: true, pesoKg: arredondar(extracao.pesoKg, 1), ...base };
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Parsing e decisão — pressão arterial (Passo 3, puros — sem I/O)
+// ─────────────────────────────────────────────────────────────────────────
+
+export function parseRespostaGeminiPressao(textoCru: string): ExtracaoPressao {
+  const ilegivel = (motivo: string): ExtracaoPressao => ({
+    legivel: false,
+    sistolicaMmhg: null,
+    diastolicaMmhg: null,
+    pulsoBpm: null,
+    confianca: 0,
+    possivelFotoDeTela: false,
+    motivo,
+  });
+
+  const bruto = extrairObjetoJson(textoCru);
+  if (!bruto) return ilegivel('json_invalido');
+
+  const numOrNull = (valor: unknown): number | null =>
+    typeof valor === 'number' && Number.isFinite(valor) ? valor : null;
+
+  return {
+    legivel: bruto['legivel'] === true,
+    sistolicaMmhg: numOrNull(bruto['sistolica_mmhg']),
+    diastolicaMmhg: numOrNull(bruto['diastolica_mmhg']),
+    pulsoBpm: numOrNull(bruto['pulso_bpm']),
+    confianca: normalizarConfianca(bruto['confianca']),
+    possivelFotoDeTela: bruto['possivel_foto_de_tela'] === true,
+    motivo: typeof bruto['motivo'] === 'string' ? bruto['motivo'] : null,
+  };
+}
+
+/// Sistólica/diastólica são obrigatórias para aceitar a leitura — pulso é
+/// só um extra: se o aparelho não mostrou ou o Gemini não conseguiu ler,
+/// isso NÃO derruba uma leitura de pressão por outro lado boa (mesmo
+/// espírito de A.6 — não descartar dado bom por causa de um campo
+/// secundário ausente).
+export function avaliarLeituraPressao(extracao: ExtracaoPressao): AvaliacaoPressao {
+  const base = {
+    confianca: extracao.confianca,
+    possivelFotoDeTela: extracao.possivelFotoDeTela,
+  };
+
+  if (!extracao.legivel) {
+    return { aceita: false, motivo: extracao.motivo ?? 'ilegivel', ...base };
+  }
+  if (extracao.confianca < CONFIANCA_MINIMA) {
+    return { aceita: false, motivo: 'confianca_baixa', ...base };
+  }
+  if (extracao.sistolicaMmhg === null || extracao.diastolicaMmhg === null) {
+    return { aceita: false, motivo: 'sem_numero', ...base };
+  }
+  if (
+    extracao.sistolicaMmhg < SISTOLICA_MIN_MMHG ||
+    extracao.sistolicaMmhg > SISTOLICA_MAX_MMHG ||
+    extracao.diastolicaMmhg < DIASTOLICA_MIN_MMHG ||
+    extracao.diastolicaMmhg > DIASTOLICA_MAX_MMHG
+  ) {
+    return { aceita: false, motivo: 'fora_da_faixa', ...base };
+  }
+  // Checagem de consistência fisiológica — sistólica sempre maior que
+  // diastólica; se vier invertido, é erro de leitura, não um paciente real.
+  if (extracao.sistolicaMmhg <= extracao.diastolicaMmhg) {
+    return { aceita: false, motivo: 'inconsistente', ...base };
+  }
+
+  const pulsoValido =
+    extracao.pulsoBpm !== null &&
+    extracao.pulsoBpm >= PULSO_MIN_BPM &&
+    extracao.pulsoBpm <= PULSO_MAX_BPM
+      ? Math.round(extracao.pulsoBpm)
+      : undefined;
+
+  return {
+    aceita: true,
+    sistolicaMmhg: Math.round(extracao.sistolicaMmhg),
+    diastolicaMmhg: Math.round(extracao.diastolicaMmhg),
+    pulsoBpm: pulsoValido,
+    ...base,
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Parsing e decisão — rótulo nutricional (Passo 3, puros — sem I/O)
+// ─────────────────────────────────────────────────────────────────────────
+
+/// Diferente dos três extratores acima (um valor ou punhado de valores de
+/// visor), rótulo tem vários campos opcionais — uma etiqueta pode não
+/// imprimir todos. `ingredientesPrincipais` é sempre saneado para no máximo
+/// `MAX_INGREDIENTES_ROTULO`, defesa em profundidade mesmo o prompt já
+/// pedindo o teto (mesmo padrão de `MAX_ITENS_PRATO`).
+export function parseRespostaGeminiRotulo(textoCru: string): ExtracaoRotulo {
+  const ilegivel = (motivo: string): ExtracaoRotulo => ({
+    legivel: false,
+    porcaoDescricao: null,
+    caloriasKcal: null,
+    proteinasG: null,
+    carboidratosG: null,
+    gordurasG: null,
+    ingredientesPrincipais: [],
+    confianca: 0,
+    possivelFotoDeTela: false,
+    motivo,
+  });
+
+  const bruto = extrairObjetoJson(textoCru);
+  if (!bruto) return ilegivel('json_invalido');
+
+  const numOrNull = (valor: unknown): number | null =>
+    typeof valor === 'number' && Number.isFinite(valor) ? valor : null;
+
+  const ingredientesBrutos = Array.isArray(bruto['ingredientes_principais'])
+    ? bruto['ingredientes_principais']
+    : [];
+  const ingredientesPrincipais = ingredientesBrutos
+    .filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
+    .map((item) => item.trim())
+    .slice(0, MAX_INGREDIENTES_ROTULO);
+
+  return {
+    legivel: bruto['legivel'] === true,
+    porcaoDescricao: typeof bruto['porcao_descricao'] === 'string' ? bruto['porcao_descricao'] : null,
+    caloriasKcal: numOrNull(bruto['calorias_kcal']),
+    proteinasG: numOrNull(bruto['proteinas_g']),
+    carboidratosG: numOrNull(bruto['carboidratos_g']),
+    gordurasG: numOrNull(bruto['gorduras_g']),
+    ingredientesPrincipais,
+    confianca: normalizarConfianca(bruto['confianca']),
+    possivelFotoDeTela: bruto['possivel_foto_de_tela'] === true,
+    motivo: typeof bruto['motivo'] === 'string' ? bruto['motivo'] : null,
+  };
+}
+
+/// Aceita se legível/confiante o bastante E pelo menos um valor nutricional
+/// veio — um rótulo real sempre tem ao menos calorias; zero campo numérico
+/// nenhum é sinal de que a extração não achou nada de verdade, mesmo que o
+/// Gemini tenha marcado `legivel: true`.
+export function avaliarLeituraRotulo(extracao: ExtracaoRotulo): AvaliacaoRotulo {
+  const base = {
+    confianca: extracao.confianca,
+    possivelFotoDeTela: extracao.possivelFotoDeTela,
+  };
+
+  if (!extracao.legivel) {
+    return { aceita: false, motivo: extracao.motivo ?? 'ilegivel', ...base };
+  }
+  if (extracao.confianca < CONFIANCA_MINIMA) {
+    return { aceita: false, motivo: 'confianca_baixa', ...base };
+  }
+
+  const temAlgumMacro =
+    extracao.caloriasKcal !== null ||
+    extracao.proteinasG !== null ||
+    extracao.carboidratosG !== null ||
+    extracao.gordurasG !== null;
+  if (!temAlgumMacro) {
+    return { aceita: false, motivo: 'sem_numero', ...base };
+  }
+
+  if (
+    extracao.caloriasKcal !== null &&
+    (extracao.caloriasKcal < 0 || extracao.caloriasKcal > CALORIAS_MAX_ROTULO_KCAL)
+  ) {
+    return { aceita: false, motivo: 'fora_da_faixa', ...base };
+  }
+
+  return {
+    aceita: true,
+    porcaoDescricao: extracao.porcaoDescricao,
+    caloriasKcal: extracao.caloriasKcal !== null ? arredondar(extracao.caloriasKcal, 0) : null,
+    proteinasG: extracao.proteinasG !== null ? arredondar(extracao.proteinasG, 1) : null,
+    carboidratosG: extracao.carboidratosG !== null ? arredondar(extracao.carboidratosG, 1) : null,
+    gordurasG: extracao.gordurasG !== null ? arredondar(extracao.gordurasG, 1) : null,
+    ingredientesPrincipais: extracao.ingredientesPrincipais,
+    ...base,
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Parsing e cálculo — prato de comida (Passo 2, puros — sem I/O, 100% testáveis)
 // ─────────────────────────────────────────────────────────────────────────
 
 /// Mesmo tratamento robusto de A.5 aplicado ao extrator de prato: JSON sujo,
@@ -1021,7 +1503,7 @@ export function createHandler(deps: HandlerDeps = {}) {
       return jsonResponse(
         {
           error: 'extrator_nao_implementado',
-          message: `O extrator de "${tipo}" ainda não foi implementado (F10 cobre glicosímetro e prato de comida até aqui — A.8).`,
+          message: `O extrator de "${tipo}" ainda não foi implementado (A.8, incremental).`,
         },
         422,
       );
@@ -1056,15 +1538,26 @@ export function createHandler(deps: HandlerDeps = {}) {
           if (!apiKey) {
             throw new ErroHttp(500, 'GEMINI_API_KEY não configurada no servidor.');
           }
-          const modelo = Deno.env.get('GEMINI_MODEL_NAME') || MODELO_GEMINI_PADRAO;
+          // Model Routing (ver bloco no topo do arquivo): o modelo muda por
+          // tipo_captura, não é mais um único valor fixo pra função inteira.
+          const modelo = resolverModeloParaTipo(tipo);
           return criarChamadorGeminiReal(apiKey, modelo);
         })();
 
       if (tipo === TIPO_GLICOSIMETRO) {
         return await processarGlicosimetro({ base64, mimeType, chamarGemini });
       }
+      if (tipo === TIPO_BALANCA) {
+        return await processarBalanca({ base64, mimeType, chamarGemini });
+      }
+      if (tipo === TIPO_PRESSAO_ARTERIAL) {
+        return await processarPressaoArterial({ base64, mimeType, chamarGemini });
+      }
+      if (tipo === TIPO_ROTULO) {
+        return await processarRotulo({ base64, mimeType, chamarGemini });
+      }
 
-      // tipo === TIPO_PRATO_REFEICAO (única outra opção implementada aqui).
+      // tipo === TIPO_PRATO_REFEICAO (única opção restante implementada aqui).
       let catalogoAlimentos: CatalogoAlimentosLike;
       if (deps.catalogoAlimentos) {
         catalogoAlimentos = deps.catalogoAlimentos;
@@ -1171,6 +1664,136 @@ async function processarGlicosimetro(params: {
       glicose_jejum: avaliacao.glicoseMgDl,
       confianca: avaliacao.confianca,
       tipo_captura: TIPO_GLICOSIMETRO,
+      possivel_foto_de_tela: avaliacao.possivelFotoDeTela,
+    },
+    200,
+  );
+}
+
+async function processarBalanca(params: {
+  base64: string;
+  mimeType: string;
+  chamarGemini: ChamadorGemini;
+}): Promise<Response> {
+  const textoCru = await params.chamarGemini({
+    base64: params.base64,
+    mimeType: params.mimeType,
+    systemPrompt: SYSTEM_PROMPT_BALANCA,
+    userText: 'Read the weight value on this scale display.',
+  });
+  const extracao = parseRespostaGeminiBalanca(textoCru);
+
+  const avaliacao = avaliarLeituraBalanca(extracao);
+  if (!avaliacao.aceita) {
+    return jsonResponse(
+      {
+        error: 'leitura_ilegivel',
+        motivo: avaliacao.motivo,
+        message:
+          'Não consegui ler o visor com segurança. Tente outra foto, sem reflexo e com o número nítido.',
+      },
+      422,
+    );
+  }
+
+  // `peso_kg` é a chave que o cliente (HealthPayloadModel.fromAiExtraction)
+  // já sabe parsear.
+  return jsonResponse(
+    {
+      peso_kg: avaliacao.pesoKg,
+      confianca: avaliacao.confianca,
+      tipo_captura: TIPO_BALANCA,
+      possivel_foto_de_tela: avaliacao.possivelFotoDeTela,
+    },
+    200,
+  );
+}
+
+async function processarPressaoArterial(params: {
+  base64: string;
+  mimeType: string;
+  chamarGemini: ChamadorGemini;
+}): Promise<Response> {
+  const textoCru = await params.chamarGemini({
+    base64: params.base64,
+    mimeType: params.mimeType,
+    systemPrompt: SYSTEM_PROMPT_PRESSAO,
+    userText: 'Read the systolic, diastolic and pulse values on this blood pressure monitor display.',
+  });
+  const extracao = parseRespostaGeminiPressao(textoCru);
+
+  const avaliacao = avaliarLeituraPressao(extracao);
+  if (!avaliacao.aceita) {
+    return jsonResponse(
+      {
+        error: 'leitura_ilegivel',
+        motivo: avaliacao.motivo,
+        message:
+          'Não consegui ler o visor com segurança. Tente outra foto, sem reflexo e com os números nítidos.',
+      },
+      422,
+    );
+  }
+
+  // `pressao_sistolica`/`pressao_diastolica` são as chaves que o cliente
+  // (HealthPayloadModel.fromAiExtraction) já sabe parsear. O modelo não tem
+  // coluna própria de "pulso" — reaproveita `fc_repouso` (mesma medida
+  // fisiológica, batimentos por minuto; já alimenta o mesmo pipeline de
+  // `metricas_saude_diarias` e a checagem de anomalia de frequência
+  // cardíaca do app). Ausente do JSON quando o aparelho não mostrou pulso —
+  // nunca um `null` explícito nem um zero inventado.
+  return jsonResponse(
+    {
+      pressao_sistolica: avaliacao.sistolicaMmhg,
+      pressao_diastolica: avaliacao.diastolicaMmhg,
+      ...(avaliacao.pulsoBpm !== undefined ? { fc_repouso: avaliacao.pulsoBpm } : {}),
+      confianca: avaliacao.confianca,
+      tipo_captura: TIPO_PRESSAO_ARTERIAL,
+      possivel_foto_de_tela: avaliacao.possivelFotoDeTela,
+    },
+    200,
+  );
+}
+
+async function processarRotulo(params: {
+  base64: string;
+  mimeType: string;
+  chamarGemini: ChamadorGemini;
+}): Promise<Response> {
+  const textoCru = await params.chamarGemini({
+    base64: params.base64,
+    mimeType: params.mimeType,
+    systemPrompt: SYSTEM_PROMPT_ROTULO,
+    userText: 'Transcribe the nutrition facts label in this photo.',
+  });
+  const extracao = parseRespostaGeminiRotulo(textoCru);
+
+  const avaliacao = avaliarLeituraRotulo(extracao);
+  if (!avaliacao.aceita) {
+    return jsonResponse(
+      {
+        error: 'leitura_ilegivel',
+        motivo: avaliacao.motivo,
+        message:
+          'Não consegui ler o rótulo com segurança. Tente outra foto, com a tabela nutricional inteira e nítida.',
+      },
+      422,
+    );
+  }
+
+  // Formato próprio, não mapeia em HealthPayloadModel (mesma situação de
+  // pratoRefeicao — ver `rawFoodResult` no client) — pendência de UI
+  // registrada no RELATÓRIO, fora do escopo desta função servidora.
+  return jsonResponse(
+    {
+      tipo_captura: TIPO_ROTULO,
+      porcao_descricao: avaliacao.porcaoDescricao,
+      calorias_kcal: avaliacao.caloriasKcal,
+      proteinas_g: avaliacao.proteinasG,
+      carboidratos_g: avaliacao.carboidratosG,
+      gorduras_g: avaliacao.gordurasG,
+      ingredientes_principais: avaliacao.ingredientesPrincipais,
+      confianca: avaliacao.confianca,
       possivel_foto_de_tela: avaliacao.possivelFotoDeTela,
     },
     200,
