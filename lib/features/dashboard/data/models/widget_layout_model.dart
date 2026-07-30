@@ -9,7 +9,12 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 enum DashboardWidgetId {
   recomendacoesIa('recomendacoes_ia'),
   fotoPratoMacros('foto_prato_macros'),
-  scannerCodigoBarras('scanner_codigo_barras'),
+  // Nome do caso renomeado de `scannerCodigoBarras` (F10 Passo 3, ver
+  // RELATÓRIO): o card virou "fotografar rótulo nutricional" (OCR direto,
+  // sem scanner de código de barras — esse recurso segue sem pacote nativo
+  // configurado). O `id` PERSISTIDO continua o mesmo de propósito — é
+  // exatamente o caso que o comentário da classe já previa.
+  fotoRotulo('scanner_codigo_barras'),
   fotoBalanca('foto_balanca'),
   fotoPressao('foto_pressao'),
   ultimasAtividadesGarmin('ultimas_atividades_garmin'),

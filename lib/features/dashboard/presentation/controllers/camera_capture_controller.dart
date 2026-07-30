@@ -30,11 +30,13 @@ enum CameraCaptureStatus {
 }
 
 /// Physical, Bluetooth-less devices whose display can be photographed and
-/// read by the server-side AI extraction step — plus [pratoRefeicao], which
-/// reuses the exact same zero-storage live-capture pipeline for a photo of
-/// a meal (macro estimation) from the customizable dashboard's "Câmera
-/// Nutricional" card instead of a device display.
-enum TipoAparelho { glicosimetro, pressaoArterial, balanca, pratoRefeicao }
+/// read by the server-side AI extraction step — plus [pratoRefeicao] and
+/// [rotulo], which reuse the exact same zero-storage live-capture pipeline
+/// for a photo of a meal (macro estimation) or a packaged product's
+/// nutrition facts label (OCR transcription, not estimation) from the
+/// customizable dashboard's "Câmera Nutricional" card instead of a device
+/// display.
+enum TipoAparelho { glicosimetro, pressaoArterial, balanca, pratoRefeicao, rotulo }
 
 @immutable
 class CameraCaptureState {
@@ -45,21 +47,23 @@ class CameraCaptureState {
   /// tracked biological/clinical parameters (heart rate, blood pressure,
   /// glucose, weight, ...) were visible on the device's display come back
   /// here as typed values, not a loose untyped map. Populated for every
-  /// [TipoAparelho] except [TipoAparelho.pratoRefeicao] — see
-  /// [rawFoodResult].
+  /// [TipoAparelho] except [TipoAparelho.pratoRefeicao]/[TipoAparelho.rotulo]
+  /// — see [rawResult].
   final HealthPayloadModel? extractedData;
 
-  /// F10 Passo 2 (Adendo v5.1 A.8.2) — the already-server-calculated JSON
-  /// for a [TipoAparelho.pratoRefeicao] capture (matched food items +
+  /// F10 Passo 2/3 (Adendo v5.1 A.8.2/A.8.3) — the already-server-calculated
+  /// JSON for a [TipoAparelho.pratoRefeicao] capture (matched food items +
   /// deterministic macros from `alimentos_referencia`, per item AND
-  /// totals). [HealthPayloadModel] is deliberately NOT reused here: its own
-  /// doc comment states it's a strict "one property = one fixed column of
-  /// `metricas_saude_diarias`" model with no generic bag, and a plate of
-  /// food (a variable list of items) doesn't fit that shape. Per Adendo
-  /// v5.1 §B ("validação = completa funcionalmente, crua visualmente"),
-  /// this raw JSON is shown as-is by [CameraCaptureView] — no typed
-  /// confirmation screen yet (that's Passo 3).
-  final Map<String, dynamic>? rawFoodResult;
+  /// totals) OR the already-transcribed JSON for a [TipoAparelho.rotulo]
+  /// capture (porção/macros/ingredientes lidos direto do rótulo impresso —
+  /// OCR, não estimativa). [HealthPayloadModel] is deliberately NOT reused
+  /// for either: its own doc comment states it's a strict "one property =
+  /// one fixed column of `metricas_saude_diarias`" model with no generic
+  /// bag, and neither a variable list of food items nor a nutrition label's
+  /// several fields fit that shape. Per Adendo v5.1 §B ("validação =
+  /// completa funcionalmente, crua visualmente"), this raw JSON is shown
+  /// as-is by [CameraCaptureView] — no typed confirmation screen yet.
+  final Map<String, dynamic>? rawResult;
 
   final String? errorMessage;
 
@@ -73,7 +77,7 @@ class CameraCaptureState {
   const CameraCaptureState({
     this.status = CameraCaptureStatus.idle,
     this.extractedData,
-    this.rawFoodResult,
+    this.rawResult,
     this.errorMessage,
     this.debugDetail,
   });
@@ -116,13 +120,13 @@ class CameraCaptureController extends ValueNotifier<CameraCaptureState> {
 
   /// Adendo v5.1 A.4: "a resolução de envio é função do `tipo_captura`".
   /// Comida é barata (~512px, economiza token) porque a IA só precisa
-  /// reconhecer FORMA/COR de alimentos; visores de aparelho (glicosímetro/
-  /// pressão/balança) continuam em [ResolutionPreset.medium] — inalterado
-  /// deste Passo 2 — porque o OCR de dígito não pode perder nitidez. A
-  /// escolha acontece na CAPTURA (o `camera` plugin already grava o frame
-  /// no tamanho do preset, nunca em alta resolução seguida de corte — Zero
-  /// Storage nunca materializa um frame maior do que o necessário na RAM
-  /// do device).
+  /// reconhecer FORMA/COR de alimentos; todos os demais tipos — visor de
+  /// aparelho (glicosímetro/pressão/balança) E rótulo nutricional — ficam
+  /// em [ResolutionPreset.medium] porque OCR (de dígito OU de texto
+  /// impresso pequeno) não pode perder nitidez. A escolha acontece na
+  /// CAPTURA (o `camera` plugin already grava o frame no tamanho do
+  /// preset, nunca em alta resolução seguida de corte — Zero Storage nunca
+  /// materializa um frame maior do que o necessário na RAM do device).
   Future<void> initializeCamera({required TipoAparelho tipoAparelho}) async {
     value = const CameraCaptureState(status: CameraCaptureStatus.initializing);
 
@@ -227,15 +231,18 @@ class CameraCaptureController extends ValueNotifier<CameraCaptureState> {
 
       final decoded = jsonDecode(response.body) as Map<String, dynamic>;
 
-      // Prato de comida: o servidor já devolve o JSON calculado
-      // (itens + macros determinísticos, A.2) — não é um HealthPayloadModel
-      // (lista variável de itens não cabe no modelo de colunas fixas). Sem
-      // tela bonita ainda (Adendo v5.1 §B): [CameraCaptureView] exibe este
-      // JSON cru para o fundador conferir os números.
-      if (tipoAparelho == TipoAparelho.pratoRefeicao) {
+      // Prato de comida (itens + macros determinísticos, A.2) e rótulo
+      // nutricional (porção/macros/ingredientes já transcritos do rótulo
+      // impresso, A.8.3) — nenhum dos dois é um HealthPayloadModel (lista
+      // variável de itens / vários campos de rótulo não cabem no modelo de
+      // colunas fixas). Sem tela bonita ainda (Adendo v5.1 §B):
+      // [CameraCaptureView] exibe este JSON cru para o fundador conferir os
+      // números.
+      if (tipoAparelho == TipoAparelho.pratoRefeicao ||
+          tipoAparelho == TipoAparelho.rotulo) {
         value = CameraCaptureState(
           status: CameraCaptureStatus.success,
-          rawFoodResult: decoded,
+          rawResult: decoded,
         );
         return;
       }

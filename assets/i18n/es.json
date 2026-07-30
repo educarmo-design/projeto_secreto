@@ -147,6 +147,7 @@
     "camera_option": "Tomar Foto de la Pantalla del Aparato",
     "camera_option_description": "Para glucómetro, tensiómetro o báscula sin Bluetooth",
     "camera_option_prato_refeicao": "Fotografiar Comida",
+    "camera_option_rotulo": "Fotografiar Etiqueta Nutricional",
     "device_type_label": "Tipo de Aparato",
     "device_type_glucose": "Glucómetro",
     "device_type_blood_pressure": "Tensiómetro",
@@ -221,10 +222,9 @@
     "widget_foto_prato_button": "Tomar Foto del Plato",
     "widget_foto_prato_zero_storage_note": "Zero Storage: la foto nunca se guarda en el dispositivo",
 
-    "widget_scanner_barcode_title": "Escáner de Código de Barras",
-    "widget_scanner_barcode_description": "Escanea el código de barras de un alimento envasado",
-    "widget_scanner_barcode_button": "Escanear Código",
-    "scanner_barcode_coming_soon": "Escáner de código de barras próximamente",
+    "widget_rotulo_nutricional_title": "Fotografiar Etiqueta",
+    "widget_rotulo_nutricional_description": "Fotografía la tabla nutricional de un alimento envasado",
+    "widget_rotulo_nutricional_button": "Fotografiar Etiqueta",
 
     "widget_foto_balanca_title": "Báscula",
     "widget_foto_balanca_description": "Captura la pantalla de tu báscula sin Bluetooth",
@@ -247,7 +247,7 @@
 
     "card_recomendacoes_ia_desc": "Resumen atractivo de tus informes",
     "card_foto_prato_desc": "Foto en vivo de tu plato para estimar macros",
-    "card_scanner_barcode_desc": "Escaneo del código de barras de un alimento",
+    "card_rotulo_nutricional_desc": "Lectura de la tabla nutricional de una etiqueta",
     "card_foto_balanca_desc": "Captura de la pantalla de tu báscula sin Bluetooth",
     "card_foto_pressao_desc": "Captura de la pantalla de tu tensiómetro sin Bluetooth",
     "card_garmin_desc": "Minutos y distancia sincronizados de tu wearable",

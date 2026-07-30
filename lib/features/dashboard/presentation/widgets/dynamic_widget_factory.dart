@@ -37,7 +37,7 @@ class DashboardCardData {
   final Map<String, double>? statusMicronutrientes;
 
   final VoidCallback? onFotoPrato;
-  final VoidCallback? onScanBarcode;
+  final VoidCallback? onFotoRotulo;
   final VoidCallback? onFotoBalanca;
   final VoidCallback? onFotoPressao;
 
@@ -48,14 +48,14 @@ class DashboardCardData {
     this.ligaAtual,
     this.statusMicronutrientes,
     this.onFotoPrato,
-    this.onScanBarcode,
+    this.onFotoRotulo,
     this.onFotoBalanca,
     this.onFotoPressao,
   });
 }
 
 /// Fábrica de Widgets Configuráveis: mapeia cada [DashboardWidgetId] para o
-/// card independente correspondente. `foto_prato_macros`/`scanner_codigo_barras`
+/// card independente correspondente. `foto_prato_macros`/`fotoRotulo`
 /// compartilham a família visual "Câmera Nutricional (Misto)" e
 /// `foto_balanca`/`foto_pressao` a família "Aparelhos Clínicos" — cada um
 /// ainda é um item independente e reordenável/ocultável no painel, só a
@@ -74,10 +74,10 @@ class DashboardWidgetFactory {
           onPressed: data.onFotoPrato,
         );
 
-      case DashboardWidgetId.scannerCodigoBarras:
+      case DashboardWidgetId.fotoRotulo:
         return CameraNutricionalCard(
-          modo: _ModoCameraNutricional.scannerBarcode,
-          onPressed: data.onScanBarcode,
+          modo: _ModoCameraNutricional.fotoRotulo,
+          onPressed: data.onFotoRotulo,
         );
 
       case DashboardWidgetId.fotoBalanca:
@@ -115,8 +115,8 @@ class DashboardWidgetFactory {
         return 'dashboard.widget_recomendacoes_ia_title';
       case DashboardWidgetId.fotoPratoMacros:
         return 'dashboard.widget_foto_prato_title';
-      case DashboardWidgetId.scannerCodigoBarras:
-        return 'dashboard.widget_scanner_barcode_title';
+      case DashboardWidgetId.fotoRotulo:
+        return 'dashboard.widget_rotulo_nutricional_title';
       case DashboardWidgetId.fotoBalanca:
         return 'dashboard.widget_foto_balanca_title';
       case DashboardWidgetId.fotoPressao:
@@ -139,8 +139,8 @@ class DashboardWidgetFactory {
         return 'dashboard.card_recomendacoes_ia_desc';
       case DashboardWidgetId.fotoPratoMacros:
         return 'dashboard.card_foto_prato_desc';
-      case DashboardWidgetId.scannerCodigoBarras:
-        return 'dashboard.card_scanner_barcode_desc';
+      case DashboardWidgetId.fotoRotulo:
+        return 'dashboard.card_rotulo_nutricional_desc';
       case DashboardWidgetId.fotoBalanca:
         return 'dashboard.card_foto_balanca_desc';
       case DashboardWidgetId.fotoPressao:
@@ -229,11 +229,13 @@ class RecomendacoesIaCard extends StatelessWidget {
   }
 }
 
-enum _ModoCameraNutricional { fotoPrato, scannerBarcode }
+enum _ModoCameraNutricional { fotoPrato, fotoRotulo }
 
 /// (b) Card Câmera Nutricional (Misto) — família visual compartilhada por
-/// `foto_prato_macros` (câmera ao vivo, Zero Storage) e
-/// `scanner_codigo_barras` (leitor de código de barras).
+/// `foto_prato_macros` (câmera ao vivo, Zero Storage) e `fotoRotulo`
+/// (fotografa a tabela nutricional impressa; F10 Passo 3 — antes era o
+/// stub de "scanner de código de barras", religado para o extrator de
+/// rótulo real, ver RELATÓRIO).
 class CameraNutricionalCard extends StatelessWidget {
   const CameraNutricionalCard({
     super.key,
@@ -250,18 +252,18 @@ class CameraNutricionalCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final titleKey = _isFotoPrato
         ? 'dashboard.widget_foto_prato_title'
-        : 'dashboard.widget_scanner_barcode_title';
+        : 'dashboard.widget_rotulo_nutricional_title';
     final descriptionKey = _isFotoPrato
         ? 'dashboard.widget_foto_prato_description'
-        : 'dashboard.widget_scanner_barcode_description';
+        : 'dashboard.widget_rotulo_nutricional_description';
     final buttonKey = _isFotoPrato
         ? 'dashboard.widget_foto_prato_button'
-        : 'dashboard.widget_scanner_barcode_button';
+        : 'dashboard.widget_rotulo_nutricional_button';
 
     return _DashboardCardShell(
       icon: _isFotoPrato
           ? Icons.restaurant_outlined
-          : Icons.qr_code_scanner_outlined,
+          : Icons.receipt_long_outlined,
       titleKey: titleKey,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,

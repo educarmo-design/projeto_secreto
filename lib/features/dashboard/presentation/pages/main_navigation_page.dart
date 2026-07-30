@@ -136,17 +136,6 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
     }
   }
 
-  void _handleScanBarcode() {
-    // Leitura de código de barras precisa de um pacote dedicado (ex.:
-    // mobile_scanner) e configuração nativa de câmera que este projeto
-    // ainda não tem (sem pastas android/ios ainda) — o gancho já está
-    // cabeado ponta a ponta (card -> callback -> aqui); falta só plugar o
-    // scanner real quando as plataformas nativas existirem.
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(i18n.tr('dashboard.scanner_barcode_coming_soon'))),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     if (uiProfileSwitcher.isLoading && uiProfileSwitcher.profileType == null) {
@@ -170,7 +159,15 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
       ligaAtual: _liga,
       recomendacaoIaResumo: _recomendacaoIa,
       onFotoPrato: () => _capturarEExibir(TipoAparelho.pratoRefeicao),
-      onScanBarcode: _handleScanBarcode,
+      // Religado ao extrator de rótulo real (F10 Passo 3, ver RELATÓRIO) —
+      // era um stub "em breve" (scanner de código de barras, que ainda
+      // precisa de um pacote nativo que este projeto não tem). Reaproveita
+      // `_capturarEExibir` como `onFotoPrato`: o card não pode devolver um
+      // `HealthPayloadModel` (ver `TipoAparelho.rotulo` em
+      // CameraCaptureController), então o `Navigator.pop` acontece sem
+      // argumento — `_capturarEExibir` já trata `extracted == null` como
+      // "nada a mostrar em diálogo", exatamente o comportamento certo.
+      onFotoRotulo: () => _capturarEExibir(TipoAparelho.rotulo),
       onFotoBalanca: () => _capturarEExibir(TipoAparelho.balanca),
       onFotoPressao: () => _capturarEExibir(TipoAparelho.pressaoArterial),
     );
