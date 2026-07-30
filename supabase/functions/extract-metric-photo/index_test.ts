@@ -25,9 +25,12 @@ import {
   normalizarTexto,
   parseRespostaGemini,
   parseRespostaGeminiPrato,
+  resolverComBuscaSemantica,
   type AlimentoCatalogo,
   type AutenticadorLike,
+  type BuscaSemanticaLike,
   type CatalogoAlimentosLike,
+  type ChamadorEmbedding,
   type ChamadorGemini,
   type ExtracaoGlicose,
   type ExtracaoItemPrato,
@@ -289,6 +292,108 @@ Deno.test('calcularPrato: prato sem itens dá totais zerados (não é erro)', ()
 });
 
 // ============================================================================
+// (b.2) resolverComBuscaSemantica — fallback do casamento léxico (Missão F45)
+// ============================================================================
+function naoReconhecido(
+  over: Partial<{ nome: string; medida: string; quantidade: number; confianca: number }> = {},
+): { nome: string; medida: string; quantidade: number; confianca: number; motivo: 'alimento_nao_encontrado' } {
+  return {
+    nome: 'bifinho',
+    medida: 'colher de sopa',
+    quantidade: 2,
+    confianca: 0.7,
+    motivo: 'alimento_nao_encontrado',
+    ...over,
+  };
+}
+
+function chamadorEmbeddingFixo(vetor: number[] = [0.1]): ChamadorEmbedding {
+  return () => Promise.resolve(vetor);
+}
+
+Deno.test('resolverComBuscaSemantica: sem match nenhum -> item continua não reconhecido', async () => {
+  const semMatch: BuscaSemanticaLike = { buscar: () => Promise.resolve([]) };
+  const r = await resolverComBuscaSemantica(
+    [naoReconhecido()],
+    CATALOGO_TESTE,
+    chamadorEmbeddingFixo(),
+    semMatch,
+  );
+  assertEquals(r.resolvidos.length, 0);
+  assertEquals(r.aindaNaoReconhecidos.length, 1);
+  assertEquals(r.aindaNaoReconhecidos[0].motivo, 'alimento_nao_encontrado');
+});
+
+Deno.test('resolverComBuscaSemantica: match encontrado e medida existe -> resolve com origem semântica', async () => {
+  const comMatch: BuscaSemanticaLike = {
+    buscar: () => Promise.resolve([{ id: 'arroz-id', similarity: 0.81 }]),
+  };
+  const r = await resolverComBuscaSemantica(
+    [naoReconhecido({ nome: 'bifinho', medida: 'colher de sopa', quantidade: 2 })],
+    CATALOGO_TESTE,
+    chamadorEmbeddingFixo(),
+    comMatch,
+  );
+  assertEquals(r.aindaNaoReconhecidos.length, 0);
+  assertEquals(r.resolvidos.length, 1);
+  const item = r.resolvidos[0];
+  assertEquals(item.alimentoCasado, 'Arroz, branco, cozido');
+  assertEquals(item.nomeIdentificado, 'bifinho');
+  assertEquals(item.origemCasamento, 'semantico');
+  assertEquals(item.similaridade, 0.81);
+  assertEquals(item.gramasEstimados, 50);
+  assertEquals(item.calorias, 64);
+});
+
+Deno.test('resolverComBuscaSemantica: id devolvido pela RPC não existe mais no catálogo carregado -> defensivo, não quebra', async () => {
+  const idFantasma: BuscaSemanticaLike = {
+    buscar: () => Promise.resolve([{ id: 'id-que-nao-existe', similarity: 0.9 }]),
+  };
+  const r = await resolverComBuscaSemantica(
+    [naoReconhecido()],
+    CATALOGO_TESTE,
+    chamadorEmbeddingFixo(),
+    idFantasma,
+  );
+  assertEquals(r.resolvidos.length, 0);
+  assertEquals(r.aindaNaoReconhecidos.length, 1);
+});
+
+Deno.test('resolverComBuscaSemantica: match acha o alimento mas não a medida -> motivo vira medida_nao_encontrada', async () => {
+  const feijaoMatch: BuscaSemanticaLike = {
+    buscar: () => Promise.resolve([{ id: 'feijao-id', similarity: 0.77 }]),
+  };
+  const r = await resolverComBuscaSemantica(
+    [naoReconhecido({ nome: 'feijaozinho', medida: 'xícara' })], // feijão só tem "concha média"
+    CATALOGO_TESTE,
+    chamadorEmbeddingFixo(),
+    feijaoMatch,
+  );
+  assertEquals(r.resolvidos.length, 0);
+  assertEquals(r.aindaNaoReconhecidos.length, 1);
+  assertEquals(r.aindaNaoReconhecidos[0].motivo, 'medida_nao_encontrada');
+});
+
+Deno.test('resolverComBuscaSemantica: item com motivo medida_nao_encontrada nunca tenta busca semântica', async () => {
+  let chamou = false;
+  const buscaEspiada: BuscaSemanticaLike = {
+    buscar: () => {
+      chamou = true;
+      return Promise.resolve([]);
+    },
+  };
+  const r = await resolverComBuscaSemantica(
+    [{ ...naoReconhecido(), motivo: 'medida_nao_encontrada' as const }],
+    CATALOGO_TESTE,
+    chamadorEmbeddingFixo(),
+    buscaEspiada,
+  );
+  assertEquals(chamou, false);
+  assertEquals(r.aindaNaoReconhecidos.length, 1);
+  assertEquals(r.aindaNaoReconhecidos[0].motivo, 'medida_nao_encontrada');
+});
+
+// ============================================================================
 // (c) Handler HTTP — com auth/Gemini/catálogo falsos (sem rede, sem API key)
 // ============================================================================
 const AUTH_OK: AutenticadorLike = {
@@ -464,13 +569,32 @@ Deno.test('handler: prato com múltiplos itens soma totais corretamente', async 
   assertEquals(body.totais.calorias, 64 + 61);
 });
 
-Deno.test('handler: alimento fora do catálogo não derruba a requisição — vai para itens_nao_reconhecidos', async () => {
+// Busca semântica falsa: injetável tanto para "nenhum match" (fica em
+// itens_nao_reconhecidos mesmo depois de tentar) quanto para "achou X"
+// (resolve o item). `chamarEmbedding` falso nunca toca a rede — devolve um
+// vetor fixo, o conteúdo não importa porque quem decide o casamento é
+// `buscaSemantica.buscar`, também falso.
+function chamarEmbeddingFalso(): ChamadorEmbedding {
+  return () => Promise.resolve(new Array(768).fill(0.01));
+}
+
+const BUSCA_SEMANTICA_SEM_MATCH: BuscaSemanticaLike = {
+  buscar: () => Promise.resolve([]),
+};
+
+function buscaSemanticaEncontrando(id: string, similarity: number): BuscaSemanticaLike {
+  return { buscar: () => Promise.resolve([{ id, similarity }]) };
+}
+
+Deno.test('handler: alimento fora do catálogo (léxico E semântico) não derruba a requisição — vai para itens_nao_reconhecidos', async () => {
   const res = await createHandler({
     autenticador: AUTH_OK,
     catalogoAlimentos: CATALOGO_FALSO,
     chamarGemini: geminiRespondendo(
       '{"itens":[{"nome":"lasanha","medida":"fatia","quantidade":1,"confianca":0.7}],"possivel_foto_de_tela":false}',
     ),
+    chamarEmbedding: chamarEmbeddingFalso(),
+    buscaSemantica: BUSCA_SEMANTICA_SEM_MATCH,
   })(reqComImagem({ 'X-Tipo-Aparelho': 'pratoRefeicao' }));
 
   assertEquals(res.status, 200); // A.6: não é erro, o usuário decide depois (Passo 3)
@@ -478,6 +602,81 @@ Deno.test('handler: alimento fora do catálogo não derruba a requisição — v
   assertEquals(body.itens.length, 0);
   assertEquals(body.itens_nao_reconhecidos.length, 1);
   assertEquals(body.itens_nao_reconhecidos[0].motivo, 'alimento_nao_encontrado');
+});
+
+Deno.test('handler: casamento léxico falha mas busca semântica acha o alimento — item é calculado normalmente', async () => {
+  const res = await createHandler({
+    autenticador: AUTH_OK,
+    catalogoAlimentos: CATALOGO_FALSO,
+    chamarGemini: geminiRespondendo(
+      '{"itens":[{"nome":"bifinho","medida":"colher de sopa","quantidade":2,"confianca":0.7}],"possivel_foto_de_tela":false}',
+    ),
+    chamarEmbedding: chamarEmbeddingFalso(),
+    // "bifinho" não bate com nada de CATALOGO_TESTE por alias/substring —
+    // só a busca semântica (falsa aqui) resolve, apontando pro arroz-id
+    // (escolha arbitrária de teste; o que importa é provar o fluxo).
+    buscaSemantica: buscaSemanticaEncontrando('arroz-id', 0.81),
+  })(reqComImagem({ 'X-Tipo-Aparelho': 'pratoRefeicao' }));
+
+  assertEquals(res.status, 200);
+  const body = await res.json();
+  assertEquals(body.itens.length, 1);
+  assertEquals(body.itens_nao_reconhecidos.length, 0);
+  const item = body.itens[0];
+  assertEquals(item.nome, 'Arroz, branco, cozido');
+  assertEquals(item.nome_identificado, 'bifinho');
+  assertEquals(item.origem_casamento, 'semantico');
+  assertEquals(item.similaridade, 0.81);
+  // Mesma regra de três de sempre: 2 colheres de sopa = 50g de arroz.
+  assertEquals(item.gramas_estimados, 50);
+  assertEquals(item.calorias, 64);
+  assertEquals(body.totais.calorias, 64);
+});
+
+Deno.test('handler: busca semântica acha o alimento mas a medida não existe pra ele — ainda vai para itens_nao_reconhecidos', async () => {
+  const res = await createHandler({
+    autenticador: AUTH_OK,
+    catalogoAlimentos: CATALOGO_FALSO,
+    chamarGemini: geminiRespondendo(
+      // "xícara" não está cadastrada nas medidas do feijão em CATALOGO_TESTE.
+      '{"itens":[{"nome":"feijaozinho","medida":"xícara","quantidade":1,"confianca":0.7}],"possivel_foto_de_tela":false}',
+    ),
+    chamarEmbedding: chamarEmbeddingFalso(),
+    buscaSemantica: buscaSemanticaEncontrando('feijao-id', 0.77),
+  })(reqComImagem({ 'X-Tipo-Aparelho': 'pratoRefeicao' }));
+
+  assertEquals(res.status, 200);
+  const body = await res.json();
+  assertEquals(body.itens.length, 0);
+  assertEquals(body.itens_nao_reconhecidos.length, 1);
+  assertEquals(body.itens_nao_reconhecidos[0].motivo, 'medida_nao_encontrada');
+});
+
+Deno.test('handler: tudo casa por alias — busca semântica nunca é chamada (caminho comum fica barato)', async () => {
+  let chamouEmbedding = false;
+  let chamouBusca = false;
+
+  const res = await createHandler({
+    autenticador: AUTH_OK,
+    catalogoAlimentos: CATALOGO_FALSO,
+    chamarGemini: geminiRespondendo(
+      '{"itens":[{"nome":"arroz","medida":"colher de sopa","quantidade":2,"confianca":0.9}],"possivel_foto_de_tela":false}',
+    ),
+    chamarEmbedding: () => {
+      chamouEmbedding = true;
+      return Promise.resolve(new Array(768).fill(0));
+    },
+    buscaSemantica: {
+      buscar: () => {
+        chamouBusca = true;
+        return Promise.resolve([]);
+      },
+    },
+  })(reqComImagem({ 'X-Tipo-Aparelho': 'pratoRefeicao' }));
+
+  assertEquals(res.status, 200);
+  assertEquals(chamouEmbedding, false);
+  assertEquals(chamouBusca, false);
 });
 
 Deno.test('handler: prato vazio (Gemini não identificou nada) -> 200 com listas vazias', async () => {

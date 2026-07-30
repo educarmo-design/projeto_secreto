@@ -105,6 +105,20 @@ const MODELO_GEMINI_PADRAO = 'gemini-flash-latest';
 const GEMINI_ENDPOINT_BASE =
   'https://generativelanguage.googleapis.com/v1beta/models';
 
+// Busca semântica (Missão F45/Adendo v5.1 A.3) — fallback só para itens que
+// `encontrarAlimento` (exato/substring) não achou. Mesmo modelo/dimensão de
+// scripts/seed_food_embeddings.ts e supabase/functions/search-food/index.ts
+// — os três precisam concordar, ou os vetores não ficam comparáveis entre
+// si (ver nota em `resolverComBuscaSemantica`).
+const MODELO_EMBEDDING = 'gemini-embedding-001';
+const GEMINI_EMBED_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${MODELO_EMBEDDING}:embedContent`;
+const DIMENSOES_EMBEDDING = 768;
+// Mesmo valor padrão de search-food/index.ts — abaixo disso o "casamento"
+// semântico já não significa o mesmo alimento, é só um item vagamente
+// parecido; melhor deixar em itens_nao_reconhecidos do que arriscar um
+// cálculo de calorias para o alimento errado.
+const BUSCA_SEMANTICA_THRESHOLD = 0.5;
+
 // Nomes que o cliente manda em `X-Tipo-Aparelho` (é `TipoAparelho.name` do
 // enum Dart). glicosimetro (Passo 1) e pratoRefeicao (Passo 2) estão
 // implementados; os demais respondem 422 "ainda não implementado" — honesto
@@ -246,16 +260,30 @@ export interface ItemPratoCalculado {
   carboidratosG: number;
   gordurasG: number;
   confianca: number;
+  /// Presente só quando o casamento NÃO veio de `encontrarAlimento`
+  /// (exato/substring) — veio da busca semântica (`resolverComBuscaSemantica`)
+  /// depois que o casamento léxico não achou nada. Ausente (undefined) no
+  /// caminho normal para não sujar a resposta com um campo irrelevante na
+  /// grande maioria dos itens.
+  origemCasamento?: 'semantico';
+  /// Similaridade de cosseno (0..1) que a RPC `match_alimentos` devolveu —
+  /// só presente junto com `origemCasamento: 'semantico'`.
+  similaridade?: number;
 }
 
 /// Item que o Gemini identificou mas que o backend NÃO conseguiu calcular —
-/// alimento fora do catálogo, ou medida caseira sem conversão cadastrada
+/// alimento fora do catálogo (mesmo depois da busca semântica, ver
+/// `resolverComBuscaSemantica`), ou medida caseira sem conversão cadastrada
 /// para aquele alimento. Nunca é silenciosamente descartado: fica visível
 /// para o usuário/telemetria decidir o que fazer (Passo 3 adiciona a busca
-/// manual; aqui só registramos o motivo).
+/// manual; aqui só registramos o motivo). Carrega `quantidade`/`confianca`
+/// (não só nome/medida) porque `resolverComBuscaSemantica` precisa deles
+/// para completar a regra de três se achar um casamento semântico depois.
 export interface ItemPratoNaoReconhecido {
   nome: string;
   medida: string;
+  quantidade: number;
+  confianca: number;
   motivo: 'alimento_nao_encontrado' | 'medida_nao_encontrada';
 }
 
@@ -274,6 +302,25 @@ export interface CalculoPrato {
 /// memória, sem tocar o banco), mesma filosofia do `chamarGemini` falso.
 export interface CatalogoAlimentosLike {
   carregar(): Promise<AlimentoCatalogo[]>;
+}
+
+/// Gera o embedding de um texto de busca — assinatura própria de
+/// `search-food/index.ts` (mesmo par assimétrico RETRIEVAL_QUERY),
+/// injetável para teste. Recebe só o nome do alimento buscado.
+export type ChamadorEmbedding = (texto: string) => Promise<number[]>;
+
+/// Um resultado bruto da RPC `match_alimentos` — só o suficiente para achar
+/// a linha correspondente em `catalogo` (que já tem as medidas) e saber o
+/// quão confiável foi o casamento.
+export interface MatchSemantico {
+  id: string;
+  similarity: number;
+}
+
+/// Consulta a RPC `match_alimentos` — injetável para teste (lista fixa em
+/// memória, sem tocar o banco), mesma filosofia de `CatalogoAlimentosLike`.
+export interface BuscaSemanticaLike {
+  buscar(embedding: number[]): Promise<MatchSemantico[]>;
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -308,6 +355,8 @@ interface HandlerDeps {
   autenticador?: AutenticadorLike;
   chamarGemini?: ChamadorGemini;
   catalogoAlimentos?: CatalogoAlimentosLike;
+  chamarEmbedding?: ChamadorEmbedding;
+  buscaSemantica?: BuscaSemanticaLike;
 }
 
 class ErroHttp extends Error {
@@ -496,11 +545,63 @@ function arredondar(valor: number, casas: number): number {
   return Math.round(valor * fator) / fator;
 }
 
+/// A regra de três em si — `gramas = medida.gramas * quantidade`, depois
+/// `macro = (macro_por_100g / 100) * gramas` — extraída para ser reusada
+/// tanto por `calcularPrato` (casamento léxico) quanto por
+/// `resolverComBuscaSemantica` (casamento semântico): o CÁLCULO é sempre o
+/// mesmo determinístico, só muda COMO o `alimento` foi encontrado.
+function calcularItem(params: {
+  alimento: AlimentoCatalogo;
+  medida: MedidaCaseiraCatalogo;
+  nomeIdentificado: string;
+  medidaTexto: string;
+  quantidade: number;
+  confianca: number;
+  origemCasamento?: 'semantico';
+  similaridade?: number;
+}): ItemPratoCalculado {
+  const gramas = params.medida.gramas * params.quantidade;
+  return {
+    nomeIdentificado: params.nomeIdentificado,
+    alimentoCasado: params.alimento.nomeTaco,
+    medida: params.medidaTexto,
+    quantidade: params.quantidade,
+    gramasEstimados: arredondar(gramas, 0),
+    calorias: arredondar((params.alimento.caloriasKcal100g / 100) * gramas, 0),
+    proteinasG: arredondar((params.alimento.proteinasG100g / 100) * gramas, 1),
+    carboidratosG: arredondar((params.alimento.carboidratosG100g / 100) * gramas, 1),
+    gordurasG: arredondar((params.alimento.gordurasG100g / 100) * gramas, 1),
+    confianca: params.confianca,
+    ...(params.origemCasamento ? { origemCasamento: params.origemCasamento } : {}),
+    ...(params.similaridade !== undefined ? { similaridade: params.similaridade } : {}),
+  };
+}
+
+function somarTotais(itens: ItemPratoCalculado[]): CalculoPrato['totais'] {
+  const somaBruta = itens.reduce(
+    (acc, i) => ({
+      calorias: acc.calorias + i.calorias,
+      proteinasG: acc.proteinasG + i.proteinasG,
+      carboidratosG: acc.carboidratosG + i.carboidratosG,
+      gordurasG: acc.gordurasG + i.gordurasG,
+    }),
+    { calorias: 0, proteinasG: 0, carboidratosG: 0, gordurasG: 0 },
+  );
+  return {
+    calorias: arredondar(somaBruta.calorias, 0),
+    proteinasG: arredondar(somaBruta.proteinasG, 1),
+    carboidratosG: arredondar(somaBruta.carboidratosG, 1),
+    gordurasG: arredondar(somaBruta.gordurasG, 1),
+  };
+}
+
 /// O CÁLCULO — a única função deste arquivo que produz um número
 /// nutricional, e o único lugar do sistema que faz essa conta (A.2: "o
-/// Gemini NÃO calcula, apenas identifica"). Regra de três pura:
-/// `gramas = medida.gramas * quantidade`, depois `macro = (macro_por_100g /
-/// 100) * gramas` — determinístico, reproduzível, auditável, sem LLM.
+/// Gemini NÃO calcula, apenas identifica"). Só tenta o casamento léxico
+/// (`encontrarAlimento`, exato/substring) — quem chama (`processarPratoRefeicao`)
+/// decide se vale a pena tentar a busca semântica depois para o que sobrar
+/// em `itensNaoReconhecidos`, porque essa segunda tentativa precisa de I/O
+/// (Gemini + banco) que esta função, deliberadamente pura, não faz.
 export function calcularPrato(
   itensExtraidos: ExtracaoItemPrato[],
   catalogo: AlimentoCatalogo[],
@@ -514,6 +615,8 @@ export function calcularPrato(
       itensNaoReconhecidos.push({
         nome: item.nome,
         medida: item.medida,
+        quantidade: item.quantidade,
+        confianca: item.confianca,
         motivo: 'alimento_nao_encontrado',
       });
       continue;
@@ -524,46 +627,98 @@ export function calcularPrato(
       itensNaoReconhecidos.push({
         nome: item.nome,
         medida: item.medida,
+        quantidade: item.quantidade,
+        confianca: item.confianca,
         motivo: 'medida_nao_encontrada',
       });
       continue;
     }
 
-    const gramas = medida.gramas * item.quantidade;
-    itens.push({
-      nomeIdentificado: item.nome,
-      alimentoCasado: alimento.nomeTaco,
-      medida: item.medida,
-      quantidade: item.quantidade,
-      gramasEstimados: arredondar(gramas, 0),
-      calorias: arredondar((alimento.caloriasKcal100g / 100) * gramas, 0),
-      proteinasG: arredondar((alimento.proteinasG100g / 100) * gramas, 1),
-      carboidratosG: arredondar((alimento.carboidratosG100g / 100) * gramas, 1),
-      gordurasG: arredondar((alimento.gordurasG100g / 100) * gramas, 1),
-      confianca: item.confianca,
-    });
+    itens.push(
+      calcularItem({
+        alimento,
+        medida,
+        nomeIdentificado: item.nome,
+        medidaTexto: item.medida,
+        quantidade: item.quantidade,
+        confianca: item.confianca,
+      }),
+    );
   }
 
-  const somaBruta = itens.reduce(
-    (acc, i) => ({
-      calorias: acc.calorias + i.calorias,
-      proteinasG: acc.proteinasG + i.proteinasG,
-      carboidratosG: acc.carboidratosG + i.carboidratosG,
-      gordurasG: acc.gordurasG + i.gordurasG,
-    }),
-    { calorias: 0, proteinasG: 0, carboidratosG: 0, gordurasG: 0 },
+  return { itens, itensNaoReconhecidos, totais: somarTotais(itens) };
+}
+
+/// Segunda tentativa, só para os itens que `calcularPrato` não conseguiu
+/// casar por igualdade/substring (`motivo === 'alimento_nao_encontrado'` —
+/// `medida_nao_encontrada` já achou o alimento exato, busca semântica não
+/// ajudaria nesse caso). Para cada um: gera o embedding do nome buscado
+/// (mesmo par assimétrico RETRIEVAL_QUERY/normalização L2 de
+/// `search-food/index.ts`, para casar com o RETRIEVAL_DOCUMENT que
+/// `scripts/seed_food_embeddings.ts` usou para gerar o embedding do
+/// catálogo), consulta `match_alimentos`, e se achar uma linha, resolve a
+/// medida contra ESSE alimento — usando o `catalogo` completo já carregado
+/// em memória (a RPC devolve só id/nome/macros, não as medidas) — e calcula
+/// pela MESMA regra de três de `calcularPrato` (`calcularItem`). Roda em
+/// paralelo (`Promise.all`): um item não espera o outro.
+export async function resolverComBuscaSemantica(
+  itensNaoReconhecidos: ItemPratoNaoReconhecido[],
+  catalogo: AlimentoCatalogo[],
+  chamarEmbedding: ChamadorEmbedding,
+  buscaSemantica: BuscaSemanticaLike,
+): Promise<{ resolvidos: ItemPratoCalculado[]; aindaNaoReconhecidos: ItemPratoNaoReconhecido[] }> {
+  const candidatos = itensNaoReconhecidos.filter((i) => i.motivo === 'alimento_nao_encontrado');
+  const semCandidato = itensNaoReconhecidos.filter((i) => i.motivo !== 'alimento_nao_encontrado');
+
+  const resultados = await Promise.all(
+    candidatos.map(
+      async (item): Promise<{ resolvido: ItemPratoCalculado | null; naoReconhecido: ItemPratoNaoReconhecido | null }> => {
+        const embedding = await chamarEmbedding(item.nome);
+        const matches = await buscaSemantica.buscar(embedding);
+        const melhor = matches[0];
+        if (!melhor) return { resolvido: null, naoReconhecido: item };
+
+        // Defensivo: a RPC só enxerga o que está em `alimentos_referencia`
+        // no banco no exato instante da consulta — `catalogo` foi carregado
+        // no mesmo request, então na prática sempre bate, mas nunca confie
+        // cegamente num id vindo de fora sem confirmar que ele existe aqui.
+        const alimento = catalogo.find((a) => a.id === melhor.id);
+        if (!alimento) return { resolvido: null, naoReconhecido: item };
+
+        const medida = encontrarMedida(alimento, item.medida);
+        if (!medida) {
+          return {
+            resolvido: null,
+            naoReconhecido: { ...item, motivo: 'medida_nao_encontrada' },
+          };
+        }
+
+        return {
+          resolvido: calcularItem({
+            alimento,
+            medida,
+            nomeIdentificado: item.nome,
+            medidaTexto: item.medida,
+            quantidade: item.quantidade,
+            confianca: item.confianca,
+            origemCasamento: 'semantico',
+            similaridade: arredondar(melhor.similarity, 3),
+          }),
+          naoReconhecido: null,
+        };
+      },
+    ),
   );
 
-  return {
-    itens,
-    itensNaoReconhecidos,
-    totais: {
-      calorias: arredondar(somaBruta.calorias, 0),
-      proteinasG: arredondar(somaBruta.proteinasG, 1),
-      carboidratosG: arredondar(somaBruta.carboidratosG, 1),
-      gordurasG: arredondar(somaBruta.gordurasG, 1),
-    },
-  };
+  const resolvidos = resultados
+    .map((r) => r.resolvido)
+    .filter((r): r is ItemPratoCalculado => r !== null);
+  const aindaNaoReconhecidos = [
+    ...semCandidato,
+    ...resultados.map((r) => r.naoReconhecido).filter((r): r is ItemPratoNaoReconhecido => r !== null),
+  ];
+
+  return { resolvidos, aindaNaoReconhecidos };
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -664,6 +819,86 @@ export function criarChamadorGeminiReal(apiKey: string, modelo: string): Chamado
       return '{}';
     }
     return texto;
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Busca semântica — embedding do termo + RPC match_alimentos (fallback do
+// Passo 2, só quando o casamento léxico não acha nada)
+// ─────────────────────────────────────────────────────────────────────────
+
+/// Reescala para norma L2 = 1 — mesma correção de `seed_food_embeddings.ts`/
+/// `search-food/index.ts`: `outputDimensionality` (Matryoshka) não devolve o
+/// vetor já normalizado. Sem isto o termo de busca ficaria numa escala
+/// diferente do catálogo (que já foi normalizado na ingestão).
+function normalizarL2(values: number[]): number[] {
+  const norma = Math.sqrt(values.reduce((soma, v) => soma + v * v, 0));
+  if (norma === 0) return values;
+  return values.map((v) => v / norma);
+}
+
+export function criarChamadorEmbeddingReal(apiKey: string): ChamadorEmbedding {
+  return async (texto: string) => {
+    const resposta = await fetch(`${GEMINI_EMBED_ENDPOINT}?key=${apiKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        content: { parts: [{ text: texto }] },
+        taskType: 'RETRIEVAL_QUERY',
+        outputDimensionality: DIMENSOES_EMBEDDING,
+      }),
+    });
+
+    if (!resposta.ok) {
+      const corpoErro = await resposta.text();
+      throw new ErroHttp(502, `Gemini embedContent falhou (HTTP ${resposta.status}): ${corpoErro}`);
+    }
+
+    const json = await resposta.json();
+    const values = json?.embedding?.values as number[] | undefined;
+    if (!values || values.length !== DIMENSOES_EMBEDDING) {
+      throw new ErroHttp(
+        502,
+        `Embedding do Gemini com formato inesperado: esperava ${DIMENSOES_EMBEDDING} dimensões, recebeu ${values?.length ?? 0}.`,
+      );
+    }
+
+    return normalizarL2(values);
+  };
+}
+
+/// Consulta `match_alimentos` usando o JWT do PRÓPRIO usuário — mesma regra
+/// de menor privilégio de `criarCatalogoAlimentosReal`: a função já concede
+/// `execute` a `authenticated` (20260729120000_create_match_alimentos.sql),
+/// não precisa da service_role.
+function criarBuscaSemanticaReal(
+  supabaseUrl: string,
+  anonKey: string,
+  jwt: string,
+): BuscaSemanticaLike {
+  return {
+    async buscar(embedding: number[]) {
+      const client = createClient(supabaseUrl, anonKey, {
+        global: { headers: { Authorization: `Bearer ${jwt}` } },
+      });
+      // Mesma técnica de `criarCatalogoAlimentosReal`/
+      // `scripts/seed_food_embeddings.ts`: `vector` não é array nativo do
+      // Postgres — PostgREST não converte um array JSON puro para ele. A
+      // string "[v1,v2,...]" (JSON.stringify de um array de números)
+      // funciona porque pgvector aceita esse texto como entrada literal.
+      const { data, error } = await client.rpc('match_alimentos', {
+        query_embedding: JSON.stringify(embedding),
+        match_threshold: BUSCA_SEMANTICA_THRESHOLD,
+        match_count: 1,
+      });
+      if (error) {
+        throw new ErroHttp(500, `Erro na busca semântica: ${error.message}`);
+      }
+      return ((data ?? []) as Array<{ id: string; similarity: number }>).map((row) => ({
+        id: row.id,
+        similarity: row.similarity,
+      }));
+    },
   };
 }
 
@@ -829,11 +1064,38 @@ export function createHandler(deps: HandlerDeps = {}) {
         catalogoAlimentos = criarCatalogoAlimentosReal(supabaseUrl, anonKey, jwt);
       }
 
+      // Fábricas, NÃO instâncias já construídas — diferente de `chamarGemini`
+      // acima (que roda em toda foto, glicosímetro ou prato), a busca
+      // semântica só é necessária quando sobra item não reconhecido pelo
+      // casamento léxico, e isso só se sabe DEPOIS de rodar `calcularPrato`
+      // dentro de `processarPratoRefeicao`. Chamar `criarChamadorEmbeddingReal`/
+      // `criarBuscaSemanticaReal` (ou checar GEMINI_API_KEY) eagerly aqui
+      // quebraria o caminho comum — prato onde tudo já casa por alias nunca
+      // deveria exigir GEMINI_API_KEY duas vezes nem tocar o banco de novo.
+      const obterChamarEmbedding = (): ChamadorEmbedding => {
+        if (deps.chamarEmbedding) return deps.chamarEmbedding;
+        const apiKey = Deno.env.get('GEMINI_API_KEY');
+        if (!apiKey) {
+          throw new ErroHttp(500, 'GEMINI_API_KEY não configurada no servidor.');
+        }
+        return criarChamadorEmbeddingReal(apiKey);
+      };
+
+      const obterBuscaSemantica = (): BuscaSemanticaLike => {
+        if (deps.buscaSemantica) return deps.buscaSemantica;
+        if (!supabaseUrl || !anonKey) {
+          throw new ErroHttp(500, 'Configuração do servidor incompleta.');
+        }
+        return criarBuscaSemanticaReal(supabaseUrl, anonKey, jwt);
+      };
+
       return await processarPratoRefeicao({
         base64,
         mimeType,
         chamarGemini,
         catalogoAlimentos,
+        obterChamarEmbedding,
+        obterBuscaSemantica,
       });
     } catch (erro) {
       if (erro instanceof ErroHttp) {
@@ -908,6 +1170,10 @@ async function processarPratoRefeicao(params: {
   mimeType: string;
   chamarGemini: ChamadorGemini;
   catalogoAlimentos: CatalogoAlimentosLike;
+  /// Fábricas, não instâncias — só invocadas se sobrar item não reconhecido
+  /// pelo casamento léxico (ver comentário no handler).
+  obterChamarEmbedding: () => ChamadorEmbedding;
+  obterBuscaSemantica: () => BuscaSemanticaLike;
 }): Promise<Response> {
   // Gemini (identificação) e catálogo (banco) não dependem um do outro —
   // rodam em paralelo para não somar as duas latências.
@@ -925,10 +1191,32 @@ async function processarPratoRefeicao(params: {
   // O CÁLCULO é inteiramente do backend — o Gemini nunca viu `catalogo`.
   const calculo = calcularPrato(extracao.itens, catalogo);
 
+  // Segunda tentativa (Missão F45): só roda I/O extra (Gemini + banco) se
+  // sobrou algo que o casamento léxico não achou — o caminho comum (tudo já
+  // casa por alias) nunca paga esse custo.
+  const temCandidatoSemantico = calculo.itensNaoReconhecidos.some(
+    (item) => item.motivo === 'alimento_nao_encontrado',
+  );
+  const itensFinais = [...calculo.itens];
+  let itensNaoReconhecidosFinais = calculo.itensNaoReconhecidos;
+
+  if (temCandidatoSemantico) {
+    const { resolvidos, aindaNaoReconhecidos } = await resolverComBuscaSemantica(
+      calculo.itensNaoReconhecidos,
+      catalogo,
+      params.obterChamarEmbedding(),
+      params.obterBuscaSemantica(),
+    );
+    itensFinais.push(...resolvidos);
+    itensNaoReconhecidosFinais = aindaNaoReconhecidos;
+  }
+
+  const totaisFinais = somarTotais(itensFinais);
+
   return jsonResponse(
     {
       tipo_captura: TIPO_PRATO_REFEICAO,
-      itens: calculo.itens.map((item) => ({
+      itens: itensFinais.map((item) => ({
         nome: item.alimentoCasado,
         nome_identificado: item.nomeIdentificado,
         medida: item.medida,
@@ -939,17 +1227,19 @@ async function processarPratoRefeicao(params: {
         carboidratos_g: item.carboidratosG,
         gorduras_g: item.gordurasG,
         confianca: item.confianca,
+        ...(item.origemCasamento ? { origem_casamento: item.origemCasamento } : {}),
+        ...(item.similaridade !== undefined ? { similaridade: item.similaridade } : {}),
       })),
-      itens_nao_reconhecidos: calculo.itensNaoReconhecidos.map((item) => ({
+      itens_nao_reconhecidos: itensNaoReconhecidosFinais.map((item) => ({
         nome: item.nome,
         medida: item.medida,
         motivo: item.motivo,
       })),
       totais: {
-        calorias: calculo.totais.calorias,
-        proteinas_g: calculo.totais.proteinasG,
-        carboidratos_g: calculo.totais.carboidratosG,
-        gorduras_g: calculo.totais.gordurasG,
+        calorias: totaisFinais.calorias,
+        proteinas_g: totaisFinais.proteinasG,
+        carboidratos_g: totaisFinais.carboidratosG,
+        gorduras_g: totaisFinais.gordurasG,
       },
       possivel_foto_de_tela: extracao.possivelFotoDeTela,
     },
