@@ -147,6 +147,7 @@
     "camera_option": "Tirar Foto do Visor do Aparelho",
     "camera_option_description": "Para glicosímetro, aparelho de pressão ou balança sem Bluetooth",
     "camera_option_prato_refeicao": "Fotografar Refeição",
+    "camera_option_rotulo": "Fotografar Rótulo Nutricional",
     "device_type_label": "Tipo de Aparelho",
     "device_type_glucose": "Glicosímetro",
     "device_type_blood_pressure": "Aparelho de Pressão",
@@ -221,10 +222,9 @@
     "widget_foto_prato_button": "Tirar Foto do Prato",
     "widget_foto_prato_zero_storage_note": "Zero Storage: a foto nunca é salva no aparelho",
 
-    "widget_scanner_barcode_title": "Scanner de Código de Barras",
-    "widget_scanner_barcode_description": "Leia o código de barras de um alimento embalado",
-    "widget_scanner_barcode_button": "Escanear Código",
-    "scanner_barcode_coming_soon": "Scanner de código de barras em breve",
+    "widget_rotulo_nutricional_title": "Fotografar Rótulo",
+    "widget_rotulo_nutricional_description": "Fotografe a tabela nutricional de um alimento embalado",
+    "widget_rotulo_nutricional_button": "Fotografar Rótulo",
 
     "widget_foto_balanca_title": "Balança",
     "widget_foto_balanca_description": "Capture o visor da sua balança sem Bluetooth",
@@ -247,7 +247,7 @@
 
     "card_recomendacoes_ia_desc": "Resumo convidativo dos seus relatórios",
     "card_foto_prato_desc": "Foto ao vivo do prato para estimar macros",
-    "card_scanner_barcode_desc": "Leitura de código de barras de alimentos",
+    "card_rotulo_nutricional_desc": "Leitura da tabela nutricional de um rótulo",
     "card_foto_balanca_desc": "Captura do visor da balança sem Bluetooth",
     "card_foto_pressao_desc": "Captura do visor do aparelho de pressão sem Bluetooth",
     "card_garmin_desc": "Minutos e distância sincronizados do wearable",

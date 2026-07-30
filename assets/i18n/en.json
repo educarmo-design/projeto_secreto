@@ -147,6 +147,7 @@
     "camera_option": "Take a Photo of the Device Display",
     "camera_option_description": "For a glucometer, blood pressure monitor, or scale without Bluetooth",
     "camera_option_prato_refeicao": "Photograph Meal",
+    "camera_option_rotulo": "Photograph Nutrition Label",
     "device_type_label": "Device Type",
     "device_type_glucose": "Glucometer",
     "device_type_blood_pressure": "Blood Pressure Monitor",
@@ -221,10 +222,9 @@
     "widget_foto_prato_button": "Take a Photo of the Plate",
     "widget_foto_prato_zero_storage_note": "Zero Storage: the photo is never saved on the device",
 
-    "widget_scanner_barcode_title": "Barcode Scanner",
-    "widget_scanner_barcode_description": "Scan a packaged food's barcode",
-    "widget_scanner_barcode_button": "Scan Barcode",
-    "scanner_barcode_coming_soon": "Barcode scanner coming soon",
+    "widget_rotulo_nutricional_title": "Photograph Label",
+    "widget_rotulo_nutricional_description": "Photograph a packaged food's nutrition facts label",
+    "widget_rotulo_nutricional_button": "Photograph Label",
 
     "widget_foto_balanca_title": "Scale",
     "widget_foto_balanca_description": "Capture your Bluetooth-less scale's display",
@@ -247,7 +247,7 @@
 
     "card_recomendacoes_ia_desc": "Inviting summary of your reports",
     "card_foto_prato_desc": "Live photo of your plate to estimate macros",
-    "card_scanner_barcode_desc": "Scan a food's barcode",
+    "card_rotulo_nutricional_desc": "Reads a nutrition facts label",
     "card_foto_balanca_desc": "Capture your Bluetooth-less scale's display",
     "card_foto_pressao_desc": "Capture your Bluetooth-less blood pressure monitor's display",
     "card_garmin_desc": "Minutes and distance synced from your wearable",

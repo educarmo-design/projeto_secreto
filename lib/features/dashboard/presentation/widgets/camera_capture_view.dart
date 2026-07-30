@@ -14,10 +14,11 @@ import '../controllers/camera_capture_controller.dart';
 /// [SeniorDashboardPage] (dedicated Balança/Pressão buttons), so the actual
 /// capture/upload/zero-storage pipeline exists in exactly one place. Pops
 /// with the extracted [HealthPayloadModel] on success, or `null` if the user
-/// backs out. Exception: [TipoAparelho.pratoRefeicao] (F10 Passo 2) never
-/// pops a [HealthPayloadModel] — its server-calculated JSON result doesn't
-/// fit that fixed-column model, so it's shown crude/in-place instead (see
-/// [_buildRawFoodResult]).
+/// backs out. Exceptions: [TipoAparelho.pratoRefeicao] (F10 Passo 2) and
+/// [TipoAparelho.rotulo] (F10 Passo 3) never pop a [HealthPayloadModel] —
+/// their server-calculated/transcribed JSON result doesn't fit that
+/// fixed-column model, so it's shown crude/in-place instead (see
+/// [_buildRawResult]).
 class CameraCaptureView extends StatefulWidget {
   const CameraCaptureView({super.key, required this.tipoAparelho});
 
@@ -39,15 +40,17 @@ class _CameraCaptureViewState extends State<CameraCaptureView> {
 
   void _onStateChanged() {
     if (_controller.value.isSuccess) {
-      // F10 Passo 2 (Adendo v5.1 §B): prato de comida não tem tela de
-      // confirmação bonita ainda — o resultado (já calculado pelo backend,
-      // A.2) fica visível NESTA tela, crua, em vez de fechar com pop. Os
-      // demais tipos (glicosímetro/pressão/balança) mantêm o comportamento
-      // já existente: fecham devolvendo o [HealthPayloadModel] typado.
-      if (widget.tipoAparelho == TipoAparelho.pratoRefeicao) {
+      // F10 Passo 2/3 (Adendo v5.1 §B): prato de comida e rótulo nutricional
+      // não têm tela de confirmação bonita ainda — o resultado (já
+      // calculado/transcrito pelo backend, A.2) fica visível NESTA tela,
+      // crua, em vez de fechar com pop. Os demais tipos (glicosímetro/
+      // pressão/balança) mantêm o comportamento já existente: fecham
+      // devolvendo o [HealthPayloadModel] typado.
+      if (widget.tipoAparelho == TipoAparelho.pratoRefeicao ||
+          widget.tipoAparelho == TipoAparelho.rotulo) {
         debugPrint(
-          'F10 Passo 2 — resultado do prato: '
-          '${jsonEncode(_controller.value.rawFoodResult)}',
+          'F10 — resultado de ${widget.tipoAparelho.name}: '
+          '${jsonEncode(_controller.value.rawResult)}',
         );
         setState(() {});
         return;
@@ -94,12 +97,15 @@ class _CameraCaptureViewState extends State<CameraCaptureView> {
 
   /// Título da tela varia por [TipoAparelho]: "Tirar Foto do Visor do
   /// Aparelho" descreve corretamente o glicosímetro/pressão/balança, mas
-  /// nunca fez sentido para [TipoAparelho.pratoRefeicao] — a câmera
-  /// Nutricional do perfil Atleta reaproveitava o mesmo texto por engano.
+  /// nunca fez sentido para [TipoAparelho.pratoRefeicao]/[TipoAparelho.rotulo]
+  /// — a câmera Nutricional do perfil Atleta reaproveitava o mesmo texto
+  /// por engano.
   static String _chaveTituloAppBar(TipoAparelho tipo) {
     switch (tipo) {
       case TipoAparelho.pratoRefeicao:
         return 'dashboard.camera_option_prato_refeicao';
+      case TipoAparelho.rotulo:
+        return 'dashboard.camera_option_rotulo';
       case TipoAparelho.glicosimetro:
       case TipoAparelho.pressaoArterial:
       case TipoAparelho.balanca:
@@ -176,9 +182,9 @@ class _CameraCaptureViewState extends State<CameraCaptureView> {
         );
 
       case CameraCaptureStatus.success:
-        final resultado = state.rawFoodResult;
+        final resultado = state.rawResult;
         if (resultado != null) {
-          return _buildRawFoodResult(resultado);
+          return _buildRawResult(resultado);
         }
         // Demais tipos: `_onStateChanged` já fez `Navigator.pop` antes deste
         // frame renderizar de fato — este spinner só cobre o instante entre
@@ -189,13 +195,13 @@ class _CameraCaptureViewState extends State<CameraCaptureView> {
     }
   }
 
-  /// F10 Passo 2 (Adendo v5.1 §B — "completa funcionalmente, crua
-  /// visualmente"): mostra o JSON JÁ CALCULADO pelo backend (itens + macros
-  /// determinísticos via `alimentos_referencia`, A.2) sem nenhum
-  /// acabamento visual. A funcionalidade é real — os números são os finais,
-  /// prontos para a futura tela de confirmação (Passo 3) — só a aparência
-  /// fica para depois.
-  Widget _buildRawFoodResult(Map<String, dynamic> resultado) {
+  /// F10 Passo 2/3 (Adendo v5.1 §B — "completa funcionalmente, crua
+  /// visualmente"): mostra o JSON JÁ CALCULADO/TRANSCRITO pelo backend
+  /// (itens + macros determinísticos via `alimentos_referencia` para
+  /// prato, A.2; ou porção/macros/ingredientes já lidos do rótulo impresso
+  /// para rótulo, A.8.3) sem nenhum acabamento visual. A funcionalidade é
+  /// real — os números são os finais — só a aparência fica para depois.
+  Widget _buildRawResult(Map<String, dynamic> resultado) {
     const encoder = JsonEncoder.withIndent('  ');
     return SafeArea(
       child: Column(
