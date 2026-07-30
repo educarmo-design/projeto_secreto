@@ -156,6 +156,20 @@ class AppConfig {
         : '$supabaseUrl/functions/v1/manage-professional-link';
   }
 
+  /// Endpoint of the `search-food` Edge Function (Adendo v5.1 §A.3/§C.3 —
+  /// "Cérebro da Busca"): recebe `{"query": "texto"}` e devolve os alimentos
+  /// mais próximos por similaridade de embedding, para a Busca Manual de
+  /// Alimentos (registro manual quando o usuário não quer usar a câmera).
+  /// Same zero-new-infra convention as the other endpoints above; override
+  /// via `--dart-define=SEARCH_FOOD_ENDPOINT=...` for a standalone
+  /// deployment.
+  static String get searchFoodEndpoint {
+    const override = String.fromEnvironment('SEARCH_FOOD_ENDPOINT');
+    return override.isNotEmpty
+        ? override
+        : '$supabaseUrl/functions/v1/search-food';
+  }
+
   /// Deep link scheme the Google/Apple OAuth browser redirect returns to.
   /// `signInWithOAuth` hands this to the identity provider; the actual
   /// session only lands back in-app once the OS routes that deep link to

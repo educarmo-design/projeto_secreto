@@ -333,7 +333,8 @@
     "manage_links_item": "Invitaciones de Profesionales",
     "heart_rate_test_item": "Probar Lectura de Frecuencia Cardíaca",
     "weight_test_item": "Probar Lectura de Peso",
-    "sleep_test_item": "Probar Lectura de Sueño"
+    "sleep_test_item": "Probar Lectura de Sueño",
+    "manual_food_search_item": "Búsqueda Manual de Alimentos"
   },
 
   "vinculos": {
@@ -359,6 +360,15 @@
       "Personal_Trainer": "Entrenador Personal",
       "Auditoria_Seguradora": "Auditoría de Seguros"
     }
+  },
+
+  "food_search": {
+    "title": "Búsqueda Manual de Alimentos",
+    "hint": "Escribe el nombre del alimento (ej.: bistec)",
+    "search_button": "Buscar",
+    "idle_hint": "Escribe algo y toca Buscar para ver alimentos parecidos.",
+    "empty_state": "No se encontró ningún alimento parecido.",
+    "result_subtitle": "{{calorias}} kcal · {{proteinas}}g prot · {{carboidratos}}g carb · {{gorduras}}g grasa (por 100g)"
   },
 
   "intelligence": {

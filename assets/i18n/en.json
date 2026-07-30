@@ -333,7 +333,8 @@
     "manage_links_item": "Professional Invitations",
     "heart_rate_test_item": "Test Heart Rate Reading",
     "weight_test_item": "Test Weight Reading",
-    "sleep_test_item": "Test Sleep Reading"
+    "sleep_test_item": "Test Sleep Reading",
+    "manual_food_search_item": "Manual Food Search"
   },
 
   "vinculos": {
@@ -359,6 +360,15 @@
       "Personal_Trainer": "Personal Trainer",
       "Auditoria_Seguradora": "Insurance Audit"
     }
+  },
+
+  "food_search": {
+    "title": "Manual Food Search",
+    "hint": "Type the food name (e.g.: steak)",
+    "search_button": "Search",
+    "idle_hint": "Type something and tap Search to see similar foods.",
+    "empty_state": "No similar food was found.",
+    "result_subtitle": "{{calorias}} kcal · {{proteinas}}g protein · {{carboidratos}}g carbs · {{gorduras}}g fat (per 100g)"
   },
 
   "intelligence": {
