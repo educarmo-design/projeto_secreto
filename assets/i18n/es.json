@@ -371,6 +371,25 @@
     "result_subtitle": "{{calorias}} kcal · {{proteinas}}g prot · {{carboidratos}}g carb · {{gorduras}}g grasa (por 100g)"
   },
 
+  "confirmacao_prato": {
+    "title": "Confirmar Comida",
+    "possivel_foto_de_tela": "Esto puede ser una foto de una pantalla o de otra foto — revisa los ítems con atención antes de confirmar.",
+    "empty_state": "Ningún ítem para confirmar.",
+    "nao_reconhecidos_title": "No reconocidos",
+    "remove_item": "Eliminar ítem",
+    "increment": "Aumentar cantidad",
+    "decrement": "Disminuir cantidad",
+    "identificado_como": "Identificado como: {{nome}}",
+    "confianca": "Confianza de la lectura: {{percentual}}%",
+    "macros_resumo": "{{calorias}} kcal · {{proteinas}}g prot · {{carboidratos}}g carb · {{gorduras}}g grasa",
+    "totais": "Total: {{calorias}} kcal · {{proteinas}}g prot · {{carboidratos}}g carb · {{gorduras}}g grasa",
+    "confirm_button": "Confirmar",
+    "motivo": {
+      "alimento_nao_encontrado": "Alimento no encontrado en el catálogo",
+      "medida_nao_encontrada": "Medida no registrada para este alimento"
+    }
+  },
+
   "intelligence": {
     "error_timeout": "Tiempo agotado al hablar con la IA. Inténtalo de nuevo.",
     "error_network": "Error de conexión al generar tu recomendación.",

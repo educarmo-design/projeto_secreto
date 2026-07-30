@@ -371,6 +371,25 @@
     "result_subtitle": "{{calorias}} kcal · {{proteinas}}g protein · {{carboidratos}}g carbs · {{gorduras}}g fat (per 100g)"
   },
 
+  "confirmacao_prato": {
+    "title": "Confirm Meal",
+    "possivel_foto_de_tela": "This might be a photo of a screen or of another photo — review the items carefully before confirming.",
+    "empty_state": "No items to confirm.",
+    "nao_reconhecidos_title": "Not recognized",
+    "remove_item": "Remove item",
+    "increment": "Increase quantity",
+    "decrement": "Decrease quantity",
+    "identificado_como": "Identified as: {{nome}}",
+    "confianca": "Reading confidence: {{percentual}}%",
+    "macros_resumo": "{{calorias}} kcal · {{proteinas}}g protein · {{carboidratos}}g carbs · {{gorduras}}g fat",
+    "totais": "Total: {{calorias}} kcal · {{proteinas}}g protein · {{carboidratos}}g carbs · {{gorduras}}g fat",
+    "confirm_button": "Confirm",
+    "motivo": {
+      "alimento_nao_encontrado": "Food not found in the catalog",
+      "medida_nao_encontrada": "No home measure registered for this food"
+    }
+  },
+
   "intelligence": {
     "error_timeout": "Timed out talking to the AI. Please try again.",
     "error_network": "Connection error while generating your recommendation.",

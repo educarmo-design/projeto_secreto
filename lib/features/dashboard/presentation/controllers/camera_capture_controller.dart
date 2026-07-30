@@ -8,6 +8,7 @@ import 'package:http/http.dart' as http;
 
 import '../../../../core/config/app_config.dart';
 import '../../../../core/i18n/i18n_manager.dart';
+import '../../../nutrition/data/models/prato_refeicao_extracao_model.dart';
 import '../../data/models/health_payload_model.dart';
 
 /// Só liga a exposição do erro real na própria tela — nunca a mensagem
@@ -51,18 +52,25 @@ class CameraCaptureState {
   /// — see [rawResult].
   final HealthPayloadModel? extractedData;
 
-  /// F10 Passo 2/3 (Adendo v5.1 A.8.2/A.8.3) — the already-server-calculated
-  /// JSON for a [TipoAparelho.pratoRefeicao] capture (matched food items +
-  /// deterministic macros from `alimentos_referencia`, per item AND
-  /// totals) OR the already-transcribed JSON for a [TipoAparelho.rotulo]
-  /// capture (porção/macros/ingredientes lidos direto do rótulo impresso —
-  /// OCR, não estimativa). [HealthPayloadModel] is deliberately NOT reused
-  /// for either: its own doc comment states it's a strict "one property =
-  /// one fixed column of `metricas_saude_diarias`" model with no generic
-  /// bag, and neither a variable list of food items nor a nutrition label's
-  /// several fields fit that shape. Per Adendo v5.1 §B ("validação =
-  /// completa funcionalmente, crua visualmente"), this raw JSON is shown
-  /// as-is by [CameraCaptureView] — no typed confirmation screen yet.
+  /// F10 Passo 3 — the already-server-calculated response for a
+  /// [TipoAparelho.pratoRefeicao] capture (matched food items + deterministic
+  /// macros from `alimentos_referencia`, per item), parsed into a typed
+  /// model so [ConfirmacaoPratoPage] can render/edit it instead of a raw
+  /// JSON dump. Strict parsing ([PratoRefeicaoExtracaoModel.fromJson] throws
+  /// [FormatException] on a malformed shape) — a bad response here is a
+  /// contract bug, not an uncertain AI reading, so it flows into the same
+  /// `on FormatException` handling as any other parse failure (Regra 0.15).
+  final PratoRefeicaoExtracaoModel? pratoExtraido;
+
+  /// F10 Passo 2 (Adendo v5.1 A.8.3) — the already-transcribed JSON for a
+  /// [TipoAparelho.rotulo] capture (porção/macros/ingredientes lidos direto
+  /// do rótulo impresso — OCR, não estimativa). [HealthPayloadModel] is
+  /// deliberately NOT reused: its own doc comment states it's a strict "one
+  /// property = one fixed column of `metricas_saude_diarias`" model with no
+  /// generic bag, and a nutrition label's several fields don't fit that
+  /// shape. Per Adendo v5.1 §B ("validação = completa funcionalmente, crua
+  /// visualmente"), this raw JSON is shown as-is by [CameraCaptureView] — no
+  /// typed confirmation screen yet (unlike [pratoExtraido]).
   final Map<String, dynamic>? rawResult;
 
   final String? errorMessage;
@@ -77,6 +85,7 @@ class CameraCaptureState {
   const CameraCaptureState({
     this.status = CameraCaptureStatus.idle,
     this.extractedData,
+    this.pratoExtraido,
     this.rawResult,
     this.errorMessage,
     this.debugDetail,
@@ -231,15 +240,26 @@ class CameraCaptureController extends ValueNotifier<CameraCaptureState> {
 
       final decoded = jsonDecode(response.body) as Map<String, dynamic>;
 
-      // Prato de comida (itens + macros determinísticos, A.2) e rótulo
-      // nutricional (porção/macros/ingredientes já transcritos do rótulo
-      // impresso, A.8.3) — nenhum dos dois é um HealthPayloadModel (lista
-      // variável de itens / vários campos de rótulo não cabem no modelo de
-      // colunas fixas). Sem tela bonita ainda (Adendo v5.1 §B):
-      // [CameraCaptureView] exibe este JSON cru para o fundador conferir os
-      // números.
-      if (tipoAparelho == TipoAparelho.pratoRefeicao ||
-          tipoAparelho == TipoAparelho.rotulo) {
+      // Prato de comida (itens + macros determinísticos, A.2) — F10 Passo 3:
+      // parseado para o modelo típado que [ConfirmacaoPratoPage] edita.
+      // `PratoRefeicaoExtracaoModel.fromJson` lança FormatException numa
+      // resposta malformada, capturada pelo `on FormatException` já
+      // existente logo abaixo — mesmo caminho de erro de qualquer outro
+      // parse ruim, com o detalhe técnico real exposto em debug (Regra 0.15).
+      if (tipoAparelho == TipoAparelho.pratoRefeicao) {
+        value = CameraCaptureState(
+          status: CameraCaptureStatus.success,
+          pratoExtraido: PratoRefeicaoExtracaoModel.fromJson(decoded),
+        );
+        return;
+      }
+
+      // Rótulo nutricional (porção/macros/ingredientes já transcritos do
+      // rótulo impresso, A.8.3) — não é um HealthPayloadModel (vários campos
+      // não cabem no modelo de colunas fixas) nem ainda tem tela de
+      // confirmação típada como o prato (Adendo v5.1 §B): [CameraCaptureView]
+      // exibe este JSON cru para o fundador conferir os números.
+      if (tipoAparelho == TipoAparelho.rotulo) {
         value = CameraCaptureState(
           status: CameraCaptureStatus.success,
           rawResult: decoded,
@@ -254,10 +274,9 @@ class CameraCaptureController extends ValueNotifier<CameraCaptureState> {
       if (payload.isEmpty) {
         // JSON válido, HTTP 200 — a IA respondeu, só que nenhum dos campos
         // que este app sabe ler veio preenchido. Isso NÃO é "servidor
-        // ocupado" (o servidor funcionou perfeitamente): ou a foto não deu
-        // pra ler (visor borrado/apagado), ou — caso de `pratoRefeicao` —
-        // a resposta tem um formato (itens/totais nutricionais) que este
-        // model Flutter ainda não sabe interpretar.
+        // ocupado" (o servidor funcionou perfeitamente): a foto do visor não
+        // deu pra ler (borrado/apagado). `pratoRefeicao`/`rotulo` nunca
+        // chegam aqui — já retornaram acima com seu próprio parsing.
         value = _estadoDeErro(
           mensagemAmigavel: i18n.tr('dashboard.camera_no_data_extracted_error'),
           detalheTecnico:

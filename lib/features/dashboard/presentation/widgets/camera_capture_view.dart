@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/config/app_config.dart';
 import '../../../../core/i18n/i18n_manager.dart';
+import '../../../nutrition/presentation/pages/confirmacao_prato_page.dart';
 import '../../data/models/health_payload_model.dart';
 import '../controllers/camera_capture_controller.dart';
 
@@ -14,11 +15,13 @@ import '../controllers/camera_capture_controller.dart';
 /// [SeniorDashboardPage] (dedicated Balança/Pressão buttons), so the actual
 /// capture/upload/zero-storage pipeline exists in exactly one place. Pops
 /// with the extracted [HealthPayloadModel] on success, or `null` if the user
-/// backs out. Exceptions: [TipoAparelho.pratoRefeicao] (F10 Passo 2) and
-/// [TipoAparelho.rotulo] (F10 Passo 3) never pop a [HealthPayloadModel] —
-/// their server-calculated/transcribed JSON result doesn't fit that
-/// fixed-column model, so it's shown crude/in-place instead (see
-/// [_buildRawResult]).
+/// backs out. Exceptions:
+/// - [TipoAparelho.pratoRefeicao] (F10 Passo 3): on success, this screen is
+///   replaced ([Navigator.pushReplacement]) by [ConfirmacaoPratoPage] —
+///   nothing about the capture itself pops back a [HealthPayloadModel].
+/// - [TipoAparelho.rotulo] (F10 Passo 2): still shows its server-transcribed
+///   JSON crude/in-place (see [_buildRawResult]) — no typed confirmation
+///   screen yet.
 class CameraCaptureView extends StatefulWidget {
   const CameraCaptureView({super.key, required this.tipoAparelho});
 
@@ -40,21 +43,31 @@ class _CameraCaptureViewState extends State<CameraCaptureView> {
 
   void _onStateChanged() {
     if (_controller.value.isSuccess) {
-      // F10 Passo 2/3 (Adendo v5.1 §B): prato de comida e rótulo nutricional
-      // não têm tela de confirmação bonita ainda — o resultado (já
-      // calculado/transcrito pelo backend, A.2) fica visível NESTA tela,
-      // crua, em vez de fechar com pop. Os demais tipos (glicosímetro/
-      // pressão/balança) mantêm o comportamento já existente: fecham
-      // devolvendo o [HealthPayloadModel] typado.
-      if (widget.tipoAparelho == TipoAparelho.pratoRefeicao ||
-          widget.tipoAparelho == TipoAparelho.rotulo) {
+      // F10 Passo 3: prato de comida tem tela de confirmação típada de
+      // verdade agora — troca esta tela de câmera pela Tela de Confirmação
+      // (pushReplacement, não push: a câmera já cumpriu seu papel e libera o
+      // hardware ao ser removida da árvore via dispose()).
+      final prato = _controller.value.pratoExtraido;
+      if (prato != null) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute<void>(
+            builder: (_) => ConfirmacaoPratoPage(extracao: prato),
+          ),
+        );
+        return;
+      }
+      // Rótulo nutricional (Adendo v5.1 §B) ainda não tem tela de
+      // confirmação bonita — o resultado (já transcrito pelo backend, A.8.3)
+      // fica visível NESTA tela, crua, em vez de fechar com pop.
+      if (widget.tipoAparelho == TipoAparelho.rotulo) {
         debugPrint(
-          'F10 — resultado de ${widget.tipoAparelho.name}: '
-          '${jsonEncode(_controller.value.rawResult)}',
+          'F10 — resultado de rotulo: ${jsonEncode(_controller.value.rawResult)}',
         );
         setState(() {});
         return;
       }
+      // Demais tipos (glicosímetro/pressão/balança): comportamento já
+      // existente, fecham devolvendo o [HealthPayloadModel] típado.
       Navigator.of(context).pop(_controller.value.extractedData);
       return;
     }
@@ -195,12 +208,11 @@ class _CameraCaptureViewState extends State<CameraCaptureView> {
     }
   }
 
-  /// F10 Passo 2/3 (Adendo v5.1 §B — "completa funcionalmente, crua
-  /// visualmente"): mostra o JSON JÁ CALCULADO/TRANSCRITO pelo backend
-  /// (itens + macros determinísticos via `alimentos_referencia` para
-  /// prato, A.2; ou porção/macros/ingredientes já lidos do rótulo impresso
-  /// para rótulo, A.8.3) sem nenhum acabamento visual. A funcionalidade é
-  /// real — os números são os finais — só a aparência fica para depois.
+  /// F10 Passo 2 (Adendo v5.1 §B — "completa funcionalmente, crua
+  /// visualmente"): mostra o JSON JÁ TRANSCRITO pelo backend para
+  /// [TipoAparelho.rotulo] (porção/macros/ingredientes lidos do rótulo
+  /// impresso, A.8.3) sem nenhum acabamento visual. Prato de comida não
+  /// chega mais aqui — tem [ConfirmacaoPratoPage] própria (F10 Passo 3).
   Widget _buildRawResult(Map<String, dynamic> resultado) {
     const encoder = JsonEncoder.withIndent('  ');
     return SafeArea(
