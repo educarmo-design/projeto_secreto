@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/i18n/i18n_manager.dart';
 import '../../../../core/router/ui_profile_switcher.dart';
 import '../../../auth/models/auth_models.dart' show ProfileUsageType;
+import '../../../nutrition/presentation/pages/manual_food_search_page.dart';
 import '../../../vinculos/presentation/pages/gerir_vinculos_page.dart';
 import 'teste_frequencia_cardiaca_page.dart';
 import 'teste_peso_page.dart';
@@ -115,6 +116,17 @@ class ConfiguracoesPerfilPage extends StatelessWidget {
                   onTap: () => Navigator.of(context).push(
                     MaterialPageRoute<void>(
                       builder: (_) => const TesteSonoPage(),
+                    ),
+                  ),
+                ),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.search_outlined),
+                  title: Text(i18n.tr('profile.manual_food_search_item')),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const ManualFoodSearchPage(),
                     ),
                   ),
                 ),

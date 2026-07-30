@@ -333,7 +333,8 @@
     "manage_links_item": "Convites de Profissionais",
     "heart_rate_test_item": "Testar Leitura de Frequência Cardíaca",
     "weight_test_item": "Testar Leitura de Peso",
-    "sleep_test_item": "Testar Leitura de Sono"
+    "sleep_test_item": "Testar Leitura de Sono",
+    "manual_food_search_item": "Busca Manual de Alimentos"
   },
 
   "vinculos": {
@@ -359,6 +360,15 @@
       "Personal_Trainer": "Personal Trainer",
       "Auditoria_Seguradora": "Auditoria de Seguradora"
     }
+  },
+
+  "food_search": {
+    "title": "Busca Manual de Alimentos",
+    "hint": "Digite o nome do alimento (ex.: bifinho)",
+    "search_button": "Buscar",
+    "idle_hint": "Digite algo e toque em Buscar para ver alimentos parecidos.",
+    "empty_state": "Nenhum alimento parecido foi encontrado.",
+    "result_subtitle": "{{calorias}} kcal · {{proteinas}}g prot · {{carboidratos}}g carb · {{gorduras}}g gord (por 100g)"
   },
 
   "intelligence": {
