@@ -113,11 +113,23 @@ const GEMINI_ENDPOINT_BASE =
 const MODELO_EMBEDDING = 'gemini-embedding-001';
 const GEMINI_EMBED_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${MODELO_EMBEDDING}:embedContent`;
 const DIMENSOES_EMBEDDING = 768;
-// Mesmo valor padrão de search-food/index.ts — abaixo disso o "casamento"
-// semântico já não significa o mesmo alimento, é só um item vagamente
-// parecido; melhor deixar em itens_nao_reconhecidos do que arriscar um
-// cálculo de calorias para o alimento errado.
-const BUSCA_SEMANTICA_THRESHOLD = 0.5;
+// CALIBRADO (30/jul/2026) contra o banco real de produção — ver RELATÓRIO
+// DE FIM DE TAREFA. Gerei embedding + consultei match_alimentos para ~19
+// termos reais: 10 gírias/sinônimos brasileiros que DEVERIAM casar (ex.:
+// "bifinho" -> 0.697, "coxinha" -> 0.753, pior caso "arroz soltinho" ->
+// 0.690) e 9 pratos genuinamente fora do catálogo TACO (culinária
+// internacional: "sushi", "pizza", "ramen", "kebab"..., pior caso
+// "croissant" -> 0.657). Com o valor antigo (0.5) esses 9 casos
+// incorretamente CASAVAM (ex.: "sushi" -> "Pescada, filé, cru" a 0.626) e
+// calculariam calorias erradas para um prato que não está no catálogo. O
+// gap real entre o pior bom casamento (0.690) e o pior falso positivo
+// (0.657) é estreito — 0.68 fica logo abaixo do pior bom caso e
+// confortavelmente acima do pior falso positivo, do lado conservador
+// (mesma filosofia do glicosímetro: "não gravar é melhor que gravar
+// errado", A.2/A.5). MESMO VALOR em search-food/index.ts — os dois
+// endpoints têm que concordar, ou o mesmo termo se comportaria diferente
+// dependendo de por onde entrou.
+const BUSCA_SEMANTICA_THRESHOLD = 0.68;
 
 // Nomes que o cliente manda em `X-Tipo-Aparelho` (é `TipoAparelho.name` do
 // enum Dart). glicosimetro (Passo 1) e pratoRefeicao (Passo 2) estão

@@ -36,7 +36,19 @@ const DIMENSOES_EMBEDDING = 768;
 // tela só mostra um punhado de sugestões); um threshold baixo devolveria
 // "sinônimos" sem relação nenhuma. Ajustar estes dois valores é decisão de
 // produto, não de payload de requisição.
-const MATCH_THRESHOLD_PADRAO = 0.5;
+//
+// CALIBRADO (30/jul/2026) contra o banco real — mesmo valor e mesma
+// justificativa de BUSCA_SEMANTICA_THRESHOLD em
+// extract-metric-photo/index.ts (ver RELATÓRIO DE FIM DE TAREFA daquela
+// tarefa): 0.5 deixava passar pratos fora do catálogo TACO (ex.: "sushi",
+// "pizza") como se fossem casamentos válidos. Os dois endpoints têm que
+// concordar — o mesmo termo não pode se comportar diferente dependendo de
+// por onde entrou. Se um dia existir uma tela de busca com humano
+// revisando a lista (ao contrário do fallback automático de
+// extract-metric-photo), pode valer reavaliar um valor mais permissivo
+// aqui especificamente — não fiz essa distinção agora para não deixar os
+// dois lugares divergentes sem necessidade comprovada.
+const MATCH_THRESHOLD_PADRAO = 0.68;
 const MATCH_COUNT_PADRAO = 5;
 
 const QUERY_MAX_LEN = 200;
