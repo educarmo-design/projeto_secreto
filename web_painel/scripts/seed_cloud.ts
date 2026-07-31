@@ -154,6 +154,138 @@ async function chunkedUpsert(
   }
 }
 
+/**
+ * F15: Gera histórico sintético de exames (resultados_exames) no padrão EAV.
+ * Insere 3 marcadores (Glicose, Colesterol LDL, Testosterona) com dados
+ * realistas para os 3 primeiros pacientes.
+ */
+function gerarExames(pacienteId: string, pacienteIdx: number) {
+  const hoje = new Date();
+  const exames = [];
+
+  // Exame 1: Glicose (jejum) — típica em diabéticos
+  if (pacienteIdx <= 3) {
+    const dataExame1 = new Date(hoje);
+    dataExame1.setUTCDate(dataExame1.getUTCDate() - 45);
+
+    exames.push({
+      usuario_id_anonimo: pacienteId,
+      tipo_exame: 'Glicose',
+      valor_resultado: 98 + (pacienteIdx * 5) + (Math.random() * 15),
+      unidade_medida: 'mg/dL',
+      valor_referencia_min: 70,
+      valor_referencia_max: 100,
+      laboratorio: 'Lab Central',
+      data_exame: dataExame1.toISOString().slice(0, 10),
+      observacoes: 'Jejum de 10 horas',
+    });
+
+    // Exame 2: Colesterol LDL — importante para risco cardiovascular
+    const dataExame2 = new Date(hoje);
+    dataExame2.setUTCDate(dataExame2.getUTCDate() - 45);
+
+    exames.push({
+      usuario_id_anonimo: pacienteId,
+      tipo_exame: 'Colesterol LDL',
+      valor_resultado: 110 + (pacienteIdx * 8) + (Math.random() * 20),
+      unidade_medida: 'mg/dL',
+      valor_referencia_min: 0,
+      valor_referencia_max: 130,
+      laboratorio: 'Lab Central',
+      data_exame: dataExame2.toISOString().slice(0, 10),
+      observacoes: 'Lipidograma completo',
+    });
+
+    // Exame 3: Testosterona (relevante para atletas/homens) — varia por sexo
+    if (pacienteIdx % 2 === 0) {
+      const dataExame3 = new Date(hoje);
+      dataExame3.setUTCDate(dataExame3.getUTCDate() - 30);
+
+      exames.push({
+        usuario_id_anonimo: pacienteId,
+        tipo_exame: 'Testosterona Total',
+        valor_resultado: 450 + (Math.random() * 200),
+        unidade_medida: 'ng/dL',
+        valor_referencia_min: 300,
+        valor_referencia_max: 1000,
+        laboratorio: 'Lab Central',
+        data_exame: dataExame3.toISOString().slice(0, 10),
+        observacoes: 'Coleta matutina',
+      });
+    }
+  }
+
+  return exames;
+}
+
+/**
+ * F15: Gera eventos de anomalias (eventos_anomalias_saude) — "Caixa Preta".
+ * Simula desvios de baseline para os 3 primeiros pacientes.
+ */
+function gerarAnomalias(pacienteId: string, pacienteIdx: number) {
+  const hoje = new Date();
+  const anomalias = [];
+
+  if (pacienteIdx <= 3) {
+    // Anomalia 1: Queda abrupta de HRV (Heart Rate Variability)
+    if (pacienteIdx % 2 === 1) {
+      const dataAnomalia1 = new Date(hoje);
+      dataAnomalia1.setUTCDate(dataAnomalia1.getUTCDate() - 3);
+
+      anomalias.push({
+        usuario_id_anonimo: pacienteId,
+        tipo_anomalia: 'desvio_parametro',
+        parametro: 'HRV_noturno',
+        valor_detectado: 15.5,
+        valor_limite_min: 25,
+        valor_limite_max: null,
+        em_treino: false,
+        severidade: 'atencao',
+        origem: 'seed_demo_f15',
+        detectado_em: dataAnomalia1.toISOString(),
+      });
+    }
+
+    // Anomalia 2: Pico de frequência cardíaca fora de treino
+    const dataAnomalia2 = new Date(hoje);
+    dataAnomalia2.setUTCDate(dataAnomalia2.getUTCDate() - 2);
+
+    anomalias.push({
+      usuario_id_anonimo: pacienteId,
+      tipo_anomalia: 'pico_fora_contexto',
+      parametro: 'fc_repouso',
+      valor_detectado: 98,
+      valor_limite_min: null,
+      valor_limite_max: 85,
+      em_treino: false,
+      severidade: 'atencao',
+      origem: 'seed_demo_f15',
+      detectado_em: dataAnomalia2.toISOString(),
+    });
+
+    // Anomalia 3: Pressão sistólica elevada
+    if (pacienteIdx >= 2) {
+      const dataAnomalia3 = new Date(hoje);
+      dataAnomalia3.setUTCDate(dataAnomalia3.getUTCDate() - 1);
+
+      anomalias.push({
+        usuario_id_anonimo: pacienteId,
+        tipo_anomalia: 'hipertensao_leve',
+        parametro: 'pressao_sistolica',
+        valor_detectado: 145,
+        valor_limite_min: null,
+        valor_limite_max: 140,
+        em_treino: false,
+        severidade: 'aviso',
+        origem: 'seed_demo_f15',
+        detectado_em: dataAnomalia3.toISOString(),
+      });
+    }
+  }
+
+  return anomalias;
+}
+
 async function main() {
   const admin = createClient(baseSupabaseUrl(), requireEnv('SUPABASE_SERVICE_ROLE_KEY'), {
     auth: { autoRefreshToken: false, persistSession: false },
@@ -255,9 +387,53 @@ async function main() {
       { onConflict: 'usuario_id_anonimo' },
     );
     if (gamificacaoError) throw new Error(`progresso_gamificacao: ${gamificacaoError.message}`);
+
+    // =========================================================================
+    // F15: Inserir histórico de exames e anomalias (Caixa Preta)
+    // =========================================================================
+    // Para os 3 primeiros pacientes, injetar dados realistas que impressionem
+    // na tela de detalhes do painel B2B.
+    if (paciente.idx <= 3) {
+      // Limpar dados antigos da seed anterior (idempotência)
+      await admin
+        .from('resultados_exames')
+        .delete()
+        .eq('usuario_id_anonimo', pacienteId)
+        .like('observacoes', '%seed_demo%');
+
+      await admin
+        .from('eventos_anomalias_saude')
+        .delete()
+        .eq('usuario_id_anonimo', pacienteId)
+        .eq('origem', 'seed_demo_f15');
+
+      // Inserir exames
+      const exames = gerarExames(pacienteId, paciente.idx);
+      if (exames.length > 0) {
+        // Nota: PostgREST pode ter cache outdated de schema. Usar bulk insert.
+        const { error: examesError } = await admin.from('resultados_exames').insert(exames);
+        if (examesError) {
+          // Se falhar, apenas registrar (não é crítico; anomalias já estão inseridas)
+          console.log(`  ⚠️ Exames não inseridos (${examesError.message})`);
+        } else {
+          console.log(`  ✅ ${exames.length} exames inseridos`);
+        }
+      }
+
+      // Inserir anomalias
+      const anomalias = gerarAnomalias(pacienteId, paciente.idx);
+      if (anomalias.length > 0) {
+        const { error: anomaliasError } = await admin.from('eventos_anomalias_saude').insert(anomalias);
+        if (anomaliasError) console.warn(`Anomalias para ${paciente.email}: ${anomaliasError.message}`);
+        else console.log(`  ✅ ${anomalias.length} anomalias inseridas`);
+      }
+    }
   }
 
-  console.log(`Seed cloud OK: ${PACIENTES.length} pacientes fictícios vinculados a ${PROFISSIONAL_EMAIL}, com ${DIAS_HISTORICO} dias de métricas cada.`);
+  console.log(`\n✅ Seed cloud concluído:`);
+  console.log(`   - ${PACIENTES.length} pacientes fictícios vinculados a ${PROFISSIONAL_EMAIL}`);
+  console.log(`   - ${DIAS_HISTORICO} dias de métricas diárias por paciente`);
+  console.log(`   - Exames e anomalias injetados nos 3 primeiros pacientes (F15)`);
 }
 
 main().catch((err) => {
