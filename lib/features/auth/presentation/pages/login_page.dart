@@ -273,23 +273,26 @@ class _LoginPageState extends State<LoginPage> {
                             )
                           : Text(i18n.tr('auth.login_button')),
                     ),
-                    if (_hasStoredBiometricToken) ...[
-                      const SizedBox(height: 16),
-                      OutlinedButton.icon(
-                        onPressed: _isBiometricAttempting
-                            ? null
-                            : _attemptBiometricLogin,
-                        icon: _isBiometricAttempting
-                            ? const SizedBox(
-                                width: 16,
-                                height: 16,
-                                child:
-                                    CircularProgressIndicator(strokeWidth: 2),
-                              )
-                            : const Icon(Icons.fingerprint),
-                        label: Text(i18n.tr('auth.biometric_login_button')),
-                      ),
-                    ],
+                    // DESABILITADO (31/jul/2026): BUG #3 — biometria exige
+                    // fluxo de enrollment em `perfil`, ainda não construído.
+                    // Remoção temporária até que o fluxo esteja pronto.
+                    // if (_hasStoredBiometricToken) ...[
+                    //   const SizedBox(height: 16),
+                    //   OutlinedButton.icon(
+                    //     onPressed: _isBiometricAttempting
+                    //         ? null
+                    //         : _attemptBiometricLogin,
+                    //     icon: _isBiometricAttempting
+                    //         ? const SizedBox(
+                    //             width: 16,
+                    //             height: 16,
+                    //             child:
+                    //                 CircularProgressIndicator(strokeWidth: 2),
+                    //           )
+                    //         : const Icon(Icons.fingerprint),
+                    //     label: Text(i18n.tr('auth.biometric_login_button')),
+                    //   ),
+                    // ],
                     // RecuperarSenhaPage não é uma rota do GoRouter (o
                     // roteador só tem as 4 rotas reais — login/cadastro/
                     // profile-selection/home; ver app_router.dart) — abre

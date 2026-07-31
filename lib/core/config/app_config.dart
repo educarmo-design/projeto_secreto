@@ -170,19 +170,21 @@ class AppConfig {
         : '$supabaseUrl/functions/v1/search-food';
   }
 
-  /// Deep link scheme the Google/Apple OAuth browser redirect returns to.
-  /// `signInWithOAuth` hands this to the identity provider; the actual
-  /// session only lands back in-app once the OS routes that deep link to
-  /// `supabase_flutter`'s internal listener, which is what feeds
+  /// Deep link scheme the Google/Apple OAuth browser redirect returns to,
+  /// AND the password recovery e-mail redirect. `signInWithOAuth` +
+  /// `resetPasswordForEmail` hand this to identity providers; the actual
+  /// session/recovery event only lands back in-app once the OS routes that
+  /// deep link to `supabase_flutter`'s internal listener, which feeds
   /// `auth.onAuthStateChange`. Registering the scheme natively (Android
-  /// intent-filter / iOS URL type) is required once the `android`/`ios`
-  /// platform folders exist — there are none yet in this project — and is
-  /// out of Dart's reach; override via `--dart-define=OAUTH_REDIRECT_URL=...`
-  /// for a project-specific scheme.
+  /// intent-filter / iOS URL type) is required in `android/`/`ios/` platform
+  /// folders; override via `--dart-define=OAUTH_REDIRECT_URL=...` for a
+  /// project-specific scheme.
+  /// CORRIGIDO (31/jul/2026): scheme deve ser `io.supabase.atletaapp`, não
+  /// `atletagamificacao` (ver BUG #2: password recovery deep link).
   static String get oauthRedirectUrl {
     const override = String.fromEnvironment('OAUTH_REDIRECT_URL');
     return override.isNotEmpty
         ? override
-        : 'io.supabase.atletagamificacao://login-callback';
+        : 'io.supabase.atletaapp://login-callback';
   }
 }

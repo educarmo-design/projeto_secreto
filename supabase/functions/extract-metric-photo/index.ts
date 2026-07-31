@@ -180,7 +180,9 @@ function resolverModelo(nivel: NivelModelo): string {
 // scripts/seed_food_embeddings.ts e supabase/functions/search-food/index.ts
 // — os três precisam concordar, ou os vetores não ficam comparáveis entre
 // si (ver nota em `resolverComBuscaSemantica`).
-const MODELO_EMBEDDING = 'gemini-embedding-001';
+// CORRIGIDO (31/jul/2026): 'gemini-embedding-001' era obsoleto. Migrado para
+// 'text-embedding-004' (endpoint padronizado, L2 normalization).
+const MODELO_EMBEDDING = 'text-embedding-004';
 const GEMINI_EMBED_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${MODELO_EMBEDDING}:embedContent`;
 const DIMENSOES_EMBEDDING = 768;
 // CALIBRADO (30/jul/2026) contra o banco real de produção — ver RELATÓRIO
