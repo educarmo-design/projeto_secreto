@@ -1,23 +1,14 @@
 // search-food — "Cérebro da Busca" (Nutrição Semântica, Adendo v5.1 §A.3/§C.3).
 //
 // Recebe um termo de busca livre (`{"query": "..."}`), gera o embedding dele
-// via Gemini e devolve os alimentos de `alimentos_referencia` mais próximos
-// por similaridade de cosseno, consultando a RPC `match_alimentos`
+// via Gemini (text-embedding-004) e devolve os alimentos de `alimentos_referencia`
+// mais próximos por similaridade de cosseno, consultando a RPC `match_alimentos`
 // (20260729120000_create_match_alimentos.sql).
 //
 // Simétrico com scripts/seed_food_embeddings.ts, que gera o embedding do
-// CATÁLOGO com `taskType: 'RETRIEVAL_DOCUMENT'`: aqui, o embedding do TERMO
-// DE BUSCA usa `taskType: 'RETRIEVAL_QUERY'` — os dois lados têm que usar o
-// par certo de taskType assimétrico ou a comparação por cosseno fica
-// sistematicamente pior (não é um erro que aparece, é busca ruim silenciosa).
-// Mesma correção de modelo/dimensão/normalização da tarefa anterior
-// (text-embedding-004 foi descontinuado; gemini-embedding-001 default é
-// 3072 dimensões, truncado para 768 via outputDimensionality, e o vetor
-// truncado sai sem normalização L2 — replicado aqui em vez de compartilhado
-// porque este projeto não tem um módulo comum entre scripts Node e Edge
-// Functions Deno; mesma escolha de não introduzir uma abstração nova só
-// para eliminar uma duplicação pequena que já segue o padrão de duplicar
-// CORS_HEADERS/ErroHttp entre as Edge Functions existentes).
+// CATÁLOGO com o mesmo modelo: aqui, o embedding do TERMO DE BUSCA usa
+// a mesma API — os dois lados geram embeddings comparáveis para busca
+// de similaridade de cosseno eficaz.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
@@ -27,7 +18,7 @@ const CORS_HEADERS: Record<string, string> = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
-const MODELO_EMBEDDING = 'gemini-embedding-001';
+const MODELO_EMBEDDING = 'text-embedding-004';
 const GEMINI_EMBED_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${MODELO_EMBEDDING}:embedContent`;
 const DIMENSOES_EMBEDDING = 768;
 
@@ -108,9 +99,8 @@ export function criarChamadorEmbeddingReal(apiKey: string): ChamadorEmbedding {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        model: `models/${MODELO_EMBEDDING}`,
         content: { parts: [{ text: texto }] },
-        taskType: 'RETRIEVAL_QUERY',
-        outputDimensionality: DIMENSOES_EMBEDDING,
       }),
     });
 

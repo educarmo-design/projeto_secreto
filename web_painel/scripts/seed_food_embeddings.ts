@@ -1,27 +1,24 @@
 /**
  * F46 — Geração de Embeddings Semânticos para Alimentos (Nutrição Semântica, Adendo v5.1).
  *
- * Popula a coluna `embedding` (vector(768)) em `alimentos_referencia` com vetores.
- *
- * MODO ATUAL: Fallback com mock embedding determinístico.
- * MODO FUTURO: API de embeddings do Gemini (text-embedding-gecko-multilingual) quando
- *              a chave de API tiver permissões de embeddings ativadas.
+ * Popula a coluna `embedding` (vector(768)) em `alimentos_referencia` com vetores
+ * gerados pela API de embeddings do Gemini (text-embedding-004).
  *
  * CARACTERÍSTICAS:
  * - Busca apenas registros onde embedding IS NULL (idempotência)
  * - Batch processing: 20 alimentos por lote com delay de 1s entre lotes (rate limiting)
- * - Embedding: Determinístico baseado em hash (768 dimensões)
+ * - API: Gemini text-embedding-004 (768 dimensões)
  * - Usa GEMINI_API_KEY e SUPABASE_SERVICE_ROLE_KEY do .env.local
  *
  * Como rodar:
  *   1. cd web_painel
- *   2. Confirme que .env.local tem GEMINI_API_KEY + SUPABASE_SERVICE_ROLE_KEY
+ *   2. Confirme que .env.local tem GEMINI_API_KEY (de Google AI Studio) + SUPABASE_SERVICE_ROLE_KEY
  *   3. npm run seed:food-embeddings
  *      ou: npx tsx scripts/seed_food_embeddings.ts
  *
  * Custos de API:
- * - Versão atual (mock): Nenhum custo
- * - Versão Gemini: ~$0.0001 por 1000 embeddings (gratuito até limite)
+ * - Gemini text-embedding-004: Gratuito (sem cobrança)
+ * - Supabase: updates simples via PostgREST (uso normal, sem custos extras)
  */
 import 'dotenv/config';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
@@ -71,46 +68,54 @@ async function buscarAlimentosSemEmbedding(
 }
 
 /**
- * Gera um embedding semântico determinístico para um texto.
- * MODO FALLBACK: Como a API key fornecida não tem acesso aos modelos de embeddings
- * do Gemini, usa um algoritmo hash determinístico que simula um embedding de 768 dimensões.
- *
- * Em produção, seria: text-embedding-gecko-multilingual via API Gemini.
- *
- * NOTA: Este é um mock para fins de desenvolvimento/teste. O embedding real seria
- * gerado pela API do Gemini com semantics reais, não apenas hash.
+ * Gera um embedding semântico via API Gemini text-embedding-004.
+ * Retorna um vetor de 768 dimensões normalizado em L2.
  */
 async function gerarEmbeddingGemini(
   texto: string,
   geminiApiKey: string,
 ): Promise<number[]> {
-  // Algoritmo determinístico baseado em hash para simular embedding
-  // Produz um vetor de 768 dimensões com valores normalizados [0, 1)
+  const url = 'https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent';
 
-  const embedding: number[] = [];
-
-  // Seed baseada no texto + uma constante
-  let hash = 5381;
-  for (let i = 0; i < texto.length; i++) {
-    hash = ((hash << 5) + hash) ^ texto.charCodeAt(i);
-  }
-
-  // Gerar 768 dimensões pseudo-aleatórias a partir do hash
-  let seed = Math.abs(hash);
-  for (let i = 0; i < 768; i++) {
-    // Linear congruential generator para pseudo-aleatoriedade reproduzível
-    seed = (seed * 1103515245 + 12345) & 0x7fffffff;
-    embedding.push(seed / 0x7fffffff);
-  }
-
-  // Normalizar para média ~0.5 (padrão de embeddings reais)
-  const media = embedding.reduce((a, b) => a + b, 0) / embedding.length;
-  const offset = 0.5 - media;
-
-  return embedding.map((v) => {
-    const normalizado = Math.max(0, Math.min(1, v + offset));
-    return parseFloat(normalizado.toFixed(6));
+  const response = await fetch(`${url}?key=${geminiApiKey}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'models/text-embedding-004',
+      content: {
+        parts: [
+          {
+            text: texto,
+          },
+        ],
+      },
+    }),
   });
+
+  if (!response.ok) {
+    const errorData = await response.text();
+    throw new Error(
+      `Erro da API Gemini (HTTP ${response.status}): ${errorData}`,
+    );
+  }
+
+  const data = (await response.json()) as {
+    embedding?: { values: number[] };
+  };
+
+  if (!data.embedding?.values) {
+    throw new Error('Resposta do Gemini sem campo embedding.values');
+  }
+
+  const values = data.embedding.values;
+
+  // Normalizar para L2 (norma = 1)
+  const norma = Math.sqrt(values.reduce((soma, v) => soma + v * v, 0));
+  if (norma === 0) return values;
+
+  return values.map((v) => v / norma);
 }
 
 /**
@@ -234,8 +239,8 @@ async function main() {
     console.log('\n🎉 Geração de embeddings concluída com sucesso!');
     console.log(`\n📊 Resumo:`);
     console.log(`   - Alimentos processados: ${alimentosSemEmbedding.length}`);
-    console.log(`   - Modo: Mock embedding determinístico (fallback - API Gemini sem permissão)`);
-    console.log(`   - Dimensões por embedding: 768`);
+    console.log(`   - Modelo Gemini: text-embedding-004`);
+    console.log(`   - Dimensões por embedding: 768 (L2-normalizado)`);
     console.log(`   - Lotes processados: ${Math.ceil(alimentosSemEmbedding.length / tamanheLote)}`);
   } catch (err) {
     console.error(
