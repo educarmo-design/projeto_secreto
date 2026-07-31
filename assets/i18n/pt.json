@@ -334,7 +334,12 @@
     "heart_rate_test_item": "Testar Leitura de Frequência Cardíaca",
     "weight_test_item": "Testar Leitura de Peso",
     "sleep_test_item": "Testar Leitura de Sono",
-    "manual_food_search_item": "Busca Manual de Alimentos"
+    "manual_food_search_item": "Busca Manual de Alimentos",
+
+    "logout": "Sair",
+    "logout_confirm_title": "Confirmar saída",
+    "logout_confirm_message": "Deseja realmente sair? Você precisará fazer login novamente.",
+    "logout_error": "Erro ao sair. Tente novamente."
   },
 
   "vinculos": {
