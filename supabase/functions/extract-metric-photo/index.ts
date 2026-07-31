@@ -1838,14 +1838,25 @@ async function processarPratoRefeicao(params: {
   let itensNaoReconhecidosFinais = calculo.itensNaoReconhecidos;
 
   if (temCandidatoSemantico) {
-    const { resolvidos, aindaNaoReconhecidos } = await resolverComBuscaSemantica(
-      calculo.itensNaoReconhecidos,
-      catalogo,
-      params.obterChamarEmbedding(),
-      params.obterBuscaSemantica(),
-    );
-    itensFinais.push(...resolvidos);
-    itensNaoReconhecidosFinais = aindaNaoReconhecidos;
+    try {
+      const { resolvidos, aindaNaoReconhecidos } = await resolverComBuscaSemantica(
+        calculo.itensNaoReconhecidos,
+        catalogo,
+        params.obterChamarEmbedding(),
+        params.obterBuscaSemantica(),
+      );
+      itensFinais.push(...resolvidos);
+      itensNaoReconhecidosFinais = aindaNaoReconhecidos;
+    } catch (erro) {
+      // Degradação graciosa: se busca semântica falhar, manter itens em "Não
+      // reconhecidos" é melhor que derrubar a função. Log para debugging.
+      console.error(
+        'Falha em busca semântica (fallback degradado):',
+        erro instanceof Error ? erro.message : 'erro desconhecido',
+      );
+      // itensNaoReconhecidosFinais já tem os itens não encontrados — eles
+      // permanecem como estão, sem processamento semântico
+    }
   }
 
   const totaisFinais = somarTotais(itensFinais);
