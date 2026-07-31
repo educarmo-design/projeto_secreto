@@ -62,10 +62,10 @@
                 <action android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE" />
             </intent-filter>
 
-            <!-- Deep link do Supabase Auth (OAuth Google/Apple E o link de
+            <!-- Deep link do Supabase Auth (OAuth Google/Apple e link de
                  "definir nova senha" do e-mail de recuperação) —
                  AppConfig.oauthRedirectUrl aponta pra cá
-                 (io.supabase.atletagamificacao://login-callback), mas até
+                 (io.supabase.atletaapp://login-callback), mas até
                  agora nada no Android sabia entregar essa URI ao app: o
                  pacote supabase_flutter já intercepta e traduz sozinho
                  (authFlowType PKCE, padrão do pacote) assim que o SO abre a
@@ -78,7 +78,7 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data
-                    android:scheme="io.supabase.atletagamificacao"
+                    android:scheme="io.supabase.atletaapp"
                     android:host="login-callback" />
             </intent-filter>
         </activity>
