@@ -239,32 +239,43 @@ class _ItemPratoTile extends StatelessWidget {
               style: Theme.of(context).textTheme.bodySmall,
             ),
             const SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              runSpacing: 8,
+              spacing: 8,
               children: [
                 Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     IconButton(
                       icon: const Icon(Icons.remove_circle_outline),
                       tooltip: i18n.tr('confirmacao_prato.decrement'),
+                      iconSize: 20,
+                      padding: EdgeInsets.zero,
                       onPressed: onDecrementar,
                     ),
                     Text('${_formatarQuantidade(item.quantidadeAtual)} ${original.medida}'),
                     IconButton(
                       icon: const Icon(Icons.add_circle_outline),
                       tooltip: i18n.tr('confirmacao_prato.increment'),
+                      iconSize: 20,
+                      padding: EdgeInsets.zero,
                       onPressed: onIncrementar,
                     ),
                   ],
                 ),
-                Text(
-                  i18n.tr('confirmacao_prato.macros_resumo', params: {
-                    'calorias': item.calorias.toStringAsFixed(0),
-                    'proteinas': item.proteinasG.toStringAsFixed(1),
-                    'carboidratos': item.carboidratosG.toStringAsFixed(1),
-                    'gorduras': item.gordurasG.toStringAsFixed(1),
-                  }),
-                  style: Theme.of(context).textTheme.bodySmall,
+                Flexible(
+                  child: Text(
+                    i18n.tr('confirmacao_prato.macros_resumo', params: {
+                      'calorias': item.calorias.toStringAsFixed(0),
+                      'proteinas': item.proteinasG.toStringAsFixed(1),
+                      'carboidratos': item.carboidratosG.toStringAsFixed(1),
+                      'gorduras': item.gordurasG.toStringAsFixed(1),
+                    }),
+                    style: Theme.of(context).textTheme.bodySmall,
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 2,
+                  ),
                 ),
               ],
             ),
