@@ -53,6 +53,17 @@ const MATCH_COUNT_PADRAO = 5;
 
 const QUERY_MAX_LEN = 200;
 
+/**
+ * Normaliza um termo de busca para consulta no cache.
+ * Mesmo normalizador usado em alimentos_referencia/aliases: lowercase + sem acentos.
+ */
+function normalizarTermoBusca(termo: string): string {
+  return termo
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, ''); // Remove diacríticos
+}
+
 class ErroHttp extends Error {
   constructor(readonly status: number, mensagem: string) {
     super(mensagem);
@@ -146,6 +157,12 @@ export interface SupabaseAdminLike {
       error: ErroSupabase;
     }>;
   };
+  from(table: string): {
+    select(columns: string): {
+      eq(column: string, value: string): Promise<{ data: unknown[] | null; error: ErroSupabase }>;
+    };
+    insert(data: unknown): Promise<{ data: unknown | null; error: ErroSupabase }>;
+  };
   rpc(
     fn: string,
     params: Record<string, unknown>,
@@ -208,6 +225,59 @@ export function createHandler(deps: HandlerDeps = {}) {
     }
 
     try {
+      const termoNormalizado = normalizarTermoBusca(requisicao.query);
+
+      // Etapa 1: Consultar cache de sinônimos
+      console.log(`🔍 Buscando "${requisicao.query}" no cache...`);
+      const { data: cacheData, error: erroCache } = await admin
+        .from('cache_sinonimos_alimentos')
+        .select('alimento_id, contagem_hits')
+        .eq('termo_buscado', termoNormalizado);
+
+      if (erroCache) {
+        console.warn(`⚠️ Erro ao consultar cache: ${erroCache.message} — continuando com busca semântica`);
+      } else if (cacheData && cacheData.length > 0) {
+        // Cache hit! Buscar o alimento cached
+        const { alimento_id, contagem_hits } = cacheData[0] as {
+          alimento_id: string;
+          contagem_hits: number;
+        };
+
+        console.log(`✅ Cache hit! termo="${termoNormalizado}" → alimento="${alimento_id}" (hits=${contagem_hits})`);
+
+        // Buscar os dados completos do alimento para retornar
+        const { data: alimentoData, error: erroAlimento } = await admin
+          .from('alimentos_referencia')
+          .select(
+            'id, nome_taco, aliases, calorias_kcal_100g, proteinas_g_100g, carboidratos_g_100g, gorduras_g_100g',
+          )
+          .eq('id', alimento_id);
+
+        if (!erroAlimento && alimentoData && alimentoData.length > 0) {
+          const alimento = alimentoData[0] as AlimentoEncontrado & { similarity?: number };
+          // Adicionar similaridade como 1.0 para cache hits (matches perfeitos)
+          alimento.similarity = 1.0;
+
+          // Atualizar contador de hits assincronamente (não bloqueia resposta)
+          admin
+            .from('cache_sinonimos_alimentos')
+            .insert([
+              {
+                termo_buscado: termoNormalizado,
+                alimento_id,
+                contagem_hits: contagem_hits + 1,
+                ultimo_hit_em: new Date().toISOString(),
+              },
+            ])
+            .catch((err) => console.warn(`⚠️ Erro ao atualizar contador de cache hits: ${err}`));
+
+          return jsonResponse({ results: [alimento], cache_hit: true }, 200);
+        }
+      }
+
+      // Etapa 2: Cache miss — gerar embedding e buscar
+      console.log(`📝 Cache miss para "${requisicao.query}" — gerando embedding...`);
+
       const chamarEmbedding =
         deps.chamarEmbedding ??
         (() => {
@@ -235,7 +305,21 @@ export function createHandler(deps: HandlerDeps = {}) {
         throw new Error(`Erro ao consultar match_alimentos: ${error.message}`);
       }
 
-      return jsonResponse({ results: data ?? [] }, 200);
+      // Etapa 3: Gravar primeiro resultado no cache para futuras buscas
+      if (data && data.length > 0) {
+        const primeiroResultado = data[0];
+        console.log(`💾 Cachando resultado: "${requisicao.query}" → "${primeiroResultado.nome_taco}"`);
+
+        await admin.from('cache_sinonimos_alimentos').insert([
+          {
+            termo_buscado: termoNormalizado,
+            alimento_id: primeiroResultado.id,
+            contagem_hits: 1,
+          },
+        ]);
+      }
+
+      return jsonResponse({ results: data ?? [], cache_hit: false }, 200);
     } catch (erro) {
       if (erro instanceof ErroHttp) {
         return jsonResponse({ error: erro.message }, erro.status);
