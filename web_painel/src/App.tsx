@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { LoginPage } from './components/LoginPage';
+import { UpdatePasswordPage } from './components/UpdatePasswordPage';
 import { DashboardLayout } from './components/layout/DashboardLayout';
 import { PlaceholderPage } from './components/layout/PlaceholderPage';
 import {
@@ -56,12 +57,20 @@ export default function App() {
 
   if (estado === 'nao_autenticado' || !profissional) {
     return (
-      <LoginPage
-        onAutenticado={(novoProfissional) => {
-          setProfissional(novoProfissional);
-          setEstado('autenticado');
-        }}
-      />
+      <Routes>
+        {/* Rotas públicas: login e recuperação de senha */}
+        <Route path="/login" element={
+          <LoginPage
+            onAutenticado={(novoProfissional) => {
+              setProfissional(novoProfissional);
+              setEstado('autenticado');
+            }}
+          />
+        } />
+        <Route path="/update-password" element={<UpdatePasswordPage />} />
+        {/* Fallback para login em qualquer outra rota */}
+        <Route path="*" element={<Navigate to="/login" replace />} />
+      </Routes>
     );
   }
 
