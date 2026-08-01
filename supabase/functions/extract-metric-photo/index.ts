@@ -180,9 +180,9 @@ function resolverModelo(nivel: NivelModelo): string {
 // scripts/seed_food_embeddings.ts e supabase/functions/search-food/index.ts
 // — os três precisam concordar, ou os vetores não ficam comparáveis entre
 // si (ver nota em `resolverComBuscaSemantica`).
-// CORRIGIDO (31/jul/2026): 'gemini-embedding-001' era obsoleto. Migrado para
-// 'text-embedding-004' (endpoint padronizado, L2 normalization).
-const MODELO_EMBEDDING = 'text-embedding-004';
+// REVERTIDO (31/jul/2026): 'text-embedding-004' não existe em v1beta API.
+// Mantém 'gemini-embedding-001' (modelo que funciona e combina com seed_food_embeddings.ts).
+const MODELO_EMBEDDING = 'gemini-embedding-001';
 const GEMINI_EMBED_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${MODELO_EMBEDDING}:embedContent`;
 const DIMENSOES_EMBEDDING = 768;
 // AJUSTADO (31/jul/2026) após falhas em campo: "carne bovina em cubos"

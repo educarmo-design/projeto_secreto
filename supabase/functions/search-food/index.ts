@@ -1,7 +1,7 @@
 // search-food — "Cérebro da Busca" (Nutrição Semântica, Adendo v5.1 §A.3/§C.3).
 //
 // Recebe um termo de busca livre (`{"query": "..."}`), gera o embedding dele
-// via Gemini (text-embedding-004) e devolve os alimentos de `alimentos_referencia`
+// via Gemini (gemini-embedding-001) e devolve os alimentos de `alimentos_referencia`
 // mais próximos por similaridade de cosseno, consultando a RPC `match_alimentos`
 // (20260729120000_create_match_alimentos.sql).
 //
@@ -18,7 +18,7 @@ const CORS_HEADERS: Record<string, string> = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
-const MODELO_EMBEDDING = 'text-embedding-004';
+const MODELO_EMBEDDING = 'gemini-embedding-001';
 const GEMINI_EMBED_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${MODELO_EMBEDDING}:embedContent`;
 const DIMENSOES_EMBEDDING = 768;
 
