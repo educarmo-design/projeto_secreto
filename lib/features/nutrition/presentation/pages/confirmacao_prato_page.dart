@@ -212,7 +212,7 @@ class _ItemPratoTile extends StatelessWidget {
               children: [
                 Expanded(
                   child: Text(
-                    original.nomeCasado,
+                    original.nomeIdentificado,
                     style: Theme.of(context).textTheme.titleSmall,
                   ),
                 ),
@@ -225,10 +225,7 @@ class _ItemPratoTile extends StatelessWidget {
             ),
             if (original.nomeCasado != original.nomeIdentificado)
               Text(
-                i18n.tr(
-                  'confirmacao_prato.identificado_como',
-                  params: {'nome': original.nomeIdentificado},
-                ),
+                original.nomeCasado,
                 style: Theme.of(context).textTheme.bodySmall,
               ),
             Text(
