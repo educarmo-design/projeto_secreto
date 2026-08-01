@@ -235,6 +235,33 @@ class _ItemPratoTile extends StatelessWidget {
               ),
               style: Theme.of(context).textTheme.bodySmall,
             ),
+            if (original.quantidadeEstimada ?? false) ...[
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.amber.shade50,
+                  borderRadius: BorderRadius.circular(4),
+                  border: Border.all(color: Colors.amber.shade200),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.info_outline, size: 18, color: Colors.amber.shade700),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        i18n.tr('confirmacao_prato.quantidade_estimada_aviso'),
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.amber.shade900,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             const SizedBox(height: 8),
             Wrap(
               alignment: WrapAlignment.spaceBetween,

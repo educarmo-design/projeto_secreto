@@ -386,6 +386,7 @@
     "decrement": "Diminuir quantidade",
     "identificado_como": "Identificado como: {{nome}}",
     "confianca": "Confiança da leitura: {{percentual}}%",
+    "quantidade_estimada_aviso": "Quantidade estimada — edite se necessário",
     "macros_resumo": "{{calorias}} kcal · {{proteinas}}g prot · {{carboidratos}}g carb · {{gorduras}}g gord",
     "totais": "Total: {{calorias}} kcal · {{proteinas}}g prot · {{carboidratos}}g carb · {{gorduras}}g gord",
     "confirm_button": "Confirmar",

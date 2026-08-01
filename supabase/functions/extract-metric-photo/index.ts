@@ -192,6 +192,49 @@ const DIMENSOES_EMBEDDING = 768;
 // (0.626<0.55 é falso). MESMO VALOR em search-food/index.ts.
 const BUSCA_SEMANTICA_THRESHOLD = 0.55;
 
+// Pesos típicos de servida padrão para alimentos órfãos (sem medidas
+// cadastradas). Usado como fallback quando alimento é encontrado mas não tem
+// medidas caseiras — permite cálculo mais preciso que 100g fixo. Baseado em
+// valores nutricionais padrão TACO/USDA. Usuário pode editar na tela de
+// confirmação se necessário.
+const PESO_TIPICO_GRAMAS: Record<string, number> = {
+  // Fritos/salgados
+  'Bolinho': 40,
+  'Coxinha': 45,
+  'Pastel': 60,
+  'Rissole': 50,
+  'Acarajé': 60,
+  'Pão de queijo': 50,
+  'Bolo': 100,
+
+  // Carnes
+  'Bife': 150,
+  'Filé': 120,
+  'Peito': 140,
+  'Coxa': 100,
+  'Costela': 80,
+
+  // Frutas (1 unidade)
+  'Maçã': 180,
+  'Banana': 120,
+  'Laranja': 150,
+  'Morango': 15,
+
+  // Legumes/Vegetais
+  'Cenoura': 60,
+  'Batata': 150,
+  'Batata doce': 150,
+  'Mandioca': 150,
+
+  // Alimentos órfãos comuns
+  'Mandioca, frita': 150,
+  'Carne, bovina, músculo': 150,
+  'Limão': 50,
+
+  // Fallback
+  'default': 100,
+};
+
 // Nomes que o cliente manda em `X-Tipo-Aparelho` (é `TipoAparelho.name` do
 // enum Dart em `camera_capture_controller.dart` — glicosimetro/
 // pressaoArterial/balanca/pratoRefeicao já existem lá). `TIPO_ROTULO` é
@@ -524,6 +567,9 @@ export interface ItemPratoCalculado {
   /// Similaridade de cosseno (0..1) que a RPC `match_alimentos` devolveu —
   /// só presente junto com `origemCasamento: 'semantico'`.
   similaridade?: number;
+  /// Indica se a quantidade/gramas é estimativa (alimento sem medidas
+  /// cadastradas) — quando true, UI deve mostrar ⚠️ e permitir edição.
+  quantidadeEstimada?: boolean;
 }
 
 /// Item que o Gemini identificou mas que o backend NÃO conseguiu calcular —
@@ -1066,14 +1112,15 @@ export function encontrarMedida(
     return fallback;
   }
 
-  // 4. Fallback final: usar grama como unidade de último recurso se nenhuma
-  // medida caseira está cadastrada para este alimento. Permite prosseguir com
-  // quantidade em gramas em vez de derrubar o item (usuário pode editar depois
-  // se necessário). Usa 100g como padrão legível (tipo "100g de mandioca").
+  // 4. Fallback final: usar peso típico do alimento se nenhuma medida caseira
+  // está cadastrada. Permite cálculo mais preciso que 100g fixo, e UI mostra
+  // aviso para usuário editar se necessário.
+  const pesoTipico = PESO_TIPICO_GRAMAS[alimento.nomeTaco] ?? PESO_TIPICO_GRAMAS['default']!;
   console.log(
-    `[encontrarMedida] Fallback extremo (nenhuma medida no banco): "${medidaBuscada}" -> "g" (100g como padrão)`,
+    `[encontrarMedida] Fallback extremo (nenhuma medida no banco): "${medidaBuscada}" -> "g (${pesoTipico}g típico)" para "${alimento.nomeTaco}"`,
   );
-  return { medida: 'g (grama)', gramas: 100 };
+  // Retorna com marcador de estimado — será detectado no caller
+  return { medida: `g (${pesoTipico}g est.)`, gramas: pesoTipico };
 }
 
 function arredondar(valor: number, casas: number): number {
@@ -1095,6 +1142,7 @@ function calcularItem(params: {
   confianca: number;
   origemCasamento?: 'semantico';
   similaridade?: number;
+  quantidadeEstimada?: boolean;
 }): ItemPratoCalculado {
   const gramas = params.medida.gramas * params.quantidade;
   return {
@@ -1110,6 +1158,7 @@ function calcularItem(params: {
     confianca: params.confianca,
     ...(params.origemCasamento ? { origemCasamento: params.origemCasamento } : {}),
     ...(params.similaridade !== undefined ? { similaridade: params.similaridade } : {}),
+    ...(params.quantidadeEstimada ? { quantidadeEstimada: params.quantidadeEstimada } : {}),
   };
 }
 
@@ -1170,6 +1219,9 @@ export function calcularPrato(
       continue;
     }
 
+    // Detectar se é medida estimada (contém "est." no nome — adicionado pelo fallback)
+    const quantidadeEstimada = medida.medida.includes('est.');
+
     itens.push(
       calcularItem({
         alimento,
@@ -1178,6 +1230,7 @@ export function calcularPrato(
         medidaTexto: item.medida,
         quantidade: item.quantidade,
         confianca: item.confianca,
+        quantidadeEstimada,
       }),
     );
   }
@@ -1238,14 +1291,14 @@ export async function resolverComBuscaSemantica(
         console.log(`[resolverComBuscaSemantica] Alimento resolvido: "${alimento.nomeTaco}"`);
 
         const medida = encontrarMedida(alimento, item.medida);
-        if (!medida) {
+        // encontrarMedida nunca retorna null agora (fallback usa peso típico)
+
+        // Detectar se é medida estimada (contém "est." no nome)
+        const quantidadeEstimada = medida.medida.includes('est.');
+        if (quantidadeEstimada) {
           console.log(
-            `[resolverComBuscaSemantica] ERRO: medida "${item.medida}" não encontrada para "${alimento.nomeTaco}"`,
+            `[resolverComBuscaSemantica] Medida estimada: "${item.medida}" -> "${medida.medida}" para "${alimento.nomeTaco}"`,
           );
-          return {
-            resolvido: null,
-            naoReconhecido: { ...item, motivo: 'medida_nao_encontrada' },
-          };
         }
 
         return {
@@ -1258,6 +1311,7 @@ export async function resolverComBuscaSemantica(
             confianca: item.confianca,
             origemCasamento: 'semantico',
             similaridade: arredondar(melhor.similarity, 3),
+            quantidadeEstimada,
           }),
           naoReconhecido: null,
         };
