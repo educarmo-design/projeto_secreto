@@ -1062,11 +1062,14 @@ export function encontrarMedida(
     return fallback;
   }
 
-  // Nenhuma medida disponível
+  // 4. Fallback final: usar grama como unidade de último recurso se nenhuma
+  // medida caseira está cadastrada para este alimento. Permite prosseguir com
+  // quantidade em gramas em vez de derrubar o item (usuário pode editar depois
+  // se necessário). Usa 100g como padrão legível (tipo "100g de mandioca").
   console.log(
-    `[encontrarMedida] ERRO: nenhuma medida disponível para "${alimento.nomeTaco}"`,
+    `[encontrarMedida] Fallback extremo (nenhuma medida no banco): "${medidaBuscada}" -> "g" (100g como padrão)`,
   );
-  return null;
+  return { medida: 'g (grama)', gramas: 100 };
 }
 
 function arredondar(valor: number, casas: number): number {
