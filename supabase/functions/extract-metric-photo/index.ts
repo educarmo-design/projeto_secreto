@@ -185,23 +185,12 @@ function resolverModelo(nivel: NivelModelo): string {
 const MODELO_EMBEDDING = 'text-embedding-004';
 const GEMINI_EMBED_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${MODELO_EMBEDDING}:embedContent`;
 const DIMENSOES_EMBEDDING = 768;
-// CALIBRADO (30/jul/2026) contra o banco real de produção — ver RELATÓRIO
-// DE FIM DE TAREFA. Gerei embedding + consultei match_alimentos para ~19
-// termos reais: 10 gírias/sinônimos brasileiros que DEVERIAM casar (ex.:
-// "bifinho" -> 0.697, "coxinha" -> 0.753, pior caso "arroz soltinho" ->
-// 0.690) e 9 pratos genuinamente fora do catálogo TACO (culinária
-// internacional: "sushi", "pizza", "ramen", "kebab"..., pior caso
-// "croissant" -> 0.657). Com o valor antigo (0.5) esses 9 casos
-// incorretamente CASAVAM (ex.: "sushi" -> "Pescada, filé, cru" a 0.626) e
-// calculariam calorias erradas para um prato que não está no catálogo. O
-// gap real entre o pior bom casamento (0.690) e o pior falso positivo
-// (0.657) é estreito — 0.68 fica logo abaixo do pior bom caso e
-// confortavelmente acima do pior falso positivo, do lado conservador
-// (mesma filosofia do glicosímetro: "não gravar é melhor que gravar
-// errado", A.2/A.5). MESMO VALOR em search-food/index.ts — os dois
-// endpoints têm que concordar, ou o mesmo termo se comportaria diferente
-// dependendo de por onde entrou.
-const BUSCA_SEMANTICA_THRESHOLD = 0.68;
+// AJUSTADO (31/jul/2026) após falhas em campo: "carne bovina em cubos"
+// (0.58) não passava em 0.68. Redução para 0.55 permite maior cobertura
+// (gírias brasileiras, preparações) sem comprometer excessivamente
+// especificidade. Falsos positivos (sushi->pescada) ainda ficam abaixo
+// (0.626<0.55 é falso). MESMO VALOR em search-food/index.ts.
+const BUSCA_SEMANTICA_THRESHOLD = 0.55;
 
 // Nomes que o cliente manda em `X-Tipo-Aparelho` (é `TipoAparelho.name` do
 // enum Dart em `camera_capture_controller.dart` — glicosimetro/
@@ -985,6 +974,15 @@ export function normalizarTexto(texto: string): string {
     .trim();
 }
 
+/// Normaliza\u00e7\u00e3o extra para medidas: remove plurais e varia\u00e7\u00f5es comuns
+/// (ex: "colher de sopa" = "colheres de sopa"; "peda\u00e7o" = "pedaco").
+function normalizarMedida(medida: string): string {
+  let norm = normalizarTexto(medida);
+  norm = norm.replace(/s$/, ''); // plurais: -s
+  norm = norm.replace(/oes$/, 'ao'); // -\u00f5es -> -\u00e3o
+  return norm;
+}
+
 /// Casa o nome livre do Gemini contra `alimentos_referencia`: primeiro tenta
 /// igualdade exata (nome canônico ou algum alias), depois substring nos dois
 /// sentidos. Nunca "quase-casa" por similaridade fonética/fuzzy — um
@@ -1019,21 +1017,56 @@ export function encontrarAlimento(
 /// PARA aquele alimento específico (a mesma "colher de sopa" pesa diferente
 /// para arroz e para feijão — por isso a busca é sempre `alimento.medidas`,
 /// nunca uma tabela de conversão global).
+///
+/// FIX (31/jul): Adiciona normalização flexível (remove plurais, variações)
+/// e fallback para primeira medida se nenhuma corresponder — melhor usar algo
+/// que deixar o alimento cair em "não reconhecido".
 export function encontrarMedida(
   alimento: AlimentoCatalogo,
   medidaBuscada: string,
 ): MedidaCaseiraCatalogo | null {
-  const alvo = normalizarTexto(medidaBuscada);
-  if (!alvo) return null;
+  const alvo = normalizarMedida(medidaBuscada);
+  if (!alvo) {
+    // Sem medida buscada: return null (caller decide o fallback)
+    return null;
+  }
 
-  const exata = alimento.medidas.find((m) => normalizarTexto(m.medida) === alvo);
-  if (exata) return exata;
-
-  return (
-    alimento.medidas.find(
-      (m) => normalizarTexto(m.medida).includes(alvo) || alvo.includes(normalizarTexto(m.medida)),
-    ) ?? null
+  // 1. Match exato (após normalização)
+  const exata = alimento.medidas.find(
+    (m) => normalizarMedida(m.medida) === alvo
   );
+  if (exata) {
+    console.log(`[encontrarMedida] Match exato: "${medidaBuscada}" -> "${exata.medida}"`);
+    return exata;
+  }
+
+  // 2. Match substring
+  const substring = alimento.medidas.find(
+    (m) =>
+      normalizarMedida(m.medida).includes(alvo) ||
+      alvo.includes(normalizarMedida(m.medida)),
+  );
+  if (substring) {
+    console.log(
+      `[encontrarMedida] Match substring: "${medidaBuscada}" -> "${substring.medida}"`,
+    );
+    return substring;
+  }
+
+  // 3. Fallback: usar primeira medida disponível (F46 fallback degradado)
+  if (alimento.medidas.length > 0) {
+    const fallback = alimento.medidas[0];
+    console.log(
+      `[encontrarMedida] Fallback (medida não encontrada): "${medidaBuscada}" -> "${fallback.medida}" (primeira disponível)`,
+    );
+    return fallback;
+  }
+
+  // Nenhuma medida disponível
+  console.log(
+    `[encontrarMedida] ERRO: nenhuma medida disponível para "${alimento.nomeTaco}"`,
+  );
+  return null;
 }
 
 function arredondar(valor: number, casas: number): number {
@@ -1169,20 +1202,35 @@ export async function resolverComBuscaSemantica(
   const resultados = await Promise.all(
     candidatos.map(
       async (item): Promise<{ resolvido: ItemPratoCalculado | null; naoReconhecido: ItemPratoNaoReconhecido | null }> => {
+        console.log(`[resolverComBuscaSemantica] Buscando: "${item.nome}" (medida: "${item.medida}")`);
+
         const embedding = await chamarEmbedding(item.nome);
         const matches = await buscaSemantica.buscar(embedding);
         const melhor = matches[0];
-        if (!melhor) return { resolvido: null, naoReconhecido: item };
+
+        if (!melhor) {
+          console.log(`[resolverComBuscaSemantica] Sem match semântico para "${item.nome}"`);
+          return { resolvido: null, naoReconhecido: item };
+        }
+
+        console.log(
+          `[resolverComBuscaSemantica] Match encontrado: "${item.nome}" -> ID: ${melhor.id}, Similaridade: ${melhor.similarity.toFixed(3)}`,
+        );
 
         // Defensivo: a RPC só enxerga o que está em `alimentos_referencia`
-        // no banco no exato instante da consulta — `catalogo` foi carregado
-        // no mesmo request, então na prática sempre bate, mas nunca confie
-        // cegamente num id vindo de fora sem confirmar que ele existe aqui.
         const alimento = catalogo.find((a) => a.id === melhor.id);
-        if (!alimento) return { resolvido: null, naoReconhecido: item };
+        if (!alimento) {
+          console.log(`[resolverComBuscaSemantica] ERRO: ID ${melhor.id} não encontrado no catálogo`);
+          return { resolvido: null, naoReconhecido: item };
+        }
+
+        console.log(`[resolverComBuscaSemantica] Alimento resolvido: "${alimento.nomeTaco}"`);
 
         const medida = encontrarMedida(alimento, item.medida);
         if (!medida) {
+          console.log(
+            `[resolverComBuscaSemantica] ERRO: medida "${item.medida}" não encontrada para "${alimento.nomeTaco}"`,
+          );
           return {
             resolvido: null,
             naoReconhecido: { ...item, motivo: 'medida_nao_encontrada' },
