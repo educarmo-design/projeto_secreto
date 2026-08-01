@@ -1031,26 +1031,30 @@ export function encontrarMedida(
     return null;
   }
 
+  // Otimização: pré-computar normalização uma vez, não para cada comparação
+  const medidasNormalizadas = alimento.medidas.map((m) => ({
+    original: m,
+    normalizado: normalizarMedida(m.medida),
+  }));
+
   // 1. Match exato (após normalização)
-  const exata = alimento.medidas.find(
-    (m) => normalizarMedida(m.medida) === alvo
-  );
+  const exata = medidasNormalizadas.find((m) => m.normalizado === alvo);
   if (exata) {
-    console.log(`[encontrarMedida] Match exato: "${medidaBuscada}" -> "${exata.medida}"`);
-    return exata;
+    console.log(`[encontrarMedida] Match exato: "${medidaBuscada}" -> "${exata.original.medida}"`);
+    return exata.original;
   }
 
   // 2. Match substring
-  const substring = alimento.medidas.find(
+  const substring = medidasNormalizadas.find(
     (m) =>
-      normalizarMedida(m.medida).includes(alvo) ||
-      alvo.includes(normalizarMedida(m.medida)),
+      m.normalizado.includes(alvo) ||
+      alvo.includes(m.normalizado),
   );
   if (substring) {
     console.log(
-      `[encontrarMedida] Match substring: "${medidaBuscada}" -> "${substring.medida}"`,
+      `[encontrarMedida] Match substring: "${medidaBuscada}" -> "${substring.original.medida}"`,
     );
-    return substring;
+    return substring.original;
   }
 
   // 3. Fallback: usar primeira medida disponível (F46 fallback degradado)
@@ -1202,6 +1206,9 @@ export async function resolverComBuscaSemantica(
   const candidatos = itensNaoReconhecidos.filter((i) => i.motivo === 'alimento_nao_encontrado');
   const semCandidato = itensNaoReconhecidos.filter((i) => i.motivo !== 'alimento_nao_encontrado');
 
+  // Otimização: criar Map para O(1) lookup por ID em vez de O(n) busca linear
+  const alimentoPorId = new Map(catalogo.map((a) => [a.id, a]));
+
   const resultados = await Promise.all(
     candidatos.map(
       async (item): Promise<{ resolvido: ItemPratoCalculado | null; naoReconhecido: ItemPratoNaoReconhecido | null }> => {
@@ -1221,7 +1228,8 @@ export async function resolverComBuscaSemantica(
         );
 
         // Defensivo: a RPC só enxerga o que está em `alimentos_referencia`
-        const alimento = catalogo.find((a) => a.id === melhor.id);
+        // Uso Map para O(1) lookup em vez de O(n) busca linear no catálogo
+        const alimento = alimentoPorId.get(melhor.id);
         if (!alimento) {
           console.log(`[resolverComBuscaSemantica] ERRO: ID ${melhor.id} não encontrado no catálogo`);
           return { resolvido: null, naoReconhecido: item };
