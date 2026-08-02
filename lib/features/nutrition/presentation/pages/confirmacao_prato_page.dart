@@ -108,6 +108,7 @@ class _ConfirmacaoPratoPageState extends State<ConfirmacaoPratoPage> {
         for (final item in state.itens)
           _ItemPratoTile(
             item: item,
+            controller: _controller,
             onIncrementar: () => _controller.incrementar(item.chave),
             onDecrementar: () => _controller.decrementar(item.chave),
             onRemover: () => _controller.remover(item.chave),
@@ -185,12 +186,14 @@ class _ErroSalvarBanner extends StatelessWidget {
 class _ItemPratoTile extends StatefulWidget {
   const _ItemPratoTile({
     required this.item,
+    required this.controller,
     required this.onIncrementar,
     required this.onDecrementar,
     required this.onRemover,
   });
 
   final ItemPratoEditavel item;
+  final ConfirmacaoPratoController controller;
   final VoidCallback onIncrementar;
   final VoidCallback onDecrementar;
   final VoidCallback onRemover;
@@ -239,7 +242,7 @@ class _ItemPratoTileState extends State<_ItemPratoTile> {
           FilledButton(
             onPressed: () {
               final novoGramas = double.tryParse(controller.text) ?? 100;
-              _controller.editarPeso(item.chave, novoGramas);
+              widget.controller.editarPeso(item.chave, novoGramas);
               Navigator.of(context).pop();
             },
             child: Text(i18n.tr('common.save')),
@@ -379,7 +382,7 @@ class _ItemPratoTileState extends State<_ItemPratoTile> {
                       tooltip: i18n.tr('confirmacao_prato.decrement'),
                       iconSize: 20,
                       padding: EdgeInsets.zero,
-                      onPressed: onDecrementar,
+                      onPressed: widget.onDecrementar,
                     ),
                     Text('${_formatarQuantidade(item.quantidadeAtual)} ${original.medida}'),
                     IconButton(
@@ -387,7 +390,7 @@ class _ItemPratoTileState extends State<_ItemPratoTile> {
                       tooltip: i18n.tr('confirmacao_prato.increment'),
                       iconSize: 20,
                       padding: EdgeInsets.zero,
-                      onPressed: onIncrementar,
+                      onPressed: widget.onIncrementar,
                     ),
                   ],
                 ),
