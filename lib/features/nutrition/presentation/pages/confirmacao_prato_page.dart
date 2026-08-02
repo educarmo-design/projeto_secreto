@@ -256,7 +256,6 @@ class _ItemPratoTileState extends State<_ItemPratoTile> {
   Widget build(BuildContext context) {
     final item = widget.item;
     final original = item.original;
-    final original = item.original;
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       child: Padding(
@@ -298,7 +297,7 @@ class _ItemPratoTileState extends State<_ItemPratoTile> {
                 IconButton(
                   icon: const Icon(Icons.delete_outline),
                   tooltip: i18n.tr('confirmacao_prato.remove_item'),
-                  onPressed: onRemover,
+                  onPressed: widget.onRemover,
                 ),
               ],
             ),
