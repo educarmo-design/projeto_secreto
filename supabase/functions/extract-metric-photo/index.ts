@@ -2121,6 +2121,10 @@ async function processarPratoRefeicao(params: {
         confianca: item.confianca,
         ...(item.origemCasamento ? { origem_casamento: item.origemCasamento } : {}),
         ...(item.similaridade !== undefined ? { similaridade: item.similaridade } : {}),
+        ...(item.quantidadeEstimada ? {
+          quantidade_estimada: item.quantidadeEstimada,
+          peso_tipico_gramas: item.pesoTipicoGramas,
+        } : {}),
       })),
       itens_nao_reconhecidos: itensNaoReconhecidosFinais.map((item) => ({
         nome: item.nome,
