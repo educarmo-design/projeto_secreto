@@ -29,26 +29,47 @@ class ItemPratoEditavel {
   final ItemPratoExtraidoModel original;
   final double quantidadeAtual;
 
+  /// Peso personalizado em gramas quando usuário edita (para itens estimados).
+  /// Se null, usar original.gramasEstimados. Se não-nulo, usar este valor.
+  final double? pesoPersonalizadoGramas;
+
   const ItemPratoEditavel({
     required this.chave,
     required this.original,
     required this.quantidadeAtual,
+    this.pesoPersonalizadoGramas,
   });
 
   double get _fator => original.quantidadeOriginal == 0
       ? 0
       : quantidadeAtual / original.quantidadeOriginal;
 
-  double get gramasEstimados => original.gramasEstimados * _fator;
-  double get calorias => original.calorias * _fator;
-  double get proteinasG => original.proteinasG * _fator;
-  double get carboidratosG => original.carboidratosG * _fator;
-  double get gordurasG => original.gordurasG * _fator;
+  /// Se usuário customizou o peso, usar esse. Senão, usar o original calculado.
+  double get gramasEstimados {
+    if (pesoPersonalizadoGramas != null) {
+      return pesoPersonalizadoGramas! * _fator;
+    }
+    return original.gramasEstimados * _fator;
+  }
+
+  double get calorias => (original.calorias / original.gramasEstimados) * gramasEstimados;
+  double get proteinasG => (original.proteinasG / original.gramasEstimados) * gramasEstimados;
+  double get carboidratosG => (original.carboidratosG / original.gramasEstimados) * gramasEstimados;
+  double get gordurasG => (original.gordurasG / original.gramasEstimados) * gramasEstimados;
 
   ItemPratoEditavel comQuantidade(double novaQuantidade) => ItemPratoEditavel(
         chave: chave,
         original: original,
         quantidadeAtual: novaQuantidade,
+        pesoPersonalizadoGramas: pesoPersonalizadoGramas,
+      );
+
+  /// Quando usuário edita o peso no aviso amarelo
+  ItemPratoEditavel comPesoPersonalizado(double novoGramas) => ItemPratoEditavel(
+        chave: chave,
+        original: original,
+        quantidadeAtual: quantidadeAtual,
+        pesoPersonalizadoGramas: novoGramas,
       );
 }
 
@@ -169,6 +190,17 @@ class ConfirmacaoPratoController extends ValueNotifier<ConfirmacaoPratoState> {
   void remover(int chave) {
     value = value.copyWith(
       itens: value.itens.where((item) => item.chave != chave).toList(),
+    );
+  }
+
+  /// Quando usuário edita o peso personalizado (para itens estimados)
+  void editarPeso(int chave, double novoGramas) {
+    if (novoGramas <= 0) return; // Validação: peso deve ser positivo
+    value = value.copyWith(
+      itens: value.itens.map((item) {
+        if (item.chave != chave) return item;
+        return item.comPesoPersonalizado(novoGramas);
+      }).toList(),
     );
   }
 

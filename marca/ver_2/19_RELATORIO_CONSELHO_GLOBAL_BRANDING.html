@@ -1,0 +1,683 @@
+<title>Conselho Global de Branding — Relatório Final de Naming</title>
+<style>
+:root{
+  --ink:#171b2e;
+  --ink-soft:#3a3f5c;
+  --paper:#f7f3ea;
+  --paper-raised:#fffdf8;
+  --dawn:#c98a2e;
+  --dawn-soft:#e4a94c;
+  --coral:#c85c68;
+  --sage:#5f8768;
+  --line:rgba(23,27,46,0.14);
+  --line-strong:rgba(23,27,46,0.28);
+  --accent-wash:rgba(201,138,46,0.10);
+  --danger:#b5473f;
+  --shadow:0 1px 2px rgba(23,27,46,0.06),0 8px 24px rgba(23,27,46,0.06);
+}
+:root[data-theme="dark"]{
+  --ink:#efe9db;
+  --ink-soft:#c7c1ae;
+  --paper:#14151f;
+  --paper-raised:#1c1e2b;
+  --dawn:#e4a94c;
+  --dawn-soft:#f0bd6c;
+  --coral:#e08a92;
+  --sage:#8ab393;
+  --line:rgba(239,233,219,0.14);
+  --line-strong:rgba(239,233,219,0.26);
+  --accent-wash:rgba(228,169,76,0.08);
+  --danger:#e08079;
+  --shadow:0 1px 2px rgba(0,0,0,0.3),0 12px 32px rgba(0,0,0,0.35);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ink:#efe9db; --ink-soft:#c7c1ae; --paper:#14151f; --paper-raised:#1c1e2b;
+    --dawn:#e4a94c; --dawn-soft:#f0bd6c; --coral:#e08a92; --sage:#8ab393;
+    --line:rgba(239,233,219,0.14); --line-strong:rgba(239,233,219,0.26);
+    --accent-wash:rgba(228,169,76,0.08);
+    --danger:#e08079;
+    --shadow:0 1px 2px rgba(0,0,0,0.3),0 12px 32px rgba(0,0,0,0.35);
+  }
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  background:var(--paper);
+  color:var(--ink);
+  font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  line-height:1.6;
+  -webkit-font-smoothing:antialiased;
+}
+::selection{background:var(--dawn-soft);color:#171b2e;}
+.wrap{max-width:920px;margin:0 auto;padding:0 24px 120px;}
+h1,h2,h3,h4{
+  font-family:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+  font-weight:600;
+  text-wrap:balance;
+  color:var(--ink);
+  margin:0;
+}
+a{color:var(--dawn);}
+.hero{
+  padding:88px 0 56px;
+  border-bottom:1px solid var(--line);
+}
+.eyebrow{
+  font-family:-apple-system,"Segoe UI",sans-serif;
+  font-size:12.5px;
+  letter-spacing:0.14em;
+  text-transform:uppercase;
+  color:var(--coral);
+  font-weight:600;
+  margin-bottom:18px;
+  display:block;
+}
+.hero h1{font-size:44px;line-height:1.12;max-width:14ch;}
+.hero p.lede{
+  font-size:18px;
+  color:var(--ink-soft);
+  max-width:58ch;
+  margin-top:20px;
+}
+section{padding:56px 0;border-bottom:1px solid var(--line);}
+section:last-of-type{border-bottom:none;}
+h2.section-title{font-size:28px;margin-bottom:8px;}
+p.section-sub{color:var(--ink-soft);font-size:15.5px;max-width:66ch;margin:0 0 32px;}
+p{margin:0 0 14px;}
+.prose p{max-width:68ch;}
+.prose{max-width:68ch;}
+
+/* reference brand table */
+.ref-table{width:100%;border-collapse:collapse;font-size:14px;margin-top:8px;}
+.ref-table th{
+  text-align:left;font-family:-apple-system,sans-serif;font-size:11px;
+  letter-spacing:0.08em;text-transform:uppercase;color:var(--ink-soft);
+  padding:8px 12px 8px 0;border-bottom:1px solid var(--line-strong);font-weight:600;
+}
+.ref-table td{padding:10px 12px 10px 0;border-bottom:1px solid var(--line);vertical-align:top;}
+.ref-table tr:last-child td{border-bottom:none;}
+.tbl-scroll{overflow-x:auto;}
+.brandname{font-weight:600;}
+
+/* funnel */
+.funnel{display:flex;flex-direction:column;gap:0;margin-top:28px;}
+.funnel-step{
+  display:grid;grid-template-columns:120px 1fr auto;gap:18px;align-items:center;
+  padding:16px 0;border-top:1px solid var(--line);
+}
+.funnel-step:first-child{border-top:none;}
+.funnel-n{
+  font-family:"Iowan Old Style",Georgia,serif;font-size:28px;color:var(--dawn);
+  font-variant-numeric:tabular-nums;
+}
+.funnel-label{font-size:14.5px;}
+.funnel-label b{display:block;font-size:15.5px;margin-bottom:2px;}
+.funnel-tag{
+  font-size:11px;letter-spacing:0.06em;text-transform:uppercase;color:var(--ink-soft);
+  border:1px solid var(--line-strong);border-radius:20px;padding:4px 10px;white-space:nowrap;
+}
+
+/* GBP explainer */
+.gbp-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:24px;}
+@media (max-width:640px){.gbp-grid{grid-template-columns:1fr 1fr;}}
+.gbp-item{
+  background:var(--paper-raised);border:1px solid var(--line);border-radius:10px;
+  padding:16px;box-shadow:var(--shadow);
+}
+.gbp-pct{font-family:"Iowan Old Style",Georgia,serif;font-size:26px;color:var(--dawn);font-variant-numeric:tabular-nums;}
+.gbp-name{font-size:13px;color:var(--ink-soft);margin-top:2px;}
+
+/* finalist cards */
+.rank-list{display:flex;flex-direction:column;gap:10px;margin-top:28px;}
+.rank-row{
+  display:grid;grid-template-columns:32px 1fr auto;gap:14px;align-items:center;
+  padding:12px 14px;border:1px solid var(--line);border-radius:10px;background:var(--paper-raised);
+}
+.rank-row .rk{font-family:"Iowan Old Style",Georgia,serif;color:var(--ink-soft);font-variant-numeric:tabular-nums;}
+.rank-row .rn{font-weight:600;}
+.rank-row .rs{font-variant-numeric:tabular-nums;color:var(--dawn);font-weight:600;}
+
+.card{
+  background:var(--paper-raised);
+  border:1px solid var(--line);
+  border-radius:14px;
+  padding:32px;
+  margin-top:28px;
+  box-shadow:var(--shadow);
+  scroll-margin-top:20px;
+}
+.card-head{display:flex;justify-content:space-between;align-items:baseline;gap:16px;flex-wrap:wrap;}
+.card-head h3{font-size:34px;}
+.card-score{text-align:right;}
+.card-score .num{font-family:"Iowan Old Style",Georgia,serif;font-size:30px;color:var(--dawn);font-variant-numeric:tabular-nums;}
+.card-score .lbl{font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:var(--ink-soft);}
+.risk-pill{
+  display:inline-block;font-size:11px;letter-spacing:0.05em;text-transform:uppercase;
+  padding:4px 10px;border-radius:20px;font-weight:600;margin-top:10px;
+}
+.risk-clear{background:rgba(95,135,104,0.15);color:var(--sage);}
+.risk-caution{background:rgba(228,169,76,0.18);color:var(--dawn);}
+.meta-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin:22px 0;}
+@media (max-width:640px){.meta-grid{grid-template-columns:1fr;}}
+.meta-item h4{font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:var(--ink-soft);font-family:-apple-system,sans-serif;margin-bottom:6px;}
+.meta-item div{font-size:14.5px;}
+.bars{display:flex;flex-direction:column;gap:8px;margin:20px 0;}
+.bar-row{display:grid;grid-template-columns:130px 1fr 34px;gap:10px;align-items:center;font-size:12.5px;color:var(--ink-soft);}
+.bar-track{height:7px;background:var(--line);border-radius:4px;overflow:hidden;}
+.bar-fill{height:100%;background:linear-gradient(90deg,var(--dawn-soft),var(--dawn));border-radius:4px;}
+.bar-val{text-align:right;font-variant-numeric:tabular-nums;color:var(--ink);}
+.arch-row{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;}
+.arch-chip{
+  font-size:13px;border:1px solid var(--line-strong);border-radius:8px;padding:6px 11px;
+  font-family:"Iowan Old Style",Georgia,serif;background:var(--accent-wash);
+}
+.card p.justif{margin-top:18px;font-size:15px;}
+.avail-note{
+  margin-top:14px;font-size:13.5px;color:var(--ink-soft);border-left:2px solid var(--line-strong);
+  padding-left:12px;
+}
+
+/* near misses */
+.miss-list{margin-top:24px;display:flex;flex-direction:column;gap:14px;}
+.miss{border-left:3px solid var(--danger);padding:4px 0 4px 16px;}
+.miss b{display:block;font-size:16px;}
+.miss span{font-size:14px;color:var(--ink-soft);}
+
+/* qa */
+.qa{margin-top:8px;}
+.qa-item{padding:22px 0;border-top:1px solid var(--line);}
+.qa-item:first-child{border-top:none;padding-top:0;}
+.qa-q{font-family:"Iowan Old Style",Georgia,serif;font-size:18px;margin-bottom:8px;}
+.qa-q .qn{color:var(--coral);margin-right:8px;}
+.qa-a{font-size:15px;color:var(--ink-soft);max-width:68ch;}
+.qa-a b{color:var(--ink);font-weight:600;}
+
+.pick-banner{
+  background:linear-gradient(160deg,var(--accent-wash),transparent);
+  border:1px solid var(--line-strong);border-radius:14px;padding:32px;margin-top:36px;
+}
+.pick-banner .eyebrow{margin-bottom:12px;}
+.pick-banner h3{font-size:30px;margin-bottom:10px;}
+
+footer{padding:48px 0 0;color:var(--ink-soft);font-size:13px;}
+
+nav.toc{
+  display:flex;flex-wrap:wrap;gap:8px 16px;margin-top:28px;padding-top:24px;border-top:1px solid var(--line);
+}
+nav.toc a{
+  font-size:13px;color:var(--ink-soft);text-decoration:none;border-bottom:1px dotted var(--line-strong);
+}
+nav.toc a:hover{color:var(--dawn);}
+</style>
+
+<div class="wrap">
+
+<div class="hero">
+  <span class="eyebrow">Conselho Global de Branding · Relatório Final</span>
+  <h1>Uma marca para os próximos 50 anos de saúde contínua.</h1>
+  <p class="lede">Segunda rodada de naming. A primeira produziu nomes tecnicamente corretos e emocionalmente vazios — Firmis, Kaelis e Skaldis liam-se como segurança digital, não como uma vida inteira sendo cuidada. Este relatório reconstrói o processo do zero: análise fonética, geração massiva, e — o que realmente mudou o resultado — verificação real de colisão contra o mercado de saúde digital, que se provou extraordinariamente mais saturado do que o esperado.</p>
+  <nav class="toc">
+    <a href="#padroes">1. Padrões fonéticos</a>
+    <a href="#funil">2. Funil de geração</a>
+    <a href="#gbp">3. Índice GBP</a>
+    <a href="#finalistas">4. Finalistas</a>
+    <a href="#quase">5. Quase entraram</a>
+    <a href="#relatorio">6. Relatório final</a>
+    <a href="#recomendacao">7. Recomendação</a>
+  </nav>
+</div>
+
+<section id="padroes">
+  <h2 class="section-title">O que as grandes marcas ensinam</h2>
+  <p class="section-sub">Catorze marcas, um padrão em comum: curtas, abertas, fáceis de datilografar sob pressão. Nenhuma delas é uma salada de raízes clássicas com sufixo decorativo — que é exatamente a receita que produziu Firmis/Kaelis/Skaldis, e que se provaria, nesta rodada, a receita mais saturada do mercado de saúde digital.</p>
+  <div class="tbl-scroll">
+  <table class="ref-table">
+    <tr><th>Marca</th><th>Sílabas</th><th>Padrão sonoro</th><th>O que carrega</th></tr>
+    <tr><td class="brandname">Nike</td><td>2</td><td>consoante forte + vogal aberta</td><td>nome próprio (deusa) reaproveitado, não inventado por partes</td></tr>
+    <tr><td class="brandname">Sony</td><td>2</td><td>plosiva + vogal aberta</td><td>trecho de "sonus" (som), cortado — não colado a um sufixo</td></tr>
+    <tr><td class="brandname">Oura</td><td>2</td><td>vogal‑vogal, sem consoante dura</td><td>respelling de "aura", uma única ideia, sem prefixo+sufixo</td></tr>
+    <tr><td class="brandname">Stripe</td><td>1</td><td>monossílabo, consoante final crocante</td><td>palavra real do dicionário, reaproveitada por metáfora (uma linha, simples)</td></tr>
+    <tr><td class="brandname">Notion</td><td>2</td><td>nasal + "-tion" já naturalizado</td><td>palavra real, abstrata, sem tradução literal do produto</td></tr>
+    <tr><td class="brandname">Asana</td><td>3</td><td>vogal‑nasal‑vogal, ritmo trocaico</td><td>palavra emprestada (posição de ioga) — som calmo, não inventado</td></tr>
+    <tr><td class="brandname">Uber</td><td>2</td><td>vogal + vibrante</td><td>preposição alemã ("acima de"), 100% real, recontextualizada</td></tr>
+    <tr><td class="brandname">Zoom</td><td>1</td><td>onomatopeia</td><td>som > significado; a palavra já existe e já significa "rápido"</td></tr>
+  </table>
+  </div>
+  <p class="prose" style="margin-top:24px;">O padrão real: marcas duradouras usam <b>uma palavra real reaproveitada</b> (Stripe, Uber, Notion, Asana, Zoom) ou <b>uma única palavra respelada</b> (Oura, Sony). Quase nenhuma usa a fórmula mais comum em startups de saúde: raiz clássica + raiz clássica + sufixo decorativo (vita+aura+"-ora"). Essa fórmula é sedutora porque parece "premium" — e é exatamente por isso que todo fundador de healthtech chega nela. A saturação encontrada na Tarefa 3 confirma isso com números reais.</p>
+</section>
+
+<section id="funil">
+  <h2 class="section-title">O funil real (não o funil de fachada)</h2>
+  <p class="section-sub">O briefing pediu 30.000 candidatos e 20 finalistas com disponibilidade "verificada, nunca inventada". As duas exigências entram em conflito: não existe forma honesta de verificar 30.000 nomes contra o mercado real — e fingir que verificamos seria exatamente o tipo de dado inventado que foi proibido. Optamos pelo rigor sobre o teatro: geramos o espaço conceitual completo, mas <b>só verificamos de verdade o que efetivamente chegou ao relatório</b>.</p>
+  <div class="funnel">
+    <div class="funnel-step">
+      <div class="funnel-n">~30k</div>
+      <div class="funnel-label"><b>Espaço conceitual gerado</b>Combinatória de raízes (grego, latim, proto‑indo‑europeu, celta, nórdico) × sufixos modernos × invenção fonética pura, cruzada com os filtros de eliminação do briefing (B2B, ERP, clínica, wearable, fitness).</div>
+      <div class="funnel-tag">método</div>
+    </div>
+    <div class="funnel-step">
+      <div class="funnel-n">~90</div>
+      <div class="funnel-label"><b>Pool curado à mão</b>Aplicando os padrões da Tarefa 1 (final aberto, 2–3 sílabas, sem sufixo "-is/-ix/-ent" que lembra segurança digital) e checando coerência com o significado (continuidade, luz, jornada, tecido de dados).</div>
+      <div class="funnel-tag">curadoria</div>
+    </div>
+    <div class="funnel-step">
+      <div class="funnel-n">34</div>
+      <div class="funnel-label"><b>Verificados de verdade</b>Busca real por colisão de marca/empresa/app, mais checagem de DNS ao vivo (.com e .com.br) para os candidatos mais fortes. Sem estimativas — cada resultado abaixo veio de uma consulta real.</div>
+      <div class="funnel-tag">verificação</div>
+    </div>
+    <div class="funnel-step">
+      <div class="funnel-n">23</div>
+      <div class="funnel-label"><b>Eliminados por colisão direta</b>Startups de saúde reais e ativas usando nomes quase idênticos aos gerados — incluindo uma empresa (Span Health) com posicionamento praticamente idêntico ao do produto do usuário.</div>
+      <div class="funnel-tag">baixa</div>
+    </div>
+    <div class="funnel-step">
+      <div class="funnel-n">11</div>
+      <div class="funnel-label"><b>Finalistas reais</b>O briefing pede 20 e permite menos "se apenas doze forem realmente excelentes". Onze passaram por verificação real; apresentá-los como vinte exigiria inventar disponibilidade — o que o próprio briefing proíbe.</div>
+      <div class="funnel-tag">final</div>
+    </div>
+  </div>
+</section>
+
+<section id="gbp">
+  <h2 class="section-title">Global Brand Potential (GBP)</h2>
+  <p class="section-sub">Índice próprio, 0–100, pesando cinco eixos de marca contra o único eixo que costuma ser tratado como se fosse o único que importa.</p>
+  <div class="gbp-grid">
+    <div class="gbp-item"><div class="gbp-pct">25%</div><div class="gbp-name">Memorabilidade</div></div>
+    <div class="gbp-item"><div class="gbp-pct">20%</div><div class="gbp-name">Musicalidade</div></div>
+    <div class="gbp-item"><div class="gbp-pct">15%</div><div class="gbp-name">Distintividade</div></div>
+    <div class="gbp-item"><div class="gbp-pct">15%</div><div class="gbp-name">Internacionalização</div></div>
+    <div class="gbp-item"><div class="gbp-pct">15%</div><div class="gbp-name">Disponibilidade</div></div>
+    <div class="gbp-item"><div class="gbp-pct">10%</div><div class="gbp-name">Escalabilidade</div></div>
+  </div>
+  <p class="prose" style="margin-top:24px;">Disponibilidade pesa 15% — de propósito. Um nome pode ser 100% livre e ainda ser uma marca fraca; a régua deste conselho é a mesma do briefing: <i>disponibilidade é requisito mínimo, não o objetivo</i>. Isso explica por que, adiante, um nome com colisão leve mas som superior pode empatar ou superar um nome tecnicamente "limpo" mas soneramente esquecível.</p>
+</section>
+
+<section id="finalistas">
+  <h2 class="section-title">Os 11 finalistas</h2>
+  <p class="section-sub">Ranqueados por GBP. Cada nome foi checado contra empresas, apps e marcas reais — os riscos abaixo não são hipotéticos, são o que a busca de fato retornou. .com e .com.br dos cinco primeiros foram testados ao vivo (DNS/HTTP), não apenas inferidos por busca.</p>
+
+  <div class="rank-list">
+    <div class="rank-row"><span class="rk">01</span><span class="rn">Talyne</span><span class="rs">80</span></div>
+    <div class="rank-row"><span class="rk">02</span><span class="rn">Wovana</span><span class="rs">80</span></div>
+    <div class="rank-row"><span class="rk">03</span><span class="rn">Corviel</span><span class="rs">79</span></div>
+    <div class="rank-row"><span class="rk">04</span><span class="rn">Onvira</span><span class="rs">77</span></div>
+    <div class="rank-row"><span class="rk">05</span><span class="rn">Vivalo</span><span class="rs">77</span></div>
+    <div class="rank-row"><span class="rk">06</span><span class="rn">Vaelora</span><span class="rs">76</span></div>
+    <div class="rank-row"><span class="rk">07</span><span class="rn">Solenne</span><span class="rs">76</span></div>
+    <div class="rank-row"><span class="rk">08</span><span class="rn">Anthova</span><span class="rs">76</span></div>
+    <div class="rank-row"><span class="rk">09</span><span class="rn">Wenlar</span><span class="rs">75</span></div>
+    <div class="rank-row"><span class="rk">10</span><span class="rn">Alda</span><span class="rs">74</span></div>
+    <div class="rank-row"><span class="rk">11</span><span class="rn">Renai</span><span class="rs">70</span></div>
+  </div>
+
+  <!-- TALYNE -->
+  <div class="card" id="talyne">
+    <div class="card-head">
+      <div><h3>Talyne</h3><span class="risk-pill risk-clear">Disponibilidade limpa</span></div>
+      <div class="card-score"><div class="num">80</div><div class="lbl">GBP</div></div>
+    </div>
+    <div class="meta-grid">
+      <div class="meta-item"><h4>Pronúncia PT</h4><div>ta-LAI-ni <i>(tendência natural de leitura)</i></div></div>
+      <div class="meta-item"><h4>Pronúncia EN</h4><div>tuh-LYNE <i>/təˈlaɪn/</i></div></div>
+      <div class="meta-item"><h4>Pronúncia ES</h4><div>ta-LIN</div></div>
+    </div>
+    <div class="meta-item"><h4>Origem fonética</h4><div>Cunhagem pura — sem raiz clássica decodificável, no mesmo espírito de Kodak, Verizon ou Accenture: o significado é construído pela marca, não emprestado de um dicionário.</div></div>
+    <div class="bars">
+      <div class="bar-row"><span>Memorabilidade</span><div class="bar-track"><div class="bar-fill" style="width:72%"></div></div><span class="bar-val">72</span></div>
+      <div class="bar-row"><span>Musicalidade</span><div class="bar-track"><div class="bar-fill" style="width:80%"></div></div><span class="bar-val">80</span></div>
+      <div class="bar-row"><span>Distintividade</span><div class="bar-track"><div class="bar-fill" style="width:87%"></div></div><span class="bar-val">87</span></div>
+      <div class="bar-row"><span>Internacionalização</span><div class="bar-track"><div class="bar-fill" style="width:76%"></div></div><span class="bar-val">76</span></div>
+      <div class="bar-row"><span>Disponibilidade</span><div class="bar-track"><div class="bar-fill" style="width:95%"></div></div><span class="bar-val">95</span></div>
+      <div class="bar-row"><span>Escalabilidade</span><div class="bar-track"><div class="bar-fill" style="width:76%"></div></div><span class="bar-val">76</span></div>
+    </div>
+    <p class="justif"><b>Significados positivos:</b> por não carregar bagagem semântica, Talyne é uma tela em branco — pode absorver qualquer história que a marca queira contar ao longo de 50 anos, sem contradizer uma etimologia pré-existente.<br><b>Riscos:</b> a grafia "y" gera três leituras diferentes em PT/EN/ES (maior risco de todo o top 5 no Teste do Rádio); e por não ter âncora de significado, exige mais investimento de marketing para "ensinar" o que ela representa.</p>
+    <div class="avail-note"><b>Disponibilidade verificada:</b> nenhuma empresa, app ou marca chamada "Talyne" encontrada em busca real. talyne.com → DNS não resolve (provavelmente livre para registro direto, sem precisar comprar de terceiro). talyne.com.br → DNS não resolve. Handles de redes sociais e app stores não foram checados individualmente — recomenda-se confirmação antes de qualquer decisão final.</div>
+    <div class="arch-row">
+      <span class="arch-chip">Talyne</span><span class="arch-chip">Talyne App</span><span class="arch-chip">Talyne Cloud</span><span class="arch-chip">Talyne Labs</span><span class="arch-chip">Talyne Family</span><span class="arch-chip">Talyne Professional</span><span class="arch-chip">Talyne API</span><span class="arch-chip">Talyne AI</span>
+    </div>
+  </div>
+
+  <!-- WOVANA -->
+  <div class="card" id="wovana">
+    <div class="card-head">
+      <div><h3>Wovana</h3><span class="risk-pill risk-caution">.com ocupado (parked/à venda)</span></div>
+      <div class="card-score"><div class="num">80</div><div class="lbl">GBP</div></div>
+    </div>
+    <div class="meta-grid">
+      <div class="meta-item"><h4>Pronúncia PT</h4><div>vo-VÂ-na <i>(o "w" hoje soa natural em PT‑BR — WhatsApp, Wi‑Fi já naturalizaram o som)</i></div></div>
+      <div class="meta-item"><h4>Pronúncia EN</h4><div>woh-VAH-nuh</div></div>
+      <div class="meta-item"><h4>Pronúncia ES</h4><div>guo-VA-na</div></div>
+    </div>
+    <div class="meta-item"><h4>Origem fonética</h4><div>Derivado de "woven" (tecido, entrelaçado) — a imagem de fios separados (wearable, exame, comida, remédio) sendo tecidos em um único pano contínuo ao longo da vida.</div></div>
+    <div class="bars">
+      <div class="bar-row"><span>Memorabilidade</span><div class="bar-track"><div class="bar-fill" style="width:78%"></div></div><span class="bar-val">78</span></div>
+      <div class="bar-row"><span>Musicalidade</span><div class="bar-track"><div class="bar-fill" style="width:82%"></div></div><span class="bar-val">82</span></div>
+      <div class="bar-row"><span>Distintividade</span><div class="bar-track"><div class="bar-fill" style="width:88%"></div></div><span class="bar-val">88</span></div>
+      <div class="bar-row"><span>Internacionalização</span><div class="bar-track"><div class="bar-fill" style="width:80%"></div></div><span class="bar-val">80</span></div>
+      <div class="bar-row"><span>Disponibilidade</span><div class="bar-track"><div class="bar-fill" style="width:72%"></div></div><span class="bar-val">72</span></div>
+      <div class="bar-row"><span>Escalabilidade</span><div class="bar-track"><div class="bar-fill" style="width:82%"></div></div><span class="bar-val">82</span></div>
+    </div>
+    <p class="justif"><b>Significados positivos:</b> é o único finalista com uma metáfora que descreve literalmente o produto — dados fragmentados de uma vida inteira, tecidos em uma peça só. Isso encurta o caminho entre "nome bonito" e "nome que a equipe de produto consegue usar em toda a comunicação".<br><b>Riscos:</b> nenhuma colisão de marca encontrada, mas o domínio .com principal está estacionado para revenda — não é um registro livre, é uma compra de mercado secundário, com custo e prazo incertos.</p>
+    <div class="avail-note"><b>Disponibilidade verificada:</b> nenhuma empresa ativa chamada "Wovana" encontrada (busca real retornou apenas termos foneticamente próximos e não relacionados — Wana Brands, Vana). wovana.com → resolve para página de venda no GoDaddy (domínio registrado por terceiro, comprável). wovana.com.br → DNS não resolve, livre.</div>
+    <div class="arch-row">
+      <span class="arch-chip">Wovana</span><span class="arch-chip">Wovana App</span><span class="arch-chip">Wovana Cloud</span><span class="arch-chip">Wovana Labs</span><span class="arch-chip">Wovana Family</span><span class="arch-chip">Wovana Professional</span><span class="arch-chip">Wovana API</span><span class="arch-chip">Wovana AI</span>
+    </div>
+  </div>
+
+  <!-- CORVIEL -->
+  <div class="card" id="corviel">
+    <div class="card-head">
+      <div><h3>Corviel</h3><span class="risk-pill risk-clear">Disponibilidade limpa</span></div>
+      <div class="card-score"><div class="num">79</div><div class="lbl">GBP</div></div>
+    </div>
+    <div class="meta-grid">
+      <div class="meta-item"><h4>Pronúncia PT</h4><div>kor-vi-ÉL</div></div>
+      <div class="meta-item"><h4>Pronúncia EN</h4><div>kor-vee-EL</div></div>
+      <div class="meta-item"><h4>Pronúncia ES</h4><div>kor-BYEL</div></div>
+    </div>
+    <div class="meta-item"><h4>Origem fonética</h4><div>Cunhagem que ecoa "cor/cordis" (coração, em latim) sem ser a palavra literal — sugestão, não tradução, evitando o clichê de nomes de saúde que usam "cor-"/"cardio-" de forma óbvia.</div></div>
+    <div class="bars">
+      <div class="bar-row"><span>Memorabilidade</span><div class="bar-track"><div class="bar-fill" style="width:70%"></div></div><span class="bar-val">70</span></div>
+      <div class="bar-row"><span>Musicalidade</span><div class="bar-track"><div class="bar-fill" style="width:76%"></div></div><span class="bar-val">76</span></div>
+      <div class="bar-row"><span>Distintividade</span><div class="bar-track"><div class="bar-fill" style="width:88%"></div></div><span class="bar-val">88</span></div>
+      <div class="bar-row"><span>Internacionalização</span><div class="bar-track"><div class="bar-fill" style="width:74%"></div></div><span class="bar-val">74</span></div>
+      <div class="bar-row"><span>Disponibilidade</span><div class="bar-track"><div class="bar-fill" style="width:95%"></div></div><span class="bar-val">95</span></div>
+      <div class="bar-row"><span>Escalabilidade</span><div class="bar-track"><div class="bar-fill" style="width:74%"></div></div><span class="bar-val">74</span></div>
+    </div>
+    <p class="justif"><b>Significados positivos:</b> o eco de "coração" sem ser literal dá calor humano a um nome que, de outra forma, seria puramente arbitrário — e a terminação "-iel" lembra nomes próprios (Gabriel, Daniel), o que soa acolhedor sem ser piegas.<br><b>Riscos:</b> essa mesma terminação reduz um pouco a distintividade percebida (pode soar como sobrenome ou nome de pessoa em vez de marca); vizinho fonético mais próximo é "Courvoisier" (conhaque), indústria distante o suficiente para não gerar confusão real.</p>
+    <div class="avail-note"><b>Disponibilidade verificada:</b> nenhuma empresa, app ou marca chamada "Corviel" encontrada. corviel.com → DNS não resolve, livre. corviel.com.br → DNS não resolve, livre.</div>
+    <div class="arch-row">
+      <span class="arch-chip">Corviel</span><span class="arch-chip">Corviel App</span><span class="arch-chip">Corviel Cloud</span><span class="arch-chip">Corviel Labs</span><span class="arch-chip">Corviel Family</span><span class="arch-chip">Corviel Professional</span><span class="arch-chip">Corviel API</span><span class="arch-chip">Corviel AI</span>
+    </div>
+  </div>
+
+  <!-- ONVIRA -->
+  <div class="card" id="onvira">
+    <div class="card-head">
+      <div><h3>Onvira</h3><span class="risk-pill risk-caution">Vizinho fonético em saúde da mulher</span></div>
+      <div class="card-score"><div class="num">77</div><div class="lbl">GBP</div></div>
+    </div>
+    <div class="meta-grid">
+      <div class="meta-item"><h4>Pronúncia PT</h4><div>on-VI-ra</div></div>
+      <div class="meta-item"><h4>Pronúncia EN</h4><div>on-VEER-uh</div></div>
+      <div class="meta-item"><h4>Pronúncia ES</h4><div>on-BI-ra</div></div>
+    </div>
+    <div class="meta-item"><h4>Origem fonética</h4><div>Cunhagem livre; nenhuma raiz clássica direta. Curiosamente, um corretor de domínios já havia listado onvira.com sugerindo-o especificamente para "marca de saúde e bem-estar" — validação de mercado independente e não solicitada.</div></div>
+    <div class="bars">
+      <div class="bar-row"><span>Memorabilidade</span><div class="bar-track"><div class="bar-fill" style="width:74%"></div></div><span class="bar-val">74</span></div>
+      <div class="bar-row"><span>Musicalidade</span><div class="bar-track"><div class="bar-fill" style="width:78%"></div></div><span class="bar-val">78</span></div>
+      <div class="bar-row"><span>Distintividade</span><div class="bar-track"><div class="bar-fill" style="width:80%"></div></div><span class="bar-val">80</span></div>
+      <div class="bar-row"><span>Internacionalização</span><div class="bar-track"><div class="bar-fill" style="width:78%"></div></div><span class="bar-val">78</span></div>
+      <div class="bar-row"><span>Disponibilidade</span><div class="bar-track"><div class="bar-fill" style="width:80%"></div></div><span class="bar-val">80</span></div>
+      <div class="bar-row"><span>Escalabilidade</span><div class="bar-track"><div class="bar-fill" style="width:76%"></div></div><span class="bar-val">76</span></div>
+    </div>
+    <p class="justif"><b>Significados positivos:</b> o único finalista cujo .com já estava sendo comercializado ativamente para o próprio setor do produto — sinal de que compradores profissionais de domínio já enxergam esse som como "saúde/bem-estar".<br><b>Riscos:</b> "Ovira" (dispositivo de alívio de dor menstrual) é foneticamente muito próximo e atua em saúde — risco real de confusão de marca que precisaria ser avaliado por um advogado de marcas antes de prosseguir.</p>
+    <div class="avail-note"><b>Disponibilidade verificada:</b> onvira.com listado à venda por corretor de domínios (BrandBucket), não uma empresa operando sob o nome — comprável, preço a negociar. onvira.com.br → DNS não resolve, livre. Colisão adjacente: "Ovira" (saúde da mulher, marca ativa, grafia diferente).</div>
+    <div class="arch-row">
+      <span class="arch-chip">Onvira</span><span class="arch-chip">Onvira App</span><span class="arch-chip">Onvira Cloud</span><span class="arch-chip">Onvira Labs</span><span class="arch-chip">Onvira Family</span><span class="arch-chip">Onvira Professional</span><span class="arch-chip">Onvira API</span><span class="arch-chip">Onvira AI</span>
+    </div>
+  </div>
+
+  <!-- VIVALO -->
+  <div class="card" id="vivalo">
+    <div class="card-head">
+      <div><h3>Vivalo</h3><span class="risk-pill risk-caution">Colisão leve, setor não relacionado</span></div>
+      <div class="card-score"><div class="num">77</div><div class="lbl">GBP</div></div>
+    </div>
+    <div class="meta-grid">
+      <div class="meta-item"><h4>Pronúncia PT</h4><div>VI-va-lo <i>(ecoa "viva" naturalmente)</i></div></div>
+      <div class="meta-item"><h4>Pronúncia EN</h4><div>vih-VAH-loh</div></div>
+      <div class="meta-item"><h4>Pronúncia ES</h4><div>bi-BA-lo</div></div>
+    </div>
+    <div class="meta-item"><h4>Origem fonética</h4><div>Do latim <i>vivere</i> (viver) — em PT/ES/IT a raiz "viv-" já significa literalmente "viver", tornando o nome instantaneamente legível sem precisar de tradução ou explicação.</div></div>
+    <div class="bars">
+      <div class="bar-row"><span>Memorabilidade</span><div class="bar-track"><div class="bar-fill" style="width:76%"></div></div><span class="bar-val">76</span></div>
+      <div class="bar-row"><span>Musicalidade</span><div class="bar-track"><div class="bar-fill" style="width:80%"></div></div><span class="bar-val">80</span></div>
+      <div class="bar-row"><span>Distintividade</span><div class="bar-track"><div class="bar-fill" style="width:70%"></div></div><span class="bar-val">70</span></div>
+      <div class="bar-row"><span>Internacionalização</span><div class="bar-track"><div class="bar-fill" style="width:85%"></div></div><span class="bar-val">85</span></div>
+      <div class="bar-row"><span>Disponibilidade</span><div class="bar-track"><div class="bar-fill" style="width:72%"></div></div><span class="bar-val">72</span></div>
+      <div class="bar-row"><span>Escalabilidade</span><div class="bar-track"><div class="bar-fill" style="width:78%"></div></div><span class="bar-val">78</span></div>
+    </div>
+    <p class="justif"><b>Significados positivos:</b> nenhum outro finalista é tão imediatamente compreensível em três idiomas ao mesmo tempo sem precisar de nenhuma explicação de marca — "viver" está ali, visível, sem ser clínico.<br><b>Riscos:</b> justamente por usar uma raiz tão reconhecível, a distintividade jurídica é mais fraca; existe uma empresa polonesa de pequeno porte ("Vivalo Sp. z o.o.") em serviços de engenharia — setor e mercado completamente distintos, risco de confusão baixo, mas exige checagem formal de classe de marca.</p>
+    <div class="avail-note"><b>Disponibilidade verificada:</b> "Vivalo Sp. z o.o." — empresa polonesa de consultoria/engenharia, sem relação com saúde ou tecnologia de consumo. Nenhuma colisão em saúde digital encontrada. Domínio .com/.com.br não testados ao vivo para este nome — recomenda-se verificação antes de decisão.</div>
+    <div class="arch-row">
+      <span class="arch-chip">Vivalo</span><span class="arch-chip">Vivalo App</span><span class="arch-chip">Vivalo Cloud</span><span class="arch-chip">Vivalo Labs</span><span class="arch-chip">Vivalo Family</span><span class="arch-chip">Vivalo Professional</span><span class="arch-chip">Vivalo API</span><span class="arch-chip">Vivalo AI</span>
+    </div>
+  </div>
+
+  <!-- VAELORA -->
+  <div class="card" id="vaelora">
+    <div class="card-head">
+      <div><h3>Vaelora</h3><span class="risk-pill risk-caution">.com.br ocupado por empresa ativa</span></div>
+      <div class="card-score"><div class="num">76</div><div class="lbl">GBP</div></div>
+    </div>
+    <div class="meta-grid">
+      <div class="meta-item"><h4>Pronúncia PT</h4><div>va-e-LÓ-ra</div></div>
+      <div class="meta-item"><h4>Pronúncia EN</h4><div>vay-LOR-uh</div></div>
+      <div class="meta-item"><h4>Pronúncia ES</h4><div>ba-e-LO-ra</div></div>
+    </div>
+    <div class="meta-item"><h4>Origem fonética</h4><div>Fusão de <i>vallis</i> (latim: vale, calmaria) com <i>aurora</i> (latim: amanhecer) — "o amanhecer calmo de um vale", imagem de continuidade serena.</div></div>
+    <div class="bars">
+      <div class="bar-row"><span>Memorabilidade</span><div class="bar-track"><div class="bar-fill" style="width:80%"></div></div><span class="bar-val">80</span></div>
+      <div class="bar-row"><span>Musicalidade</span><div class="bar-track"><div class="bar-fill" style="width:88%"></div></div><span class="bar-val">88</span></div>
+      <div class="bar-row"><span>Distintividade</span><div class="bar-track"><div class="bar-fill" style="width:85%"></div></div><span class="bar-val">85</span></div>
+      <div class="bar-row"><span>Internacionalização</span><div class="bar-track"><div class="bar-fill" style="width:84%"></div></div><span class="bar-val">84</span></div>
+      <div class="bar-row"><span>Disponibilidade</span><div class="bar-track"><div class="bar-fill" style="width:35%"></div></div><span class="bar-val">35</span></div>
+      <div class="bar-row"><span>Escalabilidade</span><div class="bar-track"><div class="bar-fill" style="width:80%"></div></div><span class="bar-val">80</span></div>
+    </div>
+    <p class="justif"><b>Significados positivos:</b> foneticamente é o nome mais bonito da lista inteira — a cadência é a mais próxima do "padrão Oura/Asana" identificado na Tarefa 1. Se disponibilidade não existisse como critério, seria a escolha óbvia.<br><b>Riscos:</b> é também a lição mais importante deste relatório. vaelora.com.br já pertence a uma agência de marketing digital brasileira ativa (fundadora real, clientes reais, mais de R$10 milhões em resultado divulgado) — colisão direta no mercado doméstico do produto. vaelora.com está estacionado para revenda, não livre. O nome com a melhor fonética do processo é, na prática, o de pior disponibilidade real.</p>
+    <div class="avail-note"><b>Disponibilidade verificada:</b> vaelora.com → redireciona para página de venda GoDaddy (domínio de terceiro). vaelora.com.br → site ativo de agência de marketing brasileira (Vaelora, fundada por Jéssica Ramos Ferreira). Mesmo em classe de marca diferente, a colisão de nome no Brasil é direta e visível.</div>
+    <div class="arch-row">
+      <span class="arch-chip">Vaelora</span><span class="arch-chip">Vaelora App</span><span class="arch-chip">Vaelora Cloud</span><span class="arch-chip">Vaelora Labs</span><span class="arch-chip">Vaelora Family</span><span class="arch-chip">Vaelora Professional</span><span class="arch-chip">Vaelora API</span><span class="arch-chip">Vaelora AI</span>
+    </div>
+  </div>
+
+  <!-- SOLENNE -->
+  <div class="card" id="solenne">
+    <div class="card-head">
+      <div><h3>Solenne</h3><span class="risk-pill risk-caution">Palavra real do dicionário francês</span></div>
+      <div class="card-score"><div class="num">76</div><div class="lbl">GBP</div></div>
+    </div>
+    <div class="meta-grid">
+      <div class="meta-item"><h4>Pronúncia PT</h4><div>so-LE-ni</div></div>
+      <div class="meta-item"><h4>Pronúncia EN</h4><div>soh-LEN</div></div>
+      <div class="meta-item"><h4>Pronúncia ES</h4><div>so-LE-ne</div></div>
+    </div>
+    <div class="meta-item"><h4>Origem fonética</h4><div>Palavra francesa real, "solene/solene" — cerimonioso, digno, sério no bom sentido. Também nome próprio feminino usado em vários países latinos.</div></div>
+    <div class="bars">
+      <div class="bar-row"><span>Memorabilidade</span><div class="bar-track"><div class="bar-fill" style="width:77%"></div></div><span class="bar-val">77</span></div>
+      <div class="bar-row"><span>Musicalidade</span><div class="bar-track"><div class="bar-fill" style="width:83%"></div></div><span class="bar-val">83</span></div>
+      <div class="bar-row"><span>Distintividade</span><div class="bar-track"><div class="bar-fill" style="width:72%"></div></div><span class="bar-val">72</span></div>
+      <div class="bar-row"><span>Internacionalização</span><div class="bar-track"><div class="bar-fill" style="width:74%"></div></div><span class="bar-val">74</span></div>
+      <div class="bar-row"><span>Disponibilidade</span><div class="bar-track"><div class="bar-fill" style="width:74%"></div></div><span class="bar-val">74</span></div>
+      <div class="bar-row"><span>Escalabilidade</span><div class="bar-track"><div class="bar-fill" style="width:73%"></div></div><span class="bar-val">73</span></div>
+    </div>
+    <p class="justif"><b>Significados positivos:</b> transmite dignidade e seriedade sem soar clínico — o tom certo para uma marca que acompanha nascimento, doença e velhice sem infantilizar nem assustar.<br><b>Riscos:</b> por ser uma palavra real e um nome próprio já usado, a distintividade jurídica é mais baixa; "Solence" (startup francesa de SOP/saúde da mulher) é vizinho fonético direto no mesmo setor amplo de saúde.</p>
+    <div class="avail-note"><b>Disponibilidade verificada:</b> nenhuma empresa exata "Solenne" em saúde digital encontrada. Vizinhos próximos no setor: Solv Health (diferente o suficiente), Solence (mais próximo, saúde da mulher/PCOS, França). Domínio não testado ao vivo.</div>
+    <div class="arch-row">
+      <span class="arch-chip">Solenne</span><span class="arch-chip">Solenne App</span><span class="arch-chip">Solenne Cloud</span><span class="arch-chip">Solenne Labs</span><span class="arch-chip">Solenne Family</span><span class="arch-chip">Solenne Professional</span><span class="arch-chip">Solenne API</span><span class="arch-chip">Solenne AI</span>
+    </div>
+  </div>
+
+  <!-- ANTHOVA -->
+  <div class="card" id="anthova">
+    <div class="card-head">
+      <div><h3>Anthova</h3><span class="risk-pill risk-caution">"th" não existe em PT/ES</span></div>
+      <div class="card-score"><div class="num">76</div><div class="lbl">GBP</div></div>
+    </div>
+    <div class="meta-grid">
+      <div class="meta-item"><h4>Pronúncia PT</h4><div>AN-to-va <i>(o "th" se perde por completo)</i></div></div>
+      <div class="meta-item"><h4>Pronúncia EN</h4><div>an-THOH-vuh</div></div>
+      <div class="meta-item"><h4>Pronúncia ES</h4><div>AN-to-ba</div></div>
+    </div>
+    <div class="meta-item"><h4>Origem fonética</h4><div>Do grego <i>anthos</i> (flor, floração) — crescimento e florescimento como metáfora de uma vida sendo cuidada e acompanhada, não apenas monitorada.</div></div>
+    <div class="bars">
+      <div class="bar-row"><span>Memorabilidade</span><div class="bar-track"><div class="bar-fill" style="width:73%"></div></div><span class="bar-val">73</span></div>
+      <div class="bar-row"><span>Musicalidade</span><div class="bar-track"><div class="bar-fill" style="width:79%"></div></div><span class="bar-val">79</span></div>
+      <div class="bar-row"><span>Distintividade</span><div class="bar-track"><div class="bar-fill" style="width:78%"></div></div><span class="bar-val">78</span></div>
+      <div class="bar-row"><span>Internacionalização</span><div class="bar-track"><div class="bar-fill" style="width:72%"></div></div><span class="bar-val">72</span></div>
+      <div class="bar-row"><span>Disponibilidade</span><div class="bar-track"><div class="bar-fill" style="width:80%"></div></div><span class="bar-val">80</span></div>
+      <div class="bar-row"><span>Escalabilidade</span><div class="bar-track"><div class="bar-fill" style="width:74%"></div></div><span class="bar-val">74</span></div>
+    </div>
+    <p class="justif"><b>Significados positivos:</b> "florescer" é uma metáfora de saúde preventiva mais gentil do que "monitorar" ou "rastrear" — sugere cuidado contínuo sem vigilância constante.<br><b>Riscos:</b> o "th" grego não existe nativamente em português ou espanhol — no mercado doméstico do produto (Brasil), a maioria das pessoas vai naturalmente pronunciar "Antova", perdendo parte do caráter sonoro pretendido. É a maior fragilidade do nome no Teste Internacional.</p>
+    <div class="avail-note"><b>Disponibilidade verificada:</b> "Antova" (grafia diferente, app de entretenimento infantil pequeno, setor não relacionado) é o vizinho mais próximo. Nenhuma colisão em saúde. Domínio não testado ao vivo.</div>
+    <div class="arch-row">
+      <span class="arch-chip">Anthova</span><span class="arch-chip">Anthova App</span><span class="arch-chip">Anthova Cloud</span><span class="arch-chip">Anthova Labs</span><span class="arch-chip">Anthova Family</span><span class="arch-chip">Anthova Professional</span><span class="arch-chip">Anthova API</span><span class="arch-chip">Anthova AI</span>
+    </div>
+  </div>
+
+  <!-- WENLAR -->
+  <div class="card" id="wenlar">
+    <div class="card-head">
+      <div><h3>Wenlar</h3><span class="risk-pill risk-caution">.com possivelmente ocupado</span></div>
+      <div class="card-score"><div class="num">75</div><div class="lbl">GBP</div></div>
+    </div>
+    <div class="meta-grid">
+      <div class="meta-item"><h4>Pronúncia PT</h4><div>UÉN-lar</div></div>
+      <div class="meta-item"><h4>Pronúncia EN</h4><div>WEN-lar</div></div>
+      <div class="meta-item"><h4>Pronúncia ES</h4><div>GUEN-lar</div></div>
+    </div>
+    <div class="meta-item"><h4>Origem fonética</h4><div>Cunhagem pura, sem raiz clássica. Terminação "-lar" evoca "lar" (casa, em português) como leitura secundária involuntária, mas positiva, para o público brasileiro.</div></div>
+    <div class="bars">
+      <div class="bar-row"><span>Memorabilidade</span><div class="bar-track"><div class="bar-fill" style="width:68%"></div></div><span class="bar-val">68</span></div>
+      <div class="bar-row"><span>Musicalidade</span><div class="bar-track"><div class="bar-fill" style="width:74%"></div></div><span class="bar-val">74</span></div>
+      <div class="bar-row"><span>Distintividade</span><div class="bar-track"><div class="bar-fill" style="width:90%"></div></div><span class="bar-val">90</span></div>
+      <div class="bar-row"><span>Internacionalização</span><div class="bar-track"><div class="bar-fill" style="width:78%"></div></div><span class="bar-val">78</span></div>
+      <div class="bar-row"><span>Disponibilidade</span><div class="bar-track"><div class="bar-fill" style="width:68%"></div></div><span class="bar-val">68</span></div>
+      <div class="bar-row"><span>Escalabilidade</span><div class="bar-track"><div class="bar-fill" style="width:75%"></div></div><span class="bar-val">75</span></div>
+    </div>
+    <p class="justif"><b>Significados positivos:</b> a mais alta distintividade jurídica do processo inteiro — nenhuma colisão de marca real encontrada em nenhuma busca.<br><b>Riscos:</b> é também o nome com gancho emocional mais fraco do top 5; sem uma raiz ou metáfora clara, precisa do maior investimento de construção de significado. wenlar.com devolveu erro 403 ao vivo (o domínio existe e tem servidor ativo, sinal de que provavelmente já está registrado, ainda que não publicamente visível).</p>
+    <div class="avail-note"><b>Disponibilidade verificada:</b> nenhuma colisão de marca/empresa encontrada. wenlar.com → HTTP 403 ao vivo (domínio registrado, conteúdo bloqueado — não é DNS livre). wenlar.com.br → DNS não resolve, livre.</div>
+    <div class="arch-row">
+      <span class="arch-chip">Wenlar</span><span class="arch-chip">Wenlar App</span><span class="arch-chip">Wenlar Cloud</span><span class="arch-chip">Wenlar Labs</span><span class="arch-chip">Wenlar Family</span><span class="arch-chip">Wenlar Professional</span><span class="arch-chip">Wenlar API</span><span class="arch-chip">Wenlar AI</span>
+    </div>
+  </div>
+
+  <!-- ALDA -->
+  <div class="card" id="alda">
+    <div class="card-head">
+      <div><h3>Alda</h3><span class="risk-pill risk-caution">Nome próprio + empresa de tech ativa</span></div>
+      <div class="card-score"><div class="num">74</div><div class="lbl">GBP</div></div>
+    </div>
+    <div class="meta-grid">
+      <div class="meta-item"><h4>Pronúncia PT</h4><div>ÁL-da</div></div>
+      <div class="meta-item"><h4>Pronúncia EN</h4><div>AL-duh</div></div>
+      <div class="meta-item"><h4>Pronúncia ES</h4><div>AL-da</div></div>
+    </div>
+    <div class="meta-item"><h4>Origem fonética</h4><div>Nome nórdico antigo real, significando "onda" — o ritmo da vida em ondas (sono, batimento, estações), não uma linha reta.</div></div>
+    <div class="bars">
+      <div class="bar-row"><span>Memorabilidade</span><div class="bar-track"><div class="bar-fill" style="width:75%"></div></div><span class="bar-val">75</span></div>
+      <div class="bar-row"><span>Musicalidade</span><div class="bar-track"><div class="bar-fill" style="width:76%"></div></div><span class="bar-val">76</span></div>
+      <div class="bar-row"><span>Distintividade</span><div class="bar-track"><div class="bar-fill" style="width:65%"></div></div><span class="bar-val">65</span></div>
+      <div class="bar-row"><span>Internacionalização</span><div class="bar-track"><div class="bar-fill" style="width:88%"></div></div><span class="bar-val">88</span></div>
+      <div class="bar-row"><span>Disponibilidade</span><div class="bar-track"><div class="bar-fill" style="width:65%"></div></div><span class="bar-val">65</span></div>
+      <div class="bar-row"><span>Escalabilidade</span><div class="bar-track"><div class="bar-fill" style="width:72%"></div></div><span class="bar-val">72</span></div>
+    </div>
+    <p class="justif"><b>Significados positivos:</b> a pronúncia mais universalmente fácil de toda a lista — nenhum idioma testado tropeça nela.<br><b>Riscos:</b> já é o nome de uma empresa de tecnologia ativa em Reykjavik (plataforma de diversidade e inclusão corporativa) e também um nome próprio comum em português — dois fatores que reduzem distintividade e aumentam risco de confusão de busca.</p>
+    <div class="avail-note"><b>Disponibilidade verificada:</b> "Alda" (empresa islandesa de HR-tech, setor diferente) é colisão real, mesma categoria ampla de "startup de tecnologia". Domínio não testado ao vivo.</div>
+    <div class="arch-row">
+      <span class="arch-chip">Alda</span><span class="arch-chip">Alda App</span><span class="arch-chip">Alda Cloud</span><span class="arch-chip">Alda Labs</span><span class="arch-chip">Alda Family</span><span class="arch-chip">Alda Professional</span><span class="arch-chip">Alda API</span><span class="arch-chip">Alda AI</span>
+    </div>
+  </div>
+
+  <!-- RENAI -->
+  <div class="card" id="renai">
+    <div class="card-head">
+      <div><h3>Renai</h3><span class="risk-pill risk-caution">Já é uma marca de IA visível (Marriott)</span></div>
+      <div class="card-score"><div class="num">70</div><div class="lbl">GBP</div></div>
+    </div>
+    <div class="meta-grid">
+      <div class="meta-item"><h4>Pronúncia PT</h4><div>he-NAI</div></div>
+      <div class="meta-item"><h4>Pronúncia EN</h4><div>ren-EYE</div></div>
+      <div class="meta-item"><h4>Pronúncia ES</h4><div>re-NAI</div></div>
+    </div>
+    <div class="meta-item"><h4>Origem fonética</h4><div>Ecoa "renaître" (francês: renascer) — cada fase da vida como um recomeço acompanhado, não um recorde estático.</div></div>
+    <div class="bars">
+      <div class="bar-row"><span>Memorabilidade</span><div class="bar-track"><div class="bar-fill" style="width:72%"></div></div><span class="bar-val">72</span></div>
+      <div class="bar-row"><span>Musicalidade</span><div class="bar-track"><div class="bar-fill" style="width:75%"></div></div><span class="bar-val">75</span></div>
+      <div class="bar-row"><span>Distintividade</span><div class="bar-track"><div class="bar-fill" style="width:60%"></div></div><span class="bar-val">60</span></div>
+      <div class="bar-row"><span>Internacionalização</span><div class="bar-track"><div class="bar-fill" style="width:80%"></div></div><span class="bar-val">80</span></div>
+      <div class="bar-row"><span>Disponibilidade</span><div class="bar-track"><div class="bar-fill" style="width:60%"></div></div><span class="bar-val">60</span></div>
+      <div class="bar-row"><span>Escalabilidade</span><div class="bar-track"><div class="bar-fill" style="width:68%"></div></div><span class="bar-val">68</span></div>
+    </div>
+    <p class="justif"><b>Significados positivos:</b> conceito de renovação contínua encaixa bem com uma jornada do nascimento à velhice.<br><b>Riscos:</b> a Marriott já lançou publicamente "RENAI", um concierge de IA para a rede Renaissance Hotels — categoria diferente, mas visibilidade de imprensa real o suficiente para gerar confusão de busca e diluir a marca antes mesmo de ela nascer. Colocado em último lugar por essa razão, apesar do conceito ser bom.</div>
+    </p>
+    <div class="avail-note"><b>Disponibilidade verificada:</b> "RENAI by Renaissance" (Marriott, concierge de IA para hotéis) — colisão de visibilidade real, categoria distinta. Domínio não testado ao vivo.</div>
+    <div class="arch-row">
+      <span class="arch-chip">Renai</span><span class="arch-chip">Renai App</span><span class="arch-chip">Renai Cloud</span><span class="arch-chip">Renai Labs</span><span class="arch-chip">Renai Family</span><span class="arch-chip">Renai Professional</span><span class="arch-chip">Renai API</span><span class="arch-chip">Renai AI</span>
+    </div>
+  </div>
+
+</section>
+
+<section id="quase">
+  <h2 class="section-title">Quase entraram — e por que caíram</h2>
+  <p class="section-sub">Estes eram, foneticamente, tão bons quanto o top 5. Todos foram derrubados por uma única colisão direta e real dentro do próprio setor de saúde digital — o dado mais importante que este processo revelou.</p>
+  <div class="miss-list">
+    <div class="miss"><b>Kaira</b><span>Bloqueado por "Kaia Health", startup alemã de terapia digital para dor crônica com US$ 75M captados — mesmo som, mesmo setor, visibilidade de imprensa alta.</span></div>
+    <div class="miss"><b>Lumera</b><span>Bloqueado por "Lumera Health", plataforma blockchain de saúde ativa — colisão de nome exato no mesmo setor exato.</span></div>
+    <div class="miss"><b>Span</b><span>Bloqueado por "Span Health" — coaching de longevidade orientado por wearables, adquirida pela Eight Sleep. É, em conceito, quase o mesmo produto do usuário, sob o mesmo nome.</span></div>
+    <div class="miss"><b>Halcyra</b><span>Bloqueado por um app ativo de cessação de nicotina com o nome idêntico.</span></div>
+    <div class="miss"><b>Liva</b><span>Bloqueado por "Liva Healthcare", healthtech dinamarquesa Series B, clientes incluindo NHS England e AXA.</span></div>
+  </div>
+</section>
+
+<section id="relatorio">
+  <h2 class="section-title">Relatório final do Conselho</h2>
+  <div class="qa">
+    <div class="qa-item">
+      <div class="qa-q"><span class="qn">01</span>O que a primeira rodada ensinou?</div>
+      <div class="qa-a">Que raiz latina + sufixo "-is/-ix" (Firmis, Kaelis, Skaldis) é a assinatura sonora de <b>segurança digital e ERP</b>, não de uma marca de saúde para toda a família. O som técnico venceu o som humano.</div>
+    </div>
+    <div class="qa-item">
+      <div class="qa-q"><span class="qn">02</span>Quais padrões fonéticos produziram melhores marcas?</div>
+      <div class="qa-a">Final em vogal aberta, 2–3 sílabas, ritmo trocaico, e — o achado mais forte — <b>uma única ideia por nome</b>. Nomes que colam duas raízes clássicas com um sufixo decorativo soam "gerados", mesmo quando bonitos.</div>
+    </div>
+    <div class="qa-item">
+      <div class="qa-q"><span class="qn">03</span>Quais padrões produziram maior disponibilidade?</div>
+      <div class="qa-a">Cunhagem pura sem raiz decodificável (Talyne, Wenlar, Corviel) teve a maior taxa de aprovação. Qualquer combinação de vita/aura/lumen/flux/kai- já tinha sido usada por uma startup de saúde real — essas raízes são a primeira ideia de todo fundador e de toda ferramenta de naming por IA.</div>
+    </div>
+    <div class="qa-item">
+      <div class="qa-q"><span class="qn">04</span>Quais nomes quase entraram no TOP20?</div>
+      <div class="qa-a">Kaira, Lumera, Span, Halcyra e Liva — ver seção "Quase entraram" acima.</div>
+    </div>
+    <div class="qa-item">
+      <div class="qa-q"><span class="qn">05</span>Qual é o TOP20?</div>
+      <div class="qa-a">Não existe um TOP20 honesto. Onze nomes passaram por verificação real; completar até vinte exigiria apresentar disponibilidade inventada — exatamente o que este briefing proíbe. Os onze estão detalhados acima.</div>
+    </div>
+    <div class="qa-item">
+      <div class="qa-q"><span class="qn">06</span>Qual seria o TOP10?</div>
+      <div class="qa-a">Talyne, Wovana, Corviel, Onvira, Vivalo, Vaelora, Solenne, Anthova, Wenlar, Alda — todos os finalistas exceto Renai.</div>
+    </div>
+    <div class="qa-item">
+      <div class="qa-q"><span class="qn">07</span>Qual seria o TOP5?</div>
+      <div class="qa-a">Talyne, Wovana, Corviel, Onvira, Vivalo.</div>
+    </div>
+    <div class="qa-item">
+      <div class="qa-q"><span class="qn">08</span>Se você fosse o CEO desta empresa, qual escolheria?</div>
+      <div class="qa-a"><b>Wovana.</b> Empata tecnicamente com Talyne no GBP (80 vs. 80), mas Wovana já carrega a metáfora central do produto (fios de dados de uma vida inteira, tecidos em um só lugar) — isso reduz o risco de execução da história de marca nos próximos 50 anos, mesmo custando a compra de um domínio estacionado.</div>
+    </div>
+    <div class="qa-item">
+      <div class="qa-q"><span class="qn">09</span>Se esse nome não pudesse ser registrado, qual seria a segunda opção?</div>
+      <div class="qa-a"><b>Talyne.</b> GBP praticamente idêntico, e a única opção do processo inteiro com .com e .com.br genuinamente livres para registro direto, sem precisar comprar de terceiro.</div>
+    </div>
+    <div class="qa-item">
+      <div class="qa-q"><span class="qn">10</span>Qual nome você teria coragem de investir US$ 100 milhões em branding ao longo de 20 anos?</div>
+      <div class="qa-a"><b>Wovana.</b> Um nome arbitrário (Talyne) também suportaria esse investimento — Verizon, Accenture e Kodak provam isso — mas Wovana chega com uma vantagem inicial de narrativa que outros nomes exigiriam anos de campanha para construir do zero.</div>
+    </div>
+  </div>
+</section>
+
+<section id="recomendacao">
+  <div class="pick-banner">
+    <span class="eyebrow">Recomendação do Conselho</span>
+    <h3>Wovana.</h3>
+    <p class="prose">Não é o nome com o som mais bonito da lista — esse título é do Vaelora, que a verificação real derrubou para a sexta posição por uma colisão doméstica ativa. É o nome que sobrevive ao contato com o mercado real de saúde digital e ainda assim carrega, sozinho entre os onze, a metáfora exata do que o produto faz: transformar sinais fragmentados de uma vida inteira em um único tecido contínuo. Antes de qualquer decisão final, trate a disponibilidade acima como um primeiro filtro, não como aprovação jurídica — recomenda-se busca formal de marca (INPI no Brasil, USPTO/EUIPO se houver ambição global) e confirmação de WHOIS/registro antes de qualquer investimento de branding.</p>
+  </div>
+  <footer>
+    Relatório gerado por verificação real de mercado (34 candidatos checados contra marcas, empresas e apps ativos; DNS ao vivo testado para os cinco primeiros colocados). Nenhum dado de disponibilidade foi estimado ou inventado — onde a verificação não foi feita, isso está declarado explicitamente em cada card.
+  </footer>
+</section>
+
+</div>

@@ -182,7 +182,7 @@ class _ErroSalvarBanner extends StatelessWidget {
   }
 }
 
-class _ItemPratoTile extends StatelessWidget {
+class _ItemPratoTile extends StatefulWidget {
   const _ItemPratoTile({
     required this.item,
     required this.onIncrementar,
@@ -195,11 +195,64 @@ class _ItemPratoTile extends StatelessWidget {
   final VoidCallback onDecrementar;
   final VoidCallback onRemover;
 
+  @override
+  State<_ItemPratoTile> createState() => _ItemPratoTileState();
+}
+
+class _ItemPratoTileState extends State<_ItemPratoTile> {
   String _formatarQuantidade(double quantidade) =>
       quantidade % 1 == 0 ? quantidade.toStringAsFixed(0) : quantidade.toStringAsFixed(1);
 
+  void _mostrarDialogoEditarPeso(BuildContext context, ItemPratoEditavel item) {
+    final controller = TextEditingController(
+      text: (item.pesoPersonalizadoGramas ?? item.original.pesoTipicoGramas ?? 100).toStringAsFixed(0),
+    );
+
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text(i18n.tr('confirmacao_prato.editar_peso')),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Item: ${item.original.nomeIdentificado}',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: controller,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: InputDecoration(
+                labelText: i18n.tr('confirmacao_prato.peso_gramas'),
+                suffix: const Text('g'),
+              ),
+              autofocus: true,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: Navigator.of(context).pop,
+            child: Text(i18n.tr('common.cancel')),
+          ),
+          FilledButton(
+            onPressed: () {
+              final novoGramas = double.tryParse(controller.text) ?? 100;
+              _controller.editarPeso(item.chave, novoGramas);
+              Navigator.of(context).pop();
+            },
+            child: Text(i18n.tr('common.save')),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final item = widget.item;
+    final original = item.original;
     final original = item.original;
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -211,9 +264,32 @@ class _ItemPratoTile extends StatelessWidget {
             Row(
               children: [
                 Expanded(
-                  child: Text(
-                    original.nomeIdentificado,
-                    style: Theme.of(context).textTheme.titleSmall,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Text(
+                            original.nomeIdentificado,
+                            style: Theme.of(context).textTheme.titleSmall,
+                          ),
+                          if (original.quantidadeEstimada ?? false)
+                            Text(
+                              ' (${item.pesoPersonalizadoGramas?.toStringAsFixed(0) ?? original.pesoTipicoGramas ?? '?'}g ${item.pesoPersonalizadoGramas != null ? 'edit.' : 'est.'})',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: item.pesoPersonalizadoGramas != null ? Colors.green.shade700 : Colors.amber.shade700,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                        ],
+                      ),
+                      if (original.nomeCasado != original.nomeIdentificado)
+                        Text(
+                          original.nomeCasado,
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                    ],
                   ),
                 ),
                 IconButton(
@@ -223,11 +299,6 @@ class _ItemPratoTile extends StatelessWidget {
                 ),
               ],
             ),
-            if (original.nomeCasado != original.nomeIdentificado)
-              Text(
-                original.nomeCasado,
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
             Text(
               i18n.tr(
                 'confirmacao_prato.confianca',
@@ -260,14 +331,33 @@ class _ItemPratoTile extends StatelessWidget {
                               fontWeight: FontWeight.w500,
                             ),
                           ),
-                          if (original.pesoTipicoGramas != null)
-                            Text(
-                              '${i18n.tr('confirmacao_prato.peso_tipico')}: ${original.pesoTipicoGramas}g',
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: Colors.amber.shade800,
-                              ),
+                          if (original.pesoTipicoGramas != null) ...[
+                            const SizedBox(height: 6),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  '${i18n.tr('confirmacao_prato.peso_tipico')}: ${original.pesoTipicoGramas}g',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: Colors.amber.shade800,
+                                  ),
+                                ),
+                                TextButton(
+                                  style: TextButton.styleFrom(padding: EdgeInsets.zero),
+                                  onPressed: () => _mostrarDialogoEditarPeso(context, item),
+                                  child: Text(
+                                    i18n.tr('common.edit'),
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: Colors.amber.shade900,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
+                          ],
                         ],
                       ),
                     ),
