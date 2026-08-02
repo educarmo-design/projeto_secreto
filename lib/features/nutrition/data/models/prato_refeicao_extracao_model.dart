@@ -38,6 +38,20 @@ class ItemPratoExtraidoModel {
   /// Presente apenas quando quantidadeEstimada é true.
   final int? pesoTipicoGramas;
 
+  /// Categoria de consumo do alimento (de `alimentos_referencia.categoria_consumo`):
+  /// 'liquido_frio', 'liquido_quente', 'unidade', 'fatia', 'peso_livre'.
+  /// Nulo = alimento ainda sem categorização (está em auditoria no CSV).
+  final String? categoriaConsumo;
+
+  /// Unidade padrão do alimento ('g' ou 'ml').
+  final String? unidadeMedidaPadrao;
+
+  /// Rótulo amigável da medida padrão (ex: 'Copo Pequeno', 'Unidade').
+  final String? medidaPadraoNome;
+
+  /// Quantidade numérica da medida padrão (ex: 5 para azeitona, 200 para xícara).
+  final double? medidaPadraoQtd;
+
   const ItemPratoExtraidoModel({
     required this.nomeCasado,
     required this.nomeIdentificado,
@@ -53,6 +67,10 @@ class ItemPratoExtraidoModel {
     this.similaridade,
     this.quantidadeEstimada,
     this.pesoTipicoGramas,
+    this.categoriaConsumo,
+    this.unidadeMedidaPadrao,
+    this.medidaPadraoNome,
+    this.medidaPadraoQtd,
   });
 
   factory ItemPratoExtraidoModel.fromJson(Map<String, dynamic> json) {
@@ -71,6 +89,10 @@ class ItemPratoExtraidoModel {
       similaridade: (json['similaridade'] as num?)?.toDouble(),
       quantidadeEstimada: json['quantidade_estimada'] as bool?,
       pesoTipicoGramas: (json['peso_tipico_gramas'] as num?)?.toInt(),
+      categoriaConsumo: json['categoria_consumo'] as String?,
+      unidadeMedidaPadrao: json['unidade_medida_padrao'] as String?,
+      medidaPadraoNome: json['medida_padrao_nome'] as String?,
+      medidaPadraoQtd: (json['medida_padrao_qtd'] as num?)?.toDouble(),
     );
   }
 }
