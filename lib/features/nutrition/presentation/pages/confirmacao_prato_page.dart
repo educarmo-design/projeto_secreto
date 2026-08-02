@@ -252,6 +252,250 @@ class _ItemPratoTileState extends State<_ItemPratoTile> {
     );
   }
 
+  Widget _buildContenudoEstimado(BuildContext context, ItemPratoEditavel item) {
+    final categoria = item.original.categoriaConsumo;
+    final medidaPadraoQtd = item.original.medidaPadraoQtd?.toInt() ?? 0;
+    final medidaPadraoNome = item.original.medidaPadraoNome ?? '';
+
+    /// Renderização condicional baseada em categoria_consumo
+    if (categoria == 'liquido_frio') {
+      return _buildBotoesLiquidoFrio(context, item);
+    } else if (categoria == 'liquido_quente') {
+      return _buildBotoesLiquidoQuente(context, item);
+    } else if (categoria == 'unidade' || categoria == 'fatia') {
+      return _buildTextoUnidadeOuFatia(context, item, categoria, medidaPadraoQtd, medidaPadraoNome);
+    } else {
+      // null ou 'peso_livre' — fallback genérico
+      return _buildAvisoGenericoComEdicao(context, item);
+    }
+  }
+
+  /// Líquidos frios: água, suco, refrigerante, leite
+  /// Oferece 3 tamanhos padrão: pequeno (200ml), médio (500ml), grande (700ml)
+  Widget _buildBotoesLiquidoFrio(BuildContext context, ItemPratoEditavel item) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.blue.shade50,
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: Colors.blue.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Tamanho do ${item.original.medidaPadraoNome ?? 'copo'}',
+            style: TextStyle(
+              fontSize: 12,
+              color: Colors.blue.shade900,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _botaoTamanho(context, item, 'Pequeno', 200),
+              _botaoTamanho(context, item, 'Médio', 500),
+              _botaoTamanho(context, item, 'Grande', 700),
+              _botaoEditarCustomizado(context, item, 'ml'),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Líquidos quentes: café, chá
+  /// Oferece 2 tamanhos: xícara café (50ml), xícara chá (200ml)
+  Widget _buildBotoesLiquidoQuente(BuildContext context, ItemPratoEditavel item) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.orange.shade50,
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: Colors.orange.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Tamanho da ${item.original.medidaPadraoNome ?? 'xícara'}',
+            style: TextStyle(
+              fontSize: 12,
+              color: Colors.orange.shade900,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _botaoTamanho(context, item, 'Café (50ml)', 50),
+              _botaoTamanho(context, item, 'Chá (200ml)', 200),
+              _botaoEditarCustomizado(context, item, 'ml'),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Unidades ou fatias: azeitona, presunto, queijo, etc.
+  /// Exibe informação descritiva + opção de edição manual
+  Widget _buildTextoUnidadeOuFatia(
+    BuildContext context,
+    ItemPratoEditavel item,
+    String categoria,
+    int medidaPadraoQtd,
+    String medidaPadraoNome,
+  ) {
+    final tipo = categoria == 'unidade' ? 'Unidade' : 'Fatia';
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.green.shade50,
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: Colors.green.shade200),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '1 $tipo${medidaPadraoNome.isNotEmpty ? ' ($medidaPadraoNome)' : ''}',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.green.shade900,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                if (medidaPadraoQtd > 0)
+                  Text(
+                    '≈ ${medidaPadraoQtd}g',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Colors.green.shade700,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          TextButton(
+            style: TextButton.styleFrom(padding: EdgeInsets.zero),
+            onPressed: () => _mostrarDialogoEditarPeso(context, item),
+            child: Text(
+              i18n.tr('common.edit'),
+              style: TextStyle(
+                fontSize: 11,
+                color: Colors.green.shade900,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Fallback genérico: alimento sem categoria (null) ou peso_livre
+  /// Aviso amarelo com opção de edição manual
+  Widget _buildAvisoGenericoComEdicao(BuildContext context, ItemPratoEditavel item) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.amber.shade50,
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: Colors.amber.shade200),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.info_outline, size: 18, color: Colors.amber.shade700),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  i18n.tr('confirmacao_prato.quantidade_estimada_aviso'),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.amber.shade900,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                if (item.original.pesoTipicoGramas != null) ...[
+                  const SizedBox(height: 6),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        '${i18n.tr('confirmacao_prato.peso_tipico')}: ${item.original.pesoTipicoGramas}g',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.amber.shade800,
+                        ),
+                      ),
+                      TextButton(
+                        style: TextButton.styleFrom(padding: EdgeInsets.zero),
+                        onPressed: () => _mostrarDialogoEditarPeso(context, item),
+                        child: Text(
+                          i18n.tr('common.edit'),
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.amber.shade900,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Botão rápido de tamanho (para líquidos)
+  Widget _botaoTamanho(BuildContext context, ItemPratoEditavel item, String label, int qtd) {
+    final isCustomizado = item.pesoPersonalizadoGramas == qtd.toDouble();
+    return FilledButton.tonal(
+      style: FilledButton.styleFrom(
+        backgroundColor: isCustomizado ? Colors.blue.shade200 : Colors.blue.shade100,
+      ),
+      onPressed: () {
+        widget.controller.editarPeso(item.chave, qtd.toDouble());
+      },
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 11,
+          color: isCustomizado ? Colors.blue.shade900 : Colors.blue.shade700,
+          fontWeight: isCustomizado ? FontWeight.bold : FontWeight.normal,
+        ),
+      ),
+    );
+  }
+
+  /// Botão "Customizar" para entrada manual
+  Widget _botaoEditarCustomizado(BuildContext context, ItemPratoEditavel item, String unidade) {
+    return OutlinedButton(
+      onPressed: () => _mostrarDialogoEditarPeso(context, item),
+      child: Text(
+        'Customizar',
+        style: TextStyle(fontSize: 11),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final item = widget.item;
@@ -310,62 +554,7 @@ class _ItemPratoTileState extends State<_ItemPratoTile> {
             ),
             if (original.quantidadeEstimada ?? false) ...[
               const SizedBox(height: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: Colors.amber.shade50,
-                  borderRadius: BorderRadius.circular(4),
-                  border: Border.all(color: Colors.amber.shade200),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.info_outline, size: 18, color: Colors.amber.shade700),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            i18n.tr('confirmacao_prato.quantidade_estimada_aviso'),
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.amber.shade900,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                          if (original.pesoTipicoGramas != null) ...[
-                            const SizedBox(height: 6),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text(
-                                  '${i18n.tr('confirmacao_prato.peso_tipico')}: ${original.pesoTipicoGramas}g',
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    color: Colors.amber.shade800,
-                                  ),
-                                ),
-                                TextButton(
-                                  style: TextButton.styleFrom(padding: EdgeInsets.zero),
-                                  onPressed: () => _mostrarDialogoEditarPeso(context, item),
-                                  child: Text(
-                                    i18n.tr('common.edit'),
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      color: Colors.amber.shade900,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+              _buildContenudoEstimado(context, item),
             ],
             const SizedBox(height: 8),
             Wrap(
