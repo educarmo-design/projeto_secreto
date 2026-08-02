@@ -1,0 +1,8 @@
+id,nome_taco,aliases,fonte,categoria_consumo_SUGERIDA,unidade_medida_SUGERIDA,medida_padrao_nome_SUGERIDA,medida_padrao_qtd_SUGERIDA,calorias_100g,proteinas_g_100g,carboidratos_g_100g,gorduras_g_100g,REVISADO_POR_FUNDADOR,NOTAS
+,,,"","","","","",,,,,"N","INSTRUÇÕES: Preencher coluna 'categoria_consumo_SUGERIDA' com um de: liquido_frio, liquido_quente, unidade, fatia, peso_livre"
+,,,"","","","","",,,,,"N","INSTRUÇÕES: Se 'unidade' ou 'fatia', preencher medida_padrao_qtd (ex: 5 para azeitona, 20 para presunto)"
+,,,"","","","","",,,,,"N","INSTRUÇÕES: Se 'liquido_*', preencher em ml (ex: 250 para copo médio)"
+,,,"","","","","",,,,,"N","INSTRUÇÕES: Marcar 'REVISADO_POR_FUNDADOR' como 'S' apenas após validação"
+,,,"","","","","",,,,,"N",""
+,,,"","","","","",,,,,"N","ALIMENTOS ÓRFÃOS (SEM MEDIDA CASEIRA CADASTRADA) — AGUARDANDO CATEGORIZAÇÃO MANUAL:"
+,,,"","","","","",,,,,"N",""
