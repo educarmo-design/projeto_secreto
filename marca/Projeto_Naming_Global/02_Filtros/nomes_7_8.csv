@@ -1,0 +1,123 @@
+nome,metodo,silabas,origem_referencia,observacao
+Chronara,raiz_grega,3,"grego 'chronos' = tempo",tempo/progressao
+Chronis,raiz_grega,2,"grego 'chronos'",forma curta
+Heliara,raiz_grega,3,"grego 'helios' = sol",energia/vitalidade simbolica
+Heliona,raiz_grega,3,"grego 'helios'",variante
+Asteron,raiz_grega,3,"grego 'aster'",variante
+Astrion,raiz_grega,3,"grego 'astron'",variante tech
+Cosmora,raiz_grega,3,"grego 'kosmos' = ordem/universo",organizacao da vida
+Cosmion,raiz_grega,3,"grego 'kosmos'",variante
+Poliara,raiz_grega,3,"grego 'poly' = muitos",abrangencia de dados
+Phosara,raiz_grega,3,"grego 'phos' = luz",clareza/insight
+Photeon,raiz_grega,3,"grego 'phos/photos'",variante tech
+Thallora,raiz_grega,3,"grego 'thallo' = brotar/crescer",crescimento continuo
+Thallon,raiz_grega,2,"grego 'thallo'",curto
+Zenthora,raiz_grega,3,"grego 'zenith'-like coined",auge/potencial maximo
+Skopion,raiz_grega,3,"grego 'skopein'",variante
+Metrona,raiz_grega,3,"grego 'metron' = medida",dados/metricas
+Praxora,raiz_grega,3,"grego 'praxis' = pratica/acao",acao concreta
+Genoris,raiz_grega,3,"grego 'genos'",variante
+Panoris,raiz_grega,3,"grego 'pan'",variante
+Ourania,raiz_grega,4,"grego 'ouranos' = ceu",amplitude/expansao
+Selenoa,raiz_grega,4,"grego 'selene' = lua",ciclos naturais
+Aionara,raiz_grega,4,"grego 'aion' + sufixo longo",variante premium
+Terrana,raiz_latina,3,"latim 'terra' = terra",base/fundamento
+Terrona,raiz_latina,3,"latim 'terra'",variante
+Origora,raiz_latina,3,"latim 'origo' = origem",inicio/nascimento
+Cursora,raiz_latina,3,"latim 'cursus' = trajetoria",trajetoria de vida
+Sperana,raiz_latina,3,"latim 'spero' = esperar/esperanca",confianca no futuro
+Solvara,raiz_latina,3,"latim 'solvere' = resolver",solucao
+Amplora,raiz_latina,3,"latim 'amplus' = amplo",visao ampla
+Mensara,raiz_latina,3,"latim 'mens' = mente",cognicao
+Plenora,raiz_latina,3,"latim 'plenus' = pleno",plenitude
+Plenexa,raiz_latina,3,"latim 'plenus'",variante tech
+Duraxis,raiz_latina,3,"latim 'durare' = durar",durabilidade/longevidade sem usar raiz proibida
+Duravia,raiz_latina,3,"latim 'durare' + 'via'",jornada duradoura
+Meridis,proto_indo_europeu,3,"PIE *(s)mer-",memoria
+Keloris,proto_indo_europeu,3,"PIE *kel-",variante
+Genthora,proto_indo_europeu,3,"PIE *genh- = nascer/gerar",nascimento/geracoes
+Dyevora,proto_indo_europeu,3,"PIE *dyeu-",variante
+Bhelora,proto_indo_europeu,3,"PIE *bhel- = brilhar",clareza
+Ghelara,proto_indo_europeu,3,"PIE *ghel-",variante
+Kreoris,proto_indo_europeu,3,"PIE *ker-",variante
+Trebora,proto_indo_europeu,3,"PIE *treb- = habitacao/lar",base pessoal
+Menthis,proto_indo_europeu,2,"PIE *men-",curto
+Draumis,raiz_nordica,2,"nordico antigo 'draumr' = sonho",aspiracao
+Ljosora,raiz_nordica,3,"nordico antigo 'ljos'",variante
+Heimora,raiz_nordica,3,"nordico antigo 'heimr' = mundo/lar",pertencimento global
+Solvinn,raiz_nordica,2,"nordico antigo 'sol' + 'vinr' = amigo do sol",energia/companhia
+Vindora,raiz_nordica,3,"nordico antigo 'vindr' = vento",leveza/movimento
+Frodena,raiz_nordica,3,"nordico antigo 'frodr'",variante
+Kaelora,raiz_celta,3,"gaelico 'caol'",variante
+Branora,raiz_celta,3,"gaelico/gales 'bran' = corvo (sabedoria/jornada)",jornada/sabedoria
+Torcana,raiz_celta,3,"celta 'torc' = adorno de forca/status",forca/potencia
+Fionara,raiz_celta,3,"gaelico 'fionn' = claro/sabio (mito de crescimento)",crescimento e sabedoria
+Glenora,raiz_celta,3,"gaelico 'gleann' = vale",equilibrio/natureza
+Cathora,raiz_celta,3,"gaelico 'cath' = batalha (resiliencia)",resiliencia
+Zynthar,fonetica_moderna,2,"invencao fonetica pura",som tech/premium
+Solenne,fonetica_moderna,3,"invencao fonetica (evoca 'solene/sol')",confianca
+Corvale,fonetica_moderna,3,"invencao fonetica",solidez
+Trellis,ingles_metaforico,2,"palavra real em ingles = treliça, estrutura de apoio ao crescimento",metafora de suporte ao crescimento
+Zephira,fonetica_moderna,3,"invencao fonetica (evoca 'zefiro')",leveza
+Kindrel,fonetica_moderna,2,"invencao (evoca 'kindred'=parentesco)",familia/geracoes
+Halvora,fonetica_moderna,3,"invencao fonetica",equilibrio
+Thallis,fonetica_moderna,2,"invencao (raiz thallo simplificada)",crescimento
+Kelvora,fonetica_moderna,3,"invencao fonetica",energia
+Vantris,fonetica_moderna,2,"invencao fonetica",tech
+Sorenta,fonetica_moderna,3,"invencao fonetica",confianca
+Talvora,fonetica_moderna,3,"invencao fonetica",solidez
+Falcora,fonetica_moderna,3,"invencao (evoca falcao)",precisao/visao
+Lucenta,fonetica_moderna,3,"invencao (evoca 'luz')",clareza
+Norivia,fonetica_moderna,4,"invencao fonetica",jornada ampla
+Kairavo,fonetica_moderna,3,"invencao (raiz kairos)",momento certo
+Velthos,fonetica_moderna,2,"invencao fonetica",tech
+Corvenn,fonetica_moderna,2,"invencao fonetica",solidez
+Sathera,fonetica_moderna,3,"invencao fonetica",amplitude
+Wenlora,fonetica_moderna,3,"invencao fonetica",suave premium
+Xantera,fonetica_moderna,3,"invencao fonetica",vibrante
+Zorvane,fonetica_moderna,3,"invencao fonetica",tech premium
+Brenova,blend_fonemas,3,"blend de 'brilho' + 'nova'",clareza + novidade
+Tempora,blend_fonemas,3,"blend 'tempo' + sufixo -ora",tempo/ritmo pessoal
+Mentavi,blend_fonemas,3,"blend 'mente' + 'avi' (aviacao/elevacao)",cognicao + elevacao
+Sonhara,blend_fonemas,3,"blend 'sonho' + sufixo -ara",aspiracao
+Ritmora,blend_fonemas,3,"blend 'ritmo' + sufixo -ora",ritmo de vida
+Fluxara,blend_fonemas,3,"blend 'fluxo' + sufixo -ara",fluxo continuo de dados
+Passora,blend_fonemas,3,"blend 'passo' + sufixo -ora",jornada passo a passo
+Trilhava,blend_fonemas,3,"blend 'trilha' + sufixo",jornada/trilha de vida
+Orbitea,blend_fonemas,4,"blend 'orbita' + sufixo",variante
+Alentix,blend_fonemas,3,"blend 'alento' + sufixo tech",energia + tecnologia
+Raizora,blend_fonemas,3,"blend 'raiz' + sufixo -ora",fundamento/origem
+Cresora,blend_fonemas,3,"blend 'crescer' + sufixo -ora",crescimento continuo
+Cresenta,blend_fonemas,3,"blend 'crescente' encurtado",crescimento
+Renovix,blend_fonemas,3,"blend 'renovar' + sufixo tech",renovacao continua
+Trajena,blend_fonemas,3,"blend 'trajeto' + sufixo",trajetoria pessoal
+Ondavia,blend_fonemas,3,"blend 'onda' + 'via'",ritmo/ciclos + jornada
+Bravira,combinacao_estatistica,3,"padrao CV-CV-CV (evoca 'bravo')",coragem/confianca
+Lucrana,combinacao_estatistica,3,"padrao CV-CV-CV",premium
+Sylvora,combinacao_estatistica,3,"padrao CV-CV-CV (evoca 'silva'=floresta)",natureza/crescimento
+Rovanti,combinacao_estatistica,3,"padrao CV-CV-CV",premium
+Talenza,combinacao_estatistica,3,"padrao CV-CV-CV (evoca 'talento')",potencial pessoal
+Firmora,raiz_latina,3,"latim 'firmus' = firme",estabilidade
+Constara,raiz_latina,3,"latim 'constare' = manter-se firme",consistencia
+Serenis,raiz_latina,3,"latim 'serenus'",variante
+Birkenn,raiz_nordica,2,"nordico antigo 'bjork' = betula (resiliencia/crescimento)",resiliencia natural
+Skaldis,raiz_nordica,2,"nordico antigo 'skald' = narrador/poeta",narrativa da propria historia
+Skaldora,raiz_nordica,3,"nordico antigo 'skald'",variante
+Hallora,raiz_nordica,3,"nordico antigo 'hallr' = pedra/rocha",estabilidade
+Stenora,raiz_nordica,3,"nordico antigo 'steinn' = pedra",solidez
+Bricara,raiz_celta,3,"celta 'briga' = forca/fortaleza",forca
+Velantis,fonetica_moderna,3,"invencao fonetica",premium tech
+Norielle,fonetica_moderna,3,"invencao fonetica",elegante
+Kalvenne,fonetica_moderna,3,"invencao fonetica",moderno
+Talvira,fonetica_moderna,3,"invencao fonetica",solidez
+Yorelle,fonetica_moderna,3,"invencao fonetica",leve/premium
+Senvora,fonetica_moderna,3,"invencao fonetica",neutro premium
+Passavia,blend_fonemas,4,"blend 'passagem' + 'via'",jornada passo a passo
+Ecovira,blend_fonemas,3,"blend 'eco' + 'via'",ressonancia + jornada
+Horavia,blend_fonemas,4,"blend 'hora' (tempo) + 'via'",tempo + caminho
+Ciclara,blend_fonemas,3,"blend 'ciclo' + sufixo -ara",ciclos de vida
+Elomora,blend_fonemas,3,"blend 'elo' (conexao) + sufixo -mora",conexao continua
+Denvara,combinacao_estatistica,3,"padrao CV-CV-CV",neutro/abstrato
+Kestova,combinacao_estatistica,3,"padrao CV-CV-CV",neutro/abstrato
+Pentara,combinacao_estatistica,3,"padrao CV-CV-CV",neutro/abstrato
+Solvenne,ingles_metaforico,3,"evoca 'solve' em ingles = resolver",solucao de problemas de saude

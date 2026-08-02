@@ -1,0 +1,763 @@
+# PROJETO
+
+Você é uma equipe formada por especialistas mundiais em:
+
+• Branding
+• Naming
+• Linguística
+• Fonética
+• Marketing
+• UX
+• Registro de Marcas
+• Domínios
+• SEO
+• Estratégia de Produto
+• Startups Globais
+
+Seu trabalho NÃO é gerar nomes.
+
+Seu trabalho é encontrar o MELHOR nome possível para uma plataforma global.
+
+Você deve agir como uma consultoria de branding de nível Interbrand, Pentagram ou Landor.
+
+A qualidade é mais importante que a velocidade.
+
+Nunca invente resultados.
+
+Nunca faça aproximações quando puder pesquisar.
+
+Sempre explique sua linha de raciocínio.
+
+# PROJETO DE NAMING GLOBAL
+
+Você é uma equipe multidisciplinar formada pelos melhores especialistas do mundo em:
+
+• Branding
+• Naming
+• Linguística
+• Fonética
+• Psicologia Cognitiva
+• Marketing
+• UX
+• Registro de Marcas
+• Direito de Propriedade Intelectual
+• SEO
+• Domínios
+• Estratégia de Produto
+• Venture Capital
+• Startups Globais
+
+Sua missão NÃO é simplesmente criar nomes.
+
+Sua missão é encontrar um nome capaz de se tornar uma marca global de tecnologia avaliada em bilhões de dólares.
+
+Você deve agir como uma consultoria equivalente à Interbrand, Landor, Pentagram ou FutureBrand.
+
+A qualidade deve ser sempre priorizada em relação à quantidade.
+
+Nunca invente resultados de pesquisas.
+
+Sempre informe quando uma verificação não puder ser realizada.
+
+────────────────────────────────────────
+
+# SOBRE O PRODUTO
+
+Produto:
+
+Uma plataforma de saúde preventiva baseada em inteligência artificial.
+
+Ela acompanha toda a jornada da pessoa.
+
+Desde o nascimento.
+
+Até a velhice.
+
+Organiza informações provenientes de:
+
+• Smartwatch
+• Exames em PDF
+• Alimentação
+• Glicemia
+• Pressão arterial
+• Sono
+• Exercícios
+• Medicamentos
+• Hábitos
+• Dados clínicos
+• Dados pessoais de saúde
+
+O sistema entrega inteligência tanto para o usuário quanto para profissionais.
+
+A plataforma possui:
+
+• Aplicativo Android
+• Aplicativo iPhone
+• Plataforma Web
+• Painel profissional
+• APIs futuras
+• Plataforma internacional
+
+────────────────────────────────────────
+
+# POSICIONAMENTO DA MARCA
+
+A marca deve transmitir:
+
+• Continuidade
+• Evolução
+• Energia
+• Inteligência
+• Confiança
+• Longevidade
+• Tecnologia humana
+• Organização da vida
+• Plataforma premium
+
+A palavra "saúde" NÃO precisa aparecer.
+
+A saúde deve ser percebida como consequência.
+
+────────────────────────────────────────
+
+# PÚBLICO
+
+O nome precisa funcionar igualmente para:
+
+• Crianças
+• Jovens
+• Adultos
+• Idosos
+• Atletas
+• Pessoas sedentárias
+• Médicos
+• Nutricionistas
+• Treinadores
+• Clínicas
+• Empresas
+
+Nenhum público pode parecer privilegiado.
+
+────────────────────────────────────────
+
+# IDIOMAS
+
+O nome deve funcionar em:
+
+Português
+
+Inglês
+
+Espanhol
+
+Pronúncia simples.
+
+Sem acentos.
+
+Sem caracteres especiais.
+
+────────────────────────────────────────
+
+# EVITAR
+
+Nunca utilizar raízes ou palavras como:
+
+vita
+vital
+life
+live
+living
+bio
+health
+healthy
+doctor
+med
+medicine
+clinic
+care
+fit
+fitness
+well
+wellness
+pulse
+track
+tracking
+sync
+smart
+longev
+longo
+long
+safe
+guardian
+
+Evitar também nomes muito próximos de empresas conhecidas como:
+
+Apple
+Google
+Microsoft
+Amazon
+Garmin
+Whoop
+Fitbit
+Huawei
+Samsung
+Oura
+Strava
+Notion
+Asana
+Figma
+Spotify
+OpenAI
+Anthropic
+Tesla
+Oracle
+SAP
+Epic
+Philips
+Abbott
+Medtronic
+
+────────────────────────────────────────
+
+# ETAPA 1
+
+Estude primeiro os padrões fonéticos das maiores marcas do mundo.
+
+Analise centenas de marcas de sucesso.
+
+Descubra padrões como:
+
+• quantidade ideal de sílabas
+• alternância entre vogais e consoantes
+• sons mais memoráveis
+• facilidade de escrita
+• facilidade de pronúncia
+• força visual
+• neutralidade internacional
+
+NÃO copie nenhuma marca.
+
+Utilize apenas os padrões.
+
+────────────────────────────────────────
+
+# ETAPA 2
+
+Crie aproximadamente 5000 candidatos utilizando métodos diferentes:
+
+• palavras inventadas
+• mistura de fonemas
+• raízes gregas
+• raízes latinas
+• raízes proto indo europeias
+• raízes nórdicas
+• raízes celtas
+• fonética moderna
+• combinação estatística de sílabas
+
+Não gerar apenas pequenas variações do mesmo nome.
+
+Buscar diversidade.
+
+────────────────────────────────────────
+
+# ETAPA 3
+
+Eliminar automaticamente:
+
+• nomes feios
+• nomes difíceis
+• nomes infantis
+• nomes esportivos
+• nomes médicos
+• nomes religiosos
+• nomes políticos
+• nomes ofensivos
+• nomes pouco memoráveis
+• nomes muito parecidos entre si
+• nomes parecidos com marcas conhecidas
+
+
+────────────────────────────────────────
+# MODO DE EXECUÇÃO (OBRIGATÓRIO)
+
+Este projeto pode envolver dezenas de milhares de candidatos e milhares de verificações.
+
+NÃO tente manter todas as informações apenas no contexto da conversa.
+
+Utilize o sistema de arquivos local como armazenamento intermediário.
+
+Todo o processamento deve ser realizado em etapas independentes.
+
+Após concluir cada etapa:
+
+• salvar os arquivos
+• registrar um checkpoint
+• liberar memória
+• iniciar a próxima etapa utilizando apenas os arquivos produzidos anteriormente
+
+Nunca reiniciar o projeto caso uma etapa falhe.
+
+Sempre continuar a partir do último checkpoint disponível.
+
+Criar automaticamente a seguinte estrutura:
+
+Projeto_Naming_Global/
+
+    00_Config/
+
+    01_Geracao/
+
+    02_Filtros/
+
+    03_Verificacao/
+
+    04_Ranking/
+
+    05_Finalistas/
+
+    06_Relatorios/
+
+    checkpoints/
+
+Cada etapa deve produzir arquivos próprios.
+
+────────────────────────────────────────
+
+ETAPA 1
+
+Gerar aproximadamente 5.000 candidatos.
+
+Salvar imediatamente.
+
+Arquivo:
+
+01_Geracao/candidatos_brutos.csv
+
+Após salvar, criar checkpoint.
+
+────────────────────────────────────────
+
+ETAPA 2
+
+Ler candidatos_brutos.csv.
+
+Executar todos os filtros linguísticos.
+
+Salvar:
+
+02_Filtros/candidatos_filtrados.csv
+
+Criar checkpoint.
+
+────────────────────────────────────────
+
+ETAPA 3
+
+Selecionar:
+
+100 nomes de 3 letras
+
+200 nomes de 4 letras
+
+200 nomes de 5–6 letras
+
+Salvar:
+
+02_Filtros/nomes_3.csv
+
+02_Filtros/nomes_4.csv
+
+02_Filtros/nomes_5_6.csv
+
+Criar checkpoint.
+
+────────────────────────────────────────
+
+ETAPA 4
+
+Executar as verificações externas.
+
+Para cada nome verificar:
+
+• domínio .com
+• domínio .com.br
+• Instagram
+• TikTok
+• LinkedIn
+• GitHub
+• Apple App Store
+• Google Play
+• Pesquisa Google
+
+Executar em lotes de no máximo 20 nomes por vez.
+
+Após cada lote:
+
+salvar
+
+continuar
+
+nunca reiniciar.
+
+Arquivo:
+
+03_Verificacao/verificacao_completa.csv
+
+Criar checkpoint após cada lote.
+
+────────────────────────────────────────
+
+ETAPA 5
+
+Eliminar automaticamente nomes com colisões relevantes.
+
+Salvar:
+
+04_Ranking/aprovados.csv
+
+Criar checkpoint.
+
+────────────────────────────────────────
+
+ETAPA 6
+
+Executar o algoritmo de pontuação.
+
+Gerar:
+
+TOP100.csv
+
+TOP20.csv
+
+VENCEDOR.md
+
+Salvar em:
+
+05_Finalistas/
+
+Criar checkpoint.
+
+────────────────────────────────────────
+
+────────────────────────────────────────
+
+# ETAPA FINAL – CONSELHO GLOBAL DE BRANDING
+
+Agora aja como um Conselho Global de Branding.
+
+Imagine que esta empresa será construída pelos próximos 30 anos.
+
+O nome escolhido poderá aparecer em:
+
+• Aplicativos Android e iPhone
+• Plataforma Web
+• APIs
+• IA
+• Smartwatch
+• Empresas
+• Clínicas
+• Conferências internacionais
+• Bolsa de Valores
+• Aquisições
+• Expansão para dezenas de países
+
+O nome deverá continuar funcionando mesmo que o produto mude completamente.
+
+Não escolha nomes apenas porque estão disponíveis.
+
+Escolha nomes capazes de construir uma marca mundial.
+
+────────────────────────────────────────
+
+# TESTES OBRIGATÓRIOS
+
+Para cada finalista executar:
+
+1. Teste de Memorabilidade
+
+Após ouvir apenas uma vez,
+qual a chance de lembrar do nome amanhã?
+
+Nota de 0 a 10.
+
+────────────────────────────────────────
+
+2. Teste do Rádio
+
+Imagine que alguém falou o nome por telefone.
+
+Qual a chance da pessoa escrever corretamente?
+
+Nota de 0 a 10.
+
+────────────────────────────────────────
+
+3. Teste Internacional
+
+Como o nome soa para:
+
+Português
+
+Inglês
+
+Espanhol
+
+Existe risco de pronúncia ruim?
+
+Existe significado negativo?
+
+────────────────────────────────────────
+
+4. Teste de Crescimento
+
+Avaliar se funciona em:
+
+<Nome>
+
+<Nome> App
+
+<Nome> Cloud
+
+<Nome> AI
+
+<Nome> Family
+
+<Nome> Kids
+
+<Nome> Coach
+
+<Nome> Analytics
+
+<Nome> Professional
+
+<Nome> API
+
+<Nome> Labs
+
+────────────────────────────────────────
+
+5. Teste de Posicionamento
+
+O nome transmite:
+
+Tecnologia
+
+Confiança
+
+Energia
+
+Continuidade
+
+Longevidade
+
+Inteligência
+
+Premium
+
+Global
+
+Neutralidade
+
+Sem privilegiar:
+
+• atletas
+
+• idosos
+
+• médicos
+
+• crianças
+
+────────────────────────────────────────
+
+6. Teste Visual
+
+Avaliar:
+
+Logotipo
+
+Ícone de aplicativo
+
+Domínio
+
+LinkedIn
+
+Instagram
+
+TikTok
+
+Material de marketing
+
+Estande de eventos
+
+Cartão de visita
+
+Apresentação para investidores
+
+────────────────────────────────────────
+
+7. Teste Jurídico
+
+Considerar:
+
+Risco de colisão
+
+Risco de confusão
+
+Facilidade futura para registro
+
+Sem inventar resultados.
+
+────────────────────────────────────────
+
+8. Teste de Escalabilidade
+
+Imagine a empresa em 2045.
+
+O nome ainda parecerá moderno?
+
+Ou ficará datado?
+
+────────────────────────────────────────
+
+# RANKING FINAL
+
+Selecionar exatamente:
+
+20 FINALISTAS
+
+Ordenar do melhor para o pior.
+
+Para cada um apresentar:
+
+Nome
+
+Nota Geral (0–100)
+
+Pronúncia PT
+
+Pronúncia EN
+
+Pronúncia ES
+
+Memorabilidade
+
+Força Visual
+
+Originalidade
+
+Escalabilidade
+
+Potencial Internacional
+
+Risco Jurídico (baixo/médio/alto)
+
+Justificativa (até 150 palavras)
+
+────────────────────────────────────────
+
+# ARQUIVOS FINAIS
+
+Gerar:
+
+TOP20_FINALISTAS.csv
+
+TOP20_FINALISTAS.md
+
+Cada arquivo deve conter todas as métricas.
+
+────────────────────────────────────────
+
+# RELATÓRIO EXECUTIVO
+
+Criar também:
+
+RELATORIO_EXECUTIVO.md
+
+O relatório deve responder:
+
+1. Qual foi a metodologia utilizada?
+
+2. Quantos nomes foram gerados?
+
+3. Quantos foram eliminados em cada etapa?
+
+4. Quais padrões fonéticos tiveram melhor desempenho?
+
+5. Quais padrões apresentaram maior disponibilidade de domínio?
+
+6. Quais padrões tiveram menor risco jurídico?
+
+7. Quais os 20 finalistas?
+
+8. Se você fosse o responsável pela marca, qual escolheria e por quê?
+
+9. Quais seriam os 5 nomes "reserva" caso o primeiro colocado não pudesse ser registrado?
+
+10. Quais aprendizados importantes surgiram durante o processo?
+
+────────────────────────────────────────
+
+OBJETIVO
+
+Não entregar apenas nomes.
+
+Entregar uma recomendação de branding pronta para apresentação ao conselho de administração da empresa.
+
+Salvar em:
+
+06_Relatorios/
+
+────────────────────────────────────────
+
+# REGRA FUNDAMENTAL
+
+Se ocorrer qualquer erro:
+
+NÃO reiniciar.
+
+Ler o último checkpoint.
+
+Continuar exatamente da etapa seguinte.
+
+────────────────────────────────────────
+
+# OTIMIZAÇÃO
+
+Durante todo o processo:
+
+• reutilizar resultados já obtidos
+• nunca repetir verificações
+• evitar consultas duplicadas
+• registrar data e hora de cada verificação
+• registrar tempo gasto por etapa
+• registrar quantidade de nomes eliminados por etapa
+
+────────────────────────────────────────
+
+# RESULTADO ESPERADO
+
+Ao final do projeto deverá existir uma pasta contendo:
+
+Projeto_Naming_Global/
+
+01_Geracao/
+
+02_Filtros/
+
+03_Verificacao/
+
+04_Ranking/
+
+05_Finalistas/
+
+06_Relatorios/
+
+com todos os arquivos gerados.
+
+Nenhum arquivo deverá depender do contexto da conversa para ser compreendido.
+
+Todos os CSV devem conter cabeçalhos.
+
+Todos os relatórios devem possuir data, hora e metodologia utilizada.

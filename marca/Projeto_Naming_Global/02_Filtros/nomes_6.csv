@@ -1,0 +1,135 @@
+nome,metodo,silabas,origem_referencia,observacao
+Aionis,raiz_grega,3,"grego 'aion' + sufixo -is",variante
+Astera,raiz_grega,3,"grego 'aster' = estrela",orientacao/guia
+Nyxora,raiz_grega,3,"grego 'nyx' = noite",ciclo dia/noite (sono)
+Sofira,raiz_grega,3,"grego 'sophia' = sabedoria",inteligencia
+Sofion,raiz_grega,3,"grego 'sophia'",variante
+Aretia,raiz_grega,3,"grego 'arete' = excelencia",qualidade/performance
+Aretis,raiz_grega,2,"grego 'arete'",curto
+Telara,raiz_grega,3,"grego 'tele' = distancia",monitoramento remoto
+Aerona,raiz_grega,3,"grego 'aero' = ar",respiracao/leveza
+Aerion,raiz_grega,3,"grego 'aero'",variante
+Atlara,raiz_grega,3,"grego 'atlas' = sustentar",suporte continuo
+Kairoa,raiz_grega,3,"grego 'kairos' = momento certo",decisao no momento certo
+Kairen,raiz_grega,2,"grego 'kairos'",curto
+Elpira,raiz_grega,3,"grego 'elpis' = esperanca",otimismo
+Elpion,raiz_grega,3,"grego 'elpis'",variante
+Nostoa,raiz_grega,3,"grego 'nostos' = retorno/jornada",jornada de vida
+Orbeon,raiz_grega,3,"grego 'orbis/kyklos' hibrido",ciclo continuo
+Metrys,raiz_grega,2,"grego 'metron'",curto
+Ethora,raiz_grega,3,"grego 'ethos' = carater",identidade
+Doxara,raiz_grega,3,"grego 'doxa' = crenca/reputacao",confianca
+Genara,raiz_grega,3,"grego 'genos' = origem/geracao",geracoes/heranca
+Panora,raiz_grega,3,"grego 'pan' = todo",visao completa
+Novara,raiz_latina,3,"latim 'novus'",variante
+Lumeva,raiz_latina,3,"latim 'lumen' = luz",clareza
+Lumora,raiz_latina,3,"latim 'lumen'",variante
+Iterum,raiz_latina,3,"latim 'iter' = jornada/caminho",jornada de vida
+Iterna,raiz_latina,3,"latim 'iter' + eterno hibrido",jornada continua
+Domusa,raiz_latina,3,"latim 'domus' = lar",familia/casa
+Civara,raiz_latina,3,"latim 'civis' = cidadao",comunidade
+Cursis,raiz_latina,2,"latim 'cursus'",curto
+Aevora,raiz_latina,3,"latim 'aevum'",variante mais segura
+Veraxa,raiz_latina,3,"latim 'verax' = verdadeiro",precisao
+Mentoa,raiz_latina,3,"latim 'mens'",variante
+Viaxis,raiz_latina,3,"latim 'via' = caminho",caminho/trajetoria
+Novexa,raiz_latina,3,"latim 'novus'",inovacao
+Merisa,proto_indo_europeu,3,"PIE *mer- = brilhar/lembrar (raiz de 'memoria')",memoria/dados
+Kelara,proto_indo_europeu,3,"PIE *kel- = elevar/crescer",crescimento
+Verano,proto_indo_europeu,3,"PIE *wes-r- = primavera/renovacao",renovacao sazonal
+Verasa,proto_indo_europeu,3,"PIE *wes-r-",variante
+Belora,proto_indo_europeu,3,"PIE *bhel- (simplificado)",clareza (grafia simples)
+Ghelan,proto_indo_europeu,2,"PIE *ghel- = brilhar/dourado",premium/brilho
+Kreova,proto_indo_europeu,3,"PIE *ker- = crescer",crescimento
+Menora,proto_indo_europeu,3,"PIE *men- = pensar/mente",cognicao
+Pleova,proto_indo_europeu,3,"PIE *pele- = encher/abundancia",plenitude
+Oriwen,proto_indo_europeu,2,"PIE *h3er- = mover-se/erguer",origem/nascer
+Dheora,proto_indo_europeu,3,"PIE *dhe- = colocar/estabelecer",fundacao
+Nemora,proto_indo_europeu,3,"PIE *nem- = distribuir/atribuir",organizacao de dados
+Yugara,proto_indo_europeu,3,"PIE *yeug- = unir (origem de 'jugo/join')",conexao entre dados
+Alvara,raiz_nordica,3,"nordico antigo 'alfr' = ser luminoso",clareza/energia
+Alvenn,raiz_nordica,2,"nordico antigo 'alfr'",curto
+Drauma,raiz_nordica,2,"nordico antigo 'draumr'",variante
+Runava,raiz_nordica,3,"nordico antigo 'run' = saber secreto/simbolo",inteligencia de dados
+Runora,raiz_nordica,3,"nordico antigo 'run'",variante
+Vakora,raiz_nordica,3,"nordico antigo 'vaka' = vigilia/atencao",atencao preventiva
+Vakenn,raiz_nordica,2,"nordico antigo 'vaka'",curto
+Eldora,raiz_nordica,3,"nordico antigo 'eldr' = fogo",energia vital
+Eldenn,raiz_nordica,2,"nordico antigo 'eldr'",curto
+Aldora,raiz_nordica,3,"nordico antigo 'aldr'",variante mais segura
+Aldenn,raiz_nordica,2,"nordico antigo 'aldr'",curto
+Bylora,raiz_nordica,3,"nordico antigo 'bylgja' simplificado",ritmo
+Ravenn,raiz_nordica,2,"nordico antigo 'hrafn' = corvo (sabedoria)",inteligencia/memoria
+Ravora,raiz_nordica,3,"nordico antigo 'hrafn'",variante
+Heimen,raiz_nordica,2,"nordico antigo 'heimr'",curto
+Frodra,raiz_nordica,2,"nordico antigo 'frodr' = sabio",sabedoria
+Ylvora,raiz_nordica,3,"nordico antigo (inspirado em 'ylgr')",forca discreta
+Sagora,raiz_nordica,3,"nordico antigo 'saga'",variante mais distinta
+Darava,raiz_celta,3,"gaelico 'dair' = carvalho (forca/longevidade)",forca/longevidade simbolica
+Darenn,raiz_celta,2,"gaelico 'dair'",curto
+Kaelis,raiz_celta,2,"gaelico 'caol' = esbelto/moderno",modernidade
+Branix,raiz_celta,2,"gaelico 'bran'",curto tech
+Torcis,raiz_celta,2,"celta 'torc'",curto
+Fionis,raiz_celta,2,"gaelico 'fionn'",curto
+Glenis,raiz_celta,2,"gaelico 'gleann'",curto
+Arnova,raiz_celta,3,"celta 'arn-' (metal/forca) + 'novus' hibrido",resiliencia moderna
+Kerava,raiz_celta,3,"gales 'caru' = amar/cuidar (sem usar 'care')",conexao humana
+Kerenn,raiz_celta,2,"gales 'caru'",curto
+Ogmara,raiz_celta,3,"celta 'ogma' = deus da eloquencia/conhecimento",conhecimento/comunicacao
+Nevara,raiz_celta,3,"celta 'nemeton' = lugar sagrado/centro",centro de dados pessoal
+Rionna,raiz_celta,3,"irlandes 'rion' = rainha/realeza",premium
+Riolis,raiz_celta,2,"irlandes 'rion'",curto
+Lugara,raiz_celta,3,"celta 'lugh' = deus multifacetado/habilidoso",versatilidade
+Vireon,fonetica_moderna,3,"invencao fonetica",som fluido
+Velora,fonetica_moderna,3,"invencao fonetica",som premium
+Nuvara,fonetica_moderna,3,"invencao fonetica",som suave
+Kyvora,fonetica_moderna,3,"invencao fonetica",som tech
+Omnexa,fonetica_moderna,3,"invencao fonetica (evoca 'omni')",abrangencia
+Ambrix,fonetica_moderna,2,"invencao fonetica",tech curto
+Aurenn,fonetica_moderna,2,"variante grafica de Auren",premium
+Norwyn,fonetica_moderna,2,"invencao fonetica",moderno
+Ithara,fonetica_moderna,3,"invencao fonetica",jornada
+Orvana,fonetica_moderna,3,"invencao fonetica",organico premium
+Kestra,fonetica_moderna,2,"invencao (evoca 'kestrel'=falcao)",precisao/visao aguçada
+Zentra,fonetica_moderna,2,"invencao fonetica",clareza
+Vaelis,fonetica_moderna,2,"invencao fonetica",suavidade
+Orvane,fonetica_moderna,2,"invencao fonetica",natural premium
+Serevo,fonetica_moderna,3,"invencao fonetica",serenidade
+Ambara,fonetica_moderna,3,"invencao fonetica (evoca ambar)",preciosidade/preservacao
+Thurin,fonetica_moderna,2,"invencao fonetica",solidez
+Yveron,fonetica_moderna,3,"invencao fonetica",moderno
+Aldris,fonetica_moderna,2,"invencao fonetica",tech
+Nirava,fonetica_moderna,3,"invencao fonetica",clareza
+Perova,fonetica_moderna,3,"invencao fonetica",constancia
+Yonara,fonetica_moderna,3,"invencao fonetica",acolhedor
+Orbita,blend_fonemas,3,"blend 'orbita' (portugues/latim)",trajetoria continua
+Ecoara,blend_fonemas,3,"blend 'eco' (ecoar) + sufixo",ressonancia pessoal
+Alenta,blend_fonemas,3,"blend 'alento' (folego) + sufixo",energia vital sutil
+Rumora,blend_fonemas,3,"blend 'rumo' (direcao) + sufixo",direcao/proposito
+Elovia,blend_fonemas,3,"blend 'elo' (conexao) + 'via'",conexao ao longo da jornada
+Elonix,blend_fonemas,3,"blend 'elo' + sufixo tech",conexao tech
+Marejo,blend_fonemas,3,"blend 'mare' (mar) + sufixo",amplitude/profundidade
+Kavora,combinacao_estatistica,3,"padrao silabico CV-CV-CV estatisticamente comum em marcas premium",neutro/abstrato
+Tovira,combinacao_estatistica,3,"padrao CV-CV-CV",neutro/abstrato
+Nelora,combinacao_estatistica,3,"padrao CV-CV-CV",neutro/abstrato
+Pyvora,combinacao_estatistica,3,"padrao CV-CV-CV",neutro/abstrato
+Zavion,combinacao_estatistica,3,"padrao CV-CV-VC",neutro/abstrato
+Milara,combinacao_estatistica,3,"padrao CV-CV-CV",neutro/abstrato
+Dovena,combinacao_estatistica,3,"padrao CV-CV-CV",neutro/abstrato
+Ruvexa,combinacao_estatistica,3,"padrao CV-CV-CV",neutro/abstrato
+Talvin,combinacao_estatistica,2,"padrao CVC-CVC",curto/tech
+Belvon,combinacao_estatistica,2,"padrao CVC-CVC",curto/tech
+Rionex,combinacao_estatistica,3,"padrao CV-CV-CVC",tech
+Kelvyn,combinacao_estatistica,2,"padrao CVC-CVC",curto/tech
+Winova,combinacao_estatistica,3,"padrao CV-CV-CV (evoca 'win'+'nova')",vitoria/novidade
+Xelora,combinacao_estatistica,3,"padrao CV-CV-CV",tech premium
+Alviro,combinacao_estatistica,3,"padrao CV-CV-CV",neutro/abstrato
+Torvex,combinacao_estatistica,2,"padrao CVC-CVC",tech curto
+Kaevon,combinacao_estatistica,2,"padrao CVC-CVC",tech curto
+Firmis,raiz_latina,2,"latim 'firmus'",curto
+Vialis,raiz_latina,3,"latim 'via' + sufixo -alis",jornada formal
+Serana,raiz_latina,3,"latim 'serenus' = sereno",serenidade
+Amplis,raiz_latina,2,"latim 'amplus'",amplitude curta
+Ardara,raiz_celta,3,"gaelico 'ard' = alto/elevado",elevacao pessoal
+Tavara,raiz_celta,3,"celta (som suave, sem significado direto forte)",neutro premium
+Sovira,combinacao_estatistica,3,"padrao CV-CV-CV",neutro/abstrato

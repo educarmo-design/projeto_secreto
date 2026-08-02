@@ -197,42 +197,129 @@ const BUSCA_SEMANTICA_THRESHOLD = 0.55;
 // medidas caseiras — permite cálculo mais preciso que 100g fixo. Baseado em
 // valores nutricionais padrão TACO/USDA. Usuário pode editar na tela de
 // confirmação se necessário.
+//
+// Formato: "Alimento [descrição]" → gramas
+// Exemplos:
+//   'Azeitona, 1 unidade' → 5g
+//   'Presunto, 1 fatia' → 20g
+//   'Pão, 1 fatia' → 40g
 const PESO_TIPICO_GRAMAS: Record<string, number> = {
-  // Fritos/salgados
-  'Bolinho': 40,
-  'Coxinha': 45,
-  'Pastel': 60,
-  'Rissole': 50,
-  'Acarajé': 60,
-  'Pão de queijo': 50,
-  'Bolo': 100,
+  // ─ FRUTAS/OLEAGINOSAS (unidade)
+  'Azeitona, 1 unidade': 5,
+  'Uva, 1 unidade': 2,
+  'Morango, 1 unidade': 15,
+  'Ameixa, 1 unidade': 40,
+  'Amêndoa, 1 unidade': 1,
+  'Castanha, 1 unidade': 3,
+  'Damasco, 1 unidade': 15,
+  'Melancia, 1 fatia': 200,
 
-  // Carnes
-  'Bife': 150,
-  'Filé': 120,
-  'Peito': 140,
-  'Coxa': 100,
-  'Costela': 80,
+  // ─ CARNES/FRIOS (fatia)
+  'Presunto, 1 fatia': 20,
+  'Queijo, 1 fatia': 30,
+  'Peito de peru, 1 fatia': 30,
+  'Bacon, 1 fatia': 15,
+  'Salame, 1 fatia': 20,
+  'Mortadela, 1 fatia': 25,
 
-  // Frutas (1 unidade)
-  'Maçã': 180,
-  'Banana': 120,
-  'Laranja': 150,
-  'Morango': 15,
+  // ─ PÃES/CARBOS (unidade/fatia)
+  'Pão, 1 fatia': 40,
+  'Pão integral, 1 fatia': 40,
+  'Pão de queijo, 1 unidade': 50,
+  'Biscoito água e sal, 1 unidade': 10,
+  'Biscoito doce, 1 unidade': 15,
+  'Bolacha, 1 unidade': 12,
+  'Rosca, 1 unidade': 35,
+  'Broa, 1 fatia': 40,
 
-  // Legumes/Vegetais
-  'Cenoura': 60,
-  'Batata': 150,
-  'Batata doce': 150,
-  'Mandioca': 150,
+  // ─ OVOS/DERIVADOS (unidade)
+  'Ovo, 1 unidade': 50,
+  'Ovo de codorna, 1 unidade': 10,
+  'Clara de ovo, 1 unidade': 30,
 
-  // Alimentos órfãos comuns
+  // ─ GORDURAS/ÓLEOS (medida caseira)
+  'Azeite, 1 colher sopa': 14,
+  'Manteiga, 1 colher chá': 5,
+  'Manteiga, 1 colher sopa': 15,
+  'Maionese, 1 colher sopa': 15,
+
+  // ─ FRITOS/SALGADOS
+  'Bolinho, 1 unidade': 40,
+  'Coxinha, 1 unidade': 45,
+  'Pastel, 1 unidade': 60,
+  'Rissole, 1 unidade': 50,
+  'Acarajé, 1 unidade': 60,
+
+  // ─ SOBREMESAS
+  'Bolo, 1 fatia': 100,
+  'Brigadeiro, 1 unidade': 20,
+  'Doce de leite, 1 colher sopa': 20,
+  'Chocolate, 1 unidade': 10,
+  'Sorvete, 1 bola': 50,
+
+  // ─ CARNES (porção padrão)
+  'Bife, 1 unidade': 150,
+  'Filé, 1 unidade': 120,
+  'Peito de frango, 1 filé': 140,
+  'Coxa de frango, 1 unidade': 100,
+  'Costela, 1 unidade': 80,
+  'Linguiça, 1 unidade': 80,
+  'Salsicha, 1 unidade': 50,
+
+  // ─ LEGUMES/VEGETAIS (porção)
+  'Cenoura, 1 médio': 60,
+  'Batata, 1 médio': 150,
+  'Batata doce, 1 médio': 150,
+  'Mandioca, 100g': 100,
+
+  // ─ ALIMENTOS ÓRFÃOS COMUNS
   'Mandioca, frita': 150,
   'Carne, bovina, músculo': 150,
-  'Limão': 50,
+  'Limão, 1 unidade': 50,
 
-  // Fallback
+  // ─ FALLBACK
   'default': 100,
+};
+
+// Detecção de líquidos: alimentos que devem usar ml em vez de g
+// Formato: "alimento pattern" → type de líquido para estimativa
+const ALIMENTOS_LIQUIDOS = new Set([
+  'suco',
+  'leite',
+  'café',
+  'chá',
+  'refrigerante',
+  'água',
+  'vinho',
+  'cerveja',
+  'chope',
+  'chopp',
+  'soda',
+  'limonada',
+  'chá gelado',
+  'achocolatado',
+  'bebida',
+  'iogurte líquido',
+  'leite condensado',
+  'caldo',
+  'canja',
+  'sopa',
+]);
+
+// Estimativas de ml por tipo de recipiente (para líquidos)
+// Quando usuário diz "1 copo de suco", estimar pelo tamanho
+const TAMANHO_COPOS_ML: Record<string, number> = {
+  'pequeno': 150,
+  'médio': 250,
+  'grande': 350,
+  'xícara': 200,
+  'xícara pequena': 150,
+  'copo americano': 240,
+  'lata': 350,
+  'garrafa pequena': 500,
+  'taça': 150,
+  'cálice': 100,
+  'default': 250, // copo médio padrão
 };
 
 // Nomes que o cliente manda em `X-Tipo-Aparelho` (é `TipoAparelho.name` do
@@ -570,6 +657,9 @@ export interface ItemPratoCalculado {
   /// Indica se a quantidade/gramas é estimativa (alimento sem medidas
   /// cadastradas) — quando true, UI deve mostrar ⚠️ e permitir edição.
   quantidadeEstimada?: boolean;
+  /// Valor estimado em gramas ou ml (para mostrar na UI: "40g (típico)")
+  /// Presente apenas quando quantidadeEstimada é true.
+  pesoTipicoGramas?: number;
 }
 
 /// Item que o Gemini identificou mas que o backend NÃO conseguiu calcular —
@@ -1029,6 +1119,21 @@ function normalizarMedida(medida: string): string {
   return norm;
 }
 
+/// Detecta se um alimento \u00e9 l\u00edquido (deve usar ml em vez de g)
+function ehAlimentoLiquido(nomeAlimento: string): boolean {
+  const nomeLower = nomeAlimento.toLowerCase();
+  return Array.from(ALIMENTOS_LIQUIDOS).some((tipo) => nomeLower.includes(tipo));
+}
+
+/// Estima tamanho de copo/recipiente por descri\u00e7\u00e3o (ex: "copo pequeno" \u2192 150ml)
+function estimarTamanhoRecipiente(descricaoMedida: string): number {
+  const descLower = descricaoMedida.toLowerCase();
+  for (const [tipo, ml] of Object.entries(TAMANHO_COPOS_ML)) {
+    if (descLower.includes(tipo)) return ml;
+  }
+  return TAMANHO_COPOS_ML['default']!;
+}
+
 /// Casa o nome livre do Gemini contra `alimentos_referencia`: primeiro tenta
 /// igualdade exata (nome canônico ou algum alias), depois substring nos dois
 /// sentidos. Nunca "quase-casa" por similaridade fonética/fuzzy — um
@@ -1115,12 +1220,35 @@ export function encontrarMedida(
   // 4. Fallback final: usar peso típico do alimento se nenhuma medida caseira
   // está cadastrada. Permite cálculo mais preciso que 100g fixo, e UI mostra
   // aviso para usuário editar se necessário.
-  const pesoTipico = PESO_TIPICO_GRAMAS[alimento.nomeTaco] ?? PESO_TIPICO_GRAMAS['default']!;
+
+  // Procurar na tabela expandida com padrão "Alimento, descrição"
+  let pesoTipico = PESO_TIPICO_GRAMAS[alimento.nomeTaco];
+
+  // Se não encontrou exatamente, tenta busca parcial (ex: "Azeitona" em "Azeitona, 1 unidade")
+  if (!pesoTipico) {
+    const chaveExpandida = Object.keys(PESO_TIPICO_GRAMAS).find((chave) =>
+      chave.startsWith(alimento.nomeTaco),
+    );
+    pesoTipico = chaveExpandida ? PESO_TIPICO_GRAMAS[chaveExpandida] : PESO_TIPICO_GRAMAS['default']!;
+  }
+
+  // Detectar se é líquido e usar ml em vez de g
+  const ehLiquido = ehAlimentoLiquido(alimento.nomeTaco);
+  if (ehLiquido) {
+    // Para líquidos: estimar tamanho de recipiente pela medida que o usuário disse
+    const mlEstimado = estimarTamanhoRecipiente(medidaBuscada);
+    console.log(
+      `[encontrarMedida] Fallback líquido: "${medidaBuscada}" -> "${mlEstimado}ml (est.)" para "${alimento.nomeTaco}"`,
+    );
+    // Converso ml para gramas (densidade ~1 para maioria dos líquidos)
+    return { medida: `${mlEstimado}ml (est.)`, gramas: mlEstimado };
+  }
+
   console.log(
-    `[encontrarMedida] Fallback extremo (nenhuma medida no banco): "${medidaBuscada}" -> "g (${pesoTipico}g típico)" para "${alimento.nomeTaco}"`,
+    `[encontrarMedida] Fallback sólido: "${medidaBuscada}" -> "${pesoTipico}g (est.)" para "${alimento.nomeTaco}"`,
   );
   // Retorna com marcador de estimado — será detectado no caller
-  return { medida: `g (${pesoTipico}g est.)`, gramas: pesoTipico };
+  return { medida: `${pesoTipico}g (est.)`, gramas: pesoTipico };
 }
 
 function arredondar(valor: number, casas: number): number {
@@ -1158,7 +1286,10 @@ function calcularItem(params: {
     confianca: params.confianca,
     ...(params.origemCasamento ? { origemCasamento: params.origemCasamento } : {}),
     ...(params.similaridade !== undefined ? { similaridade: params.similaridade } : {}),
-    ...(params.quantidadeEstimada ? { quantidadeEstimada: params.quantidadeEstimada } : {}),
+    ...(params.quantidadeEstimada ? {
+      quantidadeEstimada: params.quantidadeEstimada,
+      pesoTipicoGramas: params.medida.gramas,
+    } : {}),
   };
 }
 

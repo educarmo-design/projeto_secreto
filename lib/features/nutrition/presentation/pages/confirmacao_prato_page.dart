@@ -249,13 +249,26 @@ class _ItemPratoTile extends StatelessWidget {
                     Icon(Icons.info_outline, size: 18, color: Colors.amber.shade700),
                     const SizedBox(width: 8),
                     Expanded(
-                      child: Text(
-                        i18n.tr('confirmacao_prato.quantidade_estimada_aviso'),
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.amber.shade900,
-                          fontWeight: FontWeight.w500,
-                        ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            i18n.tr('confirmacao_prato.quantidade_estimada_aviso'),
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.amber.shade900,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          if (original.pesoTipicoGramas != null)
+                            Text(
+                              '${i18n.tr('confirmacao_prato.peso_tipico')}: ${original.pesoTipicoGramas}g',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Colors.amber.shade800,
+                              ),
+                            ),
+                        ],
                       ),
                     ),
                   ],

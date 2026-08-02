@@ -1,0 +1,18 @@
+nome,motivo_eliminacao,categoria
+Aion,"colisão direta de setor: múltiplas empresas de healthtech/saúde preventiva já usam 'Aion' (AION HealthTech, AION Biosystems, AION Labs)",mesmo_setor
+Kindrel,"colisão direta: app publicado com mesmo conceito (conectar famílias/gerações) já existe com o nome exato",mesmo_setor
+Auren,"colisão direta de setor: app de IA para saúde/bem-estar mental já ativo (Elysian Labs) + Auren Health/Healthcare/Fitness",mesmo_setor
+Trellis,"colisão direta e crítica: Trellis Health é plataforma de saúde materna com IA, quase idêntica ao produto do usuário, com app publicado e branding profissional",mesmo_setor
+Viora,"colisão direta de setor: Viora Health (wellness/tecnologia de saúde) e app de bem-estar mental com IA já ativos",mesmo_setor
+Novum,"colisão direta de setor: NovumHealth (saúde comportamental) e Novum Pharma já consolidados em saúde",mesmo_setor
+Veraxa,"colisão direta e crítica: VERAXA Biotech (terapias contra câncer) já ativa no setor de saúde/biotech",mesmo_setor
+Oriva,"colisão direta de setor: Oriva Life Sciences (farmacêutica) e app de mindfulness/bem-estar já publicado",mesmo_setor
+Nuvara,"colisão direta e crítica: empresa de dispositivos médicos hospitalares estabelecida (60 anos de história)",mesmo_setor
+Ardis,"colisão direta e crítica: Ardis Health, ARDiS Medical (diagnóstico) e ARDI App (saúde/seguros) — múltiplas colisões no setor",mesmo_setor
+Verano,"colisão direta e crítica: Verano Health é plataforma de telessaúde para doenças crônicas (Y Combinator, adquirida) + falso cognato negativo em espanhol ('verão')",mesmo_setor
+Itera,"marca de grande porte já consolidada globalmente em tecnologia (consultoria nórdica desde 1993, presença em 8+ países) — alto risco de ofuscamento mesmo fora do setor de saúde",marca_dominante_outro_setor
+Astera,"marca de grande porte: empresa listada na Nasdaq (Astera Labs) avaliada em bilhões + Astera Software usada por Fortune 500 — alto risco de ofuscamento em buscas e reconhecimento",marca_dominante_outro_setor
+Velora,"nome extremamente saturado: 6 empresas/apps ativos e distintos usam 'Velora' (trading, RH, bem-estar, recompensas, IA para construção)",marca_dominante_outro_setor
+Zentra,"marca de grande porte: múltiplos produtos publicados e ativos (segurança residencial via Allegion, gestão de academias, imobiliário, datalogger científico)",marca_dominante_outro_setor
+Lucenta,"marca de grande porte: empresa de desenvolvimento de software estabelecida globalmente, inclusive atendendo clientes de saúde",marca_dominante_outro_setor
+Kreova,"marca de grande porte: desenvolvedora de apps ativa desde 2013 com mais de 5 milhões de instalações",marca_dominante_outro_setor
