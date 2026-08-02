@@ -30,6 +30,14 @@ class ItemPratoExtraidoModel {
   final String? origemCasamento;
   final double? similaridade;
 
+  /// Indica se a quantidade é estimativa (alimento sem medidas cadastradas).
+  /// Quando true, UI mostra ⚠️ e permite edição.
+  final bool? quantidadeEstimada;
+
+  /// Peso típico em gramas (para mostrar na UI: "Peso típico: 5g").
+  /// Presente apenas quando quantidadeEstimada é true.
+  final int? pesoTipicoGramas;
+
   const ItemPratoExtraidoModel({
     required this.nomeCasado,
     required this.nomeIdentificado,
@@ -43,6 +51,8 @@ class ItemPratoExtraidoModel {
     required this.confianca,
     this.origemCasamento,
     this.similaridade,
+    this.quantidadeEstimada,
+    this.pesoTipicoGramas,
   });
 
   factory ItemPratoExtraidoModel.fromJson(Map<String, dynamic> json) {
@@ -59,6 +69,8 @@ class ItemPratoExtraidoModel {
       confianca: _requireNum(json, 'confianca').toDouble(),
       origemCasamento: json['origem_casamento'] as String?,
       similaridade: (json['similaridade'] as num?)?.toDouble(),
+      quantidadeEstimada: json['quantidade_estimada'] as bool?,
+      pesoTipicoGramas: (json['peso_tipico_gramas'] as num?)?.toInt(),
     );
   }
 }
