@@ -1,0 +1,10 @@
+id,nome_taco,aliases,fonte,categoria_consumo_CONFIRMADA,unidade_medida_CONFIRMADA,medida_padrao_nome_CONFIRMADA,medida_padrao_qtd_CONFIRMADA,calorias_100g,proteinas_g_100g,carboidratos_g_100g,gorduras_g_100g,REVISADO_POR_FUNDADOR,DATA_REVISAO,NOTAS
+,,,"","","","","",,,,,"N","","INSTRUÇÕES: Use este CSV para auditar alimentos PENDENTES (categoria_consumo=null)"
+,,,"","","","","",,,,,"N","","Coluna categoria_consumo_CONFIRMADA: unidade, fatia, peso_livre, liquido_frio, liquido_quente"
+,,,"","","","","",,,,,"N","","Se unidade/fatia: preencher medida_padrao_qtd em gramas. Se liquido_*: em ml."
+,,,"","","","","",,,,,"N","","Marcar REVISADO_POR_FUNDADOR=S apenas após validação no TACO/USDA"
+,,,"","","","","",,,,,"N","","
+,,,"","","","","",,,,,"S","","[REFERÊNCIA] Alimentos já categorizados (não editar)
+,,,"","","","","",,,,,"N","","
+,,,"","","","","",,,,,"N","","[PENDENTES] Preencher categoria_consumo e medida_padrao_qtd
+,,,"","","","","",,,,,"N","","✅ Parabéns! Nenhum alimento pendente — catálogo 100% categorizado!

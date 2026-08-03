@@ -1018,10 +1018,12 @@ function normalizarMedida(medida: string): string {
 // Agora a categoria vem do DB (AlimentoCatalogo.categoriaConsumo).
 // Ver encontrarMedida() abaixo \u2014 usa categoria do DB em vez de pattern matching.
 
-/// Casa o nome livre do Gemini contra `alimentos_referencia`: primeiro tenta
-/// igualdade exata (nome canônico ou algum alias), depois substring nos dois
-/// sentidos. Nunca "quase-casa" por similaridade fonética/fuzzy — um
-/// alimento não encontrado vira `alimento_nao_encontrado`, nunca um chute.
+/// Casa o nome livre do Gemini contra `alimentos_referencia`:
+/// 1. Exato: nome_taco === busca OU alias === busca
+/// 2. Começa com: nome_taco.startsWith(busca) OU alias.startsWith(busca)
+/// 3. Substring: nome_taco.includes(busca) nos dois sentidos (último recurso)
+/// Nunca "quase-casa" por similaridade fonética — um alimento não encontrado
+/// vira `alimento_nao_encontrado`, nunca um chute (Missão F45).
 export function encontrarAlimento(
   catalogo: AlimentoCatalogo[],
   nomeBuscado: string,
@@ -1029,6 +1031,7 @@ export function encontrarAlimento(
   const alvo = normalizarTexto(nomeBuscado);
   if (!alvo) return null;
 
+  // 1. Match exato (nome_taco ou alias)
   const exato = catalogo.find(
     (a) =>
       normalizarTexto(a.nomeTaco) === alvo ||
@@ -1036,6 +1039,15 @@ export function encontrarAlimento(
   );
   if (exato) return exato;
 
+  // 2. Match "começa com" (mais específico que substring genérico)
+  const comecaCom = catalogo.find(
+    (a) =>
+      normalizarTexto(a.nomeTaco).startsWith(alvo) ||
+      a.aliases.some((alias) => normalizarTexto(alias).startsWith(alvo)),
+  );
+  if (comecaCom) return comecaCom;
+
+  // 3. Match substring genérico (fallback menos preferido)
   return (
     catalogo.find(
       (a) =>

@@ -204,6 +204,18 @@ values
    'liquido_frio', 'ml', 'Copo pequeno', 200)
 on conflict do nothing;
 
+-- Água comum/mineral (líquido frio, 0 kcal)
+insert into alimentos_referencia
+  (nome_taco, aliases, fonte, calorias_kcal_100g, proteinas_g_100g, carboidratos_g_100g, gorduras_g_100g,
+   categoria_consumo, unidade_medida_padrao, medida_padrao_nome, medida_padrao_qtd)
+values
+  ('Água, comum/mineral',
+   array['agua', 'água', 'agua mineral', 'agua filtrada', 'agua destilada'],
+   'taco',
+   0, 0, 0, 0,
+   'liquido_frio', 'ml', 'Copo médio', 250)
+on conflict do nothing;
+
 -- ============================================================================
 -- 3. ÍNDICE para queries rápidas por categoria
 -- ============================================================================
