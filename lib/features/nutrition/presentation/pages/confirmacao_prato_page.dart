@@ -348,7 +348,7 @@ class _ItemPratoTileState extends State<_ItemPratoTile> {
   Widget _buildTextoUnidadeOuFatia(
     BuildContext context,
     ItemPratoEditavel item,
-    String categoria,
+    String? categoria,
     int medidaPadraoQtd,
     String medidaPadraoNome,
   ) {
