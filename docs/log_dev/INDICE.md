@@ -6,4 +6,4 @@ um relatório de fim de tarefa, um arquivo por tarefa, nomeado `AAAAMMDD_NNNN.md
 
 | Arquivo | Data | Resumo |
 |---|---|---|
-| [20260807_0001.md](20260807_0001.md) | 2026-08-07 | Auditoria do estado do Git (N26): descoberta de que F10 Passo 3 + F34 + D2-PII já estavam mesclados na main (local e remota) desde 2026-07-30; build/análise verificados sem erros; inicialização deste log. |
+| [20260807_0001.md](20260807_0001.md) | 2026-08-07 | Auditoria do estado do Git (N26): F10 Passo 3 + F34 + D2-PII já estavam mesclados na main desde 2026-07-30; build debug confirmado sem erros; 24 commits publicados em origin/main e as 3 branches obsoletas removidas (local+remoto) por autorização do fundador; inicialização deste log. |
