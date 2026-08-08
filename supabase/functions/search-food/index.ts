@@ -18,28 +18,46 @@ const CORS_HEADERS: Record<string, string> = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
-const MODELO_EMBEDDING = 'gemini-embedding-001';
+// N20 (Regra 16/20, Parte 0) — nome do modelo NUNCA hardcoded: vem da secret
+// EMBEDDING_MODEL_NAME, com o valor vigente como fallback só para não
+// quebrar um ambiente local que ainda não configurou a secret. O mesmo nome
+// de secret é lido por scripts/seed_food_embeddings.ts (catálogo) e por
+// extract-metric-photo/index.ts (fallback semântico do Passo 2) — os três
+// PRECISAM concordar (Regra 20: "seed e runtime usam o mesmo modelo").
+// Trocar a secret sem re-rodar o seed deixa os vetores incomparáveis; ver
+// coluna alimentos_referencia.embedding_model (20260807200000), que é
+// exatamente o que detecta esse descompasso.
+const MODELO_EMBEDDING = Deno.env.get('EMBEDDING_MODEL_NAME') || 'gemini-embedding-001';
 const GEMINI_EMBED_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${MODELO_EMBEDDING}:embedContent`;
 const DIMENSOES_EMBEDDING = 768;
 
-// Fixos no servidor, não configuráveis pelo cliente: um match_count alto
-// pedido pelo chamador custaria uma consulta cara sem benefício de UX (a
-// tela só mostra um punhado de sugestões); um threshold baixo devolveria
-// "sinônimos" sem relação nenhuma. Ajustar estes dois valores é decisão de
-// produto, não de payload de requisição.
+/** `Number(env) || fallback` trataria um valor configurado como "0" como ausente — helper explícito em vez disso. */
+function envFloat(nome: string, valorPadrao: number): number {
+  const bruto = Deno.env.get(nome);
+  if (bruto === undefined || bruto === '') return valorPadrao;
+  const numero = Number(bruto);
+  return Number.isFinite(numero) ? numero : valorPadrao;
+}
+
+// Fixos no servidor, não configuráveis pelo CLIENTE (não vêm do payload da
+// requisição) — mas configuráveis via secret do servidor (Regra 16): um
+// match_count alto pedido pelo chamador custaria uma consulta cara sem
+// benefício de UX (a tela só mostra um punhado de sugestões); um threshold
+// baixo demais devolveria "sinônimos" sem relação nenhuma. Ajustar estes
+// dois valores é decisão de produto, não de payload de requisição — por
+// isso secret de servidor, não parâmetro de request.
 //
-// CALIBRADO (30/jul/2026) contra o banco real — mesmo valor e mesma
-// justificativa de BUSCA_SEMANTICA_THRESHOLD em
-// extract-metric-photo/index.ts (ver RELATÓRIO DE FIM DE TAREFA daquela
-// tarefa): 0.5 deixava passar pratos fora do catálogo TACO (ex.: "sushi",
-// "pizza") como se fossem casamentos válidos. Os dois endpoints têm que
-// concordar — o mesmo termo não pode se comportar diferente dependendo de
-// por onde entrou. Se um dia existir uma tela de busca com humano
-// revisando a lista (ao contrário do fallback automático de
-// extract-metric-photo), pode valer reavaliar um valor mais permissivo
-// aqui especificamente — não fiz essa distinção agora para não deixar os
-// dois lugares divergentes sem necessidade comprovada.
-const MATCH_THRESHOLD_PADRAO = 0.68;
+// HISTÓRICO DO THRESHOLD: calibrado em 0.68 em 30/jul contra "sushi"/"pizza"
+// (fora do catálogo TACO) casando errado. Depois, testes de campo com
+// extract-metric-photo mostraram o oposto — 0.68 rejeitava casos válidos
+// como "carne bovina em cubos" (0.58) — e BUSCA_SEMANTICA_THRESHOLD lá foi
+// baixado para 0.55. R20 (Mestre v7.0) aceita esse risco conscientemente
+// (falso-positivo ocasional) em troca de mais cobertura, mitigado pelo
+// aviso de baixa confiança + edição manual do usuário na tela de
+// confirmação. Os dois endpoints agora usam o MESMO padrão (0.55) — a
+// divergência entre eles (0.68 aqui vs 0.55 lá) era ela própria um bug de
+// Regra 20, não uma escolha deliberada.
+const MATCH_THRESHOLD_PADRAO = envFloat('SEARCH_FOOD_MATCH_THRESHOLD', 0.55);
 const MATCH_COUNT_PADRAO = 5;
 
 const QUERY_MAX_LEN = 200;
@@ -98,9 +116,18 @@ export function criarChamadorEmbeddingReal(apiKey: string): ChamadorEmbedding {
     const resposta = await fetch(`${GEMINI_EMBED_ENDPOINT}?key=${apiKey}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      // BUG CORRIGIDO (N20): faltava `taskType`/`outputDimensionality` — a
+      // função rodava, não dava erro nenhum, só devolvia busca ruim em
+      // silêncio (o par assimétrico documentado no cabeçalho deste arquivo e
+      // em match_alimentos nunca saía de verdade na requisição real; só o
+      // teste que já cobria isso — index_test.ts — é que provava a
+      // ausência). Mesmo corpo de requisição já usado (correto) em
+      // extract-metric-photo/index.ts.
       body: JSON.stringify({
         model: `models/${MODELO_EMBEDDING}`,
         content: { parts: [{ text: texto }] },
+        taskType: 'RETRIEVAL_QUERY',
+        outputDimensionality: DIMENSOES_EMBEDDING,
       }),
     });
 
