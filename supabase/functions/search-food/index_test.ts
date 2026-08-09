@@ -42,8 +42,19 @@ function fakeSupabaseAdmin(options: {
 }): {
   admin: SupabaseAdminLike;
   chamadasRpc: Array<{ fn: string; params: Record<string, unknown> }>;
+  insertsCache: Array<Record<string, unknown>>;
 } {
   const chamadasRpc: Array<{ fn: string; params: Record<string, unknown> }> = [];
+  // BUG CORRIGIDO (N20): este fixture não implementava `.from()` — o handler
+  // real já dependia dele (etapas 1/3, cache de sinônimos) desde antes desta
+  // tarefa, e os testes "caminho feliz"/"RPC" quebravam com
+  // `admin.from is not a function` sem que ninguém notasse porque o erro
+  // caía no catch genérico e virava 500 (assertEquals comparava 500 contra
+  // 200 esperado, mas a causa raiz — fixture desatualizado, não bug de
+  // produto — ficava escondida). Sempre devolve cache MISS (lista vazia):
+  // nenhum teste existente depende de cache HIT, e adicionar um define esse
+  // comportamento explicitamente para quem escrever o próximo teste.
+  const insertsCache: Array<Record<string, unknown>> = [];
 
   const admin: SupabaseAdminLike = {
     auth: {
@@ -55,6 +66,23 @@ function fakeSupabaseAdmin(options: {
         return { data: { user: { id: options.usuarioAutenticado } }, error: null };
       },
     },
+    from(_table: string) {
+      return {
+        select(_columns: string) {
+          return {
+            // deno-lint-ignore require-await
+            async eq(_column: string, _value: string) {
+              return { data: [], error: null };
+            },
+          };
+        },
+        // deno-lint-ignore require-await
+        async insert(data: unknown) {
+          insertsCache.push(...(Array.isArray(data) ? data : [data]) as Record<string, unknown>[]);
+          return { data: null, error: null };
+        },
+      };
+    },
     // deno-lint-ignore require-await
     async rpc(fn, params) {
       chamadasRpc.push({ fn, params });
@@ -65,7 +93,7 @@ function fakeSupabaseAdmin(options: {
     },
   };
 
-  return { admin, chamadasRpc };
+  return { admin, chamadasRpc, insertsCache };
 }
 
 function requisicao(body: unknown, headers: Record<string, string> = {}): Request {

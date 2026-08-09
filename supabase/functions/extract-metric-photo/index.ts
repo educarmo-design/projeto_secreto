@@ -180,17 +180,33 @@ function resolverModelo(nivel: NivelModelo): string {
 // scripts/seed_food_embeddings.ts e supabase/functions/search-food/index.ts
 // — os três precisam concordar, ou os vetores não ficam comparáveis entre
 // si (ver nota em `resolverComBuscaSemantica`).
-// REVERTIDO (31/jul/2026): 'text-embedding-004' não existe em v1beta API.
-// Mantém 'gemini-embedding-001' (modelo que funciona e combina com seed_food_embeddings.ts).
-const MODELO_EMBEDDING = 'gemini-embedding-001';
+// N20 (Regra 16/20, Parte 0): nome do modelo vem da secret
+// EMBEDDING_MODEL_NAME (mesma secret lida por search-food/index.ts e por
+// scripts/seed_food_embeddings.ts) — deixar hardcoded aqui era exatamente o
+// tipo de divergência que já causou um incidente (modelo trocado 4× entre
+// 30/jul e 01/ago sem as três pontas ficarem sincronizadas). Fallback
+// 'gemini-embedding-001' só para ambiente local sem a secret configurada.
+const MODELO_EMBEDDING = Deno.env.get('EMBEDDING_MODEL_NAME') || 'gemini-embedding-001';
 const GEMINI_EMBED_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${MODELO_EMBEDDING}:embedContent`;
 const DIMENSOES_EMBEDDING = 768;
+
+/** `Number(env) || fallback` trataria "0" configurado como ausente — helper explícito em vez disso. */
+function envFloat(nome: string, valorPadrao: number): number {
+  const bruto = Deno.env.get(nome);
+  if (bruto === undefined || bruto === '') return valorPadrao;
+  const numero = Number(bruto);
+  return Number.isFinite(numero) ? numero : valorPadrao;
+}
+
 // AJUSTADO (31/jul/2026) após falhas em campo: "carne bovina em cubos"
 // (0.58) não passava em 0.68. Redução para 0.55 permite maior cobertura
 // (gírias brasileiras, preparações) sem comprometer excessivamente
 // especificidade. Falsos positivos (sushi->pescada) ainda ficam abaixo
-// (0.626<0.55 é falso). MESMO VALOR em search-food/index.ts.
-const BUSCA_SEMANTICA_THRESHOLD = 0.55;
+// (0.626<0.55 é falso). MESMO PADRÃO de search-food/index.ts — N20 tornou
+// os dois configuráveis via secret em vez de constante fixa, mas o valor
+// vigente (0.55) não muda: é o mesmo risco aceito e documentado como R20
+// no Mestre v7.0.
+const BUSCA_SEMANTICA_THRESHOLD = envFloat('BUSCA_SEMANTICA_THRESHOLD', 0.55);
 
 // ⚠️ REMOVIDO: Pesos típicos agora vêm do PostgreSQL
 // Anteriormente: PESO_TIPICO_GRAMAS, ALIMENTOS_LIQUIDOS, TAMANHO_COPOS_ML
