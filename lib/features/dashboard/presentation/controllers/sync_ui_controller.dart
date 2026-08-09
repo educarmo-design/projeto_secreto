@@ -121,14 +121,39 @@ class SyncUiController extends ValueNotifier<SyncUiState> {
     });
   }
 
-  /// Sincronização Oportunista: runs the daily delta immediately in
+  /// Sincronização Oportunista (N17): runs the daily delta immediately in
   /// foreground — when the user opens the app or taps the "sync now"
   /// button — without registering or waking the WorkManager task. The
   /// nightly `sync_diario_wearables` job stays reserved for the
   /// Wi-Fi + charging window; this path is explicitly allowed to run over
   /// any connection, right now, because the user asked for it.
-  Future<void> forcarSincronizacaoAtleta() async {
-    if (value.isLoading) return;
+  Future<void> forcarSincronizacaoAtleta() {
+    return _executar(_healthSyncService.sincronizarDeltaDiario);
+  }
+
+  /// Carga Inicial (N18): dispara [HealthSyncService.carregarHistoricoInicial]
+  /// (30 dias) através do mesmo estado/fila-offline de
+  /// [forcarSincronizacaoAtleta] — chamado quando o usuário conecta um
+  /// wearable pela primeira vez (`RegistrarMetricaPage`, botão "Sincronizar
+  /// via Relógio/App Inteligente"). Devolve o [DeltaSyncResult] também
+  /// diretamente para quem chamou poder mostrar um resumo específico dessa
+  /// tela (ex.: "N dias sincronizados"), além de já atualizar [value] como
+  /// qualquer outra sincronização.
+  Future<DeltaSyncResult> conectarWearablePelaPrimeiraVez() {
+    return _executar(_healthSyncService.carregarHistoricoInicial);
+  }
+
+  /// Núcleo comum entre [forcarSincronizacaoAtleta] e
+  /// [conectarWearablePelaPrimeiraVez] — as duas só diferem em qual método
+  /// do [HealthSyncService] chamam; todo o resto (estado de loading,
+  /// sucesso, fila offline, erro) é idêntico e precisa ficar em um lugar só
+  /// para as duas nunca poderem divergir em como tratam uma falha de rede.
+  Future<DeltaSyncResult> _executar(
+    Future<DeltaSyncResult> Function() acao,
+  ) async {
+    if (value.isLoading) {
+      return const DeltaSyncResult(outcome: DeltaSyncOutcome.erro);
+    }
 
     value = SyncUiState(
       status: SyncUiStatus.carregando,
@@ -136,7 +161,7 @@ class SyncUiController extends ValueNotifier<SyncUiState> {
       pendentesNaFila: value.pendentesNaFila,
     );
 
-    final resultado = await _healthSyncService.sincronizarDeltaDiario();
+    final resultado = await acao();
 
     if (resultado.isSuccess) {
       value = SyncUiState(
@@ -146,7 +171,7 @@ class SyncUiController extends ValueNotifier<SyncUiState> {
             DateTime.now(),
         pendentesNaFila: value.pendentesNaFila,
       );
-      return;
+      return resultado;
     }
 
     if (resultado.isOffline) {
@@ -158,7 +183,7 @@ class SyncUiController extends ValueNotifier<SyncUiState> {
         errorMessage: i18n.tr('dashboard.sync_offline_queued'),
         pendentesNaFila: pendentes.length,
       );
-      return;
+      return resultado;
     }
 
     value = SyncUiState(
@@ -168,6 +193,7 @@ class SyncUiController extends ValueNotifier<SyncUiState> {
           resultado.errorMessage ?? i18n.tr('dashboard.health_sync_error'),
       pendentesNaFila: value.pendentesNaFila,
     );
+    return resultado;
   }
 
   /// Resiliência Offline: merges [novasLinhas] into the queue already

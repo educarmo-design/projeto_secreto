@@ -189,6 +189,72 @@ void main() {
     });
   });
 
+  group('conectarWearablePelaPrimeiraVez (N18)', () {
+    test('sucesso passa por carregando e termina em sucesso, devolvendo o resultado', () async {
+      final agora = DateTime(2026, 7, 8, 8, 30);
+      final linhas = [
+        {'usuario_id_anonimo': 'u1', 'data_referencia': '2026-06-10', 'passos': 1000},
+      ];
+      when(() => healthSyncService.carregarHistoricoInicial()).thenAnswer(
+        (_) async => DeltaSyncResult(
+          outcome: DeltaSyncOutcome.sucesso,
+          linhas: linhas,
+          sincronizadoEm: agora,
+        ),
+      );
+
+      final controller = criarController();
+      await Future<void>.delayed(Duration.zero);
+
+      final estados = <SyncUiStatus>[];
+      controller.addListener(() => estados.add(controller.value.status));
+
+      final resultado = await controller.conectarWearablePelaPrimeiraVez();
+
+      expect(estados.first, SyncUiStatus.carregando);
+      expect(estados.last, SyncUiStatus.sucesso);
+      expect(controller.value.ultimaSincronizacaoEm, agora);
+      expect(resultado.linhas, linhas);
+      verify(() => healthSyncService.carregarHistoricoInicial()).called(1);
+      verifyNever(() => healthSyncService.sincronizarDeltaDiario());
+    });
+
+    test('offline enfileira as linhas da carga inicial igual ao delta diário', () async {
+      final linhas = [
+        {'usuario_id_anonimo': 'u1', 'data_referencia': '2026-06-10', 'passos': 1000},
+      ];
+      when(() => healthSyncService.carregarHistoricoInicial()).thenAnswer(
+        (_) async => DeltaSyncResult(outcome: DeltaSyncOutcome.offline, linhas: linhas),
+      );
+
+      final controller = criarController();
+      await Future<void>.delayed(Duration.zero);
+
+      await controller.conectarWearablePelaPrimeiraVez();
+
+      expect(controller.value.status, SyncUiStatus.offline);
+      expect(controller.value.pendentesNaFila, 1);
+    });
+
+    test('permissão negada expõe o motivo sem tocar na fila offline', () async {
+      when(() => healthSyncService.carregarHistoricoInicial()).thenAnswer(
+        (_) async => const DeltaSyncResult(
+          outcome: DeltaSyncOutcome.permissaoNegada,
+          errorMessage: 'Permissão de saúde negada.',
+        ),
+      );
+
+      final controller = criarController();
+      await Future<void>.delayed(Duration.zero);
+
+      final resultado = await controller.conectarWearablePelaPrimeiraVez();
+
+      expect(controller.value.status, SyncUiStatus.falha);
+      expect(resultado.outcome, DeltaSyncOutcome.permissaoNegada);
+      expect(controller.value.pendentesNaFila, 0);
+    });
+  });
+
   test(
     'conectividade recuperada despacha a fila offline automaticamente e limpa o cache',
     () async {

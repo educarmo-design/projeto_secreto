@@ -171,7 +171,7 @@ void main() {
       verifyNever(() => metricasBuilder.upsert(any(), onConflict: any(named: 'onConflict')));
     });
 
-    test('mescla passos e fc_repouso do mesmo dia em uma Ãºnica linha e sincroniza', () async {
+    test('mescla passos, fc (genÃ©rica) e fc_repouso do mesmo dia em uma Ãºnica linha e sincroniza', () async {
       final hoje = DateTime(2026, 7, 8, 10);
       when(
         () => health.getHealthDataFromTypes(
@@ -187,7 +187,21 @@ void main() {
             value: 1200,
             dateFrom: hoje.add(const Duration(hours: 1)),
           ),
+          // HEART_RATE (genérica) e RESTING_HEART_RATE são sinais distintos
+          // desde N17/N18 — cada uma vai para sua própria coluna (ver
+          // RELATÓRIO). Antes desta tarefa só existia HEART_RATE, e ela
+          // caía em fc_repouso.
           _ponto(type: HealthDataType.HEART_RATE, value: 70, dateFrom: hoje),
+          _ponto(
+            type: HealthDataType.RESTING_HEART_RATE,
+            value: 58,
+            dateFrom: hoje,
+          ),
+          _ponto(
+            type: HealthDataType.LEAN_BODY_MASS,
+            value: 62.5,
+            dateFrom: hoje,
+          ),
         ],
       );
 
@@ -198,7 +212,9 @@ void main() {
       final linha = resultado.linhas.single;
       expect(linha['usuario_id_anonimo'], _usuarioId);
       expect(linha['passos'], 4200);
-      expect(linha['fc_repouso'], 70);
+      expect(linha['frequencia_cardiaca'], 70);
+      expect(linha['fc_repouso'], 58);
+      expect(linha['massa_magra_kg'], 62.5);
       verify(
         () => metricasBuilder.upsert(
           resultado.linhas,
@@ -232,7 +248,7 @@ void main() {
           final eventos = captura.single as List<Map<String, dynamic>>;
           expect(eventos, hasLength(1));
           expect(eventos.single['usuario_id_anonimo'], _usuarioId);
-          expect(eventos.single['parametro'], 'fc_repouso');
+          expect(eventos.single['parametro'], 'frequencia_cardiaca');
           expect(eventos.single['valor_detectado'], 155);
           expect(eventos.single['em_treino'], false);
           expect(eventos.single['severidade'], 'atencao');
@@ -354,6 +370,100 @@ void main() {
 
       expect(resultado.outcome, DeltaSyncOutcome.erro);
       expect(await service.obterUltimaSincronizacao(), isNull);
+    });
+  });
+
+  group('carregarHistoricoInicial (N18 — Carga Inicial)', () {
+    // BUG CORRIGIDO NESTA TAREFA: antes, este método só lia o Health Connect
+    // e devolvia os pontos crus — nunca chamava upsert. Estes testes
+    // travam o comportamento novo (persiste igual a sincronizarDeltaDiario)
+    // para não regredir de novo.
+    test('lê 30 dias por padrão, mescla por dia e persiste via upsert', () async {
+      final dia1 = DateTime(2026, 6, 10, 8);
+      final dia2 = DateTime(2026, 7, 8, 9);
+      when(
+        () => health.getHealthDataFromTypes(
+          types: any(named: 'types'),
+          startTime: any(named: 'startTime'),
+          endTime: any(named: 'endTime'),
+        ),
+      ).thenAnswer(
+        (_) async => [
+          _ponto(type: HealthDataType.STEPS, value: 2000, dateFrom: dia1),
+          _ponto(type: HealthDataType.STEPS, value: 5000, dateFrom: dia2),
+        ],
+      );
+
+      final resultado = await service.carregarHistoricoInicial();
+
+      expect(resultado.outcome, DeltaSyncOutcome.sucesso);
+      expect(resultado.linhas, hasLength(2));
+      verify(
+        () => metricasBuilder.upsert(
+          resultado.linhas,
+          onConflict: 'usuario_id_anonimo,data_referencia',
+        ),
+      ).called(1);
+      expect(await service.obterUltimaSincronizacao(), resultado.sincronizadoEm);
+    });
+
+    test('janela padrão de leitura são os últimos 30 dias', () async {
+      final antes = DateTime.now().subtract(const Duration(days: 30));
+
+      await service.carregarHistoricoInicial();
+
+      final captured = verify(
+        () => health.getHealthDataFromTypes(
+          types: any(named: 'types'),
+          startTime: captureAny(named: 'startTime'),
+          endTime: any(named: 'endTime'),
+        ),
+      ).captured;
+      final startTime = captured.single as DateTime;
+
+      expect(startTime.isAfter(antes.subtract(const Duration(seconds: 5))), isTrue);
+      expect(startTime.isBefore(DateTime.now()), isTrue);
+    });
+
+    test('permissão negada não escreve nada e devolve permissaoNegada', () async {
+      when(
+        () => health.hasPermissions(any(), permissions: any(named: 'permissions')),
+      ).thenAnswer((_) async => false);
+      when(
+        () => health.requestAuthorization(any(), permissions: any(named: 'permissions')),
+      ).thenAnswer((_) async => false);
+
+      final resultado = await service.carregarHistoricoInicial();
+
+      expect(resultado.outcome, DeltaSyncOutcome.permissaoNegada);
+      verifyNever(() => metricasBuilder.upsert(any(), onConflict: any(named: 'onConflict')));
+    });
+
+    test('upsert offline devolve as linhas sem avançar o cursor (mesma resiliência do delta)', () async {
+      when(
+        () => health.getHealthDataFromTypes(
+          types: any(named: 'types'),
+          startTime: any(named: 'startTime'),
+          endTime: any(named: 'endTime'),
+        ),
+      ).thenAnswer(
+        (_) async => [_ponto(type: HealthDataType.STEPS, value: 500, dateFrom: DateTime(2026, 7, 1))],
+      );
+      stubUpsertMetricas(() => Future<dynamic>.error(const SocketException('sem rede')));
+
+      final resultado = await service.carregarHistoricoInicial();
+
+      expect(resultado.outcome, DeltaSyncOutcome.offline);
+      expect(resultado.linhas, isNotEmpty);
+      expect(await service.obterUltimaSincronizacao(), isNull);
+    });
+
+    test('sem pontos no período retorna semAlteracoes e avança o cursor', () async {
+      final resultado = await service.carregarHistoricoInicial();
+
+      expect(resultado.outcome, DeltaSyncOutcome.semAlteracoes);
+      expect(await service.obterUltimaSincronizacao(), isNotNull);
+      verifyNever(() => metricasBuilder.upsert(any(), onConflict: any(named: 'onConflict')));
     });
   });
 

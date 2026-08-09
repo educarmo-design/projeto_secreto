@@ -10,10 +10,12 @@ class HealthPayloadModel {
   final int? passos;
   final double? distanciaMetros;
   final int? fcRepouso;
+  final int? frequenciaCardiaca;
   final double? hrvMedio;
   final double? caloriasAtivas;
   final int? minutosSono;
   final double? pesoKg;
+  final double? massaMagraKg;
   final double? percentualGordura;
   final int? pressaoSistolica;
   final int? pressaoDiastolica;
@@ -36,10 +38,12 @@ class HealthPayloadModel {
     this.passos,
     this.distanciaMetros,
     this.fcRepouso,
+    this.frequenciaCardiaca,
     this.hrvMedio,
     this.caloriasAtivas,
     this.minutosSono,
     this.pesoKg,
+    this.massaMagraKg,
     this.percentualGordura,
     this.pressaoSistolica,
     this.pressaoDiastolica,
@@ -65,8 +69,25 @@ class HealthPayloadModel {
   }) {
     switch (type) {
       case HealthDataType.HEART_RATE:
+        // Leitura genérica/contínua — distinta de RESTING_HEART_RATE logo
+        // abaixo. Antes desta tarefa não existia essa distinção e HEART_RATE
+        // caía em fcRepouso; ver RELATÓRIO (N17/N18) para a decisão.
+        return HealthPayloadModel(
+          frequenciaCardiaca: value.round(),
+          dateFrom: dateFrom,
+          dateTo: dateTo,
+          source: source,
+        );
+      case HealthDataType.RESTING_HEART_RATE:
         return HealthPayloadModel(
           fcRepouso: value.round(),
+          dateFrom: dateFrom,
+          dateTo: dateTo,
+          source: source,
+        );
+      case HealthDataType.LEAN_BODY_MASS:
+        return HealthPayloadModel(
+          massaMagraKg: value,
           dateFrom: dateFrom,
           dateTo: dateTo,
           source: source,
@@ -189,10 +210,12 @@ class HealthPayloadModel {
       passos: numOrNull('passos')?.round(),
       distanciaMetros: numOrNull('distancia_metros')?.toDouble(),
       fcRepouso: numOrNull('fc_repouso')?.round(),
+      frequenciaCardiaca: numOrNull('frequencia_cardiaca')?.round(),
       hrvMedio: numOrNull('hrv_medio')?.toDouble(),
       caloriasAtivas: numOrNull('calorias_ativas')?.toDouble(),
       minutosSono: numOrNull('minutos_sono')?.round(),
       pesoKg: numOrNull('peso_kg')?.toDouble(),
+      massaMagraKg: numOrNull('massa_magra_kg')?.toDouble(),
       percentualGordura: numOrNull('percentual_gordura')?.toDouble(),
       pressaoSistolica: numOrNull('pressao_sistolica')?.round(),
       pressaoDiastolica: numOrNull('pressao_diastolica')?.round(),
@@ -215,10 +238,12 @@ class HealthPayloadModel {
       passos: asNum('passos')?.toInt(),
       distanciaMetros: asNum('distancia_metros')?.toDouble(),
       fcRepouso: asNum('fc_repouso')?.toInt(),
+      frequenciaCardiaca: asNum('frequencia_cardiaca')?.toInt(),
       hrvMedio: asNum('hrv_medio')?.toDouble(),
       caloriasAtivas: asNum('calorias_ativas')?.toDouble(),
       minutosSono: asNum('minutos_sono')?.toInt(),
       pesoKg: asNum('peso_kg')?.toDouble(),
+      massaMagraKg: asNum('massa_magra_kg')?.toDouble(),
       percentualGordura: asNum('percentual_gordura')?.toDouble(),
       pressaoSistolica: asNum('pressao_sistolica')?.toInt(),
       pressaoDiastolica: asNum('pressao_diastolica')?.toInt(),
@@ -240,10 +265,13 @@ class HealthPayloadModel {
         if (passos != null) 'passos': passos,
         if (distanciaMetros != null) 'distancia_metros': distanciaMetros,
         if (fcRepouso != null) 'fc_repouso': fcRepouso,
+        if (frequenciaCardiaca != null)
+          'frequencia_cardiaca': frequenciaCardiaca,
         if (hrvMedio != null) 'hrv_medio': hrvMedio,
         if (caloriasAtivas != null) 'calorias_ativas': caloriasAtivas,
         if (minutosSono != null) 'minutos_sono': minutosSono,
         if (pesoKg != null) 'peso_kg': pesoKg,
+        if (massaMagraKg != null) 'massa_magra_kg': massaMagraKg,
         if (percentualGordura != null) 'percentual_gordura': percentualGordura,
         if (pressaoSistolica != null) 'pressao_sistolica': pressaoSistolica,
         if (pressaoDiastolica != null) 'pressao_diastolica': pressaoDiastolica,
@@ -264,10 +292,13 @@ class HealthPayloadModel {
         if (distanciaMetros != null)
           MapEntry('distancia_metros', distanciaMetros!),
         if (fcRepouso != null) MapEntry('fc_repouso', fcRepouso!),
+        if (frequenciaCardiaca != null)
+          MapEntry('frequencia_cardiaca', frequenciaCardiaca!),
         if (hrvMedio != null) MapEntry('hrv_medio', hrvMedio!),
         if (caloriasAtivas != null) MapEntry('calorias_ativas', caloriasAtivas!),
         if (minutosSono != null) MapEntry('minutos_sono', minutosSono!),
         if (pesoKg != null) MapEntry('peso_kg', pesoKg!),
+        if (massaMagraKg != null) MapEntry('massa_magra_kg', massaMagraKg!),
         if (percentualGordura != null)
           MapEntry('percentual_gordura', percentualGordura!),
         if (pressaoSistolica != null)

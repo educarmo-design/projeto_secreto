@@ -232,6 +232,10 @@ class HealthSyncService {
   /// never have to branch on platform.
   static const List<HealthDataType> todosOsTipos = [
     HealthDataType.HEART_RATE,
+    // N17/N18: métrica dedicada do Health Connect para FC de repouso —
+    // distinta de HEART_RATE genérico (ver HealthPayloadModel.fromHealthDataType
+    // e o RELATÓRIO da tarefa para a decisão de separar os dois sinais).
+    HealthDataType.RESTING_HEART_RATE,
     HealthDataType.STEPS,
     HealthDataType.DISTANCE_WALKING_RUNNING,
     HealthDataType.DISTANCE_DELTA,
@@ -241,6 +245,8 @@ class HealthSyncService {
     HealthDataType.HEART_RATE_VARIABILITY_SDNN,
     HealthDataType.HEART_RATE_VARIABILITY_RMSSD,
     HealthDataType.WEIGHT,
+    // N17/N18: massa magra — nenhum HealthDataType cobria este sinal antes.
+    HealthDataType.LEAN_BODY_MASS,
     HealthDataType.BODY_FAT_PERCENTAGE,
     HealthDataType.BLOOD_PRESSURE_SYSTOLIC,
     HealthDataType.BLOOD_PRESSURE_DIASTOLIC,
@@ -253,14 +259,28 @@ class HealthSyncService {
   List<HealthDataType> get _tiposSuportados =>
       todosOsTipos.where(_health.isDataTypeAvailable).toList();
 
-  /// Reads the complete telemetry history across every biological/clinical
-  /// parameter this app tracks — heart rate, steps, distance, calories,
-  /// sleep, HRV, weight, body fat, blood pressure, glucose, oxygen
-  /// saturation and body temperature — for the last [dias] days (default
-  /// 30). This is the one-time backfill so the dashboard isn't empty on
-  /// day one after connecting a wearable.
-  Future<HealthSyncResult> carregarHistoricoInicial({int dias = 30}) {
-    return _lerComPermissao(_tiposSuportados, dias: dias);
+  /// Carga Inicial (N18): reads the complete telemetry history across every
+  /// biological/clinical parameter this app tracks — heart rate (both
+  /// generic and resting), steps, distance, calories, sleep, HRV, weight,
+  /// lean mass, body fat, blood pressure, glucose, oxygen saturation and
+  /// body temperature — for the last [dias] days (default 30), merges it
+  /// into one row per day and **persists it** into `metricas_saude_diarias`
+  /// via the same idempotent upsert [sincronizarDeltaDiario] uses.
+  ///
+  /// BUG CORRIGIDO NESTA TAREFA: até aqui este método só lia (delegava para
+  /// `_lerComPermissao` e devolvia os pontos crus) — nunca escrevia nada no
+  /// Supabase. `RegistrarMetricaPage` mostrava "N registros sincronizados"
+  /// só com base na leitura, sem persistir nada; é exatamente o "lê, mas
+  /// não grava" já confirmado pelo fundador e registrado no Mestre (Parte 2
+  /// C2). Corrigido reaproveitando [_lerEGravar] — o mesmo caminho de
+  /// leitura+merge+upsert+cursor que [sincronizarDeltaDiario] já usa, só com
+  /// uma janela de [dias] em vez de "desde o último sync".
+  ///
+  /// Chamado quando o usuário conecta um wearable pela primeira vez (ver
+  /// [SyncUiController.conectarWearablePelaPrimeiraVez]) — destrava o
+  /// dashboard/histórico no dia 1 em vez de começar vazio.
+  Future<DeltaSyncResult> carregarHistoricoInicial({int dias = 30}) {
+    return _lerEGravar(_tiposSuportados, dias: dias);
   }
 
   /// Leitura pontual, só de [HealthDataType.HEART_RATE], das últimas [horas]
@@ -432,13 +452,23 @@ class HealthSyncService {
       final payload = ponto.toPayload();
       final origem = ponto.sourceApp.isEmpty ? 'wearable' : ponto.sourceApp;
 
-      final fc = payload.fcRepouso;
+      // N17/N18: checa frequenciaCardiaca (leitura genérica/contínua), não
+      // mais fcRepouso — antes desta tarefa os dois eram o mesmo campo
+      // (HEART_RATE só existia como fcRepouso); agora que são sinais
+      // distintos, o pico que faz sentido pegar em primeiro plano é o da
+      // leitura contínua, não a métrica de repouso do Health Connect
+      // (calculada pelo próprio SO, tipicamente durante o sono — chega
+      // no máximo 1x/dia e já É esperada estar baixa, não é onde um pico
+      // fora de treino apareceria). Comportamento de detecção preservado:
+      // é a mesma fonte de dado (HEART_RATE) que já alimentava esta
+      // checagem antes, só o nome do campo/parametro que corrige.
+      final fc = payload.frequenciaCardiaca;
       if (fc != null && (fc < _fcForaTreinoMin || fc > _fcForaTreinoMax)) {
         final foraDoTreino = !emTreino(ponto);
         if (foraDoTreino) {
           anomalias.add(EventoAnomaliaSaude(
             tipoAnomalia: 'frequencia_cardiaca_fora_faixa',
-            parametro: 'fc_repouso',
+            parametro: 'frequencia_cardiaca',
             valorDetectado: fc,
             valorLimiteMin: _fcForaTreinoMin,
             valorLimiteMax: _fcForaTreinoMax,
@@ -543,6 +573,24 @@ class HealthSyncService {
   /// (the manual/opportunistic path) — same method, same cursor, so neither
   /// path can duplicate or skip a day's data relative to the other.
   Future<DeltaSyncResult> sincronizarDeltaDiario() async {
+    final desde = await obterUltimaSincronizacao() ??
+        DateTime.now().subtract(const Duration(hours: 24));
+    return _lerEGravar(_tiposSuportados, start: desde);
+  }
+
+  /// Núcleo comum de leitura+merge+upsert+cursor compartilhado por
+  /// [sincronizarDeltaDiario] (janela = desde o último sync, ou 24h da
+  /// primeira vez) e [carregarHistoricoInicial] (janela = [dias] fixos,
+  /// tipicamente 30). As duas só diferem em COMO calculam a janela — todo o
+  /// resto (permissão, leitura, merge por dia, upsert idempotente, avanço do
+  /// cursor de última sincronização) é idêntico, e extrair para um só lugar
+  /// garante que as duas nunca possam divergir em como gravam
+  /// (idempotência, tratamento de offline, etc.).
+  Future<DeltaSyncResult> _lerEGravar(
+    List<HealthDataType> types, {
+    int? dias,
+    DateTime? start,
+  }) async {
     await _configured;
 
     final usuarioId = _supabase.auth.currentUser?.id;
@@ -553,10 +601,7 @@ class HealthSyncService {
       );
     }
 
-    final desde = await obterUltimaSincronizacao() ??
-        DateTime.now().subtract(const Duration(hours: 24));
-
-    final leitura = await _lerComPermissao(_tiposSuportados, start: desde);
+    final leitura = await _lerComPermissao(types, dias: dias, start: start);
     if (!leitura.granted) {
       return DeltaSyncResult(
         outcome: DeltaSyncOutcome.permissaoNegada,
@@ -669,8 +714,10 @@ class HealthSyncService {
       somar('minutos_sono', payload.minutosSono);
 
       sobrescrever('fc_repouso', payload.fcRepouso);
+      sobrescrever('frequencia_cardiaca', payload.frequenciaCardiaca);
       sobrescrever('hrv_medio', payload.hrvMedio);
       sobrescrever('peso_kg', payload.pesoKg);
+      sobrescrever('massa_magra_kg', payload.massaMagraKg);
       sobrescrever('percentual_gordura', payload.percentualGordura);
       sobrescrever('pressao_sistolica', payload.pressaoSistolica);
       sobrescrever('pressao_diastolica', payload.pressaoDiastolica);

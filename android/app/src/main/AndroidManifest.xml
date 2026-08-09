@@ -23,6 +23,12 @@
     <uses-permission android:name="android.permission.health.READ_OXYGEN_SATURATION"/>
     <uses-permission android:name="android.permission.health.READ_BODY_TEMPERATURE"/>
     <uses-permission android:name="android.permission.health.READ_EXERCISE"/>
+    <!-- N17/N18: RESTING_HEART_RATE e LEAN_BODY_MASS somam-se a
+         HealthSyncService.todosOsTipos nesta tarefa (ver RELATÓRIO) — FC
+         genérica (READ_HEART_RATE, já acima) e FC de repouso passam a ser
+         sinais distintos; massa magra não era lida antes. -->
+    <uses-permission android:name="android.permission.health.READ_RESTING_HEART_RATE"/>
+    <uses-permission android:name="android.permission.health.READ_LEAN_BODY_MASS"/>
 
     <!-- BackgroundSyncManager roda sync_diario_wearables via WorkManager de
          madrugada (Wi-Fi + carregando) chamando

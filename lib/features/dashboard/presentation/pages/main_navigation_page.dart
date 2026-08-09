@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../../../core/i18n/i18n_manager.dart';
@@ -11,6 +13,7 @@ import '../../data/models/health_payload_model.dart';
 import '../../data/models/widget_layout_model.dart';
 import '../controllers/camera_capture_controller.dart';
 import '../controllers/layout_controller.dart';
+import '../controllers/sync_ui_controller.dart';
 import '../widgets/camera_capture_view.dart';
 import '../widgets/dynamic_widget_factory.dart';
 import '../widgets/health_payload_dialog.dart';
@@ -49,6 +52,7 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
       GamificationRepository();
   final RecommendationsRepository _recommendationsRepository =
       RecommendationsRepository();
+  final SyncUiController _syncUiController = SyncUiController();
 
   Streak? _streak;
   League? _liga;
@@ -61,12 +65,26 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
     layoutController.addListener(_onLayoutChanged);
     _carregarGamificacao();
     _carregarRecomendacaoIa();
+    // N17 — Sincronização Oportunista "ao abrir o app": fire-and-forget,
+    // não bloqueia a primeira renderização (mesmo padrão de
+    // _carregarGamificacao/_carregarRecomendacaoIa acima). Roda para
+    // qualquer perfil (Atleta ou Sênior) que já tenha conectado um
+    // wearable — best-effort: sem wearable conectado ou sem permissão,
+    // HealthSyncService já devolve permissaoNegada silenciosamente (mesmo
+    // tratamento que o botão manual "Atualizar Agora" já dá ao erro).
+    // Dono da instância de SyncUiController usada aqui: este widget — não
+    // reaproveita a de RegistrarMetricaPage (Sincronização Oportunista já
+    // separa as duas telas, ver SyncUiController); o cursor de última
+    // sincronização em Secure Storage é o estado real compartilhado entre
+    // elas, não a instância do controller.
+    unawaited(_syncUiController.forcarSincronizacaoAtleta());
   }
 
   @override
   void dispose() {
     uiProfileSwitcher.removeListener(_onProfileChanged);
     layoutController.removeListener(_onLayoutChanged);
+    _syncUiController.dispose();
     super.dispose();
   }
 

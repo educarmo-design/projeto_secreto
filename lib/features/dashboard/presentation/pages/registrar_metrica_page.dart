@@ -24,7 +24,7 @@ class _RegistrarMetricaPageState extends State<RegistrarMetricaPage> {
   final SyncUiController _syncUiController = SyncUiController();
 
   bool _isSyncingWearable = false;
-  HealthSyncResult? _wearableResult;
+  DeltaSyncResult? _wearableResult;
 
   @override
   void dispose() {
@@ -32,13 +32,22 @@ class _RegistrarMetricaPageState extends State<RegistrarMetricaPage> {
     super.dispose();
   }
 
+  /// N18 — Carga Inicial: dispara via [SyncUiController], não mais
+  /// diretamente [HealthSyncService.carregarHistoricoInicial]. BUG
+  /// CORRIGIDO NESTA TAREFA: antes, este handler só lia o histórico e
+  /// mostrava uma contagem — nunca persistia nada em
+  /// `metricas_saude_diarias` (ver RELATÓRIO). Passar pelo
+  /// [SyncUiController] dá de graça o mesmo tratamento de offline
+  /// (enfileira e reenvia quando a conexão voltar) que o botão "Atualizar
+  /// Agora" já tinha — sem isso, a Carga Inicial falhando por falta de rede
+  /// perderia os 30 dias lidos silenciosamente.
   Future<void> _handleSyncWearable() async {
     setState(() {
       _isSyncingWearable = true;
       _wearableResult = null;
     });
 
-    final result = await _healthService.carregarHistoricoInicial();
+    final result = await _syncUiController.conectarWearablePelaPrimeiraVez();
 
     if (!mounted) return;
     setState(() {
@@ -243,27 +252,40 @@ class _OptionCard extends StatelessWidget {
   }
 }
 
+/// Resumo pós-Carga Inicial (N18) — reflete o [DeltaSyncResult] real da
+/// escrita em `metricas_saude_diarias`, não mais uma contagem de pontos
+/// lidos sem persistir nada (ver nota em [_RegistrarMetricaPageState._handleSyncWearable]).
 class _WearableResultBanner extends StatelessWidget {
   const _WearableResultBanner({
     required this.result,
     required this.onInstallHealthConnect,
   });
 
-  final HealthSyncResult result;
+  final DeltaSyncResult result;
   final VoidCallback onInstallHealthConnect;
 
   @override
   Widget build(BuildContext context) {
-    if (result.granted) {
+    if (result.isSuccess) {
       return Text(
         i18n.tr(
           'dashboard.health_sync_summary',
-          params: {'count': result.points.length.toString()},
+          params: {'count': result.linhas.length.toString()},
         ),
         style: Theme.of(context)
             .textTheme
             .bodySmall
             ?.copyWith(color: AppColors.success),
+      );
+    }
+
+    if (result.isOffline) {
+      return Text(
+        i18n.tr('dashboard.sync_offline_queued'),
+        style: Theme.of(context)
+            .textTheme
+            .bodySmall
+            ?.copyWith(color: AppColors.error),
       );
     }
 
