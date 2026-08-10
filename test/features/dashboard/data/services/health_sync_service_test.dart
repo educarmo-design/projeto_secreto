@@ -104,6 +104,11 @@ void main() {
     secureStorage = FakeSecureStorage();
 
     when(() => health.configure()).thenAnswer((_) async {});
+    // N18 (READ_HEALTH_DATA_HISTORY) — só carregarHistoricoInicial chama;
+    // padrão "já autorizado" pra não precisar re-stubar em todo teste que
+    // não é sobre essa permissão especificamente (ver grupo dedicado).
+    when(() => health.isHealthDataHistoryAuthorized()).thenAnswer((_) async => true);
+    when(() => health.requestHealthDataHistoryAuthorization()).thenAnswer((_) async => true);
     when(() => health.isDataTypeAvailable(any())).thenReturn(true);
     when(
       () => health.hasPermissions(any(), permissions: any(named: 'permissions')),
@@ -378,6 +383,54 @@ void main() {
     // e devolvia os pontos crus — nunca chamava upsert. Estes testes
     // travam o comportamento novo (persiste igual a sincronizarDeltaDiario)
     // para não regredir de novo.
+
+    // CAUSA RAIZ do bug "só 2 dias" (RELATÓRIO 20260809): READ_HEALTH_DATA_HISTORY
+    // é uma permissão separada das READ_* normais — sem pedi-la, o Health
+    // Connect só devolve dado gravado depois da concessão original, não os
+    // `dias` pedidos aqui. Estes 3 testes travam o pedido dessa permissão.
+    test('pede READ_HEALTH_DATA_HISTORY quando ainda não autorizado', () async {
+      when(() => health.isHealthDataHistoryAuthorized()).thenAnswer((_) async => false);
+
+      await service.carregarHistoricoInicial();
+
+      verify(() => health.requestHealthDataHistoryAuthorization()).called(1);
+    });
+
+    test('não pede de novo quando já autorizado', () async {
+      when(() => health.isHealthDataHistoryAuthorized()).thenAnswer((_) async => true);
+
+      await service.carregarHistoricoInicial();
+
+      verifyNever(() => health.requestHealthDataHistoryAuthorization());
+    });
+
+    test('sincronizarDeltaDiario nunca pede READ_HEALTH_DATA_HISTORY — só a Carga Inicial precisa', () async {
+      await service.sincronizarDeltaDiario();
+
+      verifyNever(() => health.isHealthDataHistoryAuthorized());
+      verifyNever(() => health.requestHealthDataHistoryAuthorization());
+    });
+
+    test('negação da permissão de histórico não impede a leitura/gravação (best-effort)', () async {
+      when(() => health.isHealthDataHistoryAuthorized()).thenAnswer((_) async => false);
+      when(() => health.requestHealthDataHistoryAuthorization()).thenAnswer((_) async => false);
+      when(
+        () => health.getHealthDataFromTypes(
+          types: any(named: 'types'),
+          startTime: any(named: 'startTime'),
+          endTime: any(named: 'endTime'),
+        ),
+      ).thenAnswer(
+        (_) async => [_ponto(type: HealthDataType.STEPS, value: 500, dateFrom: DateTime(2026, 7, 8))],
+      );
+
+      final resultado = await service.carregarHistoricoInicial();
+
+      expect(resultado.outcome, DeltaSyncOutcome.sucesso);
+      verify(
+        () => metricasBuilder.upsert(any(), onConflict: any(named: 'onConflict')),
+      ).called(1);
+    });
     test('lê 30 dias por padrão, mescla por dia e persiste via upsert', () async {
       final dia1 = DateTime(2026, 6, 10, 8);
       final dia2 = DateTime(2026, 7, 8, 9);

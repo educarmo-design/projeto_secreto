@@ -19,6 +19,7 @@ import '../widgets/dynamic_widget_factory.dart';
 import '../widgets/health_payload_dialog.dart';
 import 'configuracoes_perfil_page.dart';
 import 'gerenciador_layout_page.dart';
+import 'historico_telemetria_page.dart';
 import 'senior_dashboard_page.dart';
 
 /// Casca principal de navegação do app — Zero Trust §5: escuta
@@ -143,6 +144,16 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
     );
   }
 
+  /// N19 — abre o Histórico de Telemetria + painel de debug. `Navigator.push`
+  /// simples, mesmo padrão de [_abrirGerenciadorLayout]/[_capturarEExibir]:
+  /// tela secundária fora do roteador enxuto (5 rotas), não uma rota do
+  /// GoRouter — ver app_router.dart.
+  void _abrirHistorico() {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const HistoricoTelemetriaPage()),
+    );
+  }
+
   Future<void> _capturarEExibir(TipoAparelho tipoAparelho) async {
     final extracted = await Navigator.of(context).push<HealthPayloadModel?>(
       MaterialPageRoute(
@@ -197,6 +208,7 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
       cardData: data,
       onReorder: layoutController.atualizarOrdemVisivel,
       onCustomizePressed: _abrirGerenciadorLayout,
+      onHistoricoPressed: _abrirHistorico,
     );
   }
 }
@@ -212,6 +224,7 @@ class _AthleteShell extends StatelessWidget {
     required this.cardData,
     required this.onReorder,
     required this.onCustomizePressed,
+    required this.onHistoricoPressed,
   });
 
   final int currentIndex;
@@ -220,6 +233,7 @@ class _AthleteShell extends StatelessWidget {
   final DashboardCardData cardData;
   final void Function(int oldIndex, int newIndex) onReorder;
   final VoidCallback onCustomizePressed;
+  final VoidCallback onHistoricoPressed;
 
   static const List<_TabSpec> _tabs = [
     _TabSpec(icon: Icons.dashboard_outlined, labelKey: 'dashboard.title'),
@@ -237,6 +251,14 @@ class _AthleteShell extends StatelessWidget {
         appBar: AppBar(
           title: Text(i18n.tr('app_title')),
           actions: [
+            // N19 — mesmo critério dos outros botões desta AppBar: só
+            // aparece na aba Dashboard, não em todas as 4 abas.
+            if (currentIndex == 0)
+              IconButton(
+                icon: const Icon(Icons.history),
+                tooltip: i18n.tr('dashboard.historico_telemetria_button'),
+                onPressed: onHistoricoPressed,
+              ),
             // Botão discreto — só aparece na própria aba que ele customiza.
             if (currentIndex == 0)
               IconButton(

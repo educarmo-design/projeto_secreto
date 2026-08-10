@@ -193,6 +193,16 @@
     "sync_offline_queued": "Sem conexão. Os dados serão enviados automaticamente assim que você estiver online.",
     "sync_pending_queue": "{{count}} atualizações pendentes de conexão",
 
+    "historico_telemetria_button": "Histórico de Telemetria",
+    "historico_telemetria_title": "Histórico de Telemetria",
+    "historico_telemetria_subtitle": "Lido direto do banco (metricas_saude_diarias) — não do cache do celular.",
+    "historico_telemetria_empty": "Nenhum dia com dado nos últimos 30 dias.",
+    "historico_telemetria_error": "Erro ao carregar o histórico.",
+    "historico_telemetria_debug_force_today": "FORÇAR SYNC HOJE",
+    "historico_telemetria_debug_force_30_days": "FORÇAR CARGA 30 DIAS",
+    "historico_telemetria_debug_running": "Rodando...",
+    "historico_telemetria_debug_result": "{{count}} dia(s) gravado(s) — recarregando lista do banco...",
+
     "clinical_panel_tab": "Painel Clínico",
     "exam_folder_tab": "Pasta Digital de Exames",
     "exam_folder_empty": "Nenhum exame anexado ainda",

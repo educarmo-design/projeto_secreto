@@ -279,8 +279,44 @@ class HealthSyncService {
   /// Chamado quando o usuário conecta um wearable pela primeira vez (ver
   /// [SyncUiController.conectarWearablePelaPrimeiraVez]) — destrava o
   /// dashboard/histórico no dia 1 em vez de começar vazio.
-  Future<DeltaSyncResult> carregarHistoricoInicial({int dias = 30}) {
+  ///
+  /// CAUSA RAIZ DO BUG "só 2 dias na Carga Inicial" (teste físico N17/N18,
+  /// ver RELATÓRIO 20260809): pedir `dias: 30` aqui SEMPRE pediu a janela
+  /// certa ao Health Connect — o bug não estava nesta conta. O Health
+  /// Connect, por padrão, só deixa um app ler dado a partir do MOMENTO em
+  /// que a permissão normal (READ_STEPS, READ_HEART_RATE, ...) foi
+  /// concedida, não os `dias` anteriores a "agora" — é uma restrição de
+  /// privacidade da plataforma, documentada pelo próprio pacote `health`
+  /// ("By default, Health Connect restricts read data to 30 days from when
+  /// permission has been granted"). Sem [_garantirPermissaoHistorico], a
+  /// primeira conexão só enxergava dado gravado depois da concessão —
+  /// exatamente "ontem e hoje" no teste do fundador, porque foi quando ele
+  /// concedeu a permissão.
+  Future<DeltaSyncResult> carregarHistoricoInicial({int dias = 30}) async {
+    await _configured;
+    await _garantirPermissaoHistorico();
     return _lerEGravar(_tiposSuportados, dias: dias);
+  }
+
+  /// Pede a permissão especial `READ_HEALTH_DATA_HISTORY` — separada das
+  /// `READ_*` normais que [_lerComPermissao] já pede, com diálogo próprio
+  /// do Health Connect. Só chamado por [carregarHistoricoInicial]: é a
+  /// única leitura que pede dado anterior à concessão original;
+  /// [sincronizarDeltaDiario] nunca precisa dela (janela de 24-48h sempre
+  /// cabe dentro do período normalmente autorizado). Best-effort — se o
+  /// usuário negar ou o dispositivo não suportar, a leitura segue adiante
+  /// do mesmo jeito, só que limitada à janela que o Health Connect
+  /// permitir (mesmo comportamento de antes desta correção, não uma
+  /// regressão nova).
+  Future<void> _garantirPermissaoHistorico() async {
+    try {
+      final jaAutorizado = await _health.isHealthDataHistoryAuthorized();
+      if (!jaAutorizado) {
+        await _health.requestHealthDataHistoryAuthorization();
+      }
+    } catch (e) {
+      debugPrint('HealthSyncService: falha ao pedir READ_HEALTH_DATA_HISTORY: $e');
+    }
   }
 
   /// Leitura pontual, só de [HealthDataType.HEART_RATE], das últimas [horas]

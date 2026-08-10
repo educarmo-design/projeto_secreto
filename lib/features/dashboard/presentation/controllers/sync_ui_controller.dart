@@ -127,7 +127,13 @@ class SyncUiController extends ValueNotifier<SyncUiState> {
   /// nightly `sync_diario_wearables` job stays reserved for the
   /// Wi-Fi + charging window; this path is explicitly allowed to run over
   /// any connection, right now, because the user asked for it.
-  Future<void> forcarSincronizacaoAtleta() {
+  /// N19: devolve o [DeltaSyncResult] (antes era `Future<void>`) — o botão
+  /// de debug "FORÇAR SYNC HOJE" precisa do resultado pra decidir a
+  /// mensagem que mostra; chamadores que só querem disparar e não ligam
+  /// pro retorno (ex.: `unawaited(...)` em `MainNavigationPage.initState`)
+  /// continuam funcionando sem mudança — `Future<T>` é atribuível a
+  /// `Future<void>` em Dart.
+  Future<DeltaSyncResult> forcarSincronizacaoAtleta() {
     return _executar(_healthSyncService.sincronizarDeltaDiario);
   }
 

@@ -30,6 +30,20 @@
     <uses-permission android:name="android.permission.health.READ_RESTING_HEART_RATE"/>
     <uses-permission android:name="android.permission.health.READ_LEAN_BODY_MASS"/>
 
+    <!-- CAUSA RAIZ do bug "só 2 dias na Carga Inicial" (N18, ver RELATÓRIO
+         20260809): por padrão, o Health Connect só deixa um app ler dados
+         de ATÉ 30 dias A PARTIR DO MOMENTO em que a permissão normal foi
+         concedida — não os 30 dias anteriores a "agora". Sem esta permissão
+         extra, carregarHistoricoInicial(dias: 30) pedia a janela certa, mas
+         o Health Connect simplesmente não tinha nada histórico para
+         devolver além do que foi gravado desde a concessão (daí "ontem e
+         hoje": exatamente a janela entre o teste de conexão e o teste
+         seguinte). READ_HEALTH_DATA_HISTORY é uma permissão SEPARADA das
+         READ_* normais acima — precisa de um diálogo próprio
+         (Health.requestHealthDataHistoryAuthorization(), chamado em
+         HealthSyncService.carregarHistoricoInicial). -->
+    <uses-permission android:name="android.permission.health.READ_HEALTH_DATA_HISTORY"/>
+
     <!-- BackgroundSyncManager roda sync_diario_wearables via WorkManager de
          madrugada (Wi-Fi + carregando) chamando
          HealthSyncService.sincronizarDeltaDiario — sem esta permissão o

@@ -193,6 +193,16 @@
     "sync_offline_queued": "No connection. Data will be sent automatically once you're back online.",
     "sync_pending_queue": "{{count}} updates pending connection",
 
+    "historico_telemetria_button": "Telemetry History",
+    "historico_telemetria_title": "Telemetry History",
+    "historico_telemetria_subtitle": "Read straight from the database (metricas_saude_diarias) — not from the phone's cache.",
+    "historico_telemetria_empty": "No day with data in the last 30 days.",
+    "historico_telemetria_error": "Error loading history.",
+    "historico_telemetria_debug_force_today": "FORCE SYNC TODAY",
+    "historico_telemetria_debug_force_30_days": "FORCE 30-DAY LOAD",
+    "historico_telemetria_debug_running": "Running...",
+    "historico_telemetria_debug_result": "{{count}} day(s) recorded — reloading list from the database...",
+
     "clinical_panel_tab": "Clinical Panel",
     "exam_folder_tab": "Digital Exam Folder",
     "exam_folder_empty": "No exams attached yet",
