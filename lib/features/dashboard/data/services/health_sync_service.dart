@@ -240,17 +240,21 @@ class HealthSyncService {
     HealthDataType.DISTANCE_WALKING_RUNNING,
     HealthDataType.DISTANCE_DELTA,
     HealthDataType.ACTIVE_ENERGY_BURNED,
-    // CAUSA RAIZ do bug "minutos de sono errados" (RELATÓRIO 20260810):
-    // SLEEP_SESSION removido daqui de propósito. O Health Connect grava UMA
-    // SleepSessionRecord por noite cobrindo bedtime->waketime inteiro
-    // (INCLUINDO qualquer período acordado dentro da sessão); SLEEP_ASLEEP
-    // é o sub-recorte só dos trechos realmente dormidos dentro dessa mesma
-    // sessão. Pedir os dois e somar (como este código fazia antes) contava
-    // a mesma noite duas vezes — uma pelo total da sessão (com acordado
-    // incluso), outra pelo sub-recorte. `lerSonoRecente` (tela de teste
-    // manual, não grava nada) continua pedindo SLEEP_SESSION separadamente,
-    // sem afetar esta lista.
+    // RELATÓRIO 20260811 — sono por estágio granular, não mais um total
+    // único. SLEEP_SESSION continua fora daqui (mesmo motivo do RELATÓRIO
+    // 20260810: cobre bedtime->waketime inteiro, incluindo acordado —
+    // `lerSonoRecente`, tela de teste manual, continua pedindo ela sozinha,
+    // sem afetar esta lista/a gravação). Os 5 tipos abaixo alimentam as
+    // colunas sono_leve_minutos/sono_profundo_minutos/sono_rem_minutos/
+    // sono_acordado_minutos (ver HealthPayloadModel.fromHealthDataType e
+    // HealthSyncService._mesclarPorDia) — SLEEP_ASLEEP é o fallback de
+    // dispositivos que só reportam "dormindo" sem quebrar em estágio;
+    // some para sono_leve_minutos (ver nota no merge).
     HealthDataType.SLEEP_ASLEEP,
+    HealthDataType.SLEEP_LIGHT,
+    HealthDataType.SLEEP_DEEP,
+    HealthDataType.SLEEP_REM,
+    HealthDataType.SLEEP_AWAKE,
     HealthDataType.HEART_RATE_VARIABILITY_SDNN,
     HealthDataType.HEART_RATE_VARIABILITY_RMSSD,
     HealthDataType.WEIGHT,
@@ -267,38 +271,6 @@ class HealthSyncService {
 
   List<HealthDataType> get _tiposSuportados =>
       todosOsTipos.where(_health.isDataTypeAvailable).toList();
-
-  /// CAUSA RAIZ dos bugs "passos e calorias errados" (RELATÓRIO 20260810):
-  /// pedir estes 3 tipos via [Health.getHealthDataFromTypes] (registro cru
-  /// por leitura) e somar tudo em [_mesclarPorDia] conta em dobro quando
-  /// mais de uma fonte grava o mesmo intervalo — celular E relógio ambos
-  /// contando os mesmos passos, por exemplo. O Health Connect resolve isso
-  /// nativamente com uma consulta agregada por dia
-  /// (`AggregateGroupByDurationRequest`, exposta pelo pacote `health` como
-  /// [Health.getHealthIntervalDataFromTypes]): ele funde as fontes
-  /// sobrepostas do lado do próprio SO em vez de somar registros brutos —
-  /// é a técnica oficial recomendada pela documentação do pacote
-  /// ("Reading total step counts using the getTotalStepsInInterval
-  /// method" / "Reading aggregate health data using the
-  /// getHealthIntervalDataFromTypes... methods").
-  ///
-  /// SLEEP_ASLEEP entra aqui pelo mesmo motivo, mas resolvendo um segundo
-  /// bug: o agregado do Health Connect para este tipo
-  /// (`SleepSessionRecord.SLEEP_DURATION_TOTAL`) já exclui períodos AWAKE
-  /// da sessão — não precisa (nem deve) somar SLEEP_SESSION bruto junto
-  /// (ver nota em [todosOsTipos]).
-  ///
-  /// HEART_RATE fica DE FORA de propósito: o pacote `health` não expõe um
-  /// agregado de "média" para este tipo (só `MEASUREMENTS_COUNT`, uma
-  /// contagem) — a média aritmética das leituras do dia é calculada aqui
-  /// mesmo, em [_mesclarPorDia], a partir dos registros brutos.
-  static const Set<HealthDataType> _tiposComAgregadoNativo = {
-    HealthDataType.STEPS,
-    HealthDataType.ACTIVE_ENERGY_BURNED,
-    HealthDataType.SLEEP_ASLEEP,
-  };
-
-  static const int _segundosPorDia = 24 * 60 * 60;
 
   /// Carga Inicial (N18): reads the complete telemetry history across every
   /// biological/clinical parameter this app tracks — heart rate (both
@@ -433,14 +405,18 @@ class HealthSyncService {
   /// [HealthSyncResult.needsHealthConnectInstall] set.
   Future<void> instalarHealthConnect() => _health.installHealthConnect();
 
-  /// Reads [types] from [start] (or the last [dias] days when [start] is
-  /// omitted) through now. [carregarHistoricoInicial] uses the [dias] form
-  /// for its one-time backfill; [sincronizarDeltaDiario] passes an explicit
-  /// [start] — the last successful sync timestamp — for the daily delta.
+  /// Reads [types] from [start] through now — a janela exata pedida por
+  /// quem chama, sem nenhum alinhamento/ajuste próprio. Usado tanto pelos 3
+  /// métodos de leitura pontual (`lerFrequenciaCardiacaRecente`/
+  /// `lerPesoRecente`/`lerSonoRecente` — não gravam nada, [start] é a
+  /// janela exata "últimas 24h"/"7 dias"/"30 dias" que pedem) quanto por
+  /// [_lerEGravar] (que já entra aqui com um [start] alinhado à meia-noite
+  /// local — ver nota lá; este método não faz esse alinhamento sozinho de
+  /// propósito, pra não mudar a janela exata que os 3 métodos de leitura
+  /// pontual pedem).
   Future<HealthSyncResult> _lerComPermissao(
     List<HealthDataType> types, {
-    int? dias,
-    DateTime? start,
+    required DateTime start,
   }) async {
     await _configured;
 
@@ -482,35 +458,12 @@ class HealthSyncService {
       }
 
       final now = DateTime.now();
-      final rangeStart = start ?? now.subtract(Duration(days: dias ?? 30));
 
-      // Ver doc de [_tiposComAgregadoNativo]: passos/calorias/sono usam a
-      // consulta agregada por dia do Health Connect (sem double-counting
-      // entre fontes); os demais tipos continuam na leitura crua de
-      // sempre — são sinais pontuais (FC, peso, pressão...), não
-      // cumulativos, e [_mesclarPorDia] já decide como juntá-los (média ou
-      // última leitura).
-      final tiposAgregados =
-          types.where(_tiposComAgregadoNativo.contains).toList();
-      final tiposCrus =
-          types.where((t) => !_tiposComAgregadoNativo.contains(t)).toList();
-
-      final rawPoints = <HealthDataPoint>[];
-      if (tiposCrus.isNotEmpty) {
-        rawPoints.addAll(await _health.getHealthDataFromTypes(
-          types: tiposCrus,
-          startTime: rangeStart,
-          endTime: now,
-        ));
-      }
-      if (tiposAgregados.isNotEmpty) {
-        rawPoints.addAll(await _health.getHealthIntervalDataFromTypes(
-          startDate: rangeStart,
-          endDate: now,
-          types: tiposAgregados,
-          interval: _segundosPorDia,
-        ));
-      }
+      final rawPoints = await _health.getHealthDataFromTypes(
+        types: types,
+        startTime: start,
+        endTime: now,
+      );
 
       final points =
           rawPoints.map(HealthMetricPoint.fromHealthDataPoint).toList();
@@ -701,7 +654,30 @@ class HealthSyncService {
       );
     }
 
-    final leitura = await _lerComPermissao(types, dias: dias, start: start);
+    // CAUSA RAIZ do bug "passos/sono com fuso errado" (RELATÓRIO 20260811,
+    // corrigindo a tentativa anterior do RELATÓRIO 20260810): a consulta
+    // agregada nativa do Health Connect (`getHealthIntervalDataFromTypes`,
+    // `AggregateGroupByDurationRequest` do lado Kotlin) fatiava o período em
+    // blocos de N segundos usando aritmética de `Instant` (UTC/absoluta),
+    // NÃO alinhada à meia-noite do fuso local do aparelho — um bloco de
+    // 86400s começando a qualquer hora que não seja exatamente meia-noite
+    // UTC corta passos da madrugada de um dia junto com a manhã do outro.
+    // Abandonado por completo: de volta para `getHealthDataFromTypes`
+    // (leitura crua) — mas alinhando a janela aqui, só no caminho de
+    // sincronização/gravação (não em [_lerComPermissao] diretamente, para
+    // não mudar a janela exata que os 3 métodos de leitura pontual pedem —
+    // ver doc de [_lerComPermissao]). `DateTime.fromMillisecondsSinceEpoch`
+    // (usado pelo pacote `health` para construir dateFrom/dateTo) já devolve
+    // horário local, então bucketizar por dia em Dart
+    // (`_dataOnly`/`_dataDoSonoLocal` em [_mesclarPorDia]) é correto por
+    // construção — o problema nunca esteve aí, só na fatia nativa em UTC.
+    final agoraParaJanela = DateTime.now();
+    final inicioBruto =
+        start ?? agoraParaJanela.subtract(Duration(days: dias ?? 30));
+    final inicioAlinhado =
+        DateTime(inicioBruto.year, inicioBruto.month, inicioBruto.day);
+
+    final leitura = await _lerComPermissao(types, start: inicioAlinhado);
     if (!leitura.granted) {
       return DeltaSyncResult(
         outcome: DeltaSyncOutcome.permissaoNegada,
@@ -778,22 +754,34 @@ class HealthSyncService {
   /// `metricas_saude_diarias` has a `unique (usuario_id_anonimo,
   /// data_referencia)` constraint a single upsert batch can't violate twice.
   ///
-  /// Três estratégias de junção, uma por natureza de sinal:
-  ///   - **Somados** (passos, distância, calorias ativas, minutos de sono):
-  ///     já chegam aqui como o total agregado por dia do Health Connect
-  ///     (ver [_tiposComAgregadoNativo]/[_lerComPermissao]) — somar os
-  ///     pontos do dia só combina os pedaços não-sobrepostos de uma janela
-  ///     parcial (ex.: delta diário começando no meio do dia), nunca conta
-  ///     em dobro.
+  /// Quatro estratégias de junção, uma por natureza de sinal:
+  ///   - **Maior fonte do dia** (passos, calorias ativas): CORRIGIDO NO
+  ///     RELATÓRIO 20260810/reafirmado no 20260811. Somar todo ponto do dia
+  ///     (como este código fazia antes de qualquer correção) conta em dobro
+  ///     quando mais de uma fonte grava o mesmo intervalo — celular E
+  ///     relógio ambos contando os mesmos passos. Em vez de somar TODAS as
+  ///     fontes, soma cada fonte separadamente e fica com a MAIOR — não com
+  ///     a soma delas. Evita o double-count sem hardcodar o nome de um
+  ///     fabricante específico (Garmin hoje, outro relógio amanhã): duas
+  ///     fontes tentando cobrir o mesmo dia inteiro deveriam relatar totais
+  ///     parecidos — o maior tende a ser o mais completo; era a SOMA que
+  ///     estava errada, não uma fonte específica sendo "a certa".
+  ///   - **Somados por estágio, bucketizados pela manhã do despertar**
+  ///     (sono_leve/profundo/rem/acordado_minutos): CORRIGIDO NESTA TAREFA.
+  ///     Cada estágio já vem granular do Health Connect (ver [todosOsTipos])
+  ///     — soma normalmente dentro do MESMO dia. A parte não-óbvia é QUAL
+  ///     dia: um estágio às 23h de segunda pertence à noite de sono que só
+  ///     termina terça de manhã, não ao "dia de segunda" que `_dataOnly`
+  ///     daria. Ver [_dataDoSonoLocal].
+  ///   - **Somados normais** (distância): não sofre o mesmo double-counting
+  ///     dos passos/calorias na prática (fundador confirmou correta) — sem
+  ///     motivo pra mudar.
   ///   - **Média aritmética** (frequência cardíaca genérica — `fc`, NÃO
-  ///     `fc_repouso`): CORRIGIDO NESTA TAREFA. Antes, `sobrescrever` fazia
-  ///     a última leitura do dia vencer — um valor arbitrário dependente
-  ///     de que horas o Health Connect mandou a amostra por último, não
-  ///     "a FC do dia". Ver RELATÓRIO 20260810.
-  ///   - **Última leitura** (fc_repouso, peso, HRV, pressão, glicose,
-  ///     ...): sinais pontuais/de baixa frequência — somar ou tirar média
-  ///     não faz sentido clínico; a leitura mais recente do dia é o que
-  ///     importa.
+  ///     `fc_repouso`): mesma correção do RELATÓRIO 20260810, inalterada
+  ///     aqui.
+  ///   - **Última leitura** (fc_repouso, peso, HRV, pressão, glicose, ...):
+  ///     sinais pontuais/de baixa frequência — a leitura mais recente do dia
+  ///     é o que importa.
   List<Map<String, dynamic>> _mesclarPorDia(
     String usuarioId,
     List<HealthPayloadModel> payloads,
@@ -801,9 +789,18 @@ class HealthSyncService {
     final porDia = <String, Map<String, dynamic>>{};
     final somaFcPorDia = <String, double>{};
     final contagemFcPorDia = <String, int>{};
+    final passosPorDiaFonte = <String, Map<String, num>>{};
+    final caloriasPorDiaFonte = <String, Map<String, num>>{};
 
     for (final payload in payloads) {
-      final dataReferencia = _dataOnly(payload.dateFrom);
+      final ehSono = payload.sonoLeveMinutos != null ||
+          payload.sonoProfundoMinutos != null ||
+          payload.sonoRemMinutos != null ||
+          payload.sonoAcordadoMinutos != null;
+      final dataReferencia = ehSono
+          ? _dataDoSonoLocal(payload.dateFrom)
+          : _dataOnly(payload.dateFrom);
+
       final linha = porDia.putIfAbsent(
         dataReferencia,
         () => {
@@ -823,10 +820,20 @@ class HealthSyncService {
         linha[coluna] = valor;
       }
 
-      somar('passos', payload.passos);
+      if (payload.passos != null) {
+        final porFonte = passosPorDiaFonte.putIfAbsent(dataReferencia, () => {});
+        porFonte[payload.source] = (porFonte[payload.source] ?? 0) + payload.passos!;
+      }
+      if (payload.caloriasAtivas != null) {
+        final porFonte = caloriasPorDiaFonte.putIfAbsent(dataReferencia, () => {});
+        porFonte[payload.source] =
+            (porFonte[payload.source] ?? 0) + payload.caloriasAtivas!;
+      }
       somar('distancia_metros', payload.distanciaMetros);
-      somar('calorias_ativas', payload.caloriasAtivas);
-      somar('minutos_sono', payload.minutosSono);
+      somar('sono_leve_minutos', payload.sonoLeveMinutos);
+      somar('sono_profundo_minutos', payload.sonoProfundoMinutos);
+      somar('sono_rem_minutos', payload.sonoRemMinutos);
+      somar('sono_acordado_minutos', payload.sonoAcordadoMinutos);
 
       if (payload.frequenciaCardiaca != null) {
         somaFcPorDia[dataReferencia] =
@@ -846,6 +853,21 @@ class HealthSyncService {
       sobrescrever('temperatura_corporal', payload.temperaturaCorporal);
     }
 
+    void aplicarMaiorFonte(
+      Map<String, Map<String, num>> porDiaFonte,
+      String coluna, {
+      required bool arredondar,
+    }) {
+      for (final entry in porDiaFonte.entries) {
+        final maiorFonte = entry.value.values.reduce((a, b) => a > b ? a : b);
+        porDia[entry.key]![coluna] =
+            arredondar ? maiorFonte.round() : maiorFonte;
+      }
+    }
+
+    aplicarMaiorFonte(passosPorDiaFonte, 'passos', arredondar: true);
+    aplicarMaiorFonte(caloriasPorDiaFonte, 'calorias_ativas', arredondar: false);
+
     // Fecha a média de FC por último — precisa de todos os pontos do dia
     // somados antes de dividir pela contagem.
     for (final entry in somaFcPorDia.entries) {
@@ -855,9 +877,44 @@ class HealthSyncService {
           (entry.value / contagem).round();
     }
 
+    // sono_total (coluna minutos_sono, já existente) = ESTRITAMENTE
+    // leve + profundo + REM — nunca soma sono_acordado_minutos (pedido
+    // explícito da tarefa). Só grava a coluna em dias que realmente tiveram
+    // algum estágio de sono lido, mesmo padrão de `somar` (não escreve 0
+    // para um dia sem dado nenhum de sono).
+    for (final linha in porDia.values) {
+      final temSono = linha.containsKey('sono_leve_minutos') ||
+          linha.containsKey('sono_profundo_minutos') ||
+          linha.containsKey('sono_rem_minutos');
+      if (!temSono) continue;
+      final leve = (linha['sono_leve_minutos'] as num?) ?? 0;
+      final profundo = (linha['sono_profundo_minutos'] as num?) ?? 0;
+      final rem = (linha['sono_rem_minutos'] as num?) ?? 0;
+      linha['minutos_sono'] = leve + profundo + rem;
+    }
+
     return porDia.values.toList();
   }
 
   static String _dataOnly(DateTime date) =>
       date.toIso8601String().split('T').first;
+
+  /// Bucketiza um instante de estágio de sono na data (LOCAL) da manhã em
+  /// que a pessoa acordou, não no dia calendário em que o instante caiu.
+  /// Heurística deliberada (documentada, não chutada): sono que começa às
+  /// 15h ou depois pertence à noite que leva à manhã seguinte — cobre o
+  /// padrão comum (dormir à noite, acordar de manhã) sem precisar
+  /// reconstruir a SleepSessionRecord inteira a partir dos estágios
+  /// espalhados que o Health Connect devolve. Sono às 15h ou depois de
+  /// segunda conta para terça; sono entre meia-noite e 15h de terça (o
+  /// resto da mesma noite, já depois da virada) também conta para terça.
+  /// Limitação conhecida, registrada no RELATÓRIO: não modela cochilos à
+  /// tarde nem rotina de trabalho noturno — reavaliar se algum dia isso
+  /// virar um caso real.
+  static String _dataDoSonoLocal(DateTime instante) {
+    final data = instante.hour >= 15
+        ? instante.add(const Duration(days: 1))
+        : instante;
+    return _dataOnly(DateTime(data.year, data.month, data.day));
+  }
 }

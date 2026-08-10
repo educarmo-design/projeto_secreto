@@ -271,7 +271,14 @@ class _LinhaTelemetria extends StatelessWidget {
     _CampoLabel('Peso (kg)', _CampoTipo.pesoKg),
     _CampoLabel('Massa magra (kg)', _CampoTipo.massaMagraKg),
     _CampoLabel('Gordura (%)', _CampoTipo.percentualGordura),
-    _CampoLabel('Sono (min)', _CampoTipo.minutosSono),
+    // Sono total primeiro (o que a maioria quer ver de cara), depois o
+    // detalhamento por estágio — RELATÓRIO 20260811 (decisão de produto:
+    // aproveitar a riqueza de estágios do Garmin).
+    _CampoLabel('Sono total (min)', _CampoTipo.minutosSono),
+    _CampoLabel('Sono leve (min)', _CampoTipo.sonoLeveMinutos),
+    _CampoLabel('Sono profundo (min)', _CampoTipo.sonoProfundoMinutos),
+    _CampoLabel('Sono REM (min)', _CampoTipo.sonoRemMinutos),
+    _CampoLabel('Acordado (min)', _CampoTipo.sonoAcordadoMinutos),
     _CampoLabel('Distância (m)', _CampoTipo.distanciaMetros),
   ];
 
@@ -291,6 +298,14 @@ class _LinhaTelemetria extends StatelessWidget {
         return payload.percentualGordura?.toStringAsFixed(1);
       case _CampoTipo.minutosSono:
         return payload.minutosSono?.toString();
+      case _CampoTipo.sonoLeveMinutos:
+        return payload.sonoLeveMinutos?.toString();
+      case _CampoTipo.sonoProfundoMinutos:
+        return payload.sonoProfundoMinutos?.toString();
+      case _CampoTipo.sonoRemMinutos:
+        return payload.sonoRemMinutos?.toString();
+      case _CampoTipo.sonoAcordadoMinutos:
+        return payload.sonoAcordadoMinutos?.toString();
       case _CampoTipo.distanciaMetros:
         return payload.distanciaMetros?.toStringAsFixed(0);
     }
@@ -352,6 +367,10 @@ enum _CampoTipo {
   massaMagraKg,
   percentualGordura,
   minutosSono,
+  sonoLeveMinutos,
+  sonoProfundoMinutos,
+  sonoRemMinutos,
+  sonoAcordadoMinutos,
   distanciaMetros,
 }
 

@@ -14,6 +14,10 @@ class HealthPayloadModel {
   final double? hrvMedio;
   final double? caloriasAtivas;
   final int? minutosSono;
+  final int? sonoLeveMinutos;
+  final int? sonoProfundoMinutos;
+  final int? sonoRemMinutos;
+  final int? sonoAcordadoMinutos;
   final double? pesoKg;
   final double? massaMagraKg;
   final double? percentualGordura;
@@ -42,6 +46,10 @@ class HealthPayloadModel {
     this.hrvMedio,
     this.caloriasAtivas,
     this.minutosSono,
+    this.sonoLeveMinutos,
+    this.sonoProfundoMinutos,
+    this.sonoRemMinutos,
+    this.sonoAcordadoMinutos,
     this.pesoKg,
     this.massaMagraKg,
     this.percentualGordura,
@@ -114,10 +122,46 @@ class HealthPayloadModel {
           dateTo: dateTo,
           source: source,
         );
-      case HealthDataType.SLEEP_SESSION:
+      // RELATÓRIO 20260811 — sono por estágio granular (decisão de produto:
+      // aproveitar a riqueza do Garmin). SLEEP_SESSION propositalmente NÃO
+      // mapeia aqui: cobre a noite inteira (incluindo acordado), não é um
+      // estágio — ver HealthSyncService.todosOsTipos.
+      case HealthDataType.SLEEP_LIGHT:
+        return HealthPayloadModel(
+          sonoLeveMinutos: value.round(),
+          dateFrom: dateFrom,
+          dateTo: dateTo,
+          source: source,
+        );
+      case HealthDataType.SLEEP_DEEP:
+        return HealthPayloadModel(
+          sonoProfundoMinutos: value.round(),
+          dateFrom: dateFrom,
+          dateTo: dateTo,
+          source: source,
+        );
+      case HealthDataType.SLEEP_REM:
+        return HealthPayloadModel(
+          sonoRemMinutos: value.round(),
+          dateFrom: dateFrom,
+          dateTo: dateTo,
+          source: source,
+        );
+      case HealthDataType.SLEEP_AWAKE:
+        return HealthPayloadModel(
+          sonoAcordadoMinutos: value.round(),
+          dateFrom: dateFrom,
+          dateTo: dateTo,
+          source: source,
+        );
+      // Fallback de dispositivos que só reportam "dormindo" sem quebrar em
+      // estágio (não é o caso do Garmin, mas cobre outras fontes conectadas
+      // ao Health Connect) — soma para sono_leve_minutos em vez de
+      // descartar o dado; não existe uma coluna "genérica" separada (ver
+      // RELATÓRIO 20260811 para a decisão completa).
       case HealthDataType.SLEEP_ASLEEP:
         return HealthPayloadModel(
-          minutosSono: value.round(),
+          sonoLeveMinutos: value.round(),
           dateFrom: dateFrom,
           dateTo: dateTo,
           source: source,
@@ -214,6 +258,10 @@ class HealthPayloadModel {
       hrvMedio: numOrNull('hrv_medio')?.toDouble(),
       caloriasAtivas: numOrNull('calorias_ativas')?.toDouble(),
       minutosSono: numOrNull('minutos_sono')?.round(),
+      sonoLeveMinutos: numOrNull('sono_leve_minutos')?.round(),
+      sonoProfundoMinutos: numOrNull('sono_profundo_minutos')?.round(),
+      sonoRemMinutos: numOrNull('sono_rem_minutos')?.round(),
+      sonoAcordadoMinutos: numOrNull('sono_acordado_minutos')?.round(),
       pesoKg: numOrNull('peso_kg')?.toDouble(),
       massaMagraKg: numOrNull('massa_magra_kg')?.toDouble(),
       percentualGordura: numOrNull('percentual_gordura')?.toDouble(),
@@ -242,6 +290,10 @@ class HealthPayloadModel {
       hrvMedio: asNum('hrv_medio')?.toDouble(),
       caloriasAtivas: asNum('calorias_ativas')?.toDouble(),
       minutosSono: asNum('minutos_sono')?.toInt(),
+      sonoLeveMinutos: asNum('sono_leve_minutos')?.toInt(),
+      sonoProfundoMinutos: asNum('sono_profundo_minutos')?.toInt(),
+      sonoRemMinutos: asNum('sono_rem_minutos')?.toInt(),
+      sonoAcordadoMinutos: asNum('sono_acordado_minutos')?.toInt(),
       pesoKg: asNum('peso_kg')?.toDouble(),
       massaMagraKg: asNum('massa_magra_kg')?.toDouble(),
       percentualGordura: asNum('percentual_gordura')?.toDouble(),
@@ -270,6 +322,12 @@ class HealthPayloadModel {
         if (hrvMedio != null) 'hrv_medio': hrvMedio,
         if (caloriasAtivas != null) 'calorias_ativas': caloriasAtivas,
         if (minutosSono != null) 'minutos_sono': minutosSono,
+        if (sonoLeveMinutos != null) 'sono_leve_minutos': sonoLeveMinutos,
+        if (sonoProfundoMinutos != null)
+          'sono_profundo_minutos': sonoProfundoMinutos,
+        if (sonoRemMinutos != null) 'sono_rem_minutos': sonoRemMinutos,
+        if (sonoAcordadoMinutos != null)
+          'sono_acordado_minutos': sonoAcordadoMinutos,
         if (pesoKg != null) 'peso_kg': pesoKg,
         if (massaMagraKg != null) 'massa_magra_kg': massaMagraKg,
         if (percentualGordura != null) 'percentual_gordura': percentualGordura,
@@ -297,6 +355,13 @@ class HealthPayloadModel {
         if (hrvMedio != null) MapEntry('hrv_medio', hrvMedio!),
         if (caloriasAtivas != null) MapEntry('calorias_ativas', caloriasAtivas!),
         if (minutosSono != null) MapEntry('minutos_sono', minutosSono!),
+        if (sonoLeveMinutos != null)
+          MapEntry('sono_leve_minutos', sonoLeveMinutos!),
+        if (sonoProfundoMinutos != null)
+          MapEntry('sono_profundo_minutos', sonoProfundoMinutos!),
+        if (sonoRemMinutos != null) MapEntry('sono_rem_minutos', sonoRemMinutos!),
+        if (sonoAcordadoMinutos != null)
+          MapEntry('sono_acordado_minutos', sonoAcordadoMinutos!),
         if (pesoKg != null) MapEntry('peso_kg', pesoKg!),
         if (massaMagraKg != null) MapEntry('massa_magra_kg', massaMagraKg!),
         if (percentualGordura != null)

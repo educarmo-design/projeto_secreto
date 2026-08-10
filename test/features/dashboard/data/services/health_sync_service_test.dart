@@ -120,16 +120,6 @@ void main() {
         endTime: any(named: 'endTime'),
       ),
     ).thenAnswer((_) async => <HealthDataPoint>[]);
-    // Passos/calorias ativas/sono (SLEEP_ASLEEP) saem por aqui agora — ver
-    // HealthSyncService._tiposComAgregadoNativo (RELATÓRIO 20260810).
-    when(
-      () => health.getHealthIntervalDataFromTypes(
-        startDate: any(named: 'startDate'),
-        endDate: any(named: 'endDate'),
-        types: any(named: 'types'),
-        interval: any(named: 'interval'),
-      ),
-    ).thenAnswer((_) async => <HealthDataPoint>[]);
 
     when(() => supabase.auth).thenReturn(auth);
     when(() => auth.currentUser).thenReturn(_usuarioAutenticado);
@@ -186,23 +176,41 @@ void main() {
       verifyNever(() => metricasBuilder.upsert(any(), onConflict: any(named: 'onConflict')));
     });
 
-    test('mescla passos (agregado), fc (mÃ©dia) e fc_repouso do mesmo dia em uma Ãºnica linha e sincroniza', () async {
+    test('passos: fica com a MAIOR fonte do dia, não a soma de celular+relógio', () async {
       final hoje = DateTime(2026, 7, 8, 10);
-      // Passos: vem de UM ponto só do agregado nativo (Health Connect já
-      // fundiu as fontes do lado do SO) — não é mais soma de vários
-      // registros brutos (ver RELATÓRIO 20260810).
       when(
-        () => health.getHealthIntervalDataFromTypes(
-          startDate: any(named: 'startDate'),
-          endDate: any(named: 'endDate'),
+        () => health.getHealthDataFromTypes(
           types: any(named: 'types'),
-          interval: any(named: 'interval'),
+          startTime: any(named: 'startTime'),
+          endTime: any(named: 'endTime'),
         ),
       ).thenAnswer(
         (_) async => [
-          _ponto(type: HealthDataType.STEPS, value: 4200, dateFrom: hoje),
+          // Celular e relógio ambos tentando cobrir o dia inteiro — o
+          // total certo é 4200 (o maior), NUNCA 4200+3900=8100 (a soma).
+          // CORRIGIDO NESTA TAREFA — ver RELATÓRIO 20260811.
+          _ponto(
+            type: HealthDataType.STEPS,
+            value: 4200,
+            dateFrom: hoje,
+            sourceName: 'Garmin Connect',
+          ),
+          _ponto(
+            type: HealthDataType.STEPS,
+            value: 3900,
+            dateFrom: hoje,
+            sourceName: 'Health Connect',
+          ),
         ],
       );
+
+      final resultado = await service.sincronizarDeltaDiario();
+
+      expect(resultado.linhas.single['passos'], 4200);
+    });
+
+    test('mescla fc (mÃ©dia) e fc_repouso do mesmo dia em uma Ãºnica linha e sincroniza', () async {
+      final hoje = DateTime(2026, 7, 8, 10);
       when(
         () => health.getHealthDataFromTypes(
           types: any(named: 'types'),
@@ -213,7 +221,7 @@ void main() {
         (_) async => [
           // FC genérica: 3 leituras no dia — vira MÉDIA aritmética
           // ((70+80+90)/3 = 80), não a última (que seria 90). CORRIGIDO
-          // NESTA TAREFA — ver RELATÓRIO.
+          // NA TAREFA ANTERIOR — ver RELATÓRIO 20260810.
           _ponto(type: HealthDataType.HEART_RATE, value: 70, dateFrom: hoje),
           _ponto(
             type: HealthDataType.HEART_RATE,
@@ -246,7 +254,6 @@ void main() {
       expect(resultado.linhas, hasLength(1));
       final linha = resultado.linhas.single;
       expect(linha['usuario_id_anonimo'], _usuarioId);
-      expect(linha['passos'], 4200);
       expect(linha['frequencia_cardiaca'], 80);
       expect(linha['fc_repouso'], 58);
       expect(linha['massa_magra_kg'], 62.5);
@@ -257,6 +264,93 @@ void main() {
         ),
       ).called(1);
       expect(await service.obterUltimaSincronizacao(), resultado.sincronizadoEm);
+    });
+
+    test('sono: soma leve+profundo+rem no total, EXCLUI acordado, bucketiza pela manhã do despertar', () async {
+      // Sessão de sono que começa às 23h de 8/jul e termina de manhã em
+      // 9/jul — TODOS os estágios devem cair no dia 9/jul (a manhã em que
+      // a pessoa acordou), mesmo o estágio que começa antes da meia-noite.
+      final inicioNoite = DateTime(2026, 7, 8, 23); // 23h de 8/jul
+      final madrugada = DateTime(2026, 7, 9, 1); // 1h de 9/jul (mesma noite)
+
+      when(
+        () => health.getHealthDataFromTypes(
+          types: any(named: 'types'),
+          startTime: any(named: 'startTime'),
+          endTime: any(named: 'endTime'),
+        ),
+      ).thenAnswer(
+        // dateTo obrigatório aqui: o pacote `health` recalcula o `value` de
+        // tipos de estágio de sono a partir de (dateTo - dateFrom) em
+        // minutos, no PRÓPRIO construtor de HealthDataPoint — ignora
+        // qualquer NumericHealthValue passado (ver health_data_point.dart,
+        // _convertMinutes()). Sem dateTo explícito, dateTo==dateFrom e todo
+        // valor sai 0.
+        (_) async => [
+          _ponto(
+            type: HealthDataType.SLEEP_LIGHT,
+            value: 0,
+            dateFrom: inicioNoite,
+            dateTo: inicioNoite.add(const Duration(minutes: 200)),
+          ),
+          _ponto(
+            type: HealthDataType.SLEEP_DEEP,
+            value: 0,
+            dateFrom: madrugada,
+            dateTo: madrugada.add(const Duration(minutes: 90)),
+          ),
+          _ponto(
+            type: HealthDataType.SLEEP_REM,
+            value: 0,
+            dateFrom: madrugada,
+            dateTo: madrugada.add(const Duration(minutes: 60)),
+          ),
+          _ponto(
+            type: HealthDataType.SLEEP_AWAKE,
+            value: 0,
+            dateFrom: madrugada,
+            dateTo: madrugada.add(const Duration(minutes: 15)),
+          ),
+        ],
+      );
+
+      final resultado = await service.sincronizarDeltaDiario();
+
+      expect(resultado.linhas, hasLength(1));
+      final linha = resultado.linhas.single;
+      expect(linha['data_referencia'], '2026-07-09',
+          reason: 'estágio de 23h de 8/jul deve bucketizar para a manhã de 9/jul, não para 8/jul');
+      expect(linha['sono_leve_minutos'], 200);
+      expect(linha['sono_profundo_minutos'], 90);
+      expect(linha['sono_rem_minutos'], 60);
+      expect(linha['sono_acordado_minutos'], 15);
+      expect(linha['minutos_sono'], 350, reason: '200+90+60, SEM os 15min de acordado');
+    });
+
+    test('SLEEP_ASLEEP (fallback sem estágio granular) soma para sono_leve_minutos', () async {
+      final hoje = DateTime(2026, 7, 8, 10); // antes das 15h: fica no próprio dia
+      when(
+        () => health.getHealthDataFromTypes(
+          types: any(named: 'types'),
+          startTime: any(named: 'startTime'),
+          endTime: any(named: 'endTime'),
+        ),
+      ).thenAnswer(
+        (_) async => [
+          _ponto(
+            type: HealthDataType.SLEEP_ASLEEP,
+            value: 0,
+            dateFrom: hoje,
+            dateTo: hoje.add(const Duration(minutes: 300)),
+          ),
+        ],
+      );
+
+      final resultado = await service.sincronizarDeltaDiario();
+
+      final linha = resultado.linhas.single;
+      expect(linha['sono_leve_minutos'], 300);
+      expect(linha['minutos_sono'], 300);
     });
 
     group('Caixa Preta â€” detecÃ§Ã£o de anomalias', () {
@@ -411,80 +505,72 @@ void main() {
     });
   });
 
-  group('divisão agregado nativo vs. leitura crua (RELATÓRIO 20260810)', () {
-    // Trava a causa raiz dos bugs de passos/calorias/sono duplicados: os 3
-    // tipos com agregado nativo do Health Connect saem por
-    // getHealthIntervalDataFromTypes, nunca por getHealthDataFromTypes
-    // (que soma registro por registro e pode contar em dobro entre
-    // fontes). Os demais tipos seguem no caminho cru de sempre.
-    test('STEPS/ACTIVE_ENERGY_BURNED/SLEEP_ASLEEP vão só para getHealthIntervalDataFromTypes', () async {
+  group('leitura crua alinhada ao fuso local (RELATÓRIO 20260811)', () {
+    // Trava a causa raiz do bug "passos/sono com corte em UTC": a consulta
+    // agregada nativa (getHealthIntervalDataFromTypes) foi abandonada por
+    // completo — todo tipo, incluindo STEPS/ACTIVE_ENERGY_BURNED/estágios
+    // de sono, volta a sair por getHealthDataFromTypes (leitura crua), com
+    // a janela alinhada à meia-noite LOCAL, não a um instante qualquer.
+    test('nunca chama getHealthIntervalDataFromTypes (método abandonado)', () async {
       await service.sincronizarDeltaDiario();
 
-      final tiposAgregados = verify(
+      verifyNever(
         () => health.getHealthIntervalDataFromTypes(
           startDate: any(named: 'startDate'),
           endDate: any(named: 'endDate'),
-          types: captureAny(named: 'types'),
+          types: any(named: 'types'),
           interval: any(named: 'interval'),
         ),
-      ).captured.single as List<HealthDataType>;
-
-      expect(tiposAgregados, containsAll([
-        HealthDataType.STEPS,
-        HealthDataType.ACTIVE_ENERGY_BURNED,
-        HealthDataType.SLEEP_ASLEEP,
-      ]));
-
-      final tiposCrus = verify(
-        () => health.getHealthDataFromTypes(
-          types: captureAny(named: 'types'),
-          startTime: any(named: 'startTime'),
-          endTime: any(named: 'endTime'),
-        ),
-      ).captured.single as List<HealthDataType>;
-
-      expect(tiposCrus, isNot(contains(HealthDataType.STEPS)));
-      expect(tiposCrus, isNot(contains(HealthDataType.ACTIVE_ENERGY_BURNED)));
-      expect(tiposCrus, isNot(contains(HealthDataType.SLEEP_ASLEEP)));
-      expect(tiposCrus, contains(HealthDataType.HEART_RATE));
+      );
     });
 
     test('SLEEP_SESSION nunca é pedida pela sincronização automática (só lerSonoRecente pede, sob demanda)', () async {
       await service.sincronizarDeltaDiario();
 
-      final tiposCrus = verify(
+      final tipos = verify(
         () => health.getHealthDataFromTypes(
           types: captureAny(named: 'types'),
           startTime: any(named: 'startTime'),
           endTime: any(named: 'endTime'),
         ),
       ).captured.single as List<HealthDataType>;
-      final tiposAgregados = verify(
-        () => health.getHealthIntervalDataFromTypes(
-          startDate: any(named: 'startDate'),
-          endDate: any(named: 'endDate'),
-          types: captureAny(named: 'types'),
-          interval: any(named: 'interval'),
-        ),
-      ).captured.single as List<HealthDataType>;
 
-      expect(tiposCrus, isNot(contains(HealthDataType.SLEEP_SESSION)));
-      expect(tiposAgregados, isNot(contains(HealthDataType.SLEEP_SESSION)));
+      expect(tipos, isNot(contains(HealthDataType.SLEEP_SESSION)));
+      expect(tipos, containsAll([
+        HealthDataType.SLEEP_LIGHT,
+        HealthDataType.SLEEP_DEEP,
+        HealthDataType.SLEEP_REM,
+        HealthDataType.SLEEP_AWAKE,
+        HealthDataType.SLEEP_ASLEEP,
+      ]));
     });
 
-    test('intervalo do agregado é exatamente 1 dia (86400s)', () async {
+    test('janela de início é a meia-noite LOCAL do dia, não um instante do meio do dia', () async {
+      // Cursor de última sincronização às 14h32 de um dia — a consulta ao
+      // Health Connect deve começar às 00:00:00 desse MESMO dia, não às
+      // 14h32 (senão passos da manhã, antes do cursor, ficariam de fora
+      // da janela — e, mais grave, uma consulta não alinhada à meia-noite
+      // é o que causava o corte incorreto em fuso pela API agregada).
+      final cursorMeioDoDia = DateTime(2026, 7, 8, 14, 32);
+      await secureStorage.write(
+        key: 'last_sync_timestamp',
+        value: cursorMeioDoDia.toIso8601String(),
+      );
+
       await service.sincronizarDeltaDiario();
 
       final captured = verify(
-        () => health.getHealthIntervalDataFromTypes(
-          startDate: any(named: 'startDate'),
-          endDate: any(named: 'endDate'),
+        () => health.getHealthDataFromTypes(
           types: any(named: 'types'),
-          interval: captureAny(named: 'interval'),
+          startTime: captureAny(named: 'startTime'),
+          endTime: any(named: 'endTime'),
         ),
       ).captured;
+      final startTime = captured.single as DateTime;
 
-      expect(captured.single, 24 * 60 * 60);
+      expect(startTime, DateTime(2026, 7, 8));
+      expect(startTime.hour, 0);
+      expect(startTime.minute, 0);
     });
   });
 
@@ -541,15 +627,14 @@ void main() {
         () => metricasBuilder.upsert(any(), onConflict: any(named: 'onConflict')),
       ).called(1);
     });
-    test('lê 30 dias por padrão, mescla por dia (passos via agregado) e persiste via upsert', () async {
+    test('lê 30 dias por padrão, mescla por dia e persiste via upsert', () async {
       final dia1 = DateTime(2026, 6, 10, 8);
       final dia2 = DateTime(2026, 7, 8, 9);
       when(
-        () => health.getHealthIntervalDataFromTypes(
-          startDate: any(named: 'startDate'),
-          endDate: any(named: 'endDate'),
+        () => health.getHealthDataFromTypes(
           types: any(named: 'types'),
-          interval: any(named: 'interval'),
+          startTime: any(named: 'startTime'),
+          endTime: any(named: 'endTime'),
         ),
       ).thenAnswer(
         (_) async => [
@@ -572,7 +657,12 @@ void main() {
     });
 
     test('janela padrão de leitura são os últimos 30 dias', () async {
-      final antes = DateTime.now().subtract(const Duration(days: 30));
+      // RELATÓRIO 20260811: a janela é alinhada à meia-noite LOCAL do dia
+      // 30 dias atrás, não a "agora menos 30 dias" cru (que teria a hora
+      // atual, não meia-noite).
+      final trintaDiasAtras = DateTime.now().subtract(const Duration(days: 30));
+      final meiaNoiteEsperada =
+          DateTime(trintaDiasAtras.year, trintaDiasAtras.month, trintaDiasAtras.day);
 
       await service.carregarHistoricoInicial();
 
@@ -585,8 +675,7 @@ void main() {
       ).captured;
       final startTime = captured.single as DateTime;
 
-      expect(startTime.isAfter(antes.subtract(const Duration(seconds: 5))), isTrue);
-      expect(startTime.isBefore(DateTime.now()), isTrue);
+      expect(startTime, meiaNoiteEsperada);
     });
 
     test('permissão negada não escreve nada e devolve permissaoNegada', () async {
