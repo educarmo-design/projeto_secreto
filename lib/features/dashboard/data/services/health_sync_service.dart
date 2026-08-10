@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -261,6 +262,12 @@ class HealthSyncService {
     // N17/N18: massa magra — nenhum HealthDataType cobria este sinal antes.
     HealthDataType.LEAN_BODY_MASS,
     HealthDataType.BODY_FAT_PERCENTAGE,
+    // RELATÓRIO 20260810_0003 (spike) mapeou os dois como disponíveis no
+    // Android/Health Connect — água corporal (balanças de bioimpedância) e
+    // IMC (só quando o dispositivo/app de origem já publica pronto; senão
+    // [_aplicarInferenciasCruzadas] calcula depois do merge por dia).
+    HealthDataType.BODY_WATER_MASS,
+    HealthDataType.BODY_MASS_INDEX,
     HealthDataType.BLOOD_PRESSURE_SYSTOLIC,
     HealthDataType.BLOOD_PRESSURE_DIASTOLIC,
     HealthDataType.BLOOD_GLUCOSE,
@@ -479,6 +486,20 @@ class HealthSyncService {
     }
   }
 
+  /// ⚠️ ACHADO REGULATÓRIO (RELATÓRIO desta tarefa, N17/N18 — não corrigido
+  /// aqui, fora do escopo/ARQUIVOS pedidos): a restrição desta tarefa diz
+  /// "Fica ESTRITAMENTE PROIBIDA a implementação de detecção de anomalias
+  /// cardíacas (eventos de FC fora do normal). Isso pertence ao Motor
+  /// Clínico (F02), que está no Backlog." Este método FAZ EXATAMENTE ISSO
+  /// para FC (`frequencia_cardiaca_fora_faixa`, ver abaixo) — já existia
+  /// antes desta tarefa (Adendo v5.1, "Caixa Preta"), não foi criado por
+  /// mim. Nenhum código NOVO desta tarefa adiciona lógica de anomalia — só
+  /// grava métricas absolutas (média/máxima/repouso/HRV), como pedido. Não
+  /// removi/desliguei esta detecção pré-existente unilateralmente: é uma
+  /// mudança de escopo maior (a "Caixa Preta" também alimenta o Módulo de
+  /// Inteligência, ver doc de [EventoAnomaliaSaude.fromJson]) que precisa de
+  /// decisão explícita do fundador — ver RELATÓRIO/resposta desta tarefa.
+  ///
   /// Scans freshly-synced [points] for readings outside a safe clinical
   /// range — a heart-rate spike/drop while no workout is in progress, or a
   /// critical glucose/blood-pressure reading — and writes each one found as
@@ -697,6 +718,7 @@ class HealthSyncService {
     }
 
     final linhas = _mesclarPorDia(usuarioId, payloads);
+    await _aplicarInferenciasCruzadas(usuarioId, linhas);
     final envio = await _enviarLinhas(linhas);
 
     if (envio == DeltaSyncOutcome.sucesso) {
@@ -789,6 +811,7 @@ class HealthSyncService {
     final porDia = <String, Map<String, dynamic>>{};
     final somaFcPorDia = <String, double>{};
     final contagemFcPorDia = <String, int>{};
+    final maximaFcPorDia = <String, int>{};
     final passosPorDiaFonte = <String, Map<String, num>>{};
     final caloriasPorDiaFonte = <String, Map<String, num>>{};
 
@@ -836,16 +859,24 @@ class HealthSyncService {
       somar('sono_acordado_minutos', payload.sonoAcordadoMinutos);
 
       if (payload.frequenciaCardiaca != null) {
-        somaFcPorDia[dataReferencia] =
-            (somaFcPorDia[dataReferencia] ?? 0) + payload.frequenciaCardiaca!;
+        final valor = payload.frequenciaCardiaca!;
+        somaFcPorDia[dataReferencia] = (somaFcPorDia[dataReferencia] ?? 0) + valor;
         contagemFcPorDia[dataReferencia] =
             (contagemFcPorDia[dataReferencia] ?? 0) + 1;
+        // fc_maxima: SÓ o maior valor absoluto do dia — nenhuma lógica de
+        // limite/faixa/evento aqui (Parte 5/BL.1, ver doc de
+        // _detectarEregistrarAnomalias). É a mesma fonte de dado
+        // (HEART_RATE) que já alimenta a média, não uma leitura à parte.
+        maximaFcPorDia[dataReferencia] =
+            math.max(valor, maximaFcPorDia[dataReferencia] ?? valor);
       }
       sobrescrever('fc_repouso', payload.fcRepouso);
       sobrescrever('hrv_medio', payload.hrvMedio);
       sobrescrever('peso_kg', payload.pesoKg);
       sobrescrever('massa_magra_kg', payload.massaMagraKg);
       sobrescrever('percentual_gordura', payload.percentualGordura);
+      sobrescrever('agua_corporal', payload.aguaCorporalKg);
+      sobrescrever('imc', payload.imc);
       sobrescrever('pressao_sistolica', payload.pressaoSistolica);
       sobrescrever('pressao_diastolica', payload.pressaoDiastolica);
       sobrescrever('glicose_jejum', payload.glicoseJejum);
@@ -868,13 +899,14 @@ class HealthSyncService {
     aplicarMaiorFonte(passosPorDiaFonte, 'passos', arredondar: true);
     aplicarMaiorFonte(caloriasPorDiaFonte, 'calorias_ativas', arredondar: false);
 
-    // Fecha a média de FC por último — precisa de todos os pontos do dia
-    // somados antes de dividir pela contagem.
+    // Fecha média e máxima de FC por último — precisa de todos os pontos do
+    // dia somados/comparados antes de dividir pela contagem.
     for (final entry in somaFcPorDia.entries) {
       final dataReferencia = entry.key;
       final contagem = contagemFcPorDia[dataReferencia]!;
       porDia[dataReferencia]!['frequencia_cardiaca'] =
           (entry.value / contagem).round();
+      porDia[dataReferencia]!['fc_maxima'] = maximaFcPorDia[dataReferencia];
     }
 
     // sono_total (coluna minutos_sono, já existente) = ESTRITAMENTE
@@ -894,6 +926,81 @@ class HealthSyncService {
     }
 
     return porDia.values.toList();
+  }
+
+  /// Inferência cruzada de balança/composição corporal — decisão do
+  /// fundador (RELATÓRIO desta tarefa), roda DEPOIS de [_mesclarPorDia]
+  /// porque precisa dos valores já consolidados por dia (peso/percentual/
+  /// massa magra podem ter vindo de payloads/pontos diferentes dentro do
+  /// mesmo dia; só faz sentido inferir sobre o que sobrou depois do merge).
+  ///
+  /// Duas equações, cada uma só preenche o que está faltando (nunca
+  /// sobrescreve um valor que o Health Connect já mandou):
+  ///   massaMagra = peso × (1 − percentual/100)
+  ///   percentual = (1 − massaMagra/peso) × 100
+  ///
+  /// IMC: se [_mesclarPorDia] já não preencheu `imc` (Health Connect não
+  /// entregou `BODY_MASS_INDEX` pronto naquele dia) e há peso, busca a
+  /// altura em `perfis_usuarios.altura_cm` — UMA vez por chamada (mesmo
+  /// usuário em todas as linhas de um sync), não uma vez por dia — e
+  /// calcula `imc = peso / altura_m²`. Sem altura cadastrada (coluna nova,
+  /// nullable, sem UI de preenchimento ainda — ver RELATÓRIO), o IMC
+  /// simplesmente fica de fora daquele dia; não é erro.
+  Future<void> _aplicarInferenciasCruzadas(
+    String usuarioId,
+    List<Map<String, dynamic>> linhas,
+  ) async {
+    double? alturaMetros;
+    var alturaJaBuscada = false;
+
+    for (final linha in linhas) {
+      final peso = (linha['peso_kg'] as num?)?.toDouble();
+      final percentual = (linha['percentual_gordura'] as num?)?.toDouble();
+      final massaMagra = (linha['massa_magra_kg'] as num?)?.toDouble();
+
+      if (peso != null && peso > 0) {
+        if (percentual != null && massaMagra == null) {
+          linha['massa_magra_kg'] =
+              double.parse((peso * (1 - percentual / 100)).toStringAsFixed(2));
+        } else if (massaMagra != null && percentual == null) {
+          linha['percentual_gordura'] =
+              double.parse(((1 - massaMagra / peso) * 100).toStringAsFixed(2));
+        }
+      }
+
+      if (linha['imc'] == null && peso != null && peso > 0) {
+        if (!alturaJaBuscada) {
+          alturaMetros = await _buscarAlturaMetros(usuarioId);
+          alturaJaBuscada = true;
+        }
+        if (alturaMetros != null && alturaMetros > 0) {
+          linha['imc'] = double.parse(
+            (peso / (alturaMetros * alturaMetros)).toStringAsFixed(1),
+          );
+        }
+      }
+    }
+  }
+
+  /// Busca `perfis_usuarios.altura_cm` (migration desta tarefa) e converte
+  /// para metros. `null` tanto para "coluna vazia" quanto para qualquer
+  /// falha de rede/RLS — best-effort, mesmo espírito de
+  /// [_garantirPermissaoHistorico]: a ausência de altura não pode derrubar
+  /// a sincronização, só significa que o IMC daquele sync fica sem cálculo.
+  Future<double?> _buscarAlturaMetros(String usuarioId) async {
+    try {
+      final resposta = await _supabase
+          .from('perfis_usuarios')
+          .select('altura_cm')
+          .eq('id', usuarioId)
+          .maybeSingle();
+      final alturaCm = (resposta?['altura_cm'] as num?)?.toDouble();
+      if (alturaCm == null || alturaCm <= 0) return null;
+      return alturaCm / 100;
+    } catch (e) {
+      debugPrint('HealthSyncService: falha ao buscar altura do perfil: $e');
+      return null;
+    }
   }
 
   static String _dataOnly(DateTime date) =>

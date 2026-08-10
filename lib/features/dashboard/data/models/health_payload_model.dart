@@ -21,6 +21,8 @@ class HealthPayloadModel {
   final double? pesoKg;
   final double? massaMagraKg;
   final double? percentualGordura;
+  final double? aguaCorporalKg;
+  final double? imc;
   final int? pressaoSistolica;
   final int? pressaoDiastolica;
   final double? glicoseJejum;
@@ -53,6 +55,8 @@ class HealthPayloadModel {
     this.pesoKg,
     this.massaMagraKg,
     this.percentualGordura,
+    this.aguaCorporalKg,
+    this.imc,
     this.pressaoSistolica,
     this.pressaoDiastolica,
     this.glicoseJejum,
@@ -188,6 +192,28 @@ class HealthPayloadModel {
           dateTo: dateTo,
           source: source,
         );
+      // Balança/composição corporal — spike RELATÓRIO 20260810_0003 mapeou
+      // os dois como disponíveis no Android/Health Connect via este pacote.
+      case HealthDataType.BODY_WATER_MASS:
+        return HealthPayloadModel(
+          aguaCorporalKg: value,
+          dateFrom: dateFrom,
+          dateTo: dateTo,
+          source: source,
+        );
+      // Só populado quando o próprio Health Connect entrega o IMC pronto
+      // (algumas balanças calculam e publicam). Quando ausente,
+      // HealthSyncService._aplicarInferenciasCruzadas infere a partir de
+      // peso_kg/altura_cm depois do merge por dia — não aqui, porque esse
+      // cálculo precisa do peso do MESMO DIA já consolidado, não de um
+      // payload de ponto isolado.
+      case HealthDataType.BODY_MASS_INDEX:
+        return HealthPayloadModel(
+          imc: value,
+          dateFrom: dateFrom,
+          dateTo: dateTo,
+          source: source,
+        );
       case HealthDataType.BLOOD_PRESSURE_SYSTOLIC:
         return HealthPayloadModel(
           pressaoSistolica: value.round(),
@@ -265,6 +291,8 @@ class HealthPayloadModel {
       pesoKg: numOrNull('peso_kg')?.toDouble(),
       massaMagraKg: numOrNull('massa_magra_kg')?.toDouble(),
       percentualGordura: numOrNull('percentual_gordura')?.toDouble(),
+      aguaCorporalKg: numOrNull('agua_corporal')?.toDouble(),
+      imc: numOrNull('imc')?.toDouble(),
       pressaoSistolica: numOrNull('pressao_sistolica')?.round(),
       pressaoDiastolica: numOrNull('pressao_diastolica')?.round(),
       glicoseJejum: numOrNull('glicose_jejum')?.toDouble(),
@@ -297,6 +325,8 @@ class HealthPayloadModel {
       pesoKg: asNum('peso_kg')?.toDouble(),
       massaMagraKg: asNum('massa_magra_kg')?.toDouble(),
       percentualGordura: asNum('percentual_gordura')?.toDouble(),
+      aguaCorporalKg: asNum('agua_corporal')?.toDouble(),
+      imc: asNum('imc')?.toDouble(),
       pressaoSistolica: asNum('pressao_sistolica')?.toInt(),
       pressaoDiastolica: asNum('pressao_diastolica')?.toInt(),
       glicoseJejum: asNum('glicose_jejum')?.toDouble(),
@@ -331,6 +361,8 @@ class HealthPayloadModel {
         if (pesoKg != null) 'peso_kg': pesoKg,
         if (massaMagraKg != null) 'massa_magra_kg': massaMagraKg,
         if (percentualGordura != null) 'percentual_gordura': percentualGordura,
+        if (aguaCorporalKg != null) 'agua_corporal': aguaCorporalKg,
+        if (imc != null) 'imc': imc,
         if (pressaoSistolica != null) 'pressao_sistolica': pressaoSistolica,
         if (pressaoDiastolica != null) 'pressao_diastolica': pressaoDiastolica,
         if (glicoseJejum != null) 'glicose_jejum': glicoseJejum,
@@ -366,6 +398,8 @@ class HealthPayloadModel {
         if (massaMagraKg != null) MapEntry('massa_magra_kg', massaMagraKg!),
         if (percentualGordura != null)
           MapEntry('percentual_gordura', percentualGordura!),
+        if (aguaCorporalKg != null) MapEntry('agua_corporal', aguaCorporalKg!),
+        if (imc != null) MapEntry('imc', imc!),
         if (pressaoSistolica != null)
           MapEntry('pressao_sistolica', pressaoSistolica!),
         if (pressaoDiastolica != null)

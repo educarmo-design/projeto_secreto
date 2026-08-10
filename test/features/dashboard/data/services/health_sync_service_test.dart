@@ -35,6 +35,40 @@ class _FakeFilterBuilder<T> extends Fake implements PostgrestFilterBuilder<T> {
   }) => _future.then(onValue, onError: onError);
 }
 
+/// Encadeamento falso de `.select('altura_cm').eq('id', usuarioId).maybeSingle()`
+/// — usado só por [HealthSyncService._buscarAlturaMetros] (inferência de
+/// IMC). Duas classes, uma por etapa do builder real (mesmo padrão de
+/// [_FakeFilterBuilder] acima, só que .eq() precisa devolver algo
+/// encadeável e .maybeSingle() troca de tipo — `PostgrestFilterBuilder` ->
+/// `PostgrestTransformBuilder`).
+class _FakeAlturaFilterBuilder extends Fake
+    implements PostgrestFilterBuilder<List<Map<String, dynamic>>> {
+  _FakeAlturaFilterBuilder(this._resultado);
+  final Map<String, dynamic>? _resultado;
+
+  @override
+  PostgrestFilterBuilder<List<Map<String, dynamic>>> eq(
+    String column,
+    Object value,
+  ) => this as PostgrestFilterBuilder<List<Map<String, dynamic>>>;
+
+  @override
+  PostgrestTransformBuilder<Map<String, dynamic>?> maybeSingle() =>
+      _FakeAlturaTransformBuilder(_resultado);
+}
+
+class _FakeAlturaTransformBuilder extends Fake
+    implements PostgrestTransformBuilder<Map<String, dynamic>?> {
+  _FakeAlturaTransformBuilder(this._resultado);
+  final Map<String, dynamic>? _resultado;
+
+  @override
+  Future<R> then<R>(
+    FutureOr<R> Function(Map<String, dynamic>? value) onValue, {
+    Function? onError,
+  }) => Future.value(_resultado).then(onValue, onError: onError);
+}
+
 const _usuarioId = 'user-123';
 const _usuarioAutenticado = User(
   id: _usuarioId,
@@ -80,8 +114,26 @@ void main() {
   late _MockGoTrueClient auth;
   late _MockSupabaseQueryBuilder metricasBuilder;
   late _MockSupabaseQueryBuilder anomaliasBuilder;
+  late _MockSupabaseQueryBuilder perfisBuilder;
   late FakeSecureStorage secureStorage;
   late HealthSyncService service;
+
+  /// Altura cadastrada em `perfis_usuarios.altura_cm` que o mock devolve —
+  /// `null` por padrão (mesma situação da maioria dos usuários hoje: coluna
+  /// nova, sem UI de preenchimento ainda). Testes de IMC-por-inferência
+  /// chamam de novo com um valor real.
+  void stubAltura(double? alturaCm) {
+    // thenAnswer, não thenReturn: _FakeAlturaFilterBuilder implementa Future
+    // (via .then(), mesmo truque de _FakeFilterBuilder) — mocktail recusa
+    // thenReturn com um valor Future-like (mesma pegadinha já documentada
+    // em stubUpsertMetricas acima, mas essa é síncrona então não tinha
+    // batido nela até agora).
+    when(() => perfisBuilder.select(any())).thenAnswer(
+      (_) => _FakeAlturaFilterBuilder(
+        alturaCm == null ? null : {'altura_cm': alturaCm},
+      ),
+    );
+  }
 
   // Takes a factory rather than a ready-made Future: an already-constructed
   // `Future.error(...)` sitting unconsumed across the several intervening
@@ -101,6 +153,7 @@ void main() {
     auth = _MockGoTrueClient();
     metricasBuilder = _MockSupabaseQueryBuilder();
     anomaliasBuilder = _MockSupabaseQueryBuilder();
+    perfisBuilder = _MockSupabaseQueryBuilder();
     secureStorage = FakeSecureStorage();
 
     when(() => health.configure()).thenAnswer((_) async {});
@@ -128,6 +181,12 @@ void main() {
     when(() => anomaliasBuilder.insert(any()))
         .thenAnswer((_) => _FakeFilterBuilder<dynamic>(Future.value(const <Map<String, dynamic>>[])));
     stubUpsertMetricas(() => Future.value(const <Map<String, dynamic>>[]));
+
+    // Inferência cruzada de IMC (RELATÓRIO 20260811130000) — padrão "sem
+    // altura cadastrada" pra não afetar os testes que não são sobre isso;
+    // testes específicos chamam stubAltura(valor) para sobrescrever.
+    when(() => supabase.from('perfis_usuarios')).thenAnswer((_) => perfisBuilder);
+    stubAltura(null);
 
     service = HealthSyncService(
       health: health,
@@ -571,6 +630,185 @@ void main() {
       expect(startTime, DateTime(2026, 7, 8));
       expect(startTime.hour, 0);
       expect(startTime.minute, 0);
+    });
+  });
+
+  group('fc_maxima e balança (RELATÓRIO 20260811130000 — restrição F02: só valores absolutos, sem anomalia)', () {
+    final hoje = DateTime(2026, 7, 8, 10);
+
+    test('fc_maxima: fica com o MAIOR valor bruto de HEART_RATE do dia, não um limite/evento', () async {
+      when(
+        () => health.getHealthDataFromTypes(
+          types: any(named: 'types'),
+          startTime: any(named: 'startTime'),
+          endTime: any(named: 'endTime'),
+        ),
+      ).thenAnswer(
+        (_) async => [
+          _ponto(type: HealthDataType.HEART_RATE, value: 70, dateFrom: hoje),
+          _ponto(
+            type: HealthDataType.HEART_RATE,
+            value: 155,
+            dateFrom: hoje.add(const Duration(hours: 1)),
+          ),
+          _ponto(
+            type: HealthDataType.HEART_RATE,
+            value: 90,
+            dateFrom: hoje.add(const Duration(hours: 2)),
+          ),
+        ],
+      );
+
+      final resultado = await service.sincronizarDeltaDiario();
+
+      final linha = resultado.linhas.single;
+      expect(linha['frequencia_cardiaca'], 105); // média (70+155+90)/3, inalterada
+      expect(linha['fc_maxima'], 155); // NOVO: só o maior valor bruto lido
+    });
+
+    test('agua_corporal: gravado a partir de BODY_WATER_MASS', () async {
+      when(
+        () => health.getHealthDataFromTypes(
+          types: any(named: 'types'),
+          startTime: any(named: 'startTime'),
+          endTime: any(named: 'endTime'),
+        ),
+      ).thenAnswer(
+        (_) async => [
+          _ponto(type: HealthDataType.BODY_WATER_MASS, value: 38.4, dateFrom: hoje),
+        ],
+      );
+
+      final resultado = await service.sincronizarDeltaDiario();
+
+      expect(resultado.linhas.single['agua_corporal'], 38.4);
+    });
+
+    test('imc: quando Health Connect entrega BODY_MASS_INDEX pronto, usa direto e NÃO consulta a altura do perfil', () async {
+      when(
+        () => health.getHealthDataFromTypes(
+          types: any(named: 'types'),
+          startTime: any(named: 'startTime'),
+          endTime: any(named: 'endTime'),
+        ),
+      ).thenAnswer(
+        (_) async => [
+          _ponto(type: HealthDataType.WEIGHT, value: 70, dateFrom: hoje),
+          _ponto(type: HealthDataType.BODY_MASS_INDEX, value: 23.5, dateFrom: hoje),
+        ],
+      );
+
+      final resultado = await service.sincronizarDeltaDiario();
+
+      expect(resultado.linhas.single['imc'], 23.5);
+      verifyNever(() => perfisBuilder.select(any()));
+    });
+
+    test('inferência cruzada: peso + percentual de gordura presentes, massa magra ausente → calcula massa magra', () async {
+      // massaMagra = peso × (1 − percentual/100) = 80 × (1 − 25/100) = 60.0
+      when(
+        () => health.getHealthDataFromTypes(
+          types: any(named: 'types'),
+          startTime: any(named: 'startTime'),
+          endTime: any(named: 'endTime'),
+        ),
+      ).thenAnswer(
+        (_) async => [
+          _ponto(type: HealthDataType.WEIGHT, value: 80, dateFrom: hoje),
+          _ponto(type: HealthDataType.BODY_FAT_PERCENTAGE, value: 25, dateFrom: hoje),
+        ],
+      );
+
+      final resultado = await service.sincronizarDeltaDiario();
+
+      final linha = resultado.linhas.single;
+      expect(linha['percentual_gordura'], 25);
+      expect(linha['massa_magra_kg'], 60.0);
+    });
+
+    test('inferência cruzada: peso + massa magra presentes, percentual ausente → calcula percentual de gordura', () async {
+      // percentual = (1 − massaMagra/peso) × 100 = (1 − 60/80) × 100 = 25.0
+      when(
+        () => health.getHealthDataFromTypes(
+          types: any(named: 'types'),
+          startTime: any(named: 'startTime'),
+          endTime: any(named: 'endTime'),
+        ),
+      ).thenAnswer(
+        (_) async => [
+          _ponto(type: HealthDataType.WEIGHT, value: 80, dateFrom: hoje),
+          _ponto(type: HealthDataType.LEAN_BODY_MASS, value: 60, dateFrom: hoje),
+        ],
+      );
+
+      final resultado = await service.sincronizarDeltaDiario();
+
+      final linha = resultado.linhas.single;
+      expect(linha['massa_magra_kg'], 60);
+      expect(linha['percentual_gordura'], 25.0);
+    });
+
+    test('imc: sem BODY_MASS_INDEX, mas com peso e altura cadastrada no perfil → infere peso/altura²', () async {
+      // imc = 80 / 1.80² = 24.7 (arredondado a 1 casa)
+      stubAltura(180);
+      when(
+        () => health.getHealthDataFromTypes(
+          types: any(named: 'types'),
+          startTime: any(named: 'startTime'),
+          endTime: any(named: 'endTime'),
+        ),
+      ).thenAnswer(
+        (_) async => [
+          _ponto(type: HealthDataType.WEIGHT, value: 80, dateFrom: hoje),
+        ],
+      );
+
+      final resultado = await service.sincronizarDeltaDiario();
+
+      expect(resultado.linhas.single['imc'], 24.7);
+    });
+
+    test('imc: sem BODY_MASS_INDEX e sem altura cadastrada no perfil → fica de fora, não é erro', () async {
+      // stubAltura(null) já é o padrão do setUp — não recadastra nada aqui.
+      when(
+        () => health.getHealthDataFromTypes(
+          types: any(named: 'types'),
+          startTime: any(named: 'startTime'),
+          endTime: any(named: 'endTime'),
+        ),
+      ).thenAnswer(
+        (_) async => [
+          _ponto(type: HealthDataType.WEIGHT, value: 80, dateFrom: hoje),
+        ],
+      );
+
+      final resultado = await service.sincronizarDeltaDiario();
+
+      expect(resultado.outcome, DeltaSyncOutcome.sucesso);
+      expect(resultado.linhas.single['imc'], isNull);
+    });
+
+    test('altura do perfil é buscada UMA única vez por sincronização, mesmo com vários dias precisando de IMC', () async {
+      stubAltura(180);
+      final ontem = hoje.subtract(const Duration(days: 1));
+      when(
+        () => health.getHealthDataFromTypes(
+          types: any(named: 'types'),
+          startTime: any(named: 'startTime'),
+          endTime: any(named: 'endTime'),
+        ),
+      ).thenAnswer(
+        (_) async => [
+          _ponto(type: HealthDataType.WEIGHT, value: 80, dateFrom: hoje),
+          _ponto(type: HealthDataType.WEIGHT, value: 79, dateFrom: ontem),
+        ],
+      );
+
+      final resultado = await service.sincronizarDeltaDiario();
+
+      expect(resultado.linhas, hasLength(2));
+      expect(resultado.linhas.every((linha) => linha['imc'] != null), isTrue);
+      verify(() => perfisBuilder.select(any())).called(1);
     });
   });
 
