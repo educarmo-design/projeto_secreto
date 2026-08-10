@@ -341,10 +341,25 @@
     "mode_senior_label": "Clinical Guardian / Senior",
 
     "manage_links_item": "Professional Invitations",
+    "physical_data_item": "My Physical Data (Height)",
     "heart_rate_test_item": "Test Heart Rate Reading",
     "weight_test_item": "Test Weight Reading",
     "sleep_test_item": "Test Sleep Reading",
     "manual_food_search_item": "Manual Food Search"
+  },
+
+  "perfil_fisico": {
+    "title": "My Physical Data",
+    "subtitle": "Used to calculate your BMI automatically when Health Connect doesn't report height.",
+    "altura_label": "Height (cm)",
+    "altura_hint": "E.g.: 179",
+    "altura_validation_empty": "Enter your height",
+    "altura_validation_invalid": "Numbers only",
+    "altura_validation_range": "Height must be between 50 and 250 cm",
+    "save_button": "Save",
+    "save_success": "Saved successfully",
+    "save_error": "Failed to save. Please try again.",
+    "load_error": "Failed to load your data. Please try again."
   },
 
   "vinculos": {

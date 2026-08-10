@@ -341,10 +341,25 @@
     "mode_senior_label": "Guardián Clínico / Sénior",
 
     "manage_links_item": "Invitaciones de Profesionales",
+    "physical_data_item": "Mis Datos Físicos (Altura)",
     "heart_rate_test_item": "Probar Lectura de Frecuencia Cardíaca",
     "weight_test_item": "Probar Lectura de Peso",
     "sleep_test_item": "Probar Lectura de Sueño",
     "manual_food_search_item": "Búsqueda Manual de Alimentos"
+  },
+
+  "perfil_fisico": {
+    "title": "Mis Datos Físicos",
+    "subtitle": "Se usa para calcular tu IMC automáticamente cuando Health Connect no informa la altura.",
+    "altura_label": "Altura (cm)",
+    "altura_hint": "Ej.: 179",
+    "altura_validation_empty": "Indica tu altura",
+    "altura_validation_invalid": "Solo números",
+    "altura_validation_range": "La altura debe estar entre 50 y 250 cm",
+    "save_button": "Guardar",
+    "save_success": "Guardado con éxito",
+    "save_error": "Error al guardar. Inténtalo de nuevo.",
+    "load_error": "Error al cargar tus datos. Inténtalo de nuevo."
   },
 
   "vinculos": {

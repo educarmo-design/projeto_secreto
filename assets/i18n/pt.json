@@ -341,6 +341,7 @@
     "mode_senior_label": "Guardião Clínico / Sênior",
 
     "manage_links_item": "Convites de Profissionais",
+    "physical_data_item": "Meus Dados Físicos (Altura)",
     "heart_rate_test_item": "Testar Leitura de Frequência Cardíaca",
     "weight_test_item": "Testar Leitura de Peso",
     "sleep_test_item": "Testar Leitura de Sono",
@@ -350,6 +351,20 @@
     "logout_confirm_title": "Confirmar saída",
     "logout_confirm_message": "Deseja realmente sair? Você precisará fazer login novamente.",
     "logout_error": "Erro ao sair. Tente novamente."
+  },
+
+  "perfil_fisico": {
+    "title": "Meus Dados Físicos",
+    "subtitle": "Usado para calcular seu IMC automaticamente quando o Health Connect não informa a altura.",
+    "altura_label": "Altura (cm)",
+    "altura_hint": "Ex.: 179",
+    "altura_validation_empty": "Informe sua altura",
+    "altura_validation_invalid": "Digite só números",
+    "altura_validation_range": "Altura deve estar entre 50 e 250 cm",
+    "save_button": "Salvar",
+    "save_success": "Salvo com sucesso",
+    "save_error": "Erro ao salvar. Tente novamente.",
+    "load_error": "Erro ao carregar seus dados. Tente novamente."
   },
 
   "vinculos": {

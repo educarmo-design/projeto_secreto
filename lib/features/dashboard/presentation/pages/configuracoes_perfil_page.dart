@@ -6,6 +6,7 @@ import '../../../../core/supabase/supabase_client.dart';
 import '../../../auth/models/auth_models.dart' show ProfileUsageType;
 import '../../../nutrition/presentation/pages/manual_food_search_page.dart';
 import '../../../vinculos/presentation/pages/gerir_vinculos_page.dart';
+import 'perfil_usuario_page.dart';
 import 'teste_frequencia_cardiaca_page.dart';
 import 'teste_peso_page.dart';
 import 'teste_sono_page.dart';
@@ -131,6 +132,18 @@ class _ConfiguracoesPerfilPageState extends State<ConfiguracoesPerfilPage> {
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => Navigator.of(context).push(
                     MaterialPageRoute<void>(builder: (_) => const GerirVinculosPage()),
+                  ),
+                ),
+                // RELATÓRIO 20260810_0006 — altura_cm alimenta o cálculo de
+                // IMC em HealthSyncService._buscarAlturaMetros; sem essa
+                // tela o único jeito de preencher era SQL manual.
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.height),
+                  title: Text(i18n.tr('profile.physical_data_item')),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(builder: (_) => const PerfilUsuarioPage()),
                   ),
                 ),
                 ListTile(

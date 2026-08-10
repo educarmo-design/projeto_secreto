@@ -814,6 +814,7 @@ class HealthSyncService {
     final maximaFcPorDia = <String, int>{};
     final passosPorDiaFonte = <String, Map<String, num>>{};
     final caloriasPorDiaFonte = <String, Map<String, num>>{};
+    final distanciaPorDiaFonte = <String, Map<String, num>>{};
 
     for (final payload in payloads) {
       final ehSono = payload.sonoLeveMinutos != null ||
@@ -852,7 +853,17 @@ class HealthSyncService {
         porFonte[payload.source] =
             (porFonte[payload.source] ?? 0) + payload.caloriasAtivas!;
       }
-      somar('distancia_metros', payload.distanciaMetros);
+      // BUG CORRIGIDO NESTA TAREFA (RELATÓRIO 20260810_0006, teste físico do
+      // fundador): distancia_metros ainda usava `somar` (soma pura) — mesmo
+      // double-counting de celular+relógio já corrigido para passos/
+      // calorias. DISTANCE_WALKING_RUNNING e DISTANCE_DELTA (ambos mapeiam
+      // pra este campo, ver HealthPayloadModel.fromHealthDataType) recebem
+      // o mesmo tratamento: maior fonte do dia, nunca a soma entre fontes.
+      if (payload.distanciaMetros != null) {
+        final porFonte = distanciaPorDiaFonte.putIfAbsent(dataReferencia, () => {});
+        porFonte[payload.source] =
+            (porFonte[payload.source] ?? 0) + payload.distanciaMetros!;
+      }
       somar('sono_leve_minutos', payload.sonoLeveMinutos);
       somar('sono_profundo_minutos', payload.sonoProfundoMinutos);
       somar('sono_rem_minutos', payload.sonoRemMinutos);
@@ -898,6 +909,7 @@ class HealthSyncService {
 
     aplicarMaiorFonte(passosPorDiaFonte, 'passos', arredondar: true);
     aplicarMaiorFonte(caloriasPorDiaFonte, 'calorias_ativas', arredondar: false);
+    aplicarMaiorFonte(distanciaPorDiaFonte, 'distancia_metros', arredondar: false);
 
     // Fecha média e máxima de FC por último — precisa de todos os pontos do
     // dia somados/comparados antes de dividir pela contagem.

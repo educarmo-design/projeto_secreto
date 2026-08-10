@@ -268,6 +268,43 @@ void main() {
       expect(resultado.linhas.single['passos'], 4200);
     });
 
+    test('distância: fica com a MAIOR fonte do dia, não a soma de celular+relógio (RELATÓRIO 20260810_0006)', () async {
+      // BUG CONFIRMADO NO TESTE FÍSICO DO FUNDADOR: distancia_metros ainda
+      // somava celular+relógio (double-counting), mesmo bug já corrigido
+      // para passos numa tarefa anterior. Mesmo cenário de sourceName
+      // duplicado, agora para DISTANCE_DELTA/DISTANCE_WALKING_RUNNING —
+      // ambos mapeiam pro mesmo campo (HealthPayloadModel.
+      // fromHealthDataType), então também precisam entrar no mesmo "maior
+      // fonte", não só o mesmo tipo bruto.
+      final hoje = DateTime(2026, 7, 8, 10);
+      when(
+        () => health.getHealthDataFromTypes(
+          types: any(named: 'types'),
+          startTime: any(named: 'startTime'),
+          endTime: any(named: 'endTime'),
+        ),
+      ).thenAnswer(
+        (_) async => [
+          _ponto(
+            type: HealthDataType.DISTANCE_DELTA,
+            value: 5200,
+            dateFrom: hoje,
+            sourceName: 'Garmin Connect',
+          ),
+          _ponto(
+            type: HealthDataType.DISTANCE_WALKING_RUNNING,
+            value: 4800,
+            dateFrom: hoje,
+            sourceName: 'Health Connect',
+          ),
+        ],
+      );
+
+      final resultado = await service.sincronizarDeltaDiario();
+
+      expect(resultado.linhas.single['distancia_metros'], 5200);
+    });
+
     test('mescla fc (mÃ©dia) e fc_repouso do mesmo dia em uma Ãºnica linha e sincroniza', () async {
       final hoje = DateTime(2026, 7, 8, 10);
       when(
