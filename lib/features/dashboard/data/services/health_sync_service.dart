@@ -240,7 +240,16 @@ class HealthSyncService {
     HealthDataType.DISTANCE_WALKING_RUNNING,
     HealthDataType.DISTANCE_DELTA,
     HealthDataType.ACTIVE_ENERGY_BURNED,
-    HealthDataType.SLEEP_SESSION,
+    // CAUSA RAIZ do bug "minutos de sono errados" (RELATÓRIO 20260810):
+    // SLEEP_SESSION removido daqui de propósito. O Health Connect grava UMA
+    // SleepSessionRecord por noite cobrindo bedtime->waketime inteiro
+    // (INCLUINDO qualquer período acordado dentro da sessão); SLEEP_ASLEEP
+    // é o sub-recorte só dos trechos realmente dormidos dentro dessa mesma
+    // sessão. Pedir os dois e somar (como este código fazia antes) contava
+    // a mesma noite duas vezes — uma pelo total da sessão (com acordado
+    // incluso), outra pelo sub-recorte. `lerSonoRecente` (tela de teste
+    // manual, não grava nada) continua pedindo SLEEP_SESSION separadamente,
+    // sem afetar esta lista.
     HealthDataType.SLEEP_ASLEEP,
     HealthDataType.HEART_RATE_VARIABILITY_SDNN,
     HealthDataType.HEART_RATE_VARIABILITY_RMSSD,
@@ -258,6 +267,38 @@ class HealthSyncService {
 
   List<HealthDataType> get _tiposSuportados =>
       todosOsTipos.where(_health.isDataTypeAvailable).toList();
+
+  /// CAUSA RAIZ dos bugs "passos e calorias errados" (RELATÓRIO 20260810):
+  /// pedir estes 3 tipos via [Health.getHealthDataFromTypes] (registro cru
+  /// por leitura) e somar tudo em [_mesclarPorDia] conta em dobro quando
+  /// mais de uma fonte grava o mesmo intervalo — celular E relógio ambos
+  /// contando os mesmos passos, por exemplo. O Health Connect resolve isso
+  /// nativamente com uma consulta agregada por dia
+  /// (`AggregateGroupByDurationRequest`, exposta pelo pacote `health` como
+  /// [Health.getHealthIntervalDataFromTypes]): ele funde as fontes
+  /// sobrepostas do lado do próprio SO em vez de somar registros brutos —
+  /// é a técnica oficial recomendada pela documentação do pacote
+  /// ("Reading total step counts using the getTotalStepsInInterval
+  /// method" / "Reading aggregate health data using the
+  /// getHealthIntervalDataFromTypes... methods").
+  ///
+  /// SLEEP_ASLEEP entra aqui pelo mesmo motivo, mas resolvendo um segundo
+  /// bug: o agregado do Health Connect para este tipo
+  /// (`SleepSessionRecord.SLEEP_DURATION_TOTAL`) já exclui períodos AWAKE
+  /// da sessão — não precisa (nem deve) somar SLEEP_SESSION bruto junto
+  /// (ver nota em [todosOsTipos]).
+  ///
+  /// HEART_RATE fica DE FORA de propósito: o pacote `health` não expõe um
+  /// agregado de "média" para este tipo (só `MEASUREMENTS_COUNT`, uma
+  /// contagem) — a média aritmética das leituras do dia é calculada aqui
+  /// mesmo, em [_mesclarPorDia], a partir dos registros brutos.
+  static const Set<HealthDataType> _tiposComAgregadoNativo = {
+    HealthDataType.STEPS,
+    HealthDataType.ACTIVE_ENERGY_BURNED,
+    HealthDataType.SLEEP_ASLEEP,
+  };
+
+  static const int _segundosPorDia = 24 * 60 * 60;
 
   /// Carga Inicial (N18): reads the complete telemetry history across every
   /// biological/clinical parameter this app tracks — heart rate (both
@@ -442,11 +483,34 @@ class HealthSyncService {
 
       final now = DateTime.now();
       final rangeStart = start ?? now.subtract(Duration(days: dias ?? 30));
-      final rawPoints = await _health.getHealthDataFromTypes(
-        types: types,
-        startTime: rangeStart,
-        endTime: now,
-      );
+
+      // Ver doc de [_tiposComAgregadoNativo]: passos/calorias/sono usam a
+      // consulta agregada por dia do Health Connect (sem double-counting
+      // entre fontes); os demais tipos continuam na leitura crua de
+      // sempre — são sinais pontuais (FC, peso, pressão...), não
+      // cumulativos, e [_mesclarPorDia] já decide como juntá-los (média ou
+      // última leitura).
+      final tiposAgregados =
+          types.where(_tiposComAgregadoNativo.contains).toList();
+      final tiposCrus =
+          types.where((t) => !_tiposComAgregadoNativo.contains(t)).toList();
+
+      final rawPoints = <HealthDataPoint>[];
+      if (tiposCrus.isNotEmpty) {
+        rawPoints.addAll(await _health.getHealthDataFromTypes(
+          types: tiposCrus,
+          startTime: rangeStart,
+          endTime: now,
+        ));
+      }
+      if (tiposAgregados.isNotEmpty) {
+        rawPoints.addAll(await _health.getHealthIntervalDataFromTypes(
+          startDate: rangeStart,
+          endDate: now,
+          types: tiposAgregados,
+          interval: _segundosPorDia,
+        ));
+      }
 
       final points =
           rawPoints.map(HealthMetricPoint.fromHealthDataPoint).toList();
@@ -713,15 +777,30 @@ class HealthSyncService {
   /// [HealthMetricPoint.toPayload] — into one row per calendar day, since
   /// `metricas_saude_diarias` has a `unique (usuario_id_anonimo,
   /// data_referencia)` constraint a single upsert batch can't violate twice.
-  /// Cumulative signals (steps, distance, active calories, sleep minutes)
-  /// are summed across every point that day; point-in-time signals (heart
-  /// rate, HRV, weight, blood pressure, glucose, ...) take the latest
-  /// reading — summing those would be clinically meaningless.
+  ///
+  /// Três estratégias de junção, uma por natureza de sinal:
+  ///   - **Somados** (passos, distância, calorias ativas, minutos de sono):
+  ///     já chegam aqui como o total agregado por dia do Health Connect
+  ///     (ver [_tiposComAgregadoNativo]/[_lerComPermissao]) — somar os
+  ///     pontos do dia só combina os pedaços não-sobrepostos de uma janela
+  ///     parcial (ex.: delta diário começando no meio do dia), nunca conta
+  ///     em dobro.
+  ///   - **Média aritmética** (frequência cardíaca genérica — `fc`, NÃO
+  ///     `fc_repouso`): CORRIGIDO NESTA TAREFA. Antes, `sobrescrever` fazia
+  ///     a última leitura do dia vencer — um valor arbitrário dependente
+  ///     de que horas o Health Connect mandou a amostra por último, não
+  ///     "a FC do dia". Ver RELATÓRIO 20260810.
+  ///   - **Última leitura** (fc_repouso, peso, HRV, pressão, glicose,
+  ///     ...): sinais pontuais/de baixa frequência — somar ou tirar média
+  ///     não faz sentido clínico; a leitura mais recente do dia é o que
+  ///     importa.
   List<Map<String, dynamic>> _mesclarPorDia(
     String usuarioId,
     List<HealthPayloadModel> payloads,
   ) {
     final porDia = <String, Map<String, dynamic>>{};
+    final somaFcPorDia = <String, double>{};
+    final contagemFcPorDia = <String, int>{};
 
     for (final payload in payloads) {
       final dataReferencia = _dataOnly(payload.dateFrom);
@@ -749,8 +828,13 @@ class HealthSyncService {
       somar('calorias_ativas', payload.caloriasAtivas);
       somar('minutos_sono', payload.minutosSono);
 
+      if (payload.frequenciaCardiaca != null) {
+        somaFcPorDia[dataReferencia] =
+            (somaFcPorDia[dataReferencia] ?? 0) + payload.frequenciaCardiaca!;
+        contagemFcPorDia[dataReferencia] =
+            (contagemFcPorDia[dataReferencia] ?? 0) + 1;
+      }
       sobrescrever('fc_repouso', payload.fcRepouso);
-      sobrescrever('frequencia_cardiaca', payload.frequenciaCardiaca);
       sobrescrever('hrv_medio', payload.hrvMedio);
       sobrescrever('peso_kg', payload.pesoKg);
       sobrescrever('massa_magra_kg', payload.massaMagraKg);
@@ -760,6 +844,15 @@ class HealthSyncService {
       sobrescrever('glicose_jejum', payload.glicoseJejum);
       sobrescrever('saturacao_oxigenio', payload.saturacaoOxigenio);
       sobrescrever('temperatura_corporal', payload.temperaturaCorporal);
+    }
+
+    // Fecha a média de FC por último — precisa de todos os pontos do dia
+    // somados antes de dividir pela contagem.
+    for (final entry in somaFcPorDia.entries) {
+      final dataReferencia = entry.key;
+      final contagem = contagemFcPorDia[dataReferencia]!;
+      porDia[dataReferencia]!['frequencia_cardiaca'] =
+          (entry.value / contagem).round();
     }
 
     return porDia.values.toList();

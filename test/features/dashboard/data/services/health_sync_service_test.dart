@@ -120,6 +120,16 @@ void main() {
         endTime: any(named: 'endTime'),
       ),
     ).thenAnswer((_) async => <HealthDataPoint>[]);
+    // Passos/calorias ativas/sono (SLEEP_ASLEEP) saem por aqui agora — ver
+    // HealthSyncService._tiposComAgregadoNativo (RELATÓRIO 20260810).
+    when(
+      () => health.getHealthIntervalDataFromTypes(
+        startDate: any(named: 'startDate'),
+        endDate: any(named: 'endDate'),
+        types: any(named: 'types'),
+        interval: any(named: 'interval'),
+      ),
+    ).thenAnswer((_) async => <HealthDataPoint>[]);
 
     when(() => supabase.auth).thenReturn(auth);
     when(() => auth.currentUser).thenReturn(_usuarioAutenticado);
@@ -176,8 +186,23 @@ void main() {
       verifyNever(() => metricasBuilder.upsert(any(), onConflict: any(named: 'onConflict')));
     });
 
-    test('mescla passos, fc (genÃ©rica) e fc_repouso do mesmo dia em uma Ãºnica linha e sincroniza', () async {
+    test('mescla passos (agregado), fc (mÃ©dia) e fc_repouso do mesmo dia em uma Ãºnica linha e sincroniza', () async {
       final hoje = DateTime(2026, 7, 8, 10);
+      // Passos: vem de UM ponto só do agregado nativo (Health Connect já
+      // fundiu as fontes do lado do SO) — não é mais soma de vários
+      // registros brutos (ver RELATÓRIO 20260810).
+      when(
+        () => health.getHealthIntervalDataFromTypes(
+          startDate: any(named: 'startDate'),
+          endDate: any(named: 'endDate'),
+          types: any(named: 'types'),
+          interval: any(named: 'interval'),
+        ),
+      ).thenAnswer(
+        (_) async => [
+          _ponto(type: HealthDataType.STEPS, value: 4200, dateFrom: hoje),
+        ],
+      );
       when(
         () => health.getHealthDataFromTypes(
           types: any(named: 'types'),
@@ -186,17 +211,22 @@ void main() {
         ),
       ).thenAnswer(
         (_) async => [
-          _ponto(type: HealthDataType.STEPS, value: 3000, dateFrom: hoje),
+          // FC genérica: 3 leituras no dia — vira MÉDIA aritmética
+          // ((70+80+90)/3 = 80), não a última (que seria 90). CORRIGIDO
+          // NESTA TAREFA — ver RELATÓRIO.
+          _ponto(type: HealthDataType.HEART_RATE, value: 70, dateFrom: hoje),
           _ponto(
-            type: HealthDataType.STEPS,
-            value: 1200,
+            type: HealthDataType.HEART_RATE,
+            value: 80,
             dateFrom: hoje.add(const Duration(hours: 1)),
           ),
-          // HEART_RATE (genérica) e RESTING_HEART_RATE são sinais distintos
-          // desde N17/N18 — cada uma vai para sua própria coluna (ver
-          // RELATÓRIO). Antes desta tarefa só existia HEART_RATE, e ela
-          // caía em fc_repouso.
-          _ponto(type: HealthDataType.HEART_RATE, value: 70, dateFrom: hoje),
+          _ponto(
+            type: HealthDataType.HEART_RATE,
+            value: 90,
+            dateFrom: hoje.add(const Duration(hours: 2)),
+          ),
+          // RESTING_HEART_RATE segue "última leitura" — não mudou nesta
+          // tarefa (fundador confirmou fc_repouso correto no teste físico).
           _ponto(
             type: HealthDataType.RESTING_HEART_RATE,
             value: 58,
@@ -217,7 +247,7 @@ void main() {
       final linha = resultado.linhas.single;
       expect(linha['usuario_id_anonimo'], _usuarioId);
       expect(linha['passos'], 4200);
-      expect(linha['frequencia_cardiaca'], 70);
+      expect(linha['frequencia_cardiaca'], 80);
       expect(linha['fc_repouso'], 58);
       expect(linha['massa_magra_kg'], 62.5);
       verify(
@@ -345,7 +375,10 @@ void main() {
           endTime: any(named: 'endTime'),
         ),
       ).thenAnswer(
-        (_) async => [_ponto(type: HealthDataType.STEPS, value: 500, dateFrom: agora)],
+        // WEIGHT (não STEPS): este teste só precisa de QUALQUER ponto não
+        // vazio no caminho cru — STEPS agora sai pelo agregado (ver
+        // RELATÓRIO 20260810), então usar STEPS aqui não testaria nada.
+        (_) async => [_ponto(type: HealthDataType.WEIGHT, value: 70, dateFrom: agora)],
       );
       stubUpsertMetricas(() => Future<dynamic>.error(const SocketException('sem rede')));
 
@@ -365,7 +398,7 @@ void main() {
           endTime: any(named: 'endTime'),
         ),
       ).thenAnswer(
-        (_) async => [_ponto(type: HealthDataType.STEPS, value: 500, dateFrom: agora)],
+        (_) async => [_ponto(type: HealthDataType.WEIGHT, value: 70, dateFrom: agora)],
       );
       stubUpsertMetricas(
         () => Future<dynamic>.error(const PostgrestException(message: 'RLS negou')),
@@ -375,6 +408,83 @@ void main() {
 
       expect(resultado.outcome, DeltaSyncOutcome.erro);
       expect(await service.obterUltimaSincronizacao(), isNull);
+    });
+  });
+
+  group('divisão agregado nativo vs. leitura crua (RELATÓRIO 20260810)', () {
+    // Trava a causa raiz dos bugs de passos/calorias/sono duplicados: os 3
+    // tipos com agregado nativo do Health Connect saem por
+    // getHealthIntervalDataFromTypes, nunca por getHealthDataFromTypes
+    // (que soma registro por registro e pode contar em dobro entre
+    // fontes). Os demais tipos seguem no caminho cru de sempre.
+    test('STEPS/ACTIVE_ENERGY_BURNED/SLEEP_ASLEEP vão só para getHealthIntervalDataFromTypes', () async {
+      await service.sincronizarDeltaDiario();
+
+      final tiposAgregados = verify(
+        () => health.getHealthIntervalDataFromTypes(
+          startDate: any(named: 'startDate'),
+          endDate: any(named: 'endDate'),
+          types: captureAny(named: 'types'),
+          interval: any(named: 'interval'),
+        ),
+      ).captured.single as List<HealthDataType>;
+
+      expect(tiposAgregados, containsAll([
+        HealthDataType.STEPS,
+        HealthDataType.ACTIVE_ENERGY_BURNED,
+        HealthDataType.SLEEP_ASLEEP,
+      ]));
+
+      final tiposCrus = verify(
+        () => health.getHealthDataFromTypes(
+          types: captureAny(named: 'types'),
+          startTime: any(named: 'startTime'),
+          endTime: any(named: 'endTime'),
+        ),
+      ).captured.single as List<HealthDataType>;
+
+      expect(tiposCrus, isNot(contains(HealthDataType.STEPS)));
+      expect(tiposCrus, isNot(contains(HealthDataType.ACTIVE_ENERGY_BURNED)));
+      expect(tiposCrus, isNot(contains(HealthDataType.SLEEP_ASLEEP)));
+      expect(tiposCrus, contains(HealthDataType.HEART_RATE));
+    });
+
+    test('SLEEP_SESSION nunca é pedida pela sincronização automática (só lerSonoRecente pede, sob demanda)', () async {
+      await service.sincronizarDeltaDiario();
+
+      final tiposCrus = verify(
+        () => health.getHealthDataFromTypes(
+          types: captureAny(named: 'types'),
+          startTime: any(named: 'startTime'),
+          endTime: any(named: 'endTime'),
+        ),
+      ).captured.single as List<HealthDataType>;
+      final tiposAgregados = verify(
+        () => health.getHealthIntervalDataFromTypes(
+          startDate: any(named: 'startDate'),
+          endDate: any(named: 'endDate'),
+          types: captureAny(named: 'types'),
+          interval: any(named: 'interval'),
+        ),
+      ).captured.single as List<HealthDataType>;
+
+      expect(tiposCrus, isNot(contains(HealthDataType.SLEEP_SESSION)));
+      expect(tiposAgregados, isNot(contains(HealthDataType.SLEEP_SESSION)));
+    });
+
+    test('intervalo do agregado é exatamente 1 dia (86400s)', () async {
+      await service.sincronizarDeltaDiario();
+
+      final captured = verify(
+        () => health.getHealthIntervalDataFromTypes(
+          startDate: any(named: 'startDate'),
+          endDate: any(named: 'endDate'),
+          types: any(named: 'types'),
+          interval: captureAny(named: 'interval'),
+        ),
+      ).captured;
+
+      expect(captured.single, 24 * 60 * 60);
     });
   });
 
@@ -421,7 +531,7 @@ void main() {
           endTime: any(named: 'endTime'),
         ),
       ).thenAnswer(
-        (_) async => [_ponto(type: HealthDataType.STEPS, value: 500, dateFrom: DateTime(2026, 7, 8))],
+        (_) async => [_ponto(type: HealthDataType.WEIGHT, value: 70, dateFrom: DateTime(2026, 7, 8))],
       );
 
       final resultado = await service.carregarHistoricoInicial();
@@ -431,14 +541,15 @@ void main() {
         () => metricasBuilder.upsert(any(), onConflict: any(named: 'onConflict')),
       ).called(1);
     });
-    test('lê 30 dias por padrão, mescla por dia e persiste via upsert', () async {
+    test('lê 30 dias por padrão, mescla por dia (passos via agregado) e persiste via upsert', () async {
       final dia1 = DateTime(2026, 6, 10, 8);
       final dia2 = DateTime(2026, 7, 8, 9);
       when(
-        () => health.getHealthDataFromTypes(
+        () => health.getHealthIntervalDataFromTypes(
+          startDate: any(named: 'startDate'),
+          endDate: any(named: 'endDate'),
           types: any(named: 'types'),
-          startTime: any(named: 'startTime'),
-          endTime: any(named: 'endTime'),
+          interval: any(named: 'interval'),
         ),
       ).thenAnswer(
         (_) async => [
@@ -500,7 +611,7 @@ void main() {
           endTime: any(named: 'endTime'),
         ),
       ).thenAnswer(
-        (_) async => [_ponto(type: HealthDataType.STEPS, value: 500, dateFrom: DateTime(2026, 7, 1))],
+        (_) async => [_ponto(type: HealthDataType.WEIGHT, value: 70, dateFrom: DateTime(2026, 7, 1))],
       );
       stubUpsertMetricas(() => Future<dynamic>.error(const SocketException('sem rede')));
 
