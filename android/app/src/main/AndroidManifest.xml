@@ -30,6 +30,28 @@
     <uses-permission android:name="android.permission.health.READ_RESTING_HEART_RATE"/>
     <uses-permission android:name="android.permission.health.READ_LEAN_BODY_MASS"/>
 
+    <!-- fc_maxima/balança (RELATÓRIO 20260811130000) — BODY_WATER_MASS e
+         BODY_MASS_INDEX somaram-se a HealthSyncService.todosOsTipos, mas
+         faltaram aqui (BUG desta tarefa — "permissão negada" mesmo com tudo
+         concedido, ver RELATÓRIO 20260810_0005). Achado ao investigar: a
+         permissão que falta para BODY_MASS_INDEX NÃO é
+         "READ_BODY_MASS_INDEX" — essa permissão não existe. O Health
+         Connect não tem um registro nativo de IMC; o pacote `health`, no
+         Android, substitui BODY_MASS_INDEX por WEIGHT+HEIGHT por baixo dos
+         panos (health_plugin.dart, _handleBMI/_computeAndroidBMI) e calcula
+         o IMC ele mesmo a partir da ALTURA já registrada no Health Connect
+         (não a de perfis_usuarios.altura_cm, que só entra como fallback em
+         HealthSyncService._aplicarInferenciasCruzadas quando o Health
+         Connect não devolve nada). READ_WEIGHT já existia acima; faltava
+         READ_HEIGHT — confirmado lendo o bytecode de
+         androidx.health.connect:connect-client (HealthPermission), não
+         adivinhado. Como hasPermissions()/requestAuthorization() pedem
+         SEMPRE o lote inteiro de tipos de uma vez, uma permissão faltando
+         no Manifest pode derrubar/negar a autorização do lote inteiro —
+         explica o "negada mesmo tendo concedido tudo" do teste físico. -->
+    <uses-permission android:name="android.permission.health.READ_BODY_WATER_MASS"/>
+    <uses-permission android:name="android.permission.health.READ_HEIGHT"/>
+
     <!-- CAUSA RAIZ do bug "só 2 dias na Carga Inicial" (N18, ver RELATÓRIO
          20260809): por padrão, o Health Connect só deixa um app ler dados
          de ATÉ 30 dias A PARTIR DO MOMENTO em que a permissão normal foi

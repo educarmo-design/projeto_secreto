@@ -17,12 +17,20 @@ HealthPayloadModel _linha({
   required DateTime data,
   int? passos,
   int? fcRepouso,
+  int? fcMaxima,
+  double? hrvMedio,
   double? massaMagraKg,
+  double? aguaCorporalKg,
+  double? imc,
 }) {
   return HealthPayloadModel(
     passos: passos,
     fcRepouso: fcRepouso,
+    fcMaxima: fcMaxima,
+    hrvMedio: hrvMedio,
     massaMagraKg: massaMagraKg,
+    aguaCorporalKg: aguaCorporalKg,
+    imc: imc,
     dateFrom: data,
     dateTo: data,
     source: 'wearable',
@@ -71,6 +79,28 @@ void main() {
     expect(find.textContaining('FC repouso: 58'), findsOneWidget);
     expect(find.textContaining('Massa magra (kg): 62.5'), findsOneWidget);
     verify(() => repository.buscarUltimosDias()).called(1);
+  });
+
+  testWidgets('mostra FC máxima, HRV, água corporal e IMC (RELATÓRIO 20260810_0005 — não apareciam antes)', (tester) async {
+    when(() => repository.buscarUltimosDias()).thenAnswer(
+      (_) async => [
+        _linha(
+          data: DateTime(2026, 8, 8),
+          fcMaxima: 172,
+          hrvMedio: 45.3,
+          aguaCorporalKg: 38.4,
+          imc: 24.7,
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(criarApp());
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('FC máxima: 172'), findsOneWidget);
+    expect(find.textContaining('HRV: 45.3'), findsOneWidget);
+    expect(find.textContaining('Água corporal (kg): 38.4'), findsOneWidget);
+    expect(find.textContaining('IMC: 24.7'), findsOneWidget);
   });
 
   testWidgets('lista vazia mostra o empty state', (tester) async {

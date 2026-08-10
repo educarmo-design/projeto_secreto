@@ -267,10 +267,21 @@ class _LinhaTelemetria extends StatelessWidget {
   static const List<_CampoLabel> _campos = [
     _CampoLabel('Passos', _CampoTipo.passos),
     _CampoLabel('FC', _CampoTipo.frequenciaCardiaca),
+    // FC Máxima/HRV/Água/IMC: RELATÓRIO 20260810_0005 — existiam desde a
+    // tarefa anterior (metricas_saude_diarias.fc_maxima/agua_corporal/imc),
+    // mas nunca apareciam aqui (BUG desta tarefa).
+    _CampoLabel('FC máxima', _CampoTipo.fcMaxima),
     _CampoLabel('FC repouso', _CampoTipo.fcRepouso),
+    _CampoLabel('HRV', _CampoTipo.hrvMedio),
     _CampoLabel('Peso (kg)', _CampoTipo.pesoKg),
+    _CampoLabel('Água corporal (kg)', _CampoTipo.aguaCorporalKg),
+    // "Massa magra" e "Gordura" aqui podem ser leitura direta do Health
+    // Connect OU inferência cruzada de HealthSyncService.
+    // _aplicarInferenciasCruzadas (RELATÓRIO 20260811130000) — o valor é o
+    // mesmo campo/coluna nos dois casos, a tela não distingue a origem.
     _CampoLabel('Massa magra (kg)', _CampoTipo.massaMagraKg),
     _CampoLabel('Gordura (%)', _CampoTipo.percentualGordura),
+    _CampoLabel('IMC', _CampoTipo.imc),
     // Sono total primeiro (o que a maioria quer ver de cara), depois o
     // detalhamento por estágio — RELATÓRIO 20260811 (decisão de produto:
     // aproveitar a riqueza de estágios do Garmin).
@@ -288,14 +299,22 @@ class _LinhaTelemetria extends StatelessWidget {
         return payload.passos?.toString();
       case _CampoTipo.frequenciaCardiaca:
         return payload.frequenciaCardiaca?.toString();
+      case _CampoTipo.fcMaxima:
+        return payload.fcMaxima?.toString();
       case _CampoTipo.fcRepouso:
         return payload.fcRepouso?.toString();
+      case _CampoTipo.hrvMedio:
+        return payload.hrvMedio?.toStringAsFixed(1);
       case _CampoTipo.pesoKg:
         return payload.pesoKg?.toStringAsFixed(1);
+      case _CampoTipo.aguaCorporalKg:
+        return payload.aguaCorporalKg?.toStringAsFixed(1);
       case _CampoTipo.massaMagraKg:
         return payload.massaMagraKg?.toStringAsFixed(1);
       case _CampoTipo.percentualGordura:
         return payload.percentualGordura?.toStringAsFixed(1);
+      case _CampoTipo.imc:
+        return payload.imc?.toStringAsFixed(1);
       case _CampoTipo.minutosSono:
         return payload.minutosSono?.toString();
       case _CampoTipo.sonoLeveMinutos:
@@ -362,10 +381,14 @@ class _LinhaTelemetria extends StatelessWidget {
 enum _CampoTipo {
   passos,
   frequenciaCardiaca,
+  fcMaxima,
   fcRepouso,
+  hrvMedio,
   pesoKg,
+  aguaCorporalKg,
   massaMagraKg,
   percentualGordura,
+  imc,
   minutosSono,
   sonoLeveMinutos,
   sonoProfundoMinutos,

@@ -11,6 +11,13 @@ class HealthPayloadModel {
   final double? distanciaMetros;
   final int? fcRepouso;
   final int? frequenciaCardiaca;
+  // BUG desta tarefa (RELATÓRIO 20260810_0005): fc_maxima foi gravado em
+  // metricas_saude_diarias desde a tarefa anterior (HealthSyncService.
+  // _mesclarPorDia), mas nunca foi adicionado a este model — a tela de
+  // histórico usa HealthPayloadModel.fromJson pra ler de volta o que o
+  // SELECT devolve, e sem um campo aqui o valor era descartado em
+  // silêncio antes mesmo de chegar na UI. Não bastava só editar a tela.
+  final int? fcMaxima;
   final double? hrvMedio;
   final double? caloriasAtivas;
   final int? minutosSono;
@@ -45,6 +52,7 @@ class HealthPayloadModel {
     this.distanciaMetros,
     this.fcRepouso,
     this.frequenciaCardiaca,
+    this.fcMaxima,
     this.hrvMedio,
     this.caloriasAtivas,
     this.minutosSono,
@@ -281,6 +289,7 @@ class HealthPayloadModel {
       distanciaMetros: numOrNull('distancia_metros')?.toDouble(),
       fcRepouso: numOrNull('fc_repouso')?.round(),
       frequenciaCardiaca: numOrNull('frequencia_cardiaca')?.round(),
+      fcMaxima: numOrNull('fc_maxima')?.round(),
       hrvMedio: numOrNull('hrv_medio')?.toDouble(),
       caloriasAtivas: numOrNull('calorias_ativas')?.toDouble(),
       minutosSono: numOrNull('minutos_sono')?.round(),
@@ -315,6 +324,7 @@ class HealthPayloadModel {
       distanciaMetros: asNum('distancia_metros')?.toDouble(),
       fcRepouso: asNum('fc_repouso')?.toInt(),
       frequenciaCardiaca: asNum('frequencia_cardiaca')?.toInt(),
+      fcMaxima: asNum('fc_maxima')?.toInt(),
       hrvMedio: asNum('hrv_medio')?.toDouble(),
       caloriasAtivas: asNum('calorias_ativas')?.toDouble(),
       minutosSono: asNum('minutos_sono')?.toInt(),
@@ -349,6 +359,7 @@ class HealthPayloadModel {
         if (fcRepouso != null) 'fc_repouso': fcRepouso,
         if (frequenciaCardiaca != null)
           'frequencia_cardiaca': frequenciaCardiaca,
+        if (fcMaxima != null) 'fc_maxima': fcMaxima,
         if (hrvMedio != null) 'hrv_medio': hrvMedio,
         if (caloriasAtivas != null) 'calorias_ativas': caloriasAtivas,
         if (minutosSono != null) 'minutos_sono': minutosSono,
@@ -384,6 +395,7 @@ class HealthPayloadModel {
         if (fcRepouso != null) MapEntry('fc_repouso', fcRepouso!),
         if (frequenciaCardiaca != null)
           MapEntry('frequencia_cardiaca', frequenciaCardiaca!),
+        if (fcMaxima != null) MapEntry('fc_maxima', fcMaxima!),
         if (hrvMedio != null) MapEntry('hrv_medio', hrvMedio!),
         if (caloriasAtivas != null) MapEntry('calorias_ativas', caloriasAtivas!),
         if (minutosSono != null) MapEntry('minutos_sono', minutosSono!),
