@@ -125,6 +125,12 @@ export interface SolicitarAcessoInput {
   senha: string;
   nome: string;
   tipoProfissional: TipoProfissionalSaude;
+  /** N05 (RELATÓRIO 20260811_0005) — cifrado em repouso pelo mesmo trigger D2 de nome/email (`tg_perfis_usuarios_cifrar_pii`), transparente aqui: este client sempre manda texto plano. */
+  telefone: string;
+  /** N02 (RELATÓRIO 20260811_0005) — CRM/CRN/CREFITO/CREF, texto livre. NÃO cifrado (fora do escopo do D2 — só nome/telefone/email). */
+  registroProfissional: string;
+  /** N03 (RELATÓRIO 20260811_0005) — formato `YYYY-MM-DD` (o que o `<input type="date">` já produz). A trava real de 18+ é a CHECK constraint `perfis_usuarios_maioridade`; a validação client-side em `LoginPage.tsx` só evita a viagem de rede. */
+  dataNascimento: string;
 }
 
 export interface SolicitarAcessoResultado {
@@ -159,9 +165,16 @@ export async function solicitarAcesso(
     options: {
       // Espelhado em `user_metadata` mesmo sem sessão imediata (confirmação
       // de e-mail pendente) — é daqui que `garantirPerfilPendente` lê
-      // nome/tipo_profissional no primeiro login pós-confirmação, já que
+      // nome/tipo_profissional/telefone/registro_profissional/
+      // data_nascimento no primeiro login pós-confirmação, já que
       // `perfis_usuarios` ainda não pôde ser gravada nesse instante.
-      data: { nome: input.nome, tipo_profissional: input.tipoProfissional },
+      data: {
+        nome: input.nome,
+        tipo_profissional: input.tipoProfissional,
+        telefone: input.telefone,
+        registro_profissional: input.registroProfissional,
+        data_nascimento: input.dataNascimento,
+      },
     },
   });
 
@@ -185,6 +198,9 @@ export async function solicitarAcesso(
       email: input.email,
       nome: input.nome,
       tipoProfissional: input.tipoProfissional,
+      telefone: input.telefone,
+      registroProfissional: input.registroProfissional,
+      dataNascimento: input.dataNascimento,
     });
   } finally {
     await supabase.auth.signOut();
@@ -288,19 +304,37 @@ function paraProfissionalAutenticado(perfil: PerfilBruto): ProfissionalAutentica
 
 async function inserirPerfilPendente(
   userId: string,
-  perfil: { email: string; nome: string; tipoProfissional: TipoProfissionalSaude },
+  perfil: {
+    email: string;
+    nome: string;
+    tipoProfissional: TipoProfissionalSaude;
+    telefone: string;
+    registroProfissional: string;
+    dataNascimento: string;
+  },
 ): Promise<void> {
   const { error } = await supabase.from('perfis_usuarios').insert({
     id: userId,
     email: perfil.email,
     nome: perfil.nome,
     tipo_profissional: perfil.tipoProfissional,
+    telefone: perfil.telefone,
+    registro_profissional: perfil.registroProfissional,
+    data_nascimento: perfil.dataNascimento,
     eh_profissional: false,
     status_aprovacao: 'pendente',
     is_admin: false,
   });
 
   if (error) {
+    // N03: a CHECK constraint `perfis_usuarios_maioridade` derruba o INSERT
+    // com uma mensagem genérica de constraint do Postgres — a validação
+    // client-side em `LoginPage.tsx` já deveria ter barrado antes de chegar
+    // aqui, então este branch só é alcançável contornando o form (ex.:
+    // devtools). Mesmo assim, nunca expõe o texto cru do erro do Postgres.
+    if (error.message.includes('perfis_usuarios_maioridade')) {
+      throw new AcessoNaoAutorizadoError('É necessário ter 18 anos ou mais para solicitar acesso.');
+    }
     throw new AcessoNaoAutorizadoError(error.message);
   }
 }
@@ -324,6 +358,9 @@ async function garantirPerfilPendente(user: {
       email: user.email ?? null,
       nome: (user.user_metadata.nome as string | undefined) ?? null,
       tipo_profissional: (user.user_metadata.tipo_profissional as TipoProfissionalSaude | undefined) ?? null,
+      telefone: (user.user_metadata.telefone as string | undefined) ?? null,
+      registro_profissional: (user.user_metadata.registro_profissional as string | undefined) ?? null,
+      data_nascimento: (user.user_metadata.data_nascimento as string | undefined) ?? null,
       eh_profissional: false,
       status_aprovacao: 'pendente',
       is_admin: false,

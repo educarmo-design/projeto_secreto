@@ -50,4 +50,42 @@ class PerfilUsuarioRepository {
         .update({'altura_cm': alturaCm})
         .eq('id', usuarioId);
   }
+
+  /// N03 (RELATÓRIO 20260811_0005, ajuste do fundador) — `null` tanto para
+  /// "ninguém logado" quanto para "coluna vazia", mesma convenção de
+  /// [buscarAlturaCm].
+  Future<DateTime?> buscarDataNascimento() async {
+    final usuarioId = _supabase.auth.currentUser?.id;
+    if (usuarioId == null) return null;
+
+    final linha = await _supabase
+        .from('perfis_usuarios')
+        .select('data_nascimento')
+        .eq('id', usuarioId)
+        .maybeSingle();
+
+    final valor = linha?['data_nascimento'] as String?;
+    return valor == null ? null : DateTime.parse(valor);
+  }
+
+  /// N03 — a barreira REAL de maioridade é a CHECK constraint
+  /// `perfis_usuarios_maioridade` no banco
+  /// (`20260811190000_n03_trava_maioridade.sql`); a validação em
+  /// [PerfilUsuarioPage] é só UX. Um UPDATE com menor de 18 anos é
+  /// recusado pelo Postgres mesmo que, por algum motivo, a validação
+  /// client-side seja contornada — o erro do Postgres sobe como
+  /// [PostgrestException], não tratado aqui de propósito (a tela decide
+  /// como mostrar).
+  Future<void> atualizarDataNascimento(DateTime dataNascimento) async {
+    final usuarioId = _supabase.auth.currentUser?.id;
+    if (usuarioId == null) {
+      throw StateError('Nenhum usuário logado.');
+    }
+
+    await _supabase.from('perfis_usuarios').update({
+      'data_nascimento': _dataOnly(dataNascimento),
+    }).eq('id', usuarioId);
+  }
+
+  static String _dataOnly(DateTime data) => data.toIso8601String().split('T').first;
 }

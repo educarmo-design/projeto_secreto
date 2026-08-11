@@ -25,6 +25,8 @@ export interface Database {
           sexo_biologico: string | null;
           eh_profissional: boolean;
           tipo_profissional: TipoProfissionalSaude | null;
+          /** CRM/CRN/CREFITO/CREF — texto livre, cada conselho tem formato próprio (20260722120000). NÃO cifrado (D2 só cobre nome/telefone/email). */
+          registro_profissional: string | null;
           nickname: string | null;
           pais: string | null;
           cep: string | null;
@@ -163,6 +165,160 @@ export interface Database {
         Update: never;
         Relationships: [];
       };
+
+      /** D3 RBAC dinâmico (20260811200000) — catálogo de papéis. */
+      papeis: {
+        Row: {
+          id: string;
+          nome_codigo: string;
+          nome_exibicao: string;
+        };
+        Insert: Partial<Database['public']['Tables']['papeis']['Row']> & {
+          nome_codigo: string;
+          nome_exibicao: string;
+        };
+        Update: Partial<Database['public']['Tables']['papeis']['Row']>;
+        Relationships: [];
+      };
+
+      /** D3 RBAC dinâmico (20260811200000) — catálogo de permissões granulares. */
+      permissoes: {
+        Row: {
+          id: string;
+          modulo: string;
+          acao_codigo: string;
+          descricao: string | null;
+        };
+        Insert: Partial<Database['public']['Tables']['permissoes']['Row']> & {
+          modulo: string;
+          acao_codigo: string;
+        };
+        Update: Partial<Database['public']['Tables']['permissoes']['Row']>;
+        Relationships: [];
+      };
+
+      /**
+       * D3 RBAC dinâmico (20260811200000) — a MATRIZ em si (papel x
+       * permissão). SÓ SELECT para `authenticated`: toda escrita passa pela
+       * RPC `admin_atualizar_permissao_papel` (ver `core/supabase.ts`).
+       */
+      papeis_permissoes: {
+        Row: {
+          papel_id: string;
+          permissao_id: string;
+        };
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
+
+      /** D3 RBAC dinâmico (20260811200000) — quais papéis cada usuário acumula. */
+      usuario_papeis: {
+        Row: {
+          usuario_id: string;
+          papel_id: string;
+        };
+        Insert: Partial<Database['public']['Tables']['usuario_papeis']['Row']> & {
+          usuario_id: string;
+          papel_id: string;
+        };
+        Update: Partial<Database['public']['Tables']['usuario_papeis']['Row']>;
+        Relationships: [];
+      };
+
+      /**
+       * Dicionário de modalidades de treino (`20260811160000`, RELATÓRIO
+       * 20260811_0002) — escrita liberada a admin só em
+       * `20260811220000_admin_escrita_tipos_atividades_fisicas.sql`
+       * (RELATÓRIO 20260811_0005), pra `AdminAtividadesFisicas.tsx` funcionar.
+       */
+      tipos_atividades_fisicas: {
+        Row: {
+          id: string;
+          nome_codigo: string;
+          nome_exibicao: string;
+        };
+        Insert: Partial<Database['public']['Tables']['tipos_atividades_fisicas']['Row']> & {
+          nome_codigo: string;
+          nome_exibicao: string;
+        };
+        Update: Partial<Database['public']['Tables']['tipos_atividades_fisicas']['Row']>;
+        Relationships: [];
+      };
+
+      /** N06 (20260811210000) — catálogo de alergias. */
+      alergias: {
+        Row: {
+          id: string;
+          nome_codigo: string;
+          nome_exibicao: string;
+          descricao: string | null;
+        };
+        Insert: Partial<Database['public']['Tables']['alergias']['Row']> & {
+          nome_codigo: string;
+          nome_exibicao: string;
+        };
+        Update: Partial<Database['public']['Tables']['alergias']['Row']>;
+        Relationships: [];
+      };
+
+      /** N06 (20260811210000) — alergias declaradas por usuário (N:N). */
+      usuario_alergias: {
+        Row: {
+          usuario_id: string;
+          alergia_id: string;
+          observacao: string | null;
+          criado_em: string;
+        };
+        Insert: Partial<Database['public']['Tables']['usuario_alergias']['Row']> & {
+          usuario_id: string;
+          alergia_id: string;
+        };
+        Update: Partial<Database['public']['Tables']['usuario_alergias']['Row']>;
+        Relationships: [];
+      };
+
+      /**
+       * Catálogo TACO/USDA (`20260716120000_alimentos_referencia_taco.sql`)
+       * — SEM policy de escrita para `authenticated` de propósito
+       * ("curadoria é migration/service role"); `AdminAlimentos.tsx` é
+       * leitura/busca apenas, ver comentário no próprio componente.
+       */
+      alimentos_referencia: {
+        Row: {
+          id: string;
+          nome_taco: string;
+          aliases: string[];
+          fonte: string;
+          calorias_kcal_100g: number;
+          proteinas_g_100g: number;
+          carboidratos_g_100g: number;
+          gorduras_g_100g: number;
+          criado_em: string;
+        };
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
+
+      /**
+       * N06 (20260811210000) — configurações globais, chave/valor. Escopo de
+       * negócio ainda não definido pelo fundador (spike 20260811_0004);
+       * infraestrutura genérica, admin-only.
+       */
+      configuracoes_sistema: {
+        Row: {
+          chave: string;
+          valor: string | null;
+          descricao: string | null;
+          atualizado_em: string;
+        };
+        Insert: Partial<Database['public']['Tables']['configuracoes_sistema']['Row']> & {
+          chave: string;
+        };
+        Update: Partial<Database['public']['Tables']['configuracoes_sistema']['Row']>;
+        Relationships: [];
+      };
     };
     Views: {
       /**
@@ -204,6 +360,52 @@ export interface Database {
           is_admin: boolean;
         }[];
       };
+
+      /**
+       * N06 (20260811210000) — mesmo princípio de `meu_perfil_seguro`, mas
+       * MULTI-linha e escopada a admin (`eh_admin()`), não a `auth.uid()`.
+       * Substitui o `select nome, email from perfis_usuarios` quebrado de
+       * `AdminDashboard.tsx` (devolvia ciphertext desde o D2). Lança erro
+       * Postgrest se o chamador não for admin.
+       */
+      admin_perfis_seguro: {
+        Args: { p_status_aprovacao?: string | null };
+        Returns: {
+          id: string;
+          nome: string | null;
+          telefone: string | null;
+          email: string | null;
+          nickname: string | null;
+          eh_profissional: boolean;
+          tipo_profissional: TipoProfissionalSaude | null;
+          registro_profissional: string | null;
+          status_aprovacao: StatusAprovacaoUsuario;
+          is_admin: boolean;
+          data_nascimento: string | null;
+          idade: number | null;
+          criado_em: string;
+        }[];
+      };
+
+      /**
+       * D3 RBAC dinâmico (20260811200000) — `true` se `p_usuario_id` tem,
+       * por qualquer papel que acumule, a permissão `p_permissao_codigo`
+       * (formato `"modulo.acao"`, ex.: `"alimentos.criar"`).
+       */
+      tem_permissao: {
+        Args: { p_usuario_id: string; p_permissao_codigo: string };
+        Returns: boolean;
+      };
+
+      /**
+       * D3 RBAC dinâmico (20260811200000) — ÚNICA porta de escrita da
+       * matriz `papeis_permissoes`; usada por `AdminMatrizPermissoes.tsx`.
+       * Lança erro Postgrest se o chamador não for admin.
+       */
+      admin_atualizar_permissao_papel: {
+        Args: { p_papel_id: string; p_permissao_id: string; p_habilitado: boolean };
+        Returns: void;
+      };
     };
     Enums: {
       tipo_profissional_saude: TipoProfissionalSaude;
@@ -216,8 +418,15 @@ export interface Database {
 /** Espelha o enum Postgres `status_aprovacao_usuario` (20260714100000_add_approval_workflow.sql). */
 export type StatusAprovacaoUsuario = 'pendente' | 'aprovado' | 'rejeitado';
 
-/** Espelha o enum Postgres `status_vinculo` (20260713100000_estruturas_b2b_v4.sql). */
-export type StatusVinculo = 'ativo' | 'em_carencia' | 'encerrado';
+/**
+ * Espelha o enum Postgres `status_vinculo`. Nasceu com só 3 valores
+ * (`20260713100000_estruturas_b2b_v4.sql`); `'pendente'` foi adicionado
+ * depois (`20260713170000_vinculo_pendente_e_backfill_legado.sql`) para
+ * modelar o consentimento do paciente — este arquivo TypeScript escrito à
+ * mão tinha ficado desatualizado (achado do spike 20260811_0004), corrigido
+ * nesta tarefa (RELATÓRIO 20260811_0005).
+ */
+export type StatusVinculo = 'pendente' | 'ativo' | 'em_carencia' | 'encerrado';
 
 /**
  * Espelha o enum Postgres `tipo_profissional_saude`. `Auditoria_Seguradora`
@@ -233,6 +442,15 @@ export type TipoProfissionalSaude =
   | 'Fisioterapeuta'
   | 'Personal_Trainer'
   | 'Auditoria_Seguradora';
+
+/**
+ * Espelha `papeis.nome_codigo` (D3 RBAC dinâmico, 20260811200000) —
+ * deliberadamente DIFERENTE do enum `tipo_profissional_saude` acima (RBAC
+ * novo, não substitui o gate binário antigo nesta tarefa — ver cabeçalho
+ * da migration). Não é um enum Postgres de verdade (a coluna é `text`),
+ * mas os 6 papéis padrão do seed são sempre estes.
+ */
+export type PapelCodigo = 'admin' | 'medico' | 'nutricionista' | 'personal' | 'fisioterapeuta' | 'atleta';
 
 /** Estrutura livre de `planejamento_clinico.estrutura_plano_jsonb` para planos do tipo `treino_garmin` — ver GarminPrescriptionForm. */
 export interface PlanoTreinoEstrutura {

@@ -140,4 +140,63 @@ void main() {
       verifyNever(() => supabase.from('perfis_usuarios'));
     });
   });
+
+  // N03 (RELATÓRIO 20260811_0005) — mesmo padrão de buscarAlturaCm/
+  // atualizarAlturaCm acima, incluindo a convenção "null = ninguém
+  // logado ou coluna vazia".
+  group('buscarDataNascimento', () {
+    test('devolve a data quando a coluna está preenchida', () async {
+      when(() => perfisBuilder.select(any())).thenAnswer(
+        (_) => _FakeSelectFilterBuilder({'data_nascimento': '2000-05-20'}),
+      );
+
+      final data = await repository.buscarDataNascimento();
+
+      expect(data, DateTime(2000, 5, 20));
+    });
+
+    test('devolve null quando a coluna está vazia (não é erro)', () async {
+      when(() => perfisBuilder.select(any())).thenAnswer(
+        (_) => _FakeSelectFilterBuilder({'data_nascimento': null}),
+      );
+
+      final data = await repository.buscarDataNascimento();
+
+      expect(data, isNull);
+    });
+
+    test('devolve null sem consultar o Supabase quando ninguém está logado', () async {
+      when(() => auth.currentUser).thenReturn(null);
+
+      final data = await repository.buscarDataNascimento();
+
+      expect(data, isNull);
+      verifyNever(() => supabase.from('perfis_usuarios'));
+    });
+  });
+
+  group('atualizarDataNascimento', () {
+    test('faz UPDATE em perfis_usuarios só com a data (sem hora), filtrado pelo id', () async {
+      when(() => perfisBuilder.update(any())).thenAnswer(
+        (_) => _FakeFilterBuilder<dynamic>(
+          Future.value(const <Map<String, dynamic>>[]),
+        ),
+      );
+
+      await repository.atualizarDataNascimento(DateTime(2000, 5, 20));
+
+      verify(() => perfisBuilder.update({'data_nascimento': '2000-05-20'}))
+          .called(1);
+    });
+
+    test('lança StateError sem chamar o Supabase quando ninguém está logado', () async {
+      when(() => auth.currentUser).thenReturn(null);
+
+      expect(
+        () => repository.atualizarDataNascimento(DateTime(2000, 5, 20)),
+        throwsStateError,
+      );
+      verifyNever(() => supabase.from('perfis_usuarios'));
+    });
+  });
 }

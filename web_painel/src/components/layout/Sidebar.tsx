@@ -20,6 +20,15 @@ const ITENS_PROFISSIONAL: NavItem[] = [
 const ITENS_ADMIN: NavItem[] = [
   { to: '/admin', label: 'Visão Geral', end: true },
   { to: '/admin/aprovacoes', label: 'Aprovação de Profissionais' },
+  // N06 (RELATÓRIO 20260811_0005) — telas de manutenção administrativa.
+  { to: '/admin/usuarios', label: 'Usuários' },
+  { to: '/admin/profissionais', label: 'Profissionais' },
+  { to: '/admin/atividades-fisicas', label: 'Atividades Físicas' },
+  { to: '/admin/alergias', label: 'Alergias' },
+  { to: '/admin/alimentos', label: 'Alimentos' },
+  { to: '/admin/configuracoes', label: 'Configurações do Sistema' },
+  // D3 (RELATÓRIO 20260811_0005) — Matriz de Permissões dinâmica.
+  { to: '/admin/permissoes', label: 'Matriz de Permissões' },
 ];
 
 interface SidebarProps {
