@@ -521,6 +521,8 @@ class HealthSyncService {
         endTime: now,
       );
 
+      _logRaioX(rawPoints);
+
       final points =
           rawPoints.map(HealthMetricPoint.fromHealthDataPoint).toList();
 
@@ -803,21 +805,56 @@ class HealthSyncService {
     return true;
   }
 
+  /// BUG CRÍTICO CORRIGIDO NESTA TAREFA — "Upsert Destrutivo" (RELATÓRIO
+  /// 20260811_0002, confirmado no teste físico: dados de dias anteriores
+  /// sumindo/sendo zerados, distância e calorias somem em dias aleatórios).
+  ///
+  /// Achado real, não suposição: cada linha de [linhas] só tem as colunas
+  /// que aquele dia realmente teve dado — `_mesclarPorDia` nunca escreve
+  /// uma coluna sem valor (é assim desde sempre, é o padrão certo). O
+  /// problema nunca foi ESSA parte. O problema é que a versão anterior
+  /// deste método mandava TODAS as linhas do lote (até 30, numa Carga
+  /// Inicial) num ÚNICO `.upsert(linhas)`. Quando dois dias do MESMO lote
+  /// têm conjuntos de colunas DIFERENTES (ex.: dia A só teve passos, dia B
+  /// só teve peso), o PostgREST precisa gerar UM `INSERT ... VALUES (...),
+  /// (...) ON CONFLICT DO UPDATE` só, com uma lista de colunas ÚNICA pra
+  /// todas as linhas — e por padrão (`defaultToNull: true`, o padrão do
+  /// pacote `postgrest`), preenche a coluna que uma linha não tem com
+  /// `NULL` explícito, mesmo que a coluna já tivesse um valor bom gravado
+  /// no banco de um sync anterior. Confirmado lendo o teste
+  /// `bulk insert without column defaults` do próprio pacote `postgrest`
+  /// (`test/basic_test.dart`) — a linha que omite uma coluna que a OUTRA
+  /// linha do mesmo lote tem recebe `null`, mesmo a coluna tendo um
+  /// default de verdade no schema. `defaultToNull: false` NÃO resolve
+  /// aqui: nenhuma coluna de `metricas_saude_diarias` (`passos`,
+  /// `distancia_metros`, `calorias_ativas`, `imc`, ...) tem `DEFAULT`
+  /// declarado no schema — "usar o default" ainda resultaria em `NULL`.
+  ///
+  /// Correção definitiva: um `.upsert()` POR LINHA. Sem outras linhas no
+  /// mesmo request, não existe união de colunas pra preencher — o
+  /// PostgREST só enxerga as colunas que aquele dia específico realmente
+  /// tem. Efeito colateral positivo (não regressão): se uma linha no meio
+  /// do lote falhar, as anteriores já gravadas continuam gravadas — antes,
+  /// uma falha em QUALQUER linha descartava o lote inteiro.
   Future<DeltaSyncOutcome> _enviarLinhas(List<Map<String, dynamic>> linhas) async {
-    try {
-      await _supabase.from('metricas_saude_diarias').upsert(
-        linhas,
-        onConflict: 'usuario_id_anonimo,data_referencia',
-      );
-      return DeltaSyncOutcome.sucesso;
-    } on SocketException {
-      return DeltaSyncOutcome.offline;
-    } on http.ClientException {
-      return DeltaSyncOutcome.offline;
-    } on PostgrestException catch (e) {
-      debugPrint('Erro ao gravar metricas_saude_diarias: ${e.message}');
-      return DeltaSyncOutcome.erro;
+    for (final linha in linhas) {
+      try {
+        await _supabase.from('metricas_saude_diarias').upsert(
+          linha,
+          onConflict: 'usuario_id_anonimo,data_referencia',
+        );
+      } on SocketException {
+        return DeltaSyncOutcome.offline;
+      } on http.ClientException {
+        return DeltaSyncOutcome.offline;
+      } on PostgrestException catch (e) {
+        debugPrint(
+          'Erro ao gravar metricas_saude_diarias (${linha['data_referencia']}): ${e.message}',
+        );
+        return DeltaSyncOutcome.erro;
+      }
     }
+    return DeltaSyncOutcome.sucesso;
   }
 
   /// Merges [payloads] — each one carrying a single fixed column, per
@@ -875,6 +912,63 @@ class HealthSyncService {
     'com.sec.android.app.shealth', // Samsung Health
     'com.apple.health', // app "Saúde" do iPhone (HealthKit, coprocessador M)
   };
+
+  /// "Modo Raio-X" (RELATÓRIO 20260811_0002, diretriz do fundador — "até o
+  /// último fio de cabelo"): imprime um resumo cru do que o health store
+  /// devolveu, chamado logo depois de [Health.getHealthDataFromTypes] e
+  /// ANTES de qualquer filtro/agregação nossa (`_AgregadoFonte`, Hierarquia
+  /// de Fontes, merge por dia) tocar nos dados. Existe pra responder uma
+  /// pergunta específica que só de olhar o resultado final não dá: "esse
+  /// dado de distância/calorias do dia X saiu do Health Connect/HealthKit,
+  /// ou foi estrangulado pela NOSSA lógica depois?" — sem isso, um dia sem
+  /// distância na tela é indistinguível entre "o Health Connect nunca teve
+  /// esse dado" e "nosso código descartou/agregou errado".
+  ///
+  /// `debugPrint` — roda em toda sincronização (delta diário e Carga de 30
+  /// dias), aparece no console/logcat de debug, não afeta build de
+  /// release.
+  void _logRaioX(List<HealthDataPoint> rawPoints) {
+    if (rawPoints.isEmpty) {
+      debugPrint('🩻 [RAIO-X] 0 registros brutos recebidos do health store.');
+      return;
+    }
+
+    // dia -> fonte -> conjunto de tipos vistos daquela fonte naquele dia.
+    // Mesma regra de identificador de fonte da Hierarquia de Fontes (ver
+    // HealthMetricPoint.identificadorFonte): sourceId quando não vazio
+    // (iOS), senão sourceName (Android) — aqui em cima do HealthDataPoint
+    // cru, antes de virar HealthMetricPoint.
+    final tiposPorDiaEFonte = <String, Map<String, Set<String>>>{};
+    final contagemPorDia = <String, int>{};
+
+    for (final ponto in rawPoints) {
+      final dia = _dataOnly(ponto.dateFrom);
+      final fonte =
+          ponto.sourceId.isNotEmpty ? ponto.sourceId : ponto.sourceName;
+      final identificadorFonte = fonte.isEmpty ? '(fonte desconhecida)' : fonte;
+
+      contagemPorDia[dia] = (contagemPorDia[dia] ?? 0) + 1;
+      tiposPorDiaEFonte
+          .putIfAbsent(dia, () => {})
+          .putIfAbsent(identificadorFonte, () => {})
+          .add(ponto.type.name);
+    }
+
+    debugPrint(
+      '🩻 [RAIO-X] ${rawPoints.length} registros brutos recebidos do health '
+      'store, cobrindo ${tiposPorDiaEFonte.length} dia(s).',
+    );
+    for (final dia in tiposPorDiaEFonte.keys.toList()..sort()) {
+      final fontes = tiposPorDiaEFonte[dia]!;
+      final resumoFontes = fontes.entries
+          .map((e) => '[${e.key}: ${e.value.join(', ')}]')
+          .join(', ');
+      debugPrint(
+        '🩻 [RAIO-X] Dia $dia - Recebidos ${contagemPorDia[dia]} registros. '
+        'Fontes: $resumoFontes',
+      );
+    }
+  }
 
   static bool _ehPedometroNativo(String identificadorFonte) =>
       _pedometrosNativos.contains(identificadorFonte);
