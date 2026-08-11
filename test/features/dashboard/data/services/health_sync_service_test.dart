@@ -43,8 +43,12 @@ class _FakeFilterBuilder<T> extends Fake implements PostgrestFilterBuilder<T> {
 /// `PostgrestTransformBuilder`).
 class _FakeAlturaFilterBuilder extends Fake
     implements PostgrestFilterBuilder<List<Map<String, dynamic>>> {
-  _FakeAlturaFilterBuilder(this._resultado);
+  _FakeAlturaFilterBuilder(this._resultado, {this.erro});
   final Map<String, dynamic>? _resultado;
+  // Não-nulo simula a consulta LANÇANDO (rede/RLS/timeout) — usado pelo
+  // teste de resiliência do IMC (RELATÓRIO 20260810_0007): distingue de
+  // `_resultado: null`, que simula "consulta funcionou, coluna vazia".
+  final Object? erro;
 
   @override
   PostgrestFilterBuilder<List<Map<String, dynamic>>> eq(
@@ -54,19 +58,33 @@ class _FakeAlturaFilterBuilder extends Fake
 
   @override
   PostgrestTransformBuilder<Map<String, dynamic>?> maybeSingle() =>
-      _FakeAlturaTransformBuilder(_resultado);
+      _FakeAlturaTransformBuilder(_resultado, erro: erro);
 }
 
 class _FakeAlturaTransformBuilder extends Fake
     implements PostgrestTransformBuilder<Map<String, dynamic>?> {
-  _FakeAlturaTransformBuilder(this._resultado);
+  _FakeAlturaTransformBuilder(this._resultado, {this.erro});
   final Map<String, dynamic>? _resultado;
+  final Object? erro;
 
   @override
   Future<R> then<R>(
     FutureOr<R> Function(Map<String, dynamic>? value) onValue, {
     Function? onError,
-  }) => Future.value(_resultado).then(onValue, onError: onError);
+  }) {
+    // Lazy on purpose (mesmo motivo documentado em stubUpsertMetricas
+    // acima): construir o Future de erro só aqui, dentro de then(), e
+    // chamar .then(onValue, onError: onError) NELE — não devolver um
+    // Future novo direto — é o que faz o protocolo "thenable" do `await`
+    // de verdade invocar onError. Devolver só `Future.error(...)` sem
+    // encadear nunca chama onError e trava o await pra sempre (bug real
+    // encontrado escrevendo este teste).
+    final erroLocal = erro;
+    final future = erroLocal != null
+        ? Future<Map<String, dynamic>?>.error(erroLocal)
+        : Future.value(_resultado);
+    return future.then(onValue, onError: onError);
+  }
 }
 
 const _usuarioId = 'user-123';
@@ -84,6 +102,14 @@ HealthDataPoint _ponto({
   required DateTime dateFrom,
   DateTime? dateTo,
   String sourceName = 'TestWearable',
+  // Vazio por padrão de propósito: espelha o Android real
+  // (HealthDataConverter.kt/HealthDataReader.kt SEMPRE mandam
+  // source_id == "" — quem carrega o nome do pacote lá é source_name). A
+  // maioria dos testes deste arquivo simula leitura via Health Connect, não
+  // HealthKit — só os testes da Hierarquia de Fontes específicos de iOS
+  // passam sourceId de verdade (bundle id). Ver doc de
+  // HealthMetricPoint.identificadorFonte.
+  String sourceId = '',
 }) {
   return HealthDataPoint(
     uuid: 'uuid-${type.name}-${dateFrom.microsecondsSinceEpoch}',
@@ -94,10 +120,15 @@ HealthDataPoint _ponto({
     dateTo: dateTo ?? dateFrom,
     sourcePlatform: HealthPlatformType.googleHealthConnect,
     sourceDeviceId: 'device-1',
-    sourceId: 'source-1',
+    sourceId: sourceId,
     sourceName: sourceName,
   );
 }
+
+/// Mesmo formato de `HealthSyncService._dataOnly` — usado só para indexar
+/// `resultado.linhas` por dia em testes que precisam checar mais de uma
+/// linha (a ordem de `linhas` não é garantida como "hoje antes de ontem").
+String _dataIso(DateTime data) => data.toIso8601String().split('T').first;
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -303,6 +334,154 @@ void main() {
       final resultado = await service.sincronizarDeltaDiario();
 
       expect(resultado.linhas.single['distancia_metros'], 5200);
+    });
+
+    group('Hierarquia de Fontes (RELATÓRIO 20260810_0007 — passos+distância vêm SEMPRE da mesma fonte)', () {
+      final hoje = DateTime(2026, 7, 8, 10);
+
+    test('pedômetro nativo (Google Fit) tem MAIS passos, mas o wearable vence — prioridade bate número bruto', () async {
+      when(
+        () => health.getHealthDataFromTypes(
+          types: any(named: 'types'),
+          startTime: any(named: 'startTime'),
+          endTime: any(named: 'endTime'),
+        ),
+      ).thenAnswer(
+        (_) async => [
+          // Google Fit: mais passos, mas é pedômetro nativo — despriorizado.
+          _ponto(
+            type: HealthDataType.STEPS,
+            value: 9000,
+            dateFrom: hoje,
+            sourceName: 'com.google.android.apps.fitness',
+          ),
+          _ponto(
+            type: HealthDataType.DISTANCE_DELTA,
+            value: 6000, // proporção incoerente de propósito — não deve ganhar
+            dateFrom: hoje,
+            sourceName: 'com.google.android.apps.fitness',
+          ),
+          // Garmin: menos passos, mas prioridade alta (não é pedômetro nativo).
+          _ponto(
+            type: HealthDataType.STEPS,
+            value: 7000,
+            dateFrom: hoje,
+            sourceName: 'com.garmin.android.apps.connectmobile',
+          ),
+          _ponto(
+            type: HealthDataType.DISTANCE_DELTA,
+            value: 5100,
+            dateFrom: hoje,
+            sourceName: 'com.garmin.android.apps.connectmobile',
+          ),
+        ],
+      );
+
+      final resultado = await service.sincronizarDeltaDiario();
+
+      final linha = resultado.linhas.single;
+      expect(linha['passos'], 7000);
+      expect(linha['distancia_metros'], 5100);
+    });
+
+    test('sem pedômetro nativo envolvido, desempate pelo maior nº de passos — distância vem da MESMA fonte, nunca mistura', () async {
+      when(
+        () => health.getHealthDataFromTypes(
+          types: any(named: 'types'),
+          startTime: any(named: 'startTime'),
+          endTime: any(named: 'endTime'),
+        ),
+      ).thenAnswer(
+        (_) async => [
+          _ponto(
+            type: HealthDataType.STEPS,
+            value: 8000,
+            dateFrom: hoje,
+            sourceName: 'com.garmin.android.apps.connectmobile',
+          ),
+          _ponto(
+            type: HealthDataType.DISTANCE_DELTA,
+            value: 6000,
+            dateFrom: hoje,
+            sourceName: 'com.garmin.android.apps.connectmobile',
+          ),
+          _ponto(
+            type: HealthDataType.STEPS,
+            value: 6500,
+            dateFrom: hoje,
+            sourceName: 'com.polar.polarflow',
+          ),
+          _ponto(
+            type: HealthDataType.DISTANCE_DELTA,
+            value: 4900,
+            dateFrom: hoje,
+            sourceName: 'com.polar.polarflow',
+          ),
+        ],
+      );
+
+      final resultado = await service.sincronizarDeltaDiario();
+
+      final linha = resultado.linhas.single;
+      // Garmin venceu por ter mais passos (8000 > 6500) — a distância tem
+      // que vir DELE também (6000), nunca do Polar (4900), mesmo que 4900
+      // não fosse a maior distância isolada.
+      expect(linha['passos'], 8000);
+      expect(linha['distancia_metros'], 6000);
+    });
+
+    test('iOS: classifica pelo bundle id (sourceId), não pelo nome amigável (sourceName)', () async {
+      // No iOS, sourceName é o nome amigável ("Health") e sourceId é o
+      // bundle id de verdade (com.apple.health) — o oposto do Android, onde
+      // sourceId vem sempre vazio (ver doc de
+      // HealthMetricPoint.identificadorFonte). Sem usar sourceId aqui, o
+      // pedômetro nativo do iPhone não seria reconhecido e "ganharia" por
+      // ter mais passos, exatamente o bug que esta tarefa corrige.
+      when(
+        () => health.getHealthDataFromTypes(
+          types: any(named: 'types'),
+          startTime: any(named: 'startTime'),
+          endTime: any(named: 'endTime'),
+        ),
+      ).thenAnswer(
+        (_) async => [
+          _ponto(
+            type: HealthDataType.STEPS,
+            value: 9000,
+            dateFrom: hoje,
+            sourceName: 'Health',
+            sourceId: 'com.apple.health',
+          ),
+          _ponto(
+            type: HealthDataType.DISTANCE_WALKING_RUNNING,
+            value: 6000,
+            dateFrom: hoje,
+            sourceName: 'Health',
+            sourceId: 'com.apple.health',
+          ),
+          _ponto(
+            type: HealthDataType.STEPS,
+            value: 7000,
+            dateFrom: hoje,
+            sourceName: 'Apple Watch',
+            sourceId: 'com.apple.health.watch',
+          ),
+          _ponto(
+            type: HealthDataType.DISTANCE_WALKING_RUNNING,
+            value: 5100,
+            dateFrom: hoje,
+            sourceName: 'Apple Watch',
+            sourceId: 'com.apple.health.watch',
+          ),
+        ],
+      );
+
+      final resultado = await service.sincronizarDeltaDiario();
+
+      final linha = resultado.linhas.single;
+      expect(linha['passos'], 7000);
+      expect(linha['distancia_metros'], 5100);
+    });
     });
 
     test('mescla fc (mÃ©dia) e fc_repouso do mesmo dia em uma Ãºnica linha e sincroniza', () async {
@@ -846,6 +1025,45 @@ void main() {
       expect(resultado.linhas, hasLength(2));
       expect(resultado.linhas.every((linha) => linha['imc'] != null), isTrue);
       verify(() => perfisBuilder.select(any())).called(1);
+    });
+
+    test('achado RELATÓRIO 20260810_0007: falha transitória na 1ª tentativa NÃO apaga o IMC do resto do lote — tenta de novo', () async {
+      // Antes desta tarefa, alturaJaBuscada virava true mesmo quando a
+      // busca LANÇAVA (não só quando tinha sucesso) — uma falha pontual no
+      // primeiro dia processado matava o IMC do lote de 30 dias inteiro,
+      // com só um debugPrint invisível como rastro. Aqui: 1ª tentativa
+      // lança, 2ª tem sucesso — o dia da 1ª tentativa fica sem IMC (correto,
+      // não dava pra saber a altura ainda), mas o lote NÃO desiste: o dia
+      // seguinte tenta de novo e consegue.
+      var tentativas = 0;
+      when(() => perfisBuilder.select(any())).thenAnswer((_) {
+        tentativas++;
+        return tentativas == 1
+            ? _FakeAlturaFilterBuilder(null, erro: Exception('timeout de rede'))
+            : _FakeAlturaFilterBuilder({'altura_cm': 180});
+      });
+      final ontem = hoje.subtract(const Duration(days: 1));
+      when(
+        () => health.getHealthDataFromTypes(
+          types: any(named: 'types'),
+          startTime: any(named: 'startTime'),
+          endTime: any(named: 'endTime'),
+        ),
+      ).thenAnswer(
+        (_) async => [
+          _ponto(type: HealthDataType.WEIGHT, value: 80, dateFrom: hoje),
+          _ponto(type: HealthDataType.WEIGHT, value: 79, dateFrom: ontem),
+        ],
+      );
+
+      final resultado = await service.sincronizarDeltaDiario();
+
+      final porData = {
+        for (final linha in resultado.linhas) linha['data_referencia']: linha,
+      };
+      expect(porData[_dataIso(hoje)]!['imc'], isNull);
+      expect(porData[_dataIso(ontem)]!['imc'], isNotNull);
+      verify(() => perfisBuilder.select(any())).called(2);
     });
   });
 
