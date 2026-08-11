@@ -22,6 +22,9 @@ HealthPayloadModel _linha({
   double? massaMagraKg,
   double? aguaCorporalKg,
   double? imc,
+  double? caloriasAtivas,
+  double? caloriasBasais,
+  double? caloriasTotais,
 }) {
   return HealthPayloadModel(
     passos: passos,
@@ -31,6 +34,9 @@ HealthPayloadModel _linha({
     massaMagraKg: massaMagraKg,
     aguaCorporalKg: aguaCorporalKg,
     imc: imc,
+    caloriasAtivas: caloriasAtivas,
+    caloriasBasais: caloriasBasais,
+    caloriasTotais: caloriasTotais,
     dateFrom: data,
     dateTo: data,
     source: 'wearable',
@@ -101,6 +107,26 @@ void main() {
     expect(find.textContaining('HRV: 45.3'), findsOneWidget);
     expect(find.textContaining('Água corporal (kg): 38.4'), findsOneWidget);
     expect(find.textContaining('IMC: 24.7'), findsOneWidget);
+  });
+
+  testWidgets('mostra Calorias totais/ativas/basais (RELATÓRIO 20260811_0002 — decisão do fundador, calorias granulares)', (tester) async {
+    when(() => repository.buscarUltimosDias()).thenAnswer(
+      (_) async => [
+        _linha(
+          data: DateTime(2026, 8, 8),
+          caloriasAtivas: 480,
+          caloriasBasais: 1650,
+          caloriasTotais: 2130,
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(criarApp());
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Calorias totais (kcal): 2130'), findsOneWidget);
+    expect(find.textContaining('Calorias ativas (kcal): 480'), findsOneWidget);
+    expect(find.textContaining('Calorias basais (kcal): 1650'), findsOneWidget);
   });
 
   testWidgets('lista vazia mostra o empty state', (tester) async {

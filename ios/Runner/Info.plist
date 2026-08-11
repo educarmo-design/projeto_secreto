@@ -12,9 +12,16 @@
 	     (READ, nunca WRITE — mesma decisão de arquitetura do Android, ver
 	     HealthSyncService._lerComPermissao). NSHealthUpdateUsageDescription
 	     é exigida pelo framework mesmo assim; a mensagem reflete
-	     honestamente que o app não grava nada. -->
+	     honestamente que o app não grava nada.
+	     Texto revisado (RELATÓRIO 20260811_0002, Treinos/Rotas): passa a
+	     mencionar explicitamente rota/localização durante o treino — o
+	     pacote `health` lê WORKOUT_ROUTE (HKWorkoutRoute) através da MESMA
+	     autorização de HealthKit desta chave, sem precisar de nenhuma
+	     permissão de localização (NSLocationWhenInUseUsageDescription) à
+	     parte, já que o dado de rota mora no HealthKit, não no
+	     CoreLocation. -->
 	<key>NSHealthShareUsageDescription</key>
-	<string>Precisamos acessar seus dados de saúde — frequência cardíaca, sono, peso, composição corporal e atividades físicas — para calcular seu acompanhamento nutricional e de bem-estar. Esses dados nunca são compartilhados com terceiros.</string>
+	<string>Precisamos acessar seus dados de saúde — frequência cardíaca, sono, peso, composição corporal, calorias e atividades físicas (incluindo a rota/localização percorrida durante um treino, quando disponível) — para calcular seu acompanhamento nutricional e de bem-estar. Esses dados nunca são compartilhados com terceiros.</string>
 	<key>NSHealthUpdateUsageDescription</key>
 	<string>Este app não grava nenhum dado no app Saúde — só lê as informações que você já tem registradas para o seu acompanhamento.</string>
 	<key>CFBundleDevelopmentRegion</key>

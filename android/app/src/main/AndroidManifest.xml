@@ -23,6 +23,23 @@
     <uses-permission android:name="android.permission.health.READ_OXYGEN_SATURATION"/>
     <uses-permission android:name="android.permission.health.READ_BODY_TEMPERATURE"/>
     <uses-permission android:name="android.permission.health.READ_EXERCISE"/>
+    <!-- Treinos/Rotas (RELATÓRIO 20260811_0002, decisão do fundador):
+         BASAL_ENERGY_BURNED soma-se a HealthSyncService.todosOsTipos.
+         Confirmado lendo o bytecode de androidx.health.connect:
+         connect-client (HealthPermission) — a permissão certa é
+         READ_BASAL_METABOLIC_RATE (não "READ_BASAL_ENERGY", que não
+         existe), pois o pacote `health` mapeia BASAL_ENERGY_BURNED para
+         BasalMetabolicRateRecord::class do Health Connect. WORKOUT_ROUTE
+         NÃO precisa de permissão nova aqui: lendo
+         HealthDataOperations.kt do pacote `health`, pra leitura (não
+         escrita) o próprio plugin só pede READ_EXERCISE, a mesma de
+         WORKOUT — READ_EXERCISE_ROUTES existe como constante na
+         biblioteca mas o plugin nunca a usa pra READ. O acesso à rota em
+         si é liberado por um consentimento à parte, POR SESSÃO, que o
+         Health Connect pede em tempo de execução — não é algo que se
+         declare no Manifest (ver HealthSyncService._gravarRotaDoTreino
+         para como o app trata a negação desse consentimento). -->
+    <uses-permission android:name="android.permission.health.READ_BASAL_METABOLIC_RATE"/>
     <!-- N17/N18: RESTING_HEART_RATE e LEAN_BODY_MASS somam-se a
          HealthSyncService.todosOsTipos nesta tarefa (ver RELATÓRIO) — FC
          genérica (READ_HEART_RATE, já acima) e FC de repouso passam a ser

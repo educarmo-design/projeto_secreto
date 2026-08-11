@@ -20,6 +20,7 @@ import '../widgets/health_payload_dialog.dart';
 import 'configuracoes_perfil_page.dart';
 import 'gerenciador_layout_page.dart';
 import 'historico_telemetria_page.dart';
+import 'historico_treinos_page.dart';
 import 'senior_dashboard_page.dart';
 
 /// Casca principal de navegação do app — Zero Trust §5: escuta
@@ -154,6 +155,15 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
     );
   }
 
+  /// RELATÓRIO 20260811_0002 — abre o Histórico de Treinos. Mesmo padrão de
+  /// [_abrirHistorico]: `Navigator.push` simples, tela secundária fora do
+  /// roteador enxuto.
+  void _abrirHistoricoTreinos() {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const HistoricoTreinosPage()),
+    );
+  }
+
   Future<void> _capturarEExibir(TipoAparelho tipoAparelho) async {
     final extracted = await Navigator.of(context).push<HealthPayloadModel?>(
       MaterialPageRoute(
@@ -209,6 +219,7 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
       onReorder: layoutController.atualizarOrdemVisivel,
       onCustomizePressed: _abrirGerenciadorLayout,
       onHistoricoPressed: _abrirHistorico,
+      onHistoricoTreinosPressed: _abrirHistoricoTreinos,
     );
   }
 }
@@ -225,6 +236,7 @@ class _AthleteShell extends StatelessWidget {
     required this.onReorder,
     required this.onCustomizePressed,
     required this.onHistoricoPressed,
+    required this.onHistoricoTreinosPressed,
   });
 
   final int currentIndex;
@@ -234,6 +246,7 @@ class _AthleteShell extends StatelessWidget {
   final void Function(int oldIndex, int newIndex) onReorder;
   final VoidCallback onCustomizePressed;
   final VoidCallback onHistoricoPressed;
+  final VoidCallback onHistoricoTreinosPressed;
 
   static const List<_TabSpec> _tabs = [
     _TabSpec(icon: Icons.dashboard_outlined, labelKey: 'dashboard.title'),
@@ -258,6 +271,14 @@ class _AthleteShell extends StatelessWidget {
                 icon: const Icon(Icons.history),
                 tooltip: i18n.tr('dashboard.historico_telemetria_button'),
                 onPressed: onHistoricoPressed,
+              ),
+            // RELATÓRIO 20260811_0002 — mesmo critério dos outros botões
+            // desta AppBar: só na aba Dashboard.
+            if (currentIndex == 0)
+              IconButton(
+                icon: const Icon(Icons.directions_run),
+                tooltip: i18n.tr('dashboard.historico_treinos_button'),
+                onPressed: onHistoricoTreinosPressed,
               ),
             // Botão discreto — só aparece na própria aba que ele customiza.
             if (currentIndex == 0)

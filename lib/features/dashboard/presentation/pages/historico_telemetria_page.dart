@@ -291,6 +291,12 @@ class _LinhaTelemetria extends StatelessWidget {
     _CampoLabel('Sono REM (min)', _CampoTipo.sonoRemMinutos),
     _CampoLabel('Acordado (min)', _CampoTipo.sonoAcordadoMinutos),
     _CampoLabel('Distância (m)', _CampoTipo.distanciaMetros),
+    // Calorias granulares (RELATÓRIO 20260811_0002, decisão do fundador) —
+    // total primeiro (o que a maioria quer ver de cara), depois o
+    // detalhamento ativas/basais, mesmo padrão do sono acima.
+    _CampoLabel('Calorias totais (kcal)', _CampoTipo.caloriasTotais),
+    _CampoLabel('Calorias ativas (kcal)', _CampoTipo.caloriasAtivas),
+    _CampoLabel('Calorias basais (kcal)', _CampoTipo.caloriasBasais),
   ];
 
   String? _valorFormatado(_CampoTipo tipo) {
@@ -327,6 +333,12 @@ class _LinhaTelemetria extends StatelessWidget {
         return payload.sonoAcordadoMinutos?.toString();
       case _CampoTipo.distanciaMetros:
         return payload.distanciaMetros?.toStringAsFixed(0);
+      case _CampoTipo.caloriasTotais:
+        return payload.caloriasTotais?.toStringAsFixed(0);
+      case _CampoTipo.caloriasAtivas:
+        return payload.caloriasAtivas?.toStringAsFixed(0);
+      case _CampoTipo.caloriasBasais:
+        return payload.caloriasBasais?.toStringAsFixed(0);
     }
   }
 
@@ -395,6 +407,9 @@ enum _CampoTipo {
   sonoRemMinutos,
   sonoAcordadoMinutos,
   distanciaMetros,
+  caloriasTotais,
+  caloriasAtivas,
+  caloriasBasais,
 }
 
 class _CampoLabel {

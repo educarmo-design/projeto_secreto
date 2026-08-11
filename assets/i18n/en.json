@@ -203,6 +203,18 @@
     "historico_telemetria_debug_running": "Running...",
     "historico_telemetria_debug_result": "{{count}} day(s) recorded — reloading list from the database...",
 
+    "historico_treinos_button": "Workout History",
+    "historico_treinos_title": "Workout History",
+    "historico_treinos_subtitle": "Read directly from the database (atividades_fisicas_treinos) — not from the phone's cache.",
+    "historico_treinos_empty": "No workouts synced yet.",
+    "historico_treinos_error": "Failed to load workout history.",
+    "historico_treinos_field_duracao": "Duration",
+    "historico_treinos_field_distancia": "Distance",
+    "historico_treinos_field_calorias": "Calories",
+    "historico_treinos_field_fc_media": "Avg HR",
+    "historico_treinos_field_fc_minima": "Min HR",
+    "historico_treinos_field_fc_maxima": "Max HR",
+
     "clinical_panel_tab": "Clinical Panel",
     "exam_folder_tab": "Digital Exam Folder",
     "exam_folder_empty": "No exams attached yet",

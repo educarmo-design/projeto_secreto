@@ -43,6 +43,17 @@ class HealthMetricPoint {
   final String sourceApp;
   final String sourceId;
 
+  /// O [HealthValue] ORIGINAL, sem achatar — RELATÓRIO 20260811_0002
+  /// (Treinos/Rotas). [value] só existe pra tipos numéricos
+  /// (`NumericHealthValue`); WORKOUT (`WorkoutHealthValue`: tipo de
+  /// atividade, energia/distância/passos totais) e WORKOUT_ROUTE
+  /// (`WorkoutRouteHealthValue`: lista de pontos GPS) carregam dados
+  /// estruturados que [value] simplesmente descarta (vira `0`). Nenhum
+  /// código anterior a esta tarefa precisava do valor cru, por isso não
+  /// existia; `HealthSyncService._processarTreinos` é o único lugar que lê
+  /// este campo.
+  final HealthValue rawValue;
+
   const HealthMetricPoint({
     required this.type,
     required this.value,
@@ -50,6 +61,7 @@ class HealthMetricPoint {
     required this.dateFrom,
     required this.dateTo,
     required this.sourceApp,
+    required this.rawValue,
     this.sourceId = '',
   });
 
@@ -71,6 +83,7 @@ class HealthMetricPoint {
       dateTo: point.dateTo,
       sourceApp: point.sourceName,
       sourceId: point.sourceId,
+      rawValue: rawValue,
     );
   }
 
@@ -290,6 +303,12 @@ class HealthSyncService {
     HealthDataType.DISTANCE_WALKING_RUNNING,
     HealthDataType.DISTANCE_DELTA,
     HealthDataType.ACTIVE_ENERGY_BURNED,
+    // Calorias granulares (RELATÓRIO 20260811_0002, decisão do fundador) —
+    // metabolismo basal/repouso, sinal separado de ACTIVE_ENERGY_BURNED.
+    // calorias_totais é ativas+basais, computado em _mesclarPorDia — não é
+    // TOTAL_CALORIES_BURNED (esse tipo não tem implementação real no lado
+    // iOS do pacote `health`, ver RELATÓRIO 20260810_0007/spike).
+    HealthDataType.BASAL_ENERGY_BURNED,
     // RELATÓRIO 20260811 — sono por estágio granular, não mais um total
     // único. SLEEP_SESSION continua fora daqui (mesmo motivo do RELATÓRIO
     // 20260810: cobre bedtime->waketime inteiro, incluindo acordado —
@@ -323,6 +342,15 @@ class HealthSyncService {
     HealthDataType.BLOOD_OXYGEN,
     HealthDataType.BODY_TEMPERATURE,
     HealthDataType.WORKOUT,
+    // Treinos/Rotas (RELATÓRIO 20260811_0002, decisão do fundador) — rota
+    // GPS de cada WORKOUT. No Android, ler rota exige um consentimento
+    // extra POR SESSÃO do próprio Health Connect (ExerciseRouteResult.
+    // ConsentRequired) — não é uma permissão estática de manifest, é um
+    // fluxo dinâmico; quando negado, o pacote devolve a rota com 0 pontos
+    // (indistinguível de "esse treino não tem rota" no lado Dart — ver
+    // HealthSyncService._processarTreinos), então o app já lida com isso
+    // de graça, sem checagem especial.
+    HealthDataType.WORKOUT_ROUTE,
   ];
 
   List<HealthDataType> get _tiposSuportados =>
@@ -758,6 +786,16 @@ class HealthSyncService {
       );
     }
 
+    // Treinos/Rotas (RELATÓRIO 20260811_0002) — roda sobre leitura.points
+    // (cru, com HealthMetricPoint.rawValue), não sobre `payloads`:
+    // WORKOUT/WORKOUT_ROUTE não mapeiam pra nenhum campo de
+    // HealthPayloadModel (toPayloads() os filtra fora por isEmpty), então
+    // se o lote só tivesse treino e nada mais, `payloads.isEmpty` abaixo
+    // sairia cedo demais e o treino nunca seria processado. Best-effort,
+    // mesmo espírito de _detectarEregistrarAnomalias: nunca derruba o sync
+    // principal.
+    await _processarTreinos(usuarioId, leitura.points);
+
     final payloads = leitura.toPayloads();
     if (payloads.isEmpty) {
       final agora = DateTime.now();
@@ -982,6 +1020,11 @@ class HealthSyncService {
     final contagemFcPorDia = <String, int>{};
     final maximaFcPorDia = <String, int>{};
     final caloriasPorDiaFonte = <String, Map<String, num>>{};
+    // Calorias basais (RELATÓRIO 20260811_0002) — mesmo tratamento
+    // anti-double-counting de calorias ativas: mais de uma fonte pode
+    // reportar metabolismo basal do mesmo dia (celular+relógio), então
+    // maior fonte, nunca soma entre fontes.
+    final caloriasBasaisPorDiaFonte = <String, Map<String, num>>{};
     // Hierarquia de Fontes (RELATÓRIO 20260810_0007, decisão do fundador):
     // passos e distância NÃO escolhem mais a "maior fonte" cada um por
     // conta própria (isso é o que produzia proporção passos/distância
@@ -1037,6 +1080,12 @@ class HealthSyncService {
         porFonte[payload.source] =
             (porFonte[payload.source] ?? 0) + payload.caloriasAtivas!;
       }
+      if (payload.caloriasBasais != null) {
+        final porFonte =
+            caloriasBasaisPorDiaFonte.putIfAbsent(dataReferencia, () => {});
+        porFonte[payload.source] =
+            (porFonte[payload.source] ?? 0) + payload.caloriasBasais!;
+      }
       somar('sono_leve_minutos', payload.sonoLeveMinutos);
       somar('sono_profundo_minutos', payload.sonoProfundoMinutos);
       somar('sono_rem_minutos', payload.sonoRemMinutos);
@@ -1081,6 +1130,19 @@ class HealthSyncService {
     }
 
     aplicarMaiorFonte(caloriasPorDiaFonte, 'calorias_ativas', arredondar: false);
+    aplicarMaiorFonte(caloriasBasaisPorDiaFonte, 'calorias_basais', arredondar: false);
+
+    // calorias_totais = ativas + basais — "melhor esforço" com o que
+    // estiver disponível naquele dia (soma tratando o ausente como 0), só
+    // quando pelo menos uma das duas existir. Não é um HealthDataType lido
+    // à parte (TOTAL_CALORIES_BURNED não tem implementação real no iOS do
+    // pacote `health` — RELATÓRIO 20260810_0007/spike).
+    for (final linha in porDia.values) {
+      final ativas = (linha['calorias_ativas'] as num?)?.toDouble();
+      final basais = (linha['calorias_basais'] as num?)?.toDouble();
+      if (ativas == null && basais == null) continue;
+      linha['calorias_totais'] = (ativas ?? 0) + (basais ?? 0);
+    }
 
     // Hierarquia de Fontes: passos e distância do dia vêm os DOIS da mesma
     // Fonte Vencedora — prioridade alta (qualquer coisa que não seja um
@@ -1136,6 +1198,155 @@ class HealthSyncService {
     }
 
     return porDia.values.toList();
+  }
+
+  /// Treinos + Rotas GPS (RELATÓRIO 20260811_0002, decisão do fundador) —
+  /// um `atividades_fisicas_treinos` por ponto `WORKOUT` lido, com FC
+  /// isolada ao INTERVALO de tempo daquele treino específico (não a FC do
+  /// dia inteiro) e a rota GPS correspondente, quando existir.
+  ///
+  /// Best-effort do início ao fim (mesmo espírito de
+  /// [_detectarEregistrarAnomalias]/[_garantirPermissaoHistorico]): uma
+  /// falha em UM treino (upsert, rota, o que for) é logada e o loop segue
+  /// pros próximos — nunca derruba a sincronização principal de
+  /// `metricas_saude_diarias`.
+  Future<void> _processarTreinos(
+    String usuarioId,
+    List<HealthMetricPoint> points,
+  ) async {
+    final treinos =
+        points.where((p) => p.type == HealthDataType.WORKOUT).toList();
+    if (treinos.isEmpty) return;
+
+    // Cru, não achatado — precisa de HealthMetricPoint.value (o número em
+    // bpm), só filtrado pelo INTERVALO do treino, não do dia inteiro.
+    final fcBruta =
+        points.where((p) => p.type == HealthDataType.HEART_RATE).toList();
+    final rotas =
+        points.where((p) => p.type == HealthDataType.WORKOUT_ROUTE).toList();
+
+    bool dentroDoIntervalo(HealthMetricPoint ponto, HealthMetricPoint treino) =>
+        !ponto.dateFrom.isBefore(treino.dateFrom) &&
+        !ponto.dateTo.isAfter(treino.dateTo);
+
+    for (final treino in treinos) {
+      final workout = treino.rawValue;
+      if (workout is! WorkoutHealthValue) continue;
+
+      try {
+        // FC do treino: filtra o array de HEART_RATE bruto do LOTE inteiro
+        // (pode cobrir vários dias) pelas leituras cujo timestamp cai
+        // exatamente entre o início e o fim DESTE treino — pedido explícito
+        // do fundador. Sem lógica de anomalia/evento aqui (restrição F02,
+        // RELATÓRIO 20260810_0004) — só min/média/máxima, valores absolutos.
+        final fcDoTreino = fcBruta
+            .where((p) => dentroDoIntervalo(p, treino))
+            .map((p) => p.value)
+            .toList();
+
+        final linhaTreino = <String, dynamic>{
+          'usuario_id': usuarioId,
+          'tipo_atividade_codigo': workout.workoutActivityType.name,
+          'inicio_atividade': treino.dateFrom.toIso8601String(),
+          'fim_atividade': treino.dateTo.toIso8601String(),
+          'origem': treino.identificadorFonte.isEmpty
+              ? 'wearable'
+              : treino.identificadorFonte,
+          if (workout.totalEnergyBurned != null)
+            'energia_queimada_kcal': workout.totalEnergyBurned,
+          if (workout.totalDistance != null)
+            'distancia_metros': workout.totalDistance,
+          if (workout.totalSteps != null) 'passos_totais': workout.totalSteps,
+          if (fcDoTreino.isNotEmpty) ...{
+            'fc_media':
+                (fcDoTreino.reduce((a, b) => a + b) / fcDoTreino.length).round(),
+            'fc_maxima': fcDoTreino.reduce(math.max).round(),
+            'fc_minima': fcDoTreino.reduce(math.min).round(),
+          },
+        };
+
+        // onConflict na chave (usuario_id, inicio_atividade) — idempotência:
+        // reprocessar os mesmos 30 dias atualiza o mesmo treino, nunca
+        // duplica. .select('id') porque precisamos do id gerado (mesmo em
+        // cima de um conflito, PostgREST devolve a linha final) pra linkar
+        // a rota, sem uma segunda ida ao banco só pra descobrir.
+        final treinoGravado = await _supabase
+            .from('atividades_fisicas_treinos')
+            .upsert(linhaTreino, onConflict: 'usuario_id,inicio_atividade')
+            .select('id')
+            .single();
+        final treinoId = treinoGravado['id'] as String;
+
+        await _gravarRotaDoTreino(treinoId, treino, rotas, dentroDoIntervalo);
+      } catch (e) {
+        debugPrint(
+          'HealthSyncService: falha ao gravar treino de '
+          '${treino.dateFrom} (best-effort, sync principal segue): $e',
+        );
+      }
+    }
+  }
+
+  /// Grava a rota GPS de UM treino já upsertado — idempotência via
+  /// "limpa e reinsere" (pedido explícito da tarefa): sem uma chave única
+  /// de negócio por PONTO de rota para dar onConflict, apagar as rotas
+  /// antigas do treino e inserir as novas de novo é o jeito direto de
+  /// nunca duplicar pontos ao reprocessar os mesmos 30 dias.
+  ///
+  /// ACHADO REAL (não suposição): no Android, quando o Health Connect exige
+  /// consentimento extra POR SESSÃO para expor a rota
+  /// (`ExerciseRouteResult.ConsentRequired`, achado lendo `HealthDataReader.
+  /// kt` do pacote `health`), a resposta que chega aqui no Dart é uma rota
+  /// com `locations` VAZIO — não existe nenhum jeito de distinguir, do lado
+  /// Dart, "consentimento negado" de "este treino não tem rota GPS mesmo".
+  /// Por isso o `if (locations.isEmpty) return` abaixo já cobre os dois
+  /// casos ao mesmo tempo — é exatamente o "ignore a rota silenciosamente"
+  /// pedido pela tarefa, sem precisar de nenhuma checagem especial.
+  Future<void> _gravarRotaDoTreino(
+    String treinoId,
+    HealthMetricPoint treino,
+    List<HealthMetricPoint> rotas,
+    bool Function(HealthMetricPoint, HealthMetricPoint) dentroDoIntervalo,
+  ) async {
+    try {
+      final candidatas =
+          rotas.where((r) => dentroDoIntervalo(r, treino)).toList();
+      if (candidatas.isEmpty) return;
+      final rotaDoTreino = candidatas.first;
+
+      final rotaValue = rotaDoTreino.rawValue;
+      if (rotaValue is! WorkoutRouteHealthValue) return;
+      if (rotaValue.locations.isEmpty) return;
+
+      await _supabase
+          .from('atividades_fisicas_rotas')
+          .delete()
+          .eq('treino_id', treinoId);
+
+      await _supabase.from('atividades_fisicas_rotas').insert(
+        rotaValue.locations
+            .map(
+              (ponto) => {
+                'treino_id': treinoId,
+                'latitude': ponto.latitude,
+                'longitude': ponto.longitude,
+                'timestamp_ponto': ponto.timestamp.toIso8601String(),
+                if (ponto.altitude != null) 'altitude': ponto.altitude,
+                if (ponto.horizontalAccuracy != null)
+                  'precisao': ponto.horizontalAccuracy,
+              },
+            )
+            .toList(),
+      );
+    } catch (e) {
+      // Best-effort: falha ao gravar rota (rede, RLS, o que for) nunca
+      // pode derrubar o treino em si, que já foi upsertado com sucesso
+      // antes desta chamada.
+      debugPrint(
+        'HealthSyncService: falha ao gravar rota do treino $treinoId '
+        '(best-effort): $e',
+      );
+    }
   }
 
   /// Inferência cruzada de balança/composição corporal — decisão do

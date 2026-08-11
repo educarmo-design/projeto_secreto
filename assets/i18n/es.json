@@ -203,6 +203,18 @@
     "historico_telemetria_debug_running": "Ejecutando...",
     "historico_telemetria_debug_result": "{{count}} día(s) grabado(s) — recargando lista del banco...",
 
+    "historico_treinos_button": "Historial de Entrenamientos",
+    "historico_treinos_title": "Historial de Entrenamientos",
+    "historico_treinos_subtitle": "Leído directo del banco (atividades_fisicas_treinos) — no del caché del celular.",
+    "historico_treinos_empty": "Ningún entrenamiento sincronizado todavía.",
+    "historico_treinos_error": "Error al cargar el historial de entrenamientos.",
+    "historico_treinos_field_duracao": "Duración",
+    "historico_treinos_field_distancia": "Distancia",
+    "historico_treinos_field_calorias": "Calorías",
+    "historico_treinos_field_fc_media": "FC media",
+    "historico_treinos_field_fc_minima": "FC mín.",
+    "historico_treinos_field_fc_maxima": "FC máx.",
+
     "clinical_panel_tab": "Panel Clínico",
     "exam_folder_tab": "Carpeta Digital de Exámenes",
     "exam_folder_empty": "Aún no hay exámenes adjuntos",
