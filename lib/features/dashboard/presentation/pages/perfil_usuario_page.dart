@@ -63,6 +63,11 @@ class _PerfilUsuarioPageState extends State<PerfilUsuarioPage> {
   /// no salvar) de "escolheu uma data".
   DateTime? _dataNascimentoSelecionada;
 
+  /// N07 (RELATÓRIO 20260812_0008) — mesma convenção de
+  /// [_dataNascimentoSelecionada]: `null` = "ainda não informado", não
+  /// "erro".
+  SexoBiologico? _sexoBiologicoSelecionado;
+
   @override
   void initState() {
     super.initState();
@@ -80,6 +85,7 @@ class _PerfilUsuarioPageState extends State<PerfilUsuarioPage> {
     try {
       final alturaCm = await _repository.buscarAlturaCm();
       final dataNascimento = await _repository.buscarDataNascimento();
+      final sexoBiologico = await _repository.buscarSexoBiologico();
       if (!mounted) return;
       // toStringAsFixed(0): altura_cm é numeric(5,1) no banco, mas o
       // teclado numérico simples não precisa mostrar ".0" pro caso comum
@@ -92,6 +98,7 @@ class _PerfilUsuarioPageState extends State<PerfilUsuarioPage> {
               : alturaCm.toStringAsFixed(1));
       setState(() {
         _dataNascimentoSelecionada = dataNascimento;
+        _sexoBiologicoSelecionado = sexoBiologico;
         _status = _CargaStatus.sucesso;
       });
     } catch (_) {
@@ -171,6 +178,10 @@ class _PerfilUsuarioPageState extends State<PerfilUsuarioPage> {
       await _repository.atualizarAlturaCm(alturaCm);
       if (dataNascimento != null) {
         await _repository.atualizarDataNascimento(dataNascimento);
+      }
+      final sexoBiologico = _sexoBiologicoSelecionado;
+      if (sexoBiologico != null) {
+        await _repository.atualizarSexoBiologico(sexoBiologico);
       }
       if (!mounted) return;
       ScaffoldMessenger.of(context)
@@ -313,6 +324,35 @@ class _PerfilUsuarioPageState extends State<PerfilUsuarioPage> {
                       .textTheme
                       .bodySmall
                       ?.copyWith(color: AppColors.mutedText),
+                ),
+                const SizedBox(height: 24),
+                // N07 (RELATÓRIO 20260812_0008) — insumo do Motor
+                // Metabólico (Mifflin-St Jeor). Regra 14: RadioGroup cru,
+                // mesmo padrão de `anamnese_self_service_page.dart`.
+                Text(
+                  i18n.tr('perfil_fisico.sexo_biologico_label'),
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
+                RadioGroup<SexoBiologico>(
+                  groupValue: _sexoBiologicoSelecionado,
+                  onChanged: (valor) {
+                    if (_salvando) return;
+                    setState(() => _sexoBiologicoSelecionado = valor);
+                  },
+                  child: Column(
+                    children: [
+                      RadioListTile<SexoBiologico>(
+                        contentPadding: EdgeInsets.zero,
+                        value: SexoBiologico.masculino,
+                        title: Text(i18n.tr('perfil_fisico.sexo_biologico_masculino')),
+                      ),
+                      RadioListTile<SexoBiologico>(
+                        contentPadding: EdgeInsets.zero,
+                        value: SexoBiologico.feminino,
+                        title: Text(i18n.tr('perfil_fisico.sexo_biologico_feminino')),
+                      ),
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 24),
                 FilledButton(

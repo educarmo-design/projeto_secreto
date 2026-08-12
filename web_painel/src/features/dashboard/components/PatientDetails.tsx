@@ -11,10 +11,14 @@ import {
   YAxis,
 } from 'recharts';
 import { supabase, type ProfissionalAutenticado } from '@/core/supabase';
-import type { Database } from '@/core/types/database';
+import type { Database, SexoBiologico } from '@/core/types/database';
+import { Toast, type ToastMessage } from '@/components/Toast';
+import { InserirMedicaoModal } from './InserirMedicaoModal';
 
 type MetricaDiariaRow = Database['public']['Tables']['metricas_saude_diarias']['Row'];
 type EventoAnomaliaRow = Database['public']['Tables']['eventos_anomalias_saude']['Row'];
+
+const ROTULO_SEXO_BIOLOGICO: Record<SexoBiologico, string> = { M: 'Masculino', F: 'Feminino' };
 
 interface PatientDetailsProps {
   profissional: ProfissionalAutenticado;
@@ -49,6 +53,11 @@ export function PatientDetails({ profissional }: PatientDetailsProps) {
   const [metricas, setMetricas] = useState<MetricaDiariaRow[]>([]);
   const [anomalias, setAnomalias] = useState<EventoAnomaliaRow[]>([]);
   const [mensagemErro, setMensagemErro] = useState<string | null>(null);
+  // N07 (RELATÓRIO 20260812_0008).
+  const [sexoBiologico, setSexoBiologico] = useState<SexoBiologico | null>(null);
+  const [salvandoSexo, setSalvandoSexo] = useState(false);
+  const [modalMedicaoAberto, setModalMedicaoAberto] = useState(false);
+  const [toast, setToast] = useState<ToastMessage | null>(null);
 
   useEffect(() => {
     if (!pacienteId) return;
@@ -63,7 +72,7 @@ export function PatientDetails({ profissional }: PatientDetailsProps) {
       desde.setDate(desde.getDate() - DIAS_HISTORICO);
       const desdeDataReferencia = desde.toISOString().split('T')[0] ?? '';
 
-      const [metricasResult, anomaliasResult, vinculoResult] = await Promise.all([
+      const [metricasResult, anomaliasResult, vinculoResult, perfilPacienteResult] = await Promise.all([
         supabase
           .from('metricas_saude_diarias')
           .select('*')
@@ -90,6 +99,10 @@ export function PatientDetails({ profissional }: PatientDetailsProps) {
           .eq('paciente_id', idPaciente)
           .eq('status', 'ativo')
           .limit(1),
+        // N07 (RELATÓRIO 20260812_0008): sexo_biologico via a view
+        // já existente de campos não-sensíveis do paciente vinculado
+        // (`perfis_pacientes_vinculados`) — nunca a tabela-base direto.
+        supabase.from('perfis_pacientes_vinculados').select('sexo_biologico').eq('id', idPaciente).maybeSingle(),
       ]);
 
       if (cancelado) return;
@@ -117,6 +130,7 @@ export function PatientDetails({ profissional }: PatientDetailsProps) {
 
       setMetricas(metricasResult.data ?? []);
       setAnomalias(anomaliasResult.data ?? []);
+      setSexoBiologico(perfilPacienteResult.data?.sexo_biologico ?? null);
       setEstado('sucesso');
     }
 
@@ -125,6 +139,43 @@ export function PatientDetails({ profissional }: PatientDetailsProps) {
       cancelado = true;
     };
   }, [pacienteId, profissional.id, profissional.ehSeguradora]);
+
+  // N07 (RELATÓRIO 20260812_0008) — chamado depois que o InserirMedicaoModal
+  // salva com sucesso. Só re-busca `metricas_saude_diarias` (o que mudou);
+  // não repete a checagem de vínculo/anomalias do efeito acima, já
+  // confirmadas na carga inicial desta mesma sessão da tela.
+  async function recarregarMetricas() {
+    if (!pacienteId) return;
+    const desde = new Date();
+    desde.setDate(desde.getDate() - DIAS_HISTORICO);
+    const { data, error } = await supabase
+      .from('metricas_saude_diarias')
+      .select('*')
+      .eq('usuario_id_anonimo', pacienteId)
+      .gte('data_referencia', desde.toISOString().split('T')[0] ?? '')
+      .order('data_referencia', { ascending: true });
+
+    if (!error) setMetricas(data ?? []);
+  }
+
+  async function alterarSexoBiologico(novoSexo: SexoBiologico) {
+    if (!pacienteId || novoSexo === sexoBiologico) return;
+
+    setSalvandoSexo(true);
+    const { error } = await supabase.rpc('profissional_atualizar_sexo_biologico', {
+      p_paciente_id: pacienteId,
+      p_sexo_biologico: novoSexo,
+    });
+    setSalvandoSexo(false);
+
+    if (error) {
+      setToast({ variant: 'error', text: `Não foi possível salvar o sexo biológico: ${error.message}` });
+      return;
+    }
+
+    setSexoBiologico(novoSexo);
+    setToast({ variant: 'success', text: 'Sexo biológico atualizado.' });
+  }
 
   const dadosGlicemia = useMemo(
     () =>
@@ -189,17 +240,64 @@ export function PatientDetails({ profissional }: PatientDetailsProps) {
 
   return (
     <div className="space-y-8">
-      <header>
-        <p className="text-xs uppercase tracking-wide text-clinical-muted">Paciente (UUID anônimo)</p>
-        <h1 className="font-mono text-lg text-slate-100">{pacienteId}</h1>
-        <p className="mt-1 text-sm text-clinical-muted">
-          Últimos {DIAS_HISTORICO} dias · {metricas.length} registros · {anomalias.length} eventos na
-          Caixa Preta
-        </p>
-        <p className="mt-1 text-xs text-clinical-muted">
-          Visualizado por {profissional.nome ?? profissional.tipoProfissional ?? 'Administrador'} em{' '}
-          {formatarDataHoraExata(new Date().toISOString())}
-        </p>
+      {toast && <Toast toast={toast} onDismiss={() => setToast(null)} />}
+      {modalMedicaoAberto && pacienteId && (
+        <InserirMedicaoModal
+          pacienteId={pacienteId}
+          onClose={() => setModalMedicaoAberto(false)}
+          onSalvo={() => {
+            setModalMedicaoAberto(false);
+            setToast({ variant: 'success', text: 'Medição registrada.' });
+            void recarregarMetricas();
+          }}
+        />
+      )}
+
+      <header className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <p className="text-xs uppercase tracking-wide text-clinical-muted">Paciente (UUID anônimo)</p>
+          <h1 className="font-mono text-lg text-slate-100">{pacienteId}</h1>
+          <p className="mt-1 text-sm text-clinical-muted">
+            Últimos {DIAS_HISTORICO} dias · {metricas.length} registros · {anomalias.length} eventos na
+            Caixa Preta
+          </p>
+          <p className="mt-1 text-xs text-clinical-muted">
+            Visualizado por {profissional.nome ?? profissional.tipoProfissional ?? 'Administrador'} em{' '}
+            {formatarDataHoraExata(new Date().toISOString())}
+          </p>
+        </div>
+
+        {/* N07 (RELATÓRIO 20260812_0008) — sexo biológico (insumo do Motor
+            Metabólico) e o gatilho da telemetria manual, lado a lado no
+            cabeçalho por serem os dois inputs clínicos que o profissional
+            grava diretamente nesta tela. */}
+        <div className="flex flex-col items-end gap-2">
+          <label className="flex items-center gap-2 text-xs text-clinical-muted">
+            Sexo biológico
+            <select
+              value={sexoBiologico ?? ''}
+              disabled={salvandoSexo}
+              onChange={(event) => void alterarSexoBiologico(event.target.value as SexoBiologico)}
+              className="rounded-lg border border-clinical-border bg-clinical-bg px-2 py-1 text-sm text-slate-100 outline-none focus:border-clinical-primary disabled:opacity-60"
+            >
+              <option value="" disabled>
+                Não informado
+              </option>
+              {(Object.entries(ROTULO_SEXO_BIOLOGICO) as [SexoBiologico, string][]).map(([valor, rotulo]) => (
+                <option key={valor} value={valor}>
+                  {rotulo}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button
+            type="button"
+            onClick={() => setModalMedicaoAberto(true)}
+            className="rounded-lg bg-clinical-primary px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-600"
+          >
+            Registrar Medição Clínica
+          </button>
+        </div>
       </header>
 
       <section className="grid grid-cols-1 gap-6 lg:grid-cols-2">

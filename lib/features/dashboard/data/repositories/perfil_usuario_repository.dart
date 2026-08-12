@@ -1,5 +1,27 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+/// Espelha o ENUM Postgres `sexo_biologico_enum`
+/// (`20260812100000_n07_motor_metabolico_sexo_biologico_telemetria_manual.sql`,
+/// RELATÓRIO 20260812_0008) — insumo do Motor Metabólico N07
+/// (Mifflin-St Jeor precisa dele quando não há massa magra medida).
+enum SexoBiologico {
+  masculino('M'),
+  feminino('F');
+
+  const SexoBiologico(this.codigo);
+
+  /// Valor gravado no banco — exatamente o rótulo do ENUM Postgres.
+  final String codigo;
+
+  static SexoBiologico? fromCodigo(String? codigo) {
+    if (codigo == null) return null;
+    return SexoBiologico.values.firstWhere(
+      (valor) => valor.codigo == codigo,
+      orElse: () => throw ArgumentError('Código de sexo_biologico desconhecido: $codigo'),
+    );
+  }
+}
+
 /// Repositório mínimo do "dado físico" do usuário — hoje só `altura_cm`
 /// (RELATÓRIO 20260810_0006, decisão do fundador: tela de Perfil em vez de
 /// injetar o dado via SQL manual). Não usa [HealthPayloadModel]/a tabela
@@ -88,4 +110,34 @@ class PerfilUsuarioRepository {
   }
 
   static String _dataOnly(DateTime data) => data.toIso8601String().split('T').first;
+
+  /// N07 (RELATÓRIO 20260812_0008) — `null` tanto para "ninguém logado"
+  /// quanto para "coluna vazia", mesma convenção de [buscarAlturaCm].
+  Future<SexoBiologico?> buscarSexoBiologico() async {
+    final usuarioId = _supabase.auth.currentUser?.id;
+    if (usuarioId == null) return null;
+
+    final linha = await _supabase
+        .from('perfis_usuarios')
+        .select('sexo_biologico')
+        .eq('id', usuarioId)
+        .maybeSingle();
+
+    return SexoBiologico.fromCodigo(linha?['sexo_biologico'] as String?);
+  }
+
+  /// Mesma regra de segurança de [atualizarAlturaCm]/[atualizarDataNascimento]
+  /// — RLS `perfis_usuarios_update_own` já garante que só o dono da linha
+  /// grava.
+  Future<void> atualizarSexoBiologico(SexoBiologico sexoBiologico) async {
+    final usuarioId = _supabase.auth.currentUser?.id;
+    if (usuarioId == null) {
+      throw StateError('Nenhum usuário logado.');
+    }
+
+    await _supabase
+        .from('perfis_usuarios')
+        .update({'sexo_biologico': sexoBiologico.codigo})
+        .eq('id', usuarioId);
+  }
 }

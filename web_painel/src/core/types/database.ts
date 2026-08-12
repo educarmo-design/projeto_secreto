@@ -22,12 +22,15 @@ export interface Database {
           email: string | null;
           telefone: string | null;
           data_nascimento: string | null;
-          sexo_biologico: string | null;
+          /** ENUM Postgres `sexo_biologico_enum` desde 20260812100000 — antes era `text` livre, nunca coletado (achado do RELATÓRIO 20260812_0008). */
+          sexo_biologico: SexoBiologico | null;
           eh_profissional: boolean;
           tipo_profissional: TipoProfissionalSaude | null;
           /** CRM/CRN/CREFITO/CREF — texto livre, cada conselho tem formato próprio (20260722120000). NÃO cifrado (D2 só cobre nome/telefone/email). */
           registro_profissional: string | null;
           nickname: string | null;
+          /** cm — Perfil Físico do app (20260811130000), input do Motor Metabólico N07 (Mifflin-St Jeor). */
+          altura_cm: number | null;
           pais: string | null;
           cep: string | null;
           logradouro: string | null;
@@ -59,6 +62,8 @@ export interface Database {
           calorias_ativas: number | null;
           minutos_sono: number | null;
           peso_kg: number | null;
+          /** kg — bioimpedância, input do Motor Metabólico N07 (Katch-McArdle). `20260808120000`. */
+          massa_magra_kg: number | null;
           percentual_gordura: number | null;
           pressao_sistolica: number | null;
           pressao_diastolica: number | null;
@@ -377,10 +382,12 @@ export interface Database {
     Views: {
       /**
        * Ver `supabase/migrations/*_painel_web_profissional_rls.sql`: só
-       * expõe os 4 campos não-sensíveis de `perfis_usuarios` para os
+       * expõe os campos não-sensíveis de `perfis_usuarios` para os
        * pacientes vinculados ao profissional autenticado —
        * `nome`/`telefone`/`email`/endereço nunca aparecem aqui, mesmo que
-       * a linha esteja visível.
+       * a linha esteja visível. `sexo_biologico` adicionado em
+       * `20260812100000` (RELATÓRIO 20260812_0008, N07) — mesma view,
+       * mesma regra, um campo a mais.
        */
       perfis_pacientes_vinculados: {
         Row: {
@@ -388,6 +395,7 @@ export interface Database {
           nickname: string | null;
           data_nascimento: string | null;
           geo_ranking_id: string | null;
+          sexo_biologico: SexoBiologico | null;
         };
         Relationships: [];
       };
@@ -502,13 +510,64 @@ export interface Database {
         Args: { p_vinculo_id: string };
         Returns: void;
       };
+
+      /**
+       * N07 (RELATÓRIO 20260812_0008) — permite o próprio usuário, um
+       * profissional com vínculo ATIVO, ou um admin, gravar
+       * `sexo_biologico` de um paciente. Única porta de escrita
+       * cross-usuário dessa coluna (a view `perfis_pacientes_vinculados`
+       * continua só-leitura).
+       */
+      profissional_atualizar_sexo_biologico: {
+        Args: { p_paciente_id: string; p_sexo_biologico: SexoBiologico };
+        Returns: void;
+      };
+
+      /**
+       * N07 (RELATÓRIO 20260812_0008) — Motor Metabólico: TMB
+       * (Katch-McArdle com massa magra, senão Mifflin-St Jeor completa),
+       * PAL decomposto (gasto_sedentario + gasto_atividade da anamnese
+       * ativa), TEF isolado (informativo, nunca somado ao tdee). Nunca
+       * lança erro por dado faltante — ver `formula_usada`/`avisos`.
+       */
+      calcular_motor_metabolico: {
+        Args: { p_usuario_id: string };
+        Returns: MotorMetabolicoResultado;
+      };
     };
     Enums: {
       tipo_profissional_saude: TipoProfissionalSaude;
       status_aprovacao_usuario: StatusAprovacaoUsuario;
       status_vinculo: StatusVinculo;
+      sexo_biologico_enum: SexoBiologico;
     };
   };
+}
+
+/**
+ * Espelha o enum Postgres `sexo_biologico_enum` (`20260812100000`,
+ * RELATÓRIO 20260812_0008) — input do Motor Metabólico N07.
+ */
+export type SexoBiologico = 'M' | 'F';
+
+/** Formato do JSONB devolvido por `calcular_motor_metabolico` — ver comentário da função na migration `20260812100000` para a matemática completa. */
+export interface MotorMetabolicoResultado {
+  tmb: number | null;
+  gasto_sedentario: number | null;
+  gasto_atividade: number | null;
+  /** 10% da TMB — informativo, NUNCA somado em `tdee` (anti double-count). */
+  tef: number | null;
+  /** gasto_sedentario + gasto_atividade — nunca inclui o TEF. */
+  tdee: number | null;
+  formula_usada: 'katch_mcardle' | 'mifflin_st_jeor' | 'dados_insuficientes';
+  insumos: {
+    idade: number | null;
+    sexo_biologico: SexoBiologico | null;
+    altura_cm: number | null;
+    peso_kg: number | null;
+    massa_magra_kg: number | null;
+  };
+  avisos: string[];
 }
 
 /** Espelha o enum Postgres `status_aprovacao_usuario` (20260714100000_add_approval_workflow.sql). */

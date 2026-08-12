@@ -199,4 +199,61 @@ void main() {
       verifyNever(() => supabase.from('perfis_usuarios'));
     });
   });
+
+  // N07 (RELATÓRIO 20260812_0008) — mesmo padrão de buscarDataNascimento/
+  // atualizarDataNascimento acima.
+  group('buscarSexoBiologico', () {
+    test('devolve o sexo quando a coluna está preenchida', () async {
+      when(() => perfisBuilder.select(any())).thenAnswer(
+        (_) => _FakeSelectFilterBuilder({'sexo_biologico': 'F'}),
+      );
+
+      final sexo = await repository.buscarSexoBiologico();
+
+      expect(sexo, SexoBiologico.feminino);
+    });
+
+    test('devolve null quando a coluna está vazia (não é erro)', () async {
+      when(() => perfisBuilder.select(any())).thenAnswer(
+        (_) => _FakeSelectFilterBuilder({'sexo_biologico': null}),
+      );
+
+      final sexo = await repository.buscarSexoBiologico();
+
+      expect(sexo, isNull);
+    });
+
+    test('devolve null sem consultar o Supabase quando ninguém está logado', () async {
+      when(() => auth.currentUser).thenReturn(null);
+
+      final sexo = await repository.buscarSexoBiologico();
+
+      expect(sexo, isNull);
+      verifyNever(() => supabase.from('perfis_usuarios'));
+    });
+  });
+
+  group('atualizarSexoBiologico', () {
+    test('faz UPDATE em perfis_usuarios com o código do ENUM, filtrado pelo id', () async {
+      when(() => perfisBuilder.update(any())).thenAnswer(
+        (_) => _FakeFilterBuilder<dynamic>(
+          Future.value(const <Map<String, dynamic>>[]),
+        ),
+      );
+
+      await repository.atualizarSexoBiologico(SexoBiologico.masculino);
+
+      verify(() => perfisBuilder.update({'sexo_biologico': 'M'})).called(1);
+    });
+
+    test('lança StateError sem chamar o Supabase quando ninguém está logado', () async {
+      when(() => auth.currentUser).thenReturn(null);
+
+      expect(
+        () => repository.atualizarSexoBiologico(SexoBiologico.masculino),
+        throwsStateError,
+      );
+      verifyNever(() => supabase.from('perfis_usuarios'));
+    });
+  });
 }
