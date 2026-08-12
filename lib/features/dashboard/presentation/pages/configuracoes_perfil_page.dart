@@ -4,6 +4,7 @@ import '../../../../core/i18n/i18n_manager.dart';
 import '../../../../core/router/ui_profile_switcher.dart';
 import '../../../../core/supabase/supabase_client.dart';
 import '../../../auth/models/auth_models.dart' show ProfileUsageType;
+import '../../../nutricao/presentation/pages/anamnese_self_service_page.dart';
 import '../../../nutrition/presentation/pages/manual_food_search_page.dart';
 import '../../../vinculos/presentation/pages/gerir_vinculos_page.dart';
 import 'perfil_usuario_page.dart';
@@ -187,6 +188,19 @@ class _ConfiguracoesPerfilPageState extends State<ConfiguracoesPerfilPage> {
                   onTap: () => Navigator.of(context).push(
                     MaterialPageRoute<void>(
                       builder: (_) => const ManualFoodSearchPage(),
+                    ),
+                  ),
+                ),
+                // N09 (RELATÓRIO 20260811_0007) — Anamnese Nutricional
+                // Versionada, self-service.
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.assignment_outlined),
+                  title: Text(i18n.tr('profile.anamnese_item')),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const AnamneseSelfServicePage(),
                     ),
                   ),
                 ),

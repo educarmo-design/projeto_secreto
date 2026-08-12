@@ -24,6 +24,7 @@ import { AdminAlergias } from './features/admin/components/AdminAlergias';
 import { AdminAlimentos } from './features/admin/components/AdminAlimentos';
 import { AdminConfiguracoes } from './features/admin/components/AdminConfiguracoes';
 import { AdminVinculos } from './features/admin/components/AdminVinculos';
+import { AdminProblemasSaude } from './features/admin/components/AdminProblemasSaude';
 
 type EstadoAuth = 'carregando' | 'autenticado' | 'nao_autenticado';
 
@@ -182,6 +183,10 @@ export default function App() {
         <Route
           path="/admin/alergias"
           element={profissional.isAdmin ? <AdminAlergias /> : <Navigate to="/" replace />}
+        />
+        <Route
+          path="/admin/problemas-saude"
+          element={profissional.isAdmin ? <AdminProblemasSaude /> : <Navigate to="/" replace />}
         />
         <Route
           path="/admin/alimentos"

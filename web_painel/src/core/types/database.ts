@@ -231,18 +231,39 @@ export interface Database {
        * 20260811_0002) — escrita liberada a admin só em
        * `20260811220000_admin_escrita_tipos_atividades_fisicas.sql`
        * (RELATÓRIO 20260811_0005), pra `AdminAtividadesFisicas.tsx` funcionar.
+       * `met_estimado` (RELATÓRIO 20260811_0007, `20260811240000`) — MET da
+       * modalidade, input do Motor N07 (futuro); `null` até o Admin cadastrar.
        */
       tipos_atividades_fisicas: {
         Row: {
           id: string;
           nome_codigo: string;
           nome_exibicao: string;
+          met_estimado: number | null;
         };
         Insert: Partial<Database['public']['Tables']['tipos_atividades_fisicas']['Row']> & {
           nome_codigo: string;
           nome_exibicao: string;
         };
         Update: Partial<Database['public']['Tables']['tipos_atividades_fisicas']['Row']>;
+        Relationships: [];
+      };
+
+      /**
+       * N09 (RELATÓRIO 20260811_0007, `20260811240000`) — catálogo de
+       * problemas de saúde (comorbidades) autodeclarados na Anamnese
+       * (self-service, app Flutter). Mais simples que `alergias` por pedido
+       * do fundador: só id + nome.
+       */
+      problemas_saude: {
+        Row: {
+          id: string;
+          nome: string;
+        };
+        Insert: Partial<Database['public']['Tables']['problemas_saude']['Row']> & {
+          nome: string;
+        };
+        Update: Partial<Database['public']['Tables']['problemas_saude']['Row']>;
         Relationships: [];
       };
 

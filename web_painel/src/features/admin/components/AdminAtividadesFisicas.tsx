@@ -6,6 +6,7 @@ interface TipoAtividade {
   id: string;
   nomeCodigo: string;
   nomeExibicao: string;
+  metEstimado: number | null;
 }
 
 type EstadoTela = 'carregando' | 'sucesso' | 'erro';
@@ -30,6 +31,11 @@ type EstadoTela = 'carregando' | 'sucesso' | 'erro';
  * que a FK de `atividades_fisicas_treinos` referencia; renomear o código de
  * um treino já sincronizado quebraria o vínculo silenciosamente. Quem quer
  * mudar o código precisa remover e recriar.
+ *
+ * `met_estimado` (RELATÓRIO 20260811_0007, `20260811240000`) — MET
+ * (Metabolic Equivalent of Task) da modalidade, opcional (fica `null` até
+ * o Admin cadastrar; não há fonte automática). Input do Motor N07 (futuro),
+ * não usado por nenhum cálculo nesta tarefa.
  */
 export function AdminAtividadesFisicas() {
   const [estado, setEstado] = useState<EstadoTela>('carregando');
@@ -38,10 +44,12 @@ export function AdminAtividadesFisicas() {
   const [toast, setToast] = useState<ToastMessage | null>(null);
   const [novoCodigo, setNovoCodigo] = useState('');
   const [novoNome, setNovoNome] = useState('');
+  const [novoMet, setNovoMet] = useState('');
   const [salvando, setSalvando] = useState(false);
   const [idsEmAcao, setIdsEmAcao] = useState<Set<string>>(new Set());
   const [idEmEdicao, setIdEmEdicao] = useState<string | null>(null);
   const [nomeEmEdicao, setNomeEmEdicao] = useState('');
+  const [metEmEdicao, setMetEmEdicao] = useState('');
 
   useEffect(() => {
     void carregar();
@@ -51,7 +59,7 @@ export function AdminAtividadesFisicas() {
     setEstado('carregando');
     const { data, error } = await supabase
       .from('tipos_atividades_fisicas')
-      .select('id, nome_codigo, nome_exibicao')
+      .select('id, nome_codigo, nome_exibicao, met_estimado')
       .order('nome_exibicao', { ascending: true });
 
     if (error) {
@@ -65,6 +73,7 @@ export function AdminAtividadesFisicas() {
         id: linha.id,
         nomeCodigo: linha.nome_codigo,
         nomeExibicao: linha.nome_exibicao,
+        metEstimado: linha.met_estimado,
       })),
     );
     setEstado('sucesso');
@@ -79,6 +88,7 @@ export function AdminAtividadesFisicas() {
       // (ex.: "RUNNING") que este código espelha.
       nome_codigo: novoCodigo.trim().toUpperCase().replace(/\s+/g, '_'),
       nome_exibicao: novoNome.trim(),
+      met_estimado: novoMet.trim() ? Number(novoMet) : null,
     });
 
     setSalvando(false);
@@ -90,6 +100,7 @@ export function AdminAtividadesFisicas() {
 
     setNovoCodigo('');
     setNovoNome('');
+    setNovoMet('');
     setToast({ variant: 'success', text: 'Modalidade criada.' });
     void carregar();
   }
@@ -97,11 +108,17 @@ export function AdminAtividadesFisicas() {
   function iniciarEdicao(item: TipoAtividade) {
     setIdEmEdicao(item.id);
     setNomeEmEdicao(item.nomeExibicao);
+    setMetEmEdicao(item.metEstimado === null ? '' : String(item.metEstimado));
   }
 
   async function salvarEdicao(item: TipoAtividade) {
     const nomeNovo = nomeEmEdicao.trim();
-    if (!nomeNovo || nomeNovo === item.nomeExibicao) {
+    const metNovo = metEmEdicao.trim() ? Number(metEmEdicao) : null;
+    if (!nomeNovo) {
+      setToast({ variant: 'error', text: 'Nome de exibição não pode ficar vazio.' });
+      return;
+    }
+    if (nomeNovo === item.nomeExibicao && metNovo === item.metEstimado) {
       setIdEmEdicao(null);
       return;
     }
@@ -109,7 +126,7 @@ export function AdminAtividadesFisicas() {
     setIdsEmAcao((atual) => new Set(atual).add(item.id));
     const { error } = await supabase
       .from('tipos_atividades_fisicas')
-      .update({ nome_exibicao: nomeNovo })
+      .update({ nome_exibicao: nomeNovo, met_estimado: metNovo })
       .eq('id', item.id);
     setIdsEmAcao((atual) => {
       const proximo = new Set(atual);
@@ -123,7 +140,9 @@ export function AdminAtividadesFisicas() {
     }
 
     setItens((atual) =>
-      atual.map((linha) => (linha.id === item.id ? { ...linha, nomeExibicao: nomeNovo } : linha)),
+      atual.map((linha) =>
+        linha.id === item.id ? { ...linha, nomeExibicao: nomeNovo, metEstimado: metNovo } : linha,
+      ),
     );
     setIdEmEdicao(null);
     setToast({ variant: 'success', text: `"${nomeNovo}" salvo.` });
@@ -193,6 +212,21 @@ export function AdminAtividadesFisicas() {
             className="mt-1 w-full rounded-lg border border-clinical-border bg-clinical-bg px-3 py-2 text-sm text-slate-100 outline-none focus:border-clinical-primary"
           />
         </div>
+        <div className="w-28">
+          <label htmlFor="nova-modalidade-met" className="block text-xs font-medium text-slate-300">
+            MET estimado
+          </label>
+          <input
+            id="nova-modalidade-met"
+            type="number"
+            min="0"
+            step="0.1"
+            value={novoMet}
+            onChange={(event) => setNovoMet(event.target.value)}
+            placeholder="Ex.: 8.0"
+            className="mt-1 w-full rounded-lg border border-clinical-border bg-clinical-bg px-3 py-2 text-sm text-slate-100 outline-none focus:border-clinical-primary"
+          />
+        </div>
         <button
           type="submit"
           disabled={salvando}
@@ -215,6 +249,7 @@ export function AdminAtividadesFisicas() {
               <tr>
                 <th className="px-4 py-3">Código</th>
                 <th className="px-4 py-3">Nome de exibição</th>
+                <th className="px-4 py-3">MET estimado</th>
                 <th className="px-4 py-3" />
               </tr>
             </thead>
@@ -236,6 +271,20 @@ export function AdminAtividadesFisicas() {
                         />
                       ) : (
                         item.nomeExibicao
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-slate-300">
+                      {editando ? (
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.1"
+                          value={metEmEdicao}
+                          onChange={(event) => setMetEmEdicao(event.target.value)}
+                          className="w-20 rounded-lg border border-clinical-border bg-clinical-bg px-2 py-1 text-sm text-slate-100 outline-none focus:border-clinical-primary"
+                        />
+                      ) : (
+                        (item.metEstimado ?? '—')
                       )}
                     </td>
                     <td className="px-4 py-3 text-right">

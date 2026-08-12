@@ -357,7 +357,8 @@
     "heart_rate_test_item": "Test Heart Rate Reading",
     "weight_test_item": "Test Weight Reading",
     "sleep_test_item": "Test Sleep Reading",
-    "manual_food_search_item": "Manual Food Search"
+    "manual_food_search_item": "Manual Food Search",
+    "anamnese_item": "Nutrition Intake"
   },
 
   "perfil_fisico": {
@@ -376,6 +377,36 @@
     "save_success": "Saved successfully",
     "save_error": "Failed to save. Please try again.",
     "load_error": "Failed to load your data. Please try again."
+  },
+
+  "nutricao": {
+    "anamnese_title": "Nutrition Intake",
+    "anamnese_subtitle": "Tell us a bit about yourself so we can personalize your recommendations. Filling this out again replaces this version with the latest one.",
+    "objetivo_label": "Goal",
+    "objetivo_emagrecimento": "Weight loss",
+    "objetivo_manutencao": "Maintenance",
+    "objetivo_hipertrofia": "Muscle gain",
+    "objetivo_obrigatorio": "Choose a goal before saving",
+    "problemas_saude_label": "Health Conditions",
+    "problemas_saude_empty": "No health conditions registered in the system yet.",
+    "alergias_label": "Allergies",
+    "alergias_empty": "No allergies registered in the system yet.",
+    "atividades_label": "Activity Routine",
+    "atividades_empty": "No activity added yet.",
+    "atividades_add_button": "Add Activity",
+    "atividades_todas_adicionadas": "All registered activity types have already been added.",
+    "atividades_minutos_por_dia": "{{minutos}} min/day",
+    "atividades_modal_title": "Add Activity",
+    "atividades_modal_tipo_label": "Activity type",
+    "atividades_modal_minutos_label": "Minutes per day",
+    "atividades_modal_minutos_hint": "E.g.: 30",
+    "atividades_modal_minutos_invalido": "Choose an activity type and enter minutes between 1 and 1440",
+    "atividades_modal_cancel": "Cancel",
+    "atividades_modal_confirm": "Add",
+    "save_button": "Save",
+    "save_success": "Intake saved successfully",
+    "save_error": "Failed to save. Please try again.",
+    "load_error": "Failed to load. Please try again."
   },
 
   "vinculos": {

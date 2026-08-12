@@ -26,6 +26,7 @@ const ITENS_ADMIN: NavItem[] = [
   { to: '/admin/vinculos', label: 'Vínculos' },
   { to: '/admin/atividades-fisicas', label: 'Atividades Físicas' },
   { to: '/admin/alergias', label: 'Alergias' },
+  { to: '/admin/problemas-saude', label: 'Problemas de Saúde' },
   { to: '/admin/alimentos', label: 'Alimentos' },
   { to: '/admin/configuracoes', label: 'Configurações do Sistema' },
   // D3 (RELATÓRIO 20260811_0005) — Matriz de Permissões dinâmica.
