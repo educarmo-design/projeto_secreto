@@ -279,10 +279,15 @@ export interface Database {
       };
 
       /**
-       * Catálogo TACO/USDA (`20260716120000_alimentos_referencia_taco.sql`)
-       * — SEM policy de escrita para `authenticated` de propósito
-       * ("curadoria é migration/service role"); `AdminAlimentos.tsx` é
-       * leitura/busca apenas, ver comentário no próprio componente.
+       * Catálogo TACO/USDA (`20260716120000_alimentos_referencia_taco.sql`).
+       * Escrita de admin liberada em `20260811230000_n06_escrita_admin_
+       * alimentos_e_vinculos.sql` (RELATÓRIO 20260811_0006), revertendo por
+       * instrução explícita do fundador a trava original ("curadoria é
+       * migration/service role"). RESSALVA que continua verdadeira: um
+       * INSERT/UPDATE aqui NÃO recalcula o embedding semântico em
+       * `cache_sinonimos_alimentos` (busca por sinônimo via Edge Function
+       * `search-food`) — o alimento fica utilizável no cálculo de calorias
+       * na hora, mas só entra na busca semântica após o job de re-embed.
        */
       alimentos_referencia: {
         Row: {
@@ -296,8 +301,36 @@ export interface Database {
           gorduras_g_100g: number;
           criado_em: string;
         };
-        Insert: never;
-        Update: never;
+        Insert: Partial<Database['public']['Tables']['alimentos_referencia']['Row']> & {
+          nome_taco: string;
+          calorias_kcal_100g: number;
+          proteinas_g_100g: number;
+          carboidratos_g_100g: number;
+          gorduras_g_100g: number;
+        };
+        Update: Partial<Database['public']['Tables']['alimentos_referencia']['Row']>;
+        Relationships: [];
+      };
+
+      /**
+       * "Porções"/medidas caseiras por alimento (1:N — a mesma "colher de
+       * sopa" pesa coisas diferentes por alimento, ver migration original).
+       * Mesma liberação de escrita de admin de `alimentos_referencia`,
+       * `20260811230000_n06_escrita_admin_alimentos_e_vinculos.sql`.
+       */
+      alimentos_medidas_caseiras: {
+        Row: {
+          id: number;
+          alimento_id: string;
+          medida: string;
+          gramas: number;
+        };
+        Insert: Partial<Database['public']['Tables']['alimentos_medidas_caseiras']['Row']> & {
+          alimento_id: string;
+          medida: string;
+          gramas: number;
+        };
+        Update: Partial<Database['public']['Tables']['alimentos_medidas_caseiras']['Row']>;
         Relationships: [];
       };
 
@@ -404,6 +437,48 @@ export interface Database {
        */
       admin_atualizar_permissao_papel: {
         Args: { p_papel_id: string; p_permissao_id: string; p_habilitado: boolean };
+        Returns: void;
+      };
+
+      /**
+       * N06 (20260811230000, RELATÓRIO 20260811_0006) — lista todos os
+       * vínculos profissional×paciente com nome decifrado (D2) dos dois
+       * lados, escopado a admin. Base de `AdminVinculos.tsx`.
+       */
+      admin_listar_vinculos: {
+        Args: Record<string, never>;
+        Returns: {
+          id: string;
+          profissional_id: string;
+          profissional_nome: string | null;
+          paciente_id: string;
+          paciente_nome: string | null;
+          status: StatusVinculo;
+          tipo_pagador: string;
+          tipo_produto: string;
+          data_inicio: string;
+          data_saida: string | null;
+          fim_carencia: string | null;
+          criado_em: string;
+        }[];
+      };
+
+      /**
+       * N06 (20260811230000) — Admin encerra manualmente um vínculo (mesma
+       * regra de `fim_carencia` de 30 dias da Edge Function
+       * `manage-professional-link`). Idempotente.
+       */
+      admin_encerrar_vinculo: {
+        Args: { p_vinculo_id: string };
+        Returns: void;
+      };
+
+      /**
+       * N06 (20260811230000) — Admin aprova manualmente um vínculo
+       * `pendente` (pendente -> ativo). Sem efeito se não estiver pendente.
+       */
+      admin_aprovar_vinculo: {
+        Args: { p_vinculo_id: string };
         Returns: void;
       };
     };

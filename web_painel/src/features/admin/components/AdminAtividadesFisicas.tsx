@@ -24,6 +24,12 @@ type EstadoTela = 'carregando' | 'sucesso' | 'erro';
  * FK; um DELETE de um código em uso falha com erro de integridade
  * referencial — comportamento correto, mas a mensagem de erro do Postgres
  * não é amigável, então valeria uma tela futura tratar isso melhor).
+ *
+ * Edição (RELATÓRIO 20260811_0006): só o nome de exibição é editável
+ * inline — `nome_codigo` fica travado na edição de propósito, porque é ele
+ * que a FK de `atividades_fisicas_treinos` referencia; renomear o código de
+ * um treino já sincronizado quebraria o vínculo silenciosamente. Quem quer
+ * mudar o código precisa remover e recriar.
  */
 export function AdminAtividadesFisicas() {
   const [estado, setEstado] = useState<EstadoTela>('carregando');
@@ -34,6 +40,8 @@ export function AdminAtividadesFisicas() {
   const [novoNome, setNovoNome] = useState('');
   const [salvando, setSalvando] = useState(false);
   const [idsEmAcao, setIdsEmAcao] = useState<Set<string>>(new Set());
+  const [idEmEdicao, setIdEmEdicao] = useState<string | null>(null);
+  const [nomeEmEdicao, setNomeEmEdicao] = useState('');
 
   useEffect(() => {
     void carregar();
@@ -84,6 +92,41 @@ export function AdminAtividadesFisicas() {
     setNovoNome('');
     setToast({ variant: 'success', text: 'Modalidade criada.' });
     void carregar();
+  }
+
+  function iniciarEdicao(item: TipoAtividade) {
+    setIdEmEdicao(item.id);
+    setNomeEmEdicao(item.nomeExibicao);
+  }
+
+  async function salvarEdicao(item: TipoAtividade) {
+    const nomeNovo = nomeEmEdicao.trim();
+    if (!nomeNovo || nomeNovo === item.nomeExibicao) {
+      setIdEmEdicao(null);
+      return;
+    }
+
+    setIdsEmAcao((atual) => new Set(atual).add(item.id));
+    const { error } = await supabase
+      .from('tipos_atividades_fisicas')
+      .update({ nome_exibicao: nomeNovo })
+      .eq('id', item.id);
+    setIdsEmAcao((atual) => {
+      const proximo = new Set(atual);
+      proximo.delete(item.id);
+      return proximo;
+    });
+
+    if (error) {
+      setToast({ variant: 'error', text: `Não foi possível salvar "${item.nomeExibicao}": ${error.message}` });
+      return;
+    }
+
+    setItens((atual) =>
+      atual.map((linha) => (linha.id === item.id ? { ...linha, nomeExibicao: nomeNovo } : linha)),
+    );
+    setIdEmEdicao(null);
+    setToast({ variant: 'success', text: `"${nomeNovo}" salvo.` });
   }
 
   async function remover(item: TipoAtividade) {
@@ -176,22 +219,70 @@ export function AdminAtividadesFisicas() {
               </tr>
             </thead>
             <tbody>
-              {itens.map((item) => (
-                <tr key={item.id} className="border-t border-clinical-border">
-                  <td className="px-4 py-3 font-mono text-xs text-slate-300">{item.nomeCodigo}</td>
-                  <td className="px-4 py-3 text-slate-200">{item.nomeExibicao}</td>
-                  <td className="px-4 py-3 text-right">
-                    <button
-                      type="button"
-                      disabled={idsEmAcao.has(item.id)}
-                      onClick={() => void remover(item)}
-                      className="rounded-lg border border-clinical-border px-3 py-1.5 text-xs font-medium text-clinical-muted transition hover:border-clinical-critical hover:text-clinical-critical disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      Remover
-                    </button>
-                  </td>
-                </tr>
-              ))}
+              {itens.map((item) => {
+                const editando = idEmEdicao === item.id;
+                const emAcao = idsEmAcao.has(item.id);
+                return (
+                  <tr key={item.id} className="border-t border-clinical-border">
+                    <td className="px-4 py-3 font-mono text-xs text-slate-300">{item.nomeCodigo}</td>
+                    <td className="px-4 py-3 text-slate-200">
+                      {editando ? (
+                        <input
+                          type="text"
+                          autoFocus
+                          value={nomeEmEdicao}
+                          onChange={(event) => setNomeEmEdicao(event.target.value)}
+                          className="w-full rounded-lg border border-clinical-border bg-clinical-bg px-2 py-1 text-sm text-slate-100 outline-none focus:border-clinical-primary"
+                        />
+                      ) : (
+                        item.nomeExibicao
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <div className="flex justify-end gap-2">
+                        {editando ? (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => setIdEmEdicao(null)}
+                              className="rounded-lg border border-clinical-border px-3 py-1.5 text-xs font-medium text-clinical-muted transition hover:text-slate-100"
+                            >
+                              Cancelar
+                            </button>
+                            <button
+                              type="button"
+                              disabled={emAcao}
+                              onClick={() => void salvarEdicao(item)}
+                              className="rounded-lg bg-clinical-primary px-3 py-1.5 text-xs font-medium text-white transition hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              {emAcao ? 'Salvando...' : 'Salvar'}
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <button
+                              type="button"
+                              disabled={emAcao}
+                              onClick={() => iniciarEdicao(item)}
+                              className="rounded-lg border border-clinical-border px-3 py-1.5 text-xs font-medium text-clinical-muted transition hover:border-clinical-primary hover:text-clinical-primary disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              Editar
+                            </button>
+                            <button
+                              type="button"
+                              disabled={emAcao}
+                              onClick={() => void remover(item)}
+                              className="rounded-lg border border-clinical-border px-3 py-1.5 text-xs font-medium text-clinical-muted transition hover:border-clinical-critical hover:text-clinical-critical disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              Remover
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

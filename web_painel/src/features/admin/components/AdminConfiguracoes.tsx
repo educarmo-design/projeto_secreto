@@ -100,6 +100,26 @@ export function AdminConfiguracoes() {
     void carregar();
   }
 
+  async function remover(item: Configuracao) {
+    if (!window.confirm(`Remover a chave "${item.chave}"?`)) return;
+
+    setChavesSalvando((atual) => new Set(atual).add(item.chave));
+    const { error } = await supabase.from('configuracoes_sistema').delete().eq('chave', item.chave);
+    setChavesSalvando((atual) => {
+      const proximo = new Set(atual);
+      proximo.delete(item.chave);
+      return proximo;
+    });
+
+    if (error) {
+      setToast({ variant: 'error', text: `Não foi possível remover "${item.chave}": ${error.message}` });
+      return;
+    }
+
+    setItens((atual) => atual.filter((linha) => linha.chave !== item.chave));
+    setToast({ variant: 'success', text: `"${item.chave}" removida.` });
+  }
+
   return (
     <div>
       <header className="mb-6">
@@ -196,14 +216,24 @@ export function AdminConfiguracoes() {
                     </td>
                     <td className="px-4 py-3 text-slate-300">{item.descricao ?? '—'}</td>
                     <td className="px-4 py-3 text-right">
-                      <button
-                        type="button"
-                        disabled={salvando || !alterado}
-                        onClick={() => void salvar(item.chave)}
-                        className="rounded-lg bg-clinical-primary px-3 py-1.5 text-xs font-medium text-white transition hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        {salvando ? 'Salvando...' : 'Salvar'}
-                      </button>
+                      <div className="flex justify-end gap-2">
+                        <button
+                          type="button"
+                          disabled={salvando || !alterado}
+                          onClick={() => void salvar(item.chave)}
+                          className="rounded-lg bg-clinical-primary px-3 py-1.5 text-xs font-medium text-white transition hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {salvando ? 'Salvando...' : 'Salvar'}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={salvando}
+                          onClick={() => void remover(item)}
+                          className="rounded-lg border border-clinical-border px-3 py-1.5 text-xs font-medium text-clinical-muted transition hover:border-clinical-critical hover:text-clinical-critical disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          Remover
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );

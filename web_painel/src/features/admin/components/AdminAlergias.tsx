@@ -18,6 +18,10 @@ type EstadoTela = 'carregando' | 'sucesso' | 'erro';
  * modalidades comuns Android/iOS), o catálogo de alergias nasceu VAZIO —
  * não há uma lista oficial de referência mapeada; cresce só pelo que o
  * Admin cadastrar aqui.
+ *
+ * Edição (RELATÓRIO 20260811_0006): nome de exibição e descrição são
+ * editáveis inline — `nome_codigo` fica travado (é o valor que
+ * `usuario_alergias` referencia; mesma razão de `tipos_atividades_fisicas`).
  */
 export function AdminAlergias() {
   const [estado, setEstado] = useState<EstadoTela>('carregando');
@@ -29,6 +33,9 @@ export function AdminAlergias() {
   const [novaDescricao, setNovaDescricao] = useState('');
   const [salvando, setSalvando] = useState(false);
   const [idsEmAcao, setIdsEmAcao] = useState<Set<string>>(new Set());
+  const [idEmEdicao, setIdEmEdicao] = useState<string | null>(null);
+  const [edicaoNome, setEdicaoNome] = useState('');
+  const [edicaoDescricao, setEdicaoDescricao] = useState('');
 
   useEffect(() => {
     void carregar();
@@ -80,6 +87,49 @@ export function AdminAlergias() {
     setNovaDescricao('');
     setToast({ variant: 'success', text: 'Alergia criada.' });
     void carregar();
+  }
+
+  function iniciarEdicao(item: Alergia) {
+    setIdEmEdicao(item.id);
+    setEdicaoNome(item.nomeExibicao);
+    setEdicaoDescricao(item.descricao ?? '');
+  }
+
+  async function salvarEdicao(item: Alergia) {
+    const nomeNovo = edicaoNome.trim();
+    const descricaoNova = edicaoDescricao.trim() || null;
+    if (!nomeNovo) {
+      setToast({ variant: 'error', text: 'Nome de exibição não pode ficar vazio.' });
+      return;
+    }
+    if (nomeNovo === item.nomeExibicao && descricaoNova === item.descricao) {
+      setIdEmEdicao(null);
+      return;
+    }
+
+    setIdsEmAcao((atual) => new Set(atual).add(item.id));
+    const { error } = await supabase
+      .from('alergias')
+      .update({ nome_exibicao: nomeNovo, descricao: descricaoNova })
+      .eq('id', item.id);
+    setIdsEmAcao((atual) => {
+      const proximo = new Set(atual);
+      proximo.delete(item.id);
+      return proximo;
+    });
+
+    if (error) {
+      setToast({ variant: 'error', text: `Não foi possível salvar "${item.nomeExibicao}": ${error.message}` });
+      return;
+    }
+
+    setItens((atual) =>
+      atual.map((linha) =>
+        linha.id === item.id ? { ...linha, nomeExibicao: nomeNovo, descricao: descricaoNova } : linha,
+      ),
+    );
+    setIdEmEdicao(null);
+    setToast({ variant: 'success', text: `"${nomeNovo}" salva.` });
   }
 
   async function remover(item: Alergia) {
@@ -182,23 +232,82 @@ export function AdminAlergias() {
               </tr>
             </thead>
             <tbody>
-              {itens.map((item) => (
-                <tr key={item.id} className="border-t border-clinical-border">
-                  <td className="px-4 py-3 font-mono text-xs text-slate-300">{item.nomeCodigo}</td>
-                  <td className="px-4 py-3 text-slate-200">{item.nomeExibicao}</td>
-                  <td className="px-4 py-3 text-slate-300">{item.descricao ?? '—'}</td>
-                  <td className="px-4 py-3 text-right">
-                    <button
-                      type="button"
-                      disabled={idsEmAcao.has(item.id)}
-                      onClick={() => void remover(item)}
-                      className="rounded-lg border border-clinical-border px-3 py-1.5 text-xs font-medium text-clinical-muted transition hover:border-clinical-critical hover:text-clinical-critical disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      Remover
-                    </button>
-                  </td>
-                </tr>
-              ))}
+              {itens.map((item) => {
+                const editando = idEmEdicao === item.id;
+                const emAcao = idsEmAcao.has(item.id);
+                return (
+                  <tr key={item.id} className="border-t border-clinical-border">
+                    <td className="px-4 py-3 font-mono text-xs text-slate-300">{item.nomeCodigo}</td>
+                    <td className="px-4 py-3 text-slate-200">
+                      {editando ? (
+                        <input
+                          type="text"
+                          autoFocus
+                          value={edicaoNome}
+                          onChange={(event) => setEdicaoNome(event.target.value)}
+                          className="w-full rounded-lg border border-clinical-border bg-clinical-bg px-2 py-1 text-sm text-slate-100 outline-none focus:border-clinical-primary"
+                        />
+                      ) : (
+                        item.nomeExibicao
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-slate-300">
+                      {editando ? (
+                        <input
+                          type="text"
+                          value={edicaoDescricao}
+                          onChange={(event) => setEdicaoDescricao(event.target.value)}
+                          className="w-full rounded-lg border border-clinical-border bg-clinical-bg px-2 py-1 text-sm text-slate-100 outline-none focus:border-clinical-primary"
+                        />
+                      ) : (
+                        item.descricao ?? '—'
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <div className="flex justify-end gap-2">
+                        {editando ? (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => setIdEmEdicao(null)}
+                              className="rounded-lg border border-clinical-border px-3 py-1.5 text-xs font-medium text-clinical-muted transition hover:text-slate-100"
+                            >
+                              Cancelar
+                            </button>
+                            <button
+                              type="button"
+                              disabled={emAcao}
+                              onClick={() => void salvarEdicao(item)}
+                              className="rounded-lg bg-clinical-primary px-3 py-1.5 text-xs font-medium text-white transition hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              {emAcao ? 'Salvando...' : 'Salvar'}
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <button
+                              type="button"
+                              disabled={emAcao}
+                              onClick={() => iniciarEdicao(item)}
+                              className="rounded-lg border border-clinical-border px-3 py-1.5 text-xs font-medium text-clinical-muted transition hover:border-clinical-primary hover:text-clinical-primary disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              Editar
+                            </button>
+                            <button
+                              type="button"
+                              disabled={emAcao}
+                              onClick={() => void remover(item)}
+                              className="rounded-lg border border-clinical-border px-3 py-1.5 text-xs font-medium text-clinical-muted transition hover:border-clinical-critical hover:text-clinical-critical disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              Remover
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

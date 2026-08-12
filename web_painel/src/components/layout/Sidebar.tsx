@@ -23,6 +23,7 @@ const ITENS_ADMIN: NavItem[] = [
   // N06 (RELATÓRIO 20260811_0005) — telas de manutenção administrativa.
   { to: '/admin/usuarios', label: 'Usuários' },
   { to: '/admin/profissionais', label: 'Profissionais' },
+  { to: '/admin/vinculos', label: 'Vínculos' },
   { to: '/admin/atividades-fisicas', label: 'Atividades Físicas' },
   { to: '/admin/alergias', label: 'Alergias' },
   { to: '/admin/alimentos', label: 'Alimentos' },

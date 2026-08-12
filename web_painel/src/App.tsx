@@ -23,6 +23,7 @@ import { AdminAtividadesFisicas } from './features/admin/components/AdminAtivida
 import { AdminAlergias } from './features/admin/components/AdminAlergias';
 import { AdminAlimentos } from './features/admin/components/AdminAlimentos';
 import { AdminConfiguracoes } from './features/admin/components/AdminConfiguracoes';
+import { AdminVinculos } from './features/admin/components/AdminVinculos';
 
 type EstadoAuth = 'carregando' | 'autenticado' | 'nao_autenticado';
 
@@ -169,6 +170,10 @@ export default function App() {
         <Route
           path="/admin/profissionais"
           element={profissional.isAdmin ? <AdminProfissionais /> : <Navigate to="/" replace />}
+        />
+        <Route
+          path="/admin/vinculos"
+          element={profissional.isAdmin ? <AdminVinculos /> : <Navigate to="/" replace />}
         />
         <Route
           path="/admin/atividades-fisicas"
