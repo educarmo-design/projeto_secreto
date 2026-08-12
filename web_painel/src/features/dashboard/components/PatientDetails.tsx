@@ -14,6 +14,7 @@ import { supabase, type ProfissionalAutenticado } from '@/core/supabase';
 import type { Database, SexoBiologico } from '@/core/types/database';
 import { Toast, type ToastMessage } from '@/components/Toast';
 import { InserirMedicaoModal } from './InserirMedicaoModal';
+import { MotorMetabolicoCard } from './MotorMetabolicoCard';
 
 type MetricaDiariaRow = Database['public']['Tables']['metricas_saude_diarias']['Row'];
 type EventoAnomaliaRow = Database['public']['Tables']['eventos_anomalias_saude']['Row'];
@@ -58,6 +59,11 @@ export function PatientDetails({ profissional }: PatientDetailsProps) {
   const [salvandoSexo, setSalvandoSexo] = useState(false);
   const [modalMedicaoAberto, setModalMedicaoAberto] = useState(false);
   const [toast, setToast] = useState<ToastMessage | null>(null);
+  // N07 (RELATÓRIO 20260812_0009) — incrementado a cada medição salva, só
+  // pra disparar um novo cálculo no `MotorMetabolicoCard` (peso/massa
+  // magra novos mudam o resultado). O valor em si não tem significado, só
+  // precisa mudar.
+  const [gatilhoRecalculoMotor, setGatilhoRecalculoMotor] = useState(0);
 
   useEffect(() => {
     if (!pacienteId) return;
@@ -175,6 +181,8 @@ export function PatientDetails({ profissional }: PatientDetailsProps) {
 
     setSexoBiologico(novoSexo);
     setToast({ variant: 'success', text: 'Sexo biológico atualizado.' });
+    // Sexo biológico é insumo direto do Motor Metabólico (Mifflin-St Jeor).
+    setGatilhoRecalculoMotor((atual) => atual + 1);
   }
 
   const dadosGlicemia = useMemo(
@@ -249,6 +257,7 @@ export function PatientDetails({ profissional }: PatientDetailsProps) {
             setModalMedicaoAberto(false);
             setToast({ variant: 'success', text: 'Medição registrada.' });
             void recarregarMetricas();
+            setGatilhoRecalculoMotor((atual) => atual + 1);
           }}
         />
       )}
@@ -299,6 +308,8 @@ export function PatientDetails({ profissional }: PatientDetailsProps) {
           </button>
         </div>
       </header>
+
+      {pacienteId && <MotorMetabolicoCard pacienteId={pacienteId} gatilhoRecalculo={gatilhoRecalculoMotor} />}
 
       <section className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <ChartCard titulo="Evolução da Glicemia" subtitulo="Glicose em jejum (mg/dL)">
