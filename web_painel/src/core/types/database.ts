@@ -378,6 +378,33 @@ export interface Database {
         Update: Partial<Database['public']['Tables']['configuracoes_sistema']['Row']>;
         Relationships: [];
       };
+
+      /**
+       * N10/N11 (RELATÓRIO 20260812_0010) — meta calórica/macros, prescrita
+       * (`profissional_id` preenchido) ou self-service (`null`). SEM
+       * `Insert`/`Update` de propósito: a tabela não tem policy de escrita
+       * para `authenticated` — a ÚNICA porta de gravação é a RPC
+       * `validar_e_salvar_meta` (Motor de Exceções N08), nunca um
+       * `.insert()`/`.update()` direto. Ver `PrescricaoView.tsx`.
+       */
+      objetivos_alimentares: {
+        Row: {
+          id: string;
+          usuario_id: string;
+          profissional_id: string | null;
+          tipo_dia: string;
+          calorias_alvo: number;
+          proteina_g: number | null;
+          carbo_g: number | null;
+          gordura_g: number | null;
+          data_criacao: string;
+          vencimento_em: string | null;
+          status_vigencia: 'ativo' | 'historico';
+        };
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
     };
     Views: {
       /**
@@ -534,6 +561,30 @@ export interface Database {
         Args: { p_usuario_id: string };
         Returns: MotorMetabolicoResultado;
       };
+
+      /**
+       * N08 (RELATÓRIO 20260812_0010) — Motor de Exceções de dupla via.
+       * `p_is_profissional=true` (N10, Painel Web) nunca bloqueia — devolve
+       * `violacao_clinica`/`avisos` na resposta. `p_is_profissional=false`
+       * (N11, App Flutter) pode lançar `PostgrestException` com mensagem
+       * prefixada `N08_TRAVA_CLINICA`/`N08_PRIORIDADE_PROFISSIONAL`/
+       * `N08_CARENCIA_MENSAL` — o INSERT nunca acontece nesses casos.
+       */
+      validar_e_salvar_meta: {
+        Args: {
+          p_payload: {
+            usuario_id?: string;
+            tipo_dia?: string;
+            calorias_alvo: number;
+            proteina_g?: number | null;
+            carbo_g?: number | null;
+            gordura_g?: number | null;
+            vencimento_em?: string | null;
+          };
+          p_is_profissional: boolean;
+        };
+        Returns: ValidarESalvarMetaResultado;
+      };
     };
     Enums: {
       tipo_profissional_saude: TipoProfissionalSaude;
@@ -567,6 +618,15 @@ export interface MotorMetabolicoResultado {
     peso_kg: number | null;
     massa_magra_kg: number | null;
   };
+  avisos: string[];
+}
+
+/** Formato do JSONB devolvido por `validar_e_salvar_meta` em caso de sucesso — ver comentário da função na migration `20260812110000` para as regras completas do Motor de Exceções (N08). */
+export interface ValidarESalvarMetaResultado {
+  sucesso: true;
+  id: string;
+  /** `true` se alguma das 3 regras numéricas (gordura/calorias vs. TMB) foi violada — para profissional, isso NUNCA impede o `sucesso`; só sinaliza que `avisos` deve virar um banner. */
+  violacao_clinica: boolean;
   avisos: string[];
 }
 

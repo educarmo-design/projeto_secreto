@@ -358,7 +358,8 @@
     "weight_test_item": "Test Weight Reading",
     "sleep_test_item": "Test Sleep Reading",
     "manual_food_search_item": "Manual Food Search",
-    "anamnese_item": "Nutrition Intake"
+    "anamnese_item": "Nutrition Intake",
+    "meta_bem_estar_item": "Wellness Goal"
   },
 
   "perfil_fisico": {
@@ -409,7 +410,33 @@
     "save_button": "Save",
     "save_success": "Intake saved successfully",
     "save_error": "Failed to save. Please try again.",
-    "load_error": "Failed to load. Please try again."
+    "load_error": "Failed to load. Please try again.",
+
+    "meta_bem_estar_title": "Wellness Goal",
+    "meta_bem_estar_subtitle": "Set your daily calorie and macro goal — or use the suggestion based on your metabolism.",
+    "meta_bem_estar_aviso": "Values outside the safety range for your profile are blocked automatically.",
+    "meta_calorias_label": "Calories",
+    "meta_calorias_validation_empty": "Enter your calorie goal",
+    "meta_calorias_validation_invalid": "Enter a valid number greater than zero",
+    "meta_usar_sugestao_button": "Use suggestion: {{calorias}} kcal",
+    "meta_proteina_label": "Protein",
+    "meta_carbo_label": "Carbs",
+    "meta_gordura_label": "Fat",
+    "meta_save_button": "Save Goal",
+    "meta_save_success": "Goal saved successfully",
+    "meta_save_error": "Failed to save. Please try again.",
+    "meta_load_error": "Failed to load. Please try again.",
+    "meta_carencia_titulo": "Goal already set this month",
+    "meta_carencia_mensagem": "You can only change your wellness goal once a month. Available again on {{data}}.",
+    "meta_acompanhamento_titulo": "You're under professional care",
+    "meta_acompanhamento_mensagem": "Your current goal was set by a professional linked to your account. Talk to them to adjust it.",
+    "meta_bloqueio_confirmar": "Got it",
+    "meta_bloqueio_clinico_titulo": "Goal outside the safety range",
+    "meta_bloqueio_clinico_mensagem": "This goal is outside the safety range for your profile (calories or fat incompatible with your Basal Metabolic Rate). Adjust the values or seek professional guidance.",
+    "meta_bloqueio_profissional_titulo": "You're under professional care",
+    "meta_bloqueio_profissional_mensagem": "Your current goal was set by a professional linked to your account. Talk to them to adjust it.",
+    "meta_bloqueio_carencia_titulo": "Goal already set this month",
+    "meta_bloqueio_carencia_mensagem": "You can only change your wellness goal once a month."
   },
 
   "vinculos": {

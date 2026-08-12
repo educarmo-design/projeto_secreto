@@ -358,7 +358,8 @@
     "weight_test_item": "Probar Lectura de Peso",
     "sleep_test_item": "Probar Lectura de Sueño",
     "manual_food_search_item": "Búsqueda Manual de Alimentos",
-    "anamnese_item": "Anamnesis Nutricional"
+    "anamnese_item": "Anamnesis Nutricional",
+    "meta_bem_estar_item": "Meta de Bienestar"
   },
 
   "perfil_fisico": {
@@ -409,7 +410,33 @@
     "save_button": "Guardar",
     "save_success": "Anamnesis guardada con éxito",
     "save_error": "Error al guardar. Inténtalo de nuevo.",
-    "load_error": "Error al cargar. Inténtalo de nuevo."
+    "load_error": "Error al cargar. Inténtalo de nuevo.",
+
+    "meta_bem_estar_title": "Meta de Bienestar",
+    "meta_bem_estar_subtitle": "Define tu meta diaria de calorías y macros — o usa la sugerencia basada en tu metabolismo.",
+    "meta_bem_estar_aviso": "Los valores fuera del rango de seguridad para tu perfil se bloquean automáticamente.",
+    "meta_calorias_label": "Calorías",
+    "meta_calorias_validation_empty": "Indica tu meta de calorías",
+    "meta_calorias_validation_invalid": "Introduce un número válido mayor que cero",
+    "meta_usar_sugestao_button": "Usar sugerencia: {{calorias}} kcal",
+    "meta_proteina_label": "Proteína",
+    "meta_carbo_label": "Carbohidrato",
+    "meta_gordura_label": "Grasa",
+    "meta_save_button": "Guardar Meta",
+    "meta_save_success": "Meta guardada con éxito",
+    "meta_save_error": "Error al guardar. Inténtalo de nuevo.",
+    "meta_load_error": "Error al cargar. Inténtalo de nuevo.",
+    "meta_carencia_titulo": "Meta ya definida este mes",
+    "meta_carencia_mensagem": "Solo puedes cambiar tu meta de bienestar 1 vez al mes. Disponible de nuevo el {{data}}.",
+    "meta_acompanhamento_titulo": "Estás bajo seguimiento profesional",
+    "meta_acompanhamento_mensagem": "Tu meta actual fue definida por un profesional vinculado a tu cuenta. Habla con él para ajustarla.",
+    "meta_bloqueio_confirmar": "Entendido",
+    "meta_bloqueio_clinico_titulo": "Meta fuera del rango de seguridad",
+    "meta_bloqueio_clinico_mensagem": "Esta meta está fuera del rango de seguridad para tu perfil (calorías o grasa incompatibles con tu Tasa Metabólica Basal). Ajusta los valores o busca acompañamiento profesional.",
+    "meta_bloqueio_profissional_titulo": "Estás bajo seguimiento profesional",
+    "meta_bloqueio_profissional_mensagem": "Tu meta actual fue definida por un profesional vinculado a tu cuenta. Habla con él para ajustarla.",
+    "meta_bloqueio_carencia_titulo": "Meta ya definida este mes",
+    "meta_bloqueio_carencia_mensagem": "Solo puedes cambiar tu meta de bienestar 1 vez al mes."
   },
 
   "vinculos": {

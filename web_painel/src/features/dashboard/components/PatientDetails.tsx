@@ -15,6 +15,7 @@ import type { Database, SexoBiologico } from '@/core/types/database';
 import { Toast, type ToastMessage } from '@/components/Toast';
 import { InserirMedicaoModal } from './InserirMedicaoModal';
 import { MotorMetabolicoCard } from './MotorMetabolicoCard';
+import { PrescricaoView } from './PrescricaoView';
 
 type MetricaDiariaRow = Database['public']['Tables']['metricas_saude_diarias']['Row'];
 type EventoAnomaliaRow = Database['public']['Tables']['eventos_anomalias_saude']['Row'];
@@ -310,6 +311,9 @@ export function PatientDetails({ profissional }: PatientDetailsProps) {
       </header>
 
       {pacienteId && <MotorMetabolicoCard pacienteId={pacienteId} gatilhoRecalculo={gatilhoRecalculoMotor} />}
+
+      {/* N10 (RELATÓRIO 20260812_0010) — Prescrição de metas alimentares. */}
+      {pacienteId && <PrescricaoView pacienteId={pacienteId} />}
 
       <section className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <ChartCard titulo="Evolução da Glicemia" subtitulo="Glicose em jejum (mg/dL)">

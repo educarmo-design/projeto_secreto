@@ -359,6 +359,7 @@
     "sleep_test_item": "Testar Leitura de Sono",
     "manual_food_search_item": "Busca Manual de Alimentos",
     "anamnese_item": "Anamnese Nutricional",
+    "meta_bem_estar_item": "Meta de Bem-Estar",
 
     "logout": "Sair",
     "logout_confirm_title": "Confirmar saída",
@@ -414,7 +415,33 @@
     "save_button": "Salvar",
     "save_success": "Anamnese salva com sucesso",
     "save_error": "Erro ao salvar. Tente novamente.",
-    "load_error": "Erro ao carregar. Tente novamente."
+    "load_error": "Erro ao carregar. Tente novamente.",
+
+    "meta_bem_estar_title": "Meta de Bem-Estar",
+    "meta_bem_estar_subtitle": "Defina sua meta diária de calorias e macros — ou use a sugestão baseada no seu metabolismo.",
+    "meta_bem_estar_aviso": "Valores fora da faixa de segurança para o seu perfil são bloqueados automaticamente.",
+    "meta_calorias_label": "Calorias",
+    "meta_calorias_validation_empty": "Informe a meta de calorias",
+    "meta_calorias_validation_invalid": "Digite um número válido maior que zero",
+    "meta_usar_sugestao_button": "Usar sugestão: {{calorias}} kcal",
+    "meta_proteina_label": "Proteína",
+    "meta_carbo_label": "Carboidrato",
+    "meta_gordura_label": "Gordura",
+    "meta_save_button": "Salvar Meta",
+    "meta_save_success": "Meta salva com sucesso",
+    "meta_save_error": "Erro ao salvar. Tente novamente.",
+    "meta_load_error": "Erro ao carregar. Tente novamente.",
+    "meta_carencia_titulo": "Meta já definida este mês",
+    "meta_carencia_mensagem": "Você só pode alterar sua meta de bem-estar 1x por mês. Disponível novamente em {{data}}.",
+    "meta_acompanhamento_titulo": "Você está sob acompanhamento profissional",
+    "meta_acompanhamento_mensagem": "Sua meta atual foi definida por um profissional vinculado à sua conta. Fale com ele para ajustá-la.",
+    "meta_bloqueio_confirmar": "Entendi",
+    "meta_bloqueio_clinico_titulo": "Meta fora da faixa de segurança",
+    "meta_bloqueio_clinico_mensagem": "Esta meta está fora da faixa de segurança para o seu perfil (calorias ou gordura incompatíveis com sua Taxa Metabólica Basal). Ajuste os valores ou procure acompanhamento profissional.",
+    "meta_bloqueio_profissional_titulo": "Você está sob acompanhamento profissional",
+    "meta_bloqueio_profissional_mensagem": "Sua meta atual foi definida por um profissional vinculado à sua conta. Fale com ele para ajustá-la.",
+    "meta_bloqueio_carencia_titulo": "Meta já definida este mês",
+    "meta_bloqueio_carencia_mensagem": "Você só pode alterar sua meta de bem-estar 1x por mês."
   },
 
   "vinculos": {
