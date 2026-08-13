@@ -915,6 +915,7 @@ class HealthSyncService {
 
     final linhas = _mesclarPorDia(usuarioId, payloads);
     await _aplicarInferenciasCruzadas(usuarioId, linhas);
+    await _preencherDistanciaFaltante(linhas, inicioAlinhado);
     final envio = await _enviarLinhas(linhas);
 
     if (envio == DeltaSyncOutcome.sucesso) {
@@ -1694,6 +1695,74 @@ class HealthSyncService {
           );
         }
       }
+    }
+  }
+
+  /// RELATÓRIO 20260812_0013 — investigação de "distância sumindo em dias
+  /// aleatórios" (05/08, 11/08, 12/08... — sem padrão de dia da semana nem
+  /// de volume de passos). Auditoria completa (banco + código) não achou
+  /// NENHUM bug de bucketing/conversão/tipo — `distancia_metros` passa
+  /// pelo MESMO loop, MESMA função de bucketização por dia
+  /// (`_dataOnly`) e MESMA lógica de "maior fonte" que `passos`, que nunca
+  /// falha nesses dias. A consulta única e combinada (`getHealthDataFromTypes`
+  /// pedindo ~20 `HealthDataType`s de uma vez, incluindo `DISTANCE_DELTA`
+  /// — um tipo que pode gerar MUITOS registros pequenos por dia, mais
+  /// granular que passos) é o único lugar restante onde uma limitação de
+  /// paginação/truncamento da plataforma (Health Connect) ou do pacote
+  /// `health` poderia derrubar silenciosamente só o tipo mais numeroso, sem
+  /// lançar exceção nenhuma — não reproduzível lendo código (precisaria de
+  /// um device real), mas a mitigação abaixo é segura mesmo que essa
+  /// hipótese esteja errada: só PREENCHE dias que ficaram sem distância
+  /// apesar de terem passos, nunca sobrescreve um valor já resolvido pela
+  /// leitura combinada — zero risco de contar a mesma distância duas vezes.
+  ///
+  /// Best-effort, mesmo espírito de [_aplicarInferenciasCruzadas]/
+  /// [_detectarEregistrarAnomalias]: uma falha aqui (rede, permissão) nunca
+  /// derruba o sync principal, que já terminou com sucesso antes desta
+  /// chamada extra rodar.
+  Future<void> _preencherDistanciaFaltante(
+    List<Map<String, dynamic>> linhas,
+    DateTime inicioJanela,
+  ) async {
+    final linhasFaltantes = <String, Map<String, dynamic>>{
+      for (final linha in linhas)
+        if (linha['passos'] != null && linha['distancia_metros'] == null)
+          linha['data_referencia'] as String: linha,
+    };
+    if (linhasFaltantes.isEmpty) return;
+
+    try {
+      final leitura = await _lerComPermissao(
+        const [HealthDataType.DISTANCE_WALKING_RUNNING, HealthDataType.DISTANCE_DELTA],
+        start: inicioJanela,
+      );
+      if (!leitura.granted) return;
+
+      // Mesma agregação "maior fonte por dia" de _mesclarPorDia — só que
+      // isolada aqui, e só para os dias que já sabemos que faltam.
+      final somaPorDiaFonte = <String, Map<String, num>>{};
+      for (final ponto in leitura.points) {
+        final payload = ponto.toPayload();
+        final distancia = payload.distanciaMetros;
+        if (distancia == null) continue;
+
+        final dataReferencia = _dataOnly(payload.dateFrom);
+        if (!linhasFaltantes.containsKey(dataReferencia)) continue;
+
+        final porFonte = somaPorDiaFonte.putIfAbsent(dataReferencia, () => {});
+        porFonte[payload.source] = (porFonte[payload.source] ?? 0) + distancia;
+      }
+
+      for (final entry in somaPorDiaFonte.entries) {
+        if (entry.value.isEmpty) continue;
+        final maiorFonte = entry.value.values.reduce((a, b) => a > b ? a : b);
+        linhasFaltantes[entry.key]!['distancia_metros'] = maiorFonte;
+      }
+    } catch (e) {
+      debugPrint(
+        'HealthSyncService: falha ao tentar preencher distância faltante '
+        '(best-effort, não afeta o resto do sync): $e',
+      );
     }
   }
 
