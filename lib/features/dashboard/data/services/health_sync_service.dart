@@ -1115,18 +1115,51 @@ class HealthSyncService {
     }
   }
 
+  /// RELATÓRIO 20260813_0016 — ACHADO REAL rodando em device físico: a
+  /// primeira versão desta função imprimia detalhe ponto a ponto de TODO
+  /// tipo, sem exceção. Um usuário real gerou 41.446 pontos brutos em 30
+  /// dias — só `HEART_RATE` (leitura contínua a cada 1-2min) respondeu por
+  /// 23.437 deles. `debugPrint` tem um limitador de taxa embutido (existe
+  /// pra não afogar o `adb logcat`/Android Runtime); nesse volume, o
+  /// relatório levou mais de 33 MINUTOS só pra imprimir 26 dos 30 dias, e
+  /// ainda não tinha terminado — na prática, "não aparece nada na tela"
+  /// (a saída real é só console, mas mesmo lá demorava tempo demais pra
+  /// alguém perceber). Tipos de leitura CONTÍNUA/alta-frequência
+  /// ([_tiposAltaFrequenciaResumidosNoDiagnostico]) agora só imprimem a
+  /// CONTAGEM por dia, nunca o detalhe ponto a ponto — nenhum deles é um
+  /// dos 4 sinais citados no pedido original (distância/calorias
+  /// basais/peso/treinos), então o detalhe nunca ajudou o diagnóstico,
+  /// só afogava as linhas que importam. Para os demais tipos (baixa
+  /// frequência — no máximo algumas dezenas de pontos/dia em qualquer
+  /// cenário real), o detalhe completo é mantido, com um teto de
+  /// segurança ([_maxPontosDetalhadosPorTipo]) contra qualquer tipo
+  /// futuro que surpreenda com volume alto sem estar nesta lista.
+  static const _tiposAltaFrequenciaResumidosNoDiagnostico = <HealthDataType>{
+    HealthDataType.HEART_RATE,
+    HealthDataType.HEART_RATE_VARIABILITY_SDNN,
+    HealthDataType.HEART_RATE_VARIABILITY_RMSSD,
+    HealthDataType.SLEEP_LIGHT,
+    HealthDataType.SLEEP_DEEP,
+    HealthDataType.SLEEP_REM,
+    HealthDataType.SLEEP_AWAKE,
+    HealthDataType.SLEEP_ASLEEP,
+  };
+
+  static const _maxPontosDetalhadosPorTipo = 50;
+
   /// Modo de Diagnóstico Profundo (RELATÓRIO 20260813_0015, decisão do
   /// fundador) — diferente do "Raio-X" (que roda em TODA sincronização e só
   /// resume contagem por dia/fonte), este só roda sob demanda (botão
   /// "GERAR LOG DIAGNÓSTICO (30 DIAS)" da tela de histórico, via
   /// [executarDiagnosticoProfundo]) e vai fundo demais pra rodar sempre:
-  /// tipo NATIVO (`runtimeType`) e valor bruto de CADA ponto individual,
-  /// não só contagem. Existe porque o Raio-X e as duas auditorias
-  /// anteriores (RELATÓRIOs 20260812_0013/20260813_0014) não conseguiram
-  /// reproduzir em código as falhas relatadas em device físico
-  /// (distância/calorias basais/peso/treinos faltando em dias
-  /// específicos) — o próximo passo só é possível com o valor CRU que o
-  /// pacote `health` devolveu na hora, direto do aparelho real.
+  /// tipo NATIVO (`runtimeType`) e valor bruto de CADA ponto individual
+  /// (fora dos tipos de alta frequência, ver acima), não só contagem.
+  /// Existe porque o Raio-X e as duas auditorias anteriores (RELATÓRIOs
+  /// 20260812_0013/20260813_0014) não conseguiram reproduzir em código as
+  /// falhas relatadas em device físico (distância/calorias basais/peso/
+  /// treinos faltando em dias específicos) — o próximo passo só é possível
+  /// com o valor CRU que o pacote `health` devolveu na hora, direto do
+  /// aparelho real.
   void _logDiagnosticoProfundo(
     List<HealthMetricPoint> points,
     DateTime start,
@@ -1177,12 +1210,30 @@ class HealthSyncService {
         debugPrint(
           '[SYNC_DIAGNOSTICO]   ${tipo.name}: ${pontosDoTipo.length} ponto(s)',
         );
-        for (final ponto in pontosDoTipo) {
+
+        // RELATÓRIO 20260813_0016: tipos de leitura contínua (HEART_RATE e
+        // afins) nunca imprimem detalhe ponto a ponto — só a contagem
+        // acima. Ver doc da classe pra o achado real que motivou isso.
+        if (_tiposAltaFrequenciaResumidosNoDiagnostico.contains(tipo)) {
+          continue;
+        }
+
+        final pontosParaDetalhar =
+            pontosDoTipo.take(_maxPontosDetalhadosPorTipo);
+        for (final ponto in pontosParaDetalhar) {
           debugPrint(
             '[SYNC_DIAGNOSTICO]     valor=${ponto.value} '
             'tipoNativo=${ponto.rawValue.runtimeType} unidade=${ponto.unit} '
             'fonte=${ponto.sourceApp} de=${ponto.dateFrom.toIso8601String()} '
             'até=${ponto.dateTo.toIso8601String()}',
+          );
+        }
+        final omitidos = pontosDoTipo.length - _maxPontosDetalhadosPorTipo;
+        if (omitidos > 0) {
+          debugPrint(
+            '[SYNC_DIAGNOSTICO]     ... e mais $omitidos ponto(s) '
+            'omitido(s) (teto de segurança — tipo com volume maior que o '
+            'esperado; contagem total já reportada acima).',
           );
         }
       }

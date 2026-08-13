@@ -1216,6 +1216,65 @@ void main() {
 
       expect(logsCapturados.any((l) => l.contains('⚠️')), isFalse);
     });
+
+    test('RELATÓRIO 20260813_0016 — HEART_RATE (leitura contínua) imprime só a contagem, NUNCA o detalhe ponto a ponto', () async {
+      // Achado real em device físico: um único dia pode ter 600-950
+      // leituras de HEART_RATE — imprimir detalhe de cada uma (como as
+      // outras métricas fazem) fazia o relatório inteiro de 30 dias levar
+      // mais de 33 MINUTOS pra imprimir (limitador de taxa do
+      // `debugPrint`), o que na prática parecia "não gerou nada".
+      final hoje = DateTime(2026, 7, 8, 10);
+      when(
+        () => health.getHealthDataFromTypes(
+          types: any(named: 'types'),
+          startTime: any(named: 'startTime'),
+          endTime: any(named: 'endTime'),
+        ),
+      ).thenAnswer(
+        (_) async => List.generate(
+          200,
+          (i) => _ponto(
+            type: HealthDataType.HEART_RATE,
+            value: 60 + i % 10,
+            dateFrom: hoje.add(Duration(minutes: i)),
+          ),
+        ),
+      );
+
+      await service.executarDiagnosticoProfundo();
+
+      expect(logContem('HEART_RATE: 200 ponto(s)'), isTrue);
+      expect(logsCapturados.any((l) => l.contains('tipoNativo=')), isFalse);
+    });
+
+    test('teto de segurança: um tipo de baixa frequência com volume anormalmente alto detalha só os primeiros 50 e resume o resto', () async {
+      final hoje = DateTime(2026, 7, 8, 10);
+      when(
+        () => health.getHealthDataFromTypes(
+          types: any(named: 'types'),
+          startTime: any(named: 'startTime'),
+          endTime: any(named: 'endTime'),
+        ),
+      ).thenAnswer(
+        (_) async => List.generate(
+          70,
+          (i) => _ponto(
+            type: HealthDataType.WEIGHT,
+            value: 80,
+            dateFrom: hoje.add(Duration(minutes: i)),
+          ),
+        ),
+      );
+
+      await service.executarDiagnosticoProfundo();
+
+      expect(logContem('WEIGHT: 70 ponto(s)'), isTrue);
+      expect(
+        logsCapturados.where((l) => l.contains('tipoNativo=')).length,
+        50,
+      );
+      expect(logContem('... e mais 20 ponto(s) omitido(s)'), isTrue);
+    });
   });
 
   group('leitura crua alinhada ao fuso local (RELATÓRIO 20260811)', () {
