@@ -635,6 +635,183 @@ void main() {
     });
     });
 
+    group('preenchimento defensivo de distância faltante (RELATÓRIO 20260812_0013 — investigação de "distância sumindo em dias aleatórios")', () {
+      /// A leitura combinada (todos os tipos de uma vez) só devolve
+      /// [tipos] contidos em [aceitos] — simula "o Health Connect devolveu
+      /// passos mas não distância nessa consulta ampla" sem precisar saber
+      /// a lista exata de ~20 tipos que `_tiposSuportados` pede.
+      void stubLeituraDupla({
+        required List<HealthDataPoint> respostaAmpla,
+        required List<HealthDataPoint> respostaEstreita,
+      }) {
+        when(
+          () => health.getHealthDataFromTypes(
+            types: any(named: 'types', that: predicate<List<HealthDataType>>((tipos) => tipos.length > 2)),
+            startTime: any(named: 'startTime'),
+            endTime: any(named: 'endTime'),
+          ),
+        ).thenAnswer((_) async => respostaAmpla);
+
+        when(
+          () => health.getHealthDataFromTypes(
+            types: any(named: 'types', that: predicate<List<HealthDataType>>(
+                (tipos) =>
+                    tipos.length == 2 &&
+                    tipos.contains(HealthDataType.DISTANCE_DELTA) &&
+                    tipos.contains(HealthDataType.DISTANCE_WALKING_RUNNING),
+              )),
+            startTime: any(named: 'startTime'),
+            endTime: any(named: 'endTime'),
+          ),
+        ).thenAnswer((_) async => respostaEstreita);
+      }
+
+      test('leitura ampla sem distância (só passos) + leitura estreita COM distância -> preenche', () async {
+        final hoje = DateTime(2026, 7, 8, 10);
+        stubLeituraDupla(
+          respostaAmpla: [
+            _ponto(
+              type: HealthDataType.STEPS,
+              value: 8000,
+              dateFrom: hoje,
+              sourceName: 'com.garmin.android.apps.connectmobile',
+            ),
+          ],
+          respostaEstreita: [
+            _ponto(
+              type: HealthDataType.DISTANCE_DELTA,
+              value: 6200,
+              dateFrom: hoje,
+              sourceName: 'com.garmin.android.apps.connectmobile',
+            ),
+          ],
+        );
+
+        final resultado = await service.sincronizarDeltaDiario();
+
+        final linha = resultado.linhas.single;
+        expect(linha['passos'], 8000);
+        expect(linha['distancia_metros'], 6200);
+      });
+
+      test('leitura estreita TAMBÉM sem distância -> dia fica sem distância, sem quebrar o sync', () async {
+        final hoje = DateTime(2026, 7, 8, 10);
+        stubLeituraDupla(
+          respostaAmpla: [
+            _ponto(
+              type: HealthDataType.STEPS,
+              value: 8000,
+              dateFrom: hoje,
+              sourceName: 'com.garmin.android.apps.connectmobile',
+            ),
+          ],
+          respostaEstreita: const [],
+        );
+
+        final resultado = await service.sincronizarDeltaDiario();
+
+        final linha = resultado.linhas.single;
+        expect(linha['passos'], 8000);
+        expect(linha.containsKey('distancia_metros'), isFalse);
+      });
+
+      test('distância já veio na leitura ampla -> NÃO dispara a leitura estreita (nem risco de somar em dobro)', () async {
+        final hoje = DateTime(2026, 7, 8, 10);
+        when(
+          () => health.getHealthDataFromTypes(
+            types: any(named: 'types'),
+            startTime: any(named: 'startTime'),
+            endTime: any(named: 'endTime'),
+          ),
+        ).thenAnswer(
+          (_) async => [
+            _ponto(
+              type: HealthDataType.STEPS,
+              value: 8000,
+              dateFrom: hoje,
+              sourceName: 'com.garmin.android.apps.connectmobile',
+            ),
+            _ponto(
+              type: HealthDataType.DISTANCE_DELTA,
+              value: 6200,
+              dateFrom: hoje,
+              sourceName: 'com.garmin.android.apps.connectmobile',
+            ),
+          ],
+        );
+
+        final resultado = await service.sincronizarDeltaDiario();
+
+        expect(resultado.linhas.single['distancia_metros'], 6200);
+        verify(
+          () => health.getHealthDataFromTypes(
+            types: any(named: 'types'),
+            startTime: any(named: 'startTime'),
+            endTime: any(named: 'endTime'),
+          ),
+        ).called(1);
+      });
+
+      test('sem passos nenhum no dia -> não tenta preencher distância (nada a completar)', () async {
+        final hoje = DateTime(2026, 7, 8, 10);
+        when(
+          () => health.getHealthDataFromTypes(
+            types: any(named: 'types'),
+            startTime: any(named: 'startTime'),
+            endTime: any(named: 'endTime'),
+          ),
+        ).thenAnswer(
+          (_) async => [
+            _ponto(type: HealthDataType.HEART_RATE, value: 70, dateFrom: hoje),
+          ],
+        );
+
+        final resultado = await service.sincronizarDeltaDiario();
+
+        verify(
+          () => health.getHealthDataFromTypes(
+            types: any(named: 'types'),
+            startTime: any(named: 'startTime'),
+            endTime: any(named: 'endTime'),
+          ),
+        ).called(1);
+        expect(resultado.linhas.single.containsKey('distancia_metros'), isFalse);
+      });
+
+      test('leitura estreita lança exceção -> best-effort, sync principal ainda sucede', () async {
+        final hoje = DateTime(2026, 7, 8, 10);
+        when(
+          () => health.getHealthDataFromTypes(
+            types: any(named: 'types', that: predicate<List<HealthDataType>>((tipos) => tipos.length > 2)),
+            startTime: any(named: 'startTime'),
+            endTime: any(named: 'endTime'),
+          ),
+        ).thenAnswer(
+          (_) async => [
+            _ponto(
+              type: HealthDataType.STEPS,
+              value: 8000,
+              dateFrom: hoje,
+              sourceName: 'com.garmin.android.apps.connectmobile',
+            ),
+          ],
+        );
+        when(
+          () => health.getHealthDataFromTypes(
+            types: any(named: 'types', that: predicate<List<HealthDataType>>((tipos) => tipos.length == 2)),
+            startTime: any(named: 'startTime'),
+            endTime: any(named: 'endTime'),
+          ),
+        ).thenThrow(Exception('timeout de rede'));
+
+        final resultado = await service.sincronizarDeltaDiario();
+
+        expect(resultado.outcome, DeltaSyncOutcome.sucesso);
+        expect(resultado.linhas.single['passos'], 8000);
+        expect(resultado.linhas.single.containsKey('distancia_metros'), isFalse);
+      });
+    });
+
     test('mescla fc (mÃ©dia) e fc_repouso do mesmo dia em uma Ãºnica linha e sincroniza', () async {
       final hoje = DateTime(2026, 7, 8, 10);
       when(
