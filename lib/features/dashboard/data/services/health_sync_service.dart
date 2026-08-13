@@ -560,7 +560,18 @@ class HealthSyncService {
       await _detectarEregistrarAnomalias(points);
 
       return HealthSyncResult(granted: true, points: points);
-    } catch (_) {
+    } catch (e, stackTrace) {
+      // RELATÓRIO 20260813_0014 — ACHADO: este catch engolia QUALQUER
+      // exceção (rede, parsing de um HealthDataPoint malformado, plugin
+      // nativo) sem nenhum rastro — nem `debugPrint`, nem o `e` original.
+      // O chamador ([_lerEGravar]) trata `granted: false` como "permissão
+      // negada" e aborta o lote inteiro (nenhuma coluna é gravada, nem
+      // passos/distância que não têm nada a ver com a causa real da
+      // falha) — um erro de rede pontual virava, pro fundador, "a
+      // sincronização parou", sem nenhum log pra investigar por quê. Não
+      // muda o comportamento (ainda devolve `denied`, best-effort igual
+      // antes) — só passa a expor o erro de verdade no console.
+      debugPrint('HealthSyncService: falha ao ler do health store: $e\n$stackTrace');
       return HealthSyncResult.denied(i18n.tr('dashboard.health_sync_error'));
     }
   }

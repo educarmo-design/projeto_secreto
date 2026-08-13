@@ -1004,6 +1004,30 @@ void main() {
         contains('🩻 [RAIO-X] 0 registros brutos recebidos do health store.'),
       );
     });
+
+    test('RELATÓRIO 20260813_0014 — uma exceção na leitura (rede, parsing, plugin) não fica mais silenciosa: aparece no console', () async {
+      when(
+        () => health.getHealthDataFromTypes(
+          types: any(named: 'types'),
+          startTime: any(named: 'startTime'),
+          endTime: any(named: 'endTime'),
+        ),
+      ).thenThrow(Exception('falha simulada de leitura do health store'));
+
+      final resultado = await service.sincronizarDeltaDiario();
+
+      // Comportamento preservado: ainda vira "permissão negada" (best-effort,
+      // não derruba o app) — o que muda é só a observabilidade.
+      expect(resultado.outcome, DeltaSyncOutcome.permissaoNegada);
+      expect(
+        logsCapturados,
+        contains(predicate<String>(
+          (log) =>
+              log.contains('HealthSyncService: falha ao ler do health store') &&
+              log.contains('falha simulada de leitura do health store'),
+        )),
+      );
+    });
   });
 
   group('leitura crua alinhada ao fuso local (RELATÓRIO 20260811)', () {
