@@ -16,6 +16,15 @@ import { PatientDetails } from './features/dashboard/components/PatientDetails';
 import { GarminPrescriptionForm } from './features/prescriptions/components/GarminPrescriptionForm';
 import { AdminOverview } from './features/admin/components/AdminOverview';
 import { AdminDashboard } from './features/admin/components/AdminDashboard';
+import { AdminMatrizPermissoes } from './features/admin/components/AdminMatrizPermissoes';
+import { AdminUsuarios } from './features/admin/components/AdminUsuarios';
+import { AdminProfissionais } from './features/admin/components/AdminProfissionais';
+import { AdminAtividadesFisicas } from './features/admin/components/AdminAtividadesFisicas';
+import { AdminAlergias } from './features/admin/components/AdminAlergias';
+import { AdminAlimentos } from './features/admin/components/AdminAlimentos';
+import { AdminConfiguracoes } from './features/admin/components/AdminConfiguracoes';
+import { AdminVinculos } from './features/admin/components/AdminVinculos';
+import { AdminProblemasSaude } from './features/admin/components/AdminProblemasSaude';
 
 type EstadoAuth = 'carregando' | 'autenticado' | 'nao_autenticado';
 
@@ -150,6 +159,46 @@ export default function App() {
         <Route
           path="/admin/aprovacoes"
           element={profissional.isAdmin ? <AdminDashboard /> : <Navigate to="/" replace />}
+        />
+        {/* N06 (RELATÓRIO 20260811_0005) — telas de manutenção administrativa
+            + D3 (Matriz de Permissões dinâmica). Mesmo padrão de gate das
+            rotas /admin acima: Navigate é só UX, a RLS admin-only de cada
+            tabela é a barreira real. */}
+        <Route
+          path="/admin/usuarios"
+          element={profissional.isAdmin ? <AdminUsuarios /> : <Navigate to="/" replace />}
+        />
+        <Route
+          path="/admin/profissionais"
+          element={profissional.isAdmin ? <AdminProfissionais /> : <Navigate to="/" replace />}
+        />
+        <Route
+          path="/admin/vinculos"
+          element={profissional.isAdmin ? <AdminVinculos /> : <Navigate to="/" replace />}
+        />
+        <Route
+          path="/admin/atividades-fisicas"
+          element={profissional.isAdmin ? <AdminAtividadesFisicas /> : <Navigate to="/" replace />}
+        />
+        <Route
+          path="/admin/alergias"
+          element={profissional.isAdmin ? <AdminAlergias /> : <Navigate to="/" replace />}
+        />
+        <Route
+          path="/admin/problemas-saude"
+          element={profissional.isAdmin ? <AdminProblemasSaude /> : <Navigate to="/" replace />}
+        />
+        <Route
+          path="/admin/alimentos"
+          element={profissional.isAdmin ? <AdminAlimentos /> : <Navigate to="/" replace />}
+        />
+        <Route
+          path="/admin/configuracoes"
+          element={profissional.isAdmin ? <AdminConfiguracoes /> : <Navigate to="/" replace />}
+        />
+        <Route
+          path="/admin/permissoes"
+          element={profissional.isAdmin ? <AdminMatrizPermissoes /> : <Navigate to="/" replace />}
         />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>

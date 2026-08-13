@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CADisableMinimumFrameDurationOnPhone</key>
+	<true/>
+	<!-- Paridade iOS (RELATÓRIO 20260810_0007): as 2 chaves que o HealthKit
+	     exige para o app pedir acesso ao app Saúde — sem elas, qualquer
+	     chamada a HKHealthStore.requestAuthorization derruba o app na hora
+	     (crash, não um erro tratável). NSHealthShareUsageDescription é a
+	     que de fato importa aqui: HealthSyncService só LÊ do HealthKit
+	     (READ, nunca WRITE — mesma decisão de arquitetura do Android, ver
+	     HealthSyncService._lerComPermissao). NSHealthUpdateUsageDescription
+	     é exigida pelo framework mesmo assim; a mensagem reflete
+	     honestamente que o app não grava nada.
+	     Texto revisado (RELATÓRIO 20260811_0002, Treinos/Rotas): passa a
+	     mencionar explicitamente rota/localização durante o treino — o
+	     pacote `health` lê WORKOUT_ROUTE (HKWorkoutRoute) através da MESMA
+	     autorização de HealthKit desta chave, sem precisar de nenhuma
+	     permissão de localização (NSLocationWhenInUseUsageDescription) à
+	     parte, já que o dado de rota mora no HealthKit, não no
+	     CoreLocation. -->
+	<key>NSHealthShareUsageDescription</key>
+	<string>Precisamos acessar seus dados de saúde — frequência cardíaca, sono, peso, composição corporal, calorias e atividades físicas (incluindo a rota/localização percorrida durante um treino, quando disponível) — para calcular seu acompanhamento nutricional e de bem-estar. Esses dados nunca são compartilhados com terceiros.</string>
+	<key>NSHealthUpdateUsageDescription</key>
+	<string>Este app não grava nenhum dado no app Saúde — só lê as informações que você já tem registradas para o seu acompanhamento.</string>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<key>CFBundleDisplayName</key>
+	<string>Atleta Gamificacao</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>atleta_gamificacao</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>$(FLUTTER_BUILD_NAME)</string>
+	<key>CFBundleSignature</key>
+	<string>????</string>
+	<key>CFBundleVersion</key>
+	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	<key>LSRequiresIPhoneOS</key>
+	<true/>
+	<key>UIApplicationSceneManifest</key>
+	<dict>
+		<key>UIApplicationSupportsMultipleScenes</key>
+		<false/>
+		<key>UISceneConfigurations</key>
+		<dict>
+			<key>UIWindowSceneSessionRoleApplication</key>
+			<array>
+				<dict>
+					<key>UISceneClassName</key>
+					<string>UIWindowScene</string>
+					<key>UISceneConfigurationName</key>
+					<string>flutter</string>
+					<key>UISceneDelegateClassName</key>
+					<string>$(PRODUCT_MODULE_NAME).SceneDelegate</string>
+					<key>UISceneStoryboardFile</key>
+					<string>Main</string>
+				</dict>
+			</array>
+		</dict>
+	</dict>
+	<key>UIApplicationSupportsIndirectInputEvents</key>
+	<true/>
+	<key>UILaunchStoryboardName</key>
+	<string>LaunchScreen</string>
+	<key>UIMainStoryboardFile</key>
+	<string>Main</string>
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+	<key>UISupportedInterfaceOrientations~ipad</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationPortraitUpsideDown</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+</dict>
+</plist>

@@ -7,6 +7,8 @@ interface SolicitacaoPendente {
   nome: string | null;
   email: string | null;
   tipoProfissional: string | null;
+  /** N02 (RELATÓRIO 20260811_0005) — CRM/CRN/CREFITO/CREF, agora exibido antes de aprovar. */
+  registroProfissional: string | null;
   criadoEm: string;
 }
 
@@ -24,6 +26,15 @@ type Acao = 'aprovar' | 'rejeitar';
  * nesta rota (App.tsx barra isso, mas Zero Trust nunca confia só no
  * frontend) receberia "permission denied" do banco ao tentar aprovar
  * qualquer coisa.
+ *
+ * ACHADO CORRIGIDO NESTA TAREFA (RELATÓRIO 20260811_0005, achado do spike
+ * 20260811_0004): esta tela fazia `select nome, email from perfis_usuarios`
+ * DIRETO na tabela-base — desde o D2 (20260730160000), isso devolve só
+ * ciphertext (`-----BEGIN PGP MESSAGE-----...`), não o nome/e-mail de
+ * verdade. Substituído pela RPC `admin_perfis_seguro`
+ * (`20260811210000_n06_catalogos_e_admin_perfis_seguro.sql`), que decifra
+ * server-side e é escopada a `eh_admin()` — nenhuma chave PGP chega a este
+ * client em momento algum.
  */
 export function AdminDashboard() {
   const [estado, setEstado] = useState<EstadoTela>('carregando');
@@ -40,10 +51,11 @@ export function AdminDashboard() {
     setEstado('carregando');
     setMensagemErro(null);
 
+    // .order() encadeado numa RPC que devolve TABLE funciona igual a um
+    // .select() normal (o postgrest-js trata o retorno como qualquer outro
+    // conjunto de linhas) — mantém o mesmo "mais antigo primeiro" de antes.
     const { data, error } = await supabase
-      .from('perfis_usuarios')
-      .select('id, nome, email, tipo_profissional, criado_em')
-      .eq('status_aprovacao', 'pendente')
+      .rpc('admin_perfis_seguro', { p_status_aprovacao: 'pendente' })
       .order('criado_em', { ascending: true });
 
     if (error) {
@@ -58,6 +70,7 @@ export function AdminDashboard() {
         nome: linha.nome,
         email: linha.email,
         tipoProfissional: linha.tipo_profissional,
+        registroProfissional: linha.registro_profissional,
         criadoEm: linha.criado_em,
       })),
     );
@@ -133,6 +146,7 @@ export function AdminDashboard() {
                 <th className="px-4 py-3">Nome</th>
                 <th className="px-4 py-3">E-mail</th>
                 <th className="px-4 py-3">Área de atuação</th>
+                <th className="px-4 py-3">Registro Profissional</th>
                 <th className="px-4 py-3">Solicitado em</th>
                 <th className="px-4 py-3" />
               </tr>
@@ -146,6 +160,9 @@ export function AdminDashboard() {
                     <td className="px-4 py-3 text-slate-300">{solicitacao.email ?? '—'}</td>
                     <td className="px-4 py-3 text-slate-300">
                       {solicitacao.tipoProfissional ?? '—'}
+                    </td>
+                    <td className="px-4 py-3 text-slate-300">
+                      {solicitacao.registroProfissional ?? '—'}
                     </td>
                     <td className="px-4 py-3 text-slate-300">
                       {new Date(solicitacao.criadoEm).toLocaleDateString('pt-BR')}

@@ -1,6 +1,7 @@
 ﻿import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:health/health.dart';
 import 'package:mocktail/mocktail.dart';
@@ -43,8 +44,12 @@ class _FakeFilterBuilder<T> extends Fake implements PostgrestFilterBuilder<T> {
 /// `PostgrestTransformBuilder`).
 class _FakeAlturaFilterBuilder extends Fake
     implements PostgrestFilterBuilder<List<Map<String, dynamic>>> {
-  _FakeAlturaFilterBuilder(this._resultado);
+  _FakeAlturaFilterBuilder(this._resultado, {this.erro});
   final Map<String, dynamic>? _resultado;
+  // Não-nulo simula a consulta LANÇANDO (rede/RLS/timeout) — usado pelo
+  // teste de resiliência do IMC (RELATÓRIO 20260810_0007): distingue de
+  // `_resultado: null`, que simula "consulta funcionou, coluna vazia".
+  final Object? erro;
 
   @override
   PostgrestFilterBuilder<List<Map<String, dynamic>>> eq(
@@ -54,19 +59,98 @@ class _FakeAlturaFilterBuilder extends Fake
 
   @override
   PostgrestTransformBuilder<Map<String, dynamic>?> maybeSingle() =>
-      _FakeAlturaTransformBuilder(_resultado);
+      _FakeAlturaTransformBuilder(_resultado, erro: erro);
 }
 
 class _FakeAlturaTransformBuilder extends Fake
     implements PostgrestTransformBuilder<Map<String, dynamic>?> {
-  _FakeAlturaTransformBuilder(this._resultado);
+  _FakeAlturaTransformBuilder(this._resultado, {this.erro});
   final Map<String, dynamic>? _resultado;
+  final Object? erro;
 
   @override
   Future<R> then<R>(
     FutureOr<R> Function(Map<String, dynamic>? value) onValue, {
     Function? onError,
-  }) => Future.value(_resultado).then(onValue, onError: onError);
+  }) {
+    // Lazy on purpose (mesmo motivo documentado em stubUpsertMetricas
+    // acima): construir o Future de erro só aqui, dentro de then(), e
+    // chamar .then(onValue, onError: onError) NELE — não devolver um
+    // Future novo direto — é o que faz o protocolo "thenable" do `await`
+    // de verdade invocar onError. Devolver só `Future.error(...)` sem
+    // encadear nunca chama onError e trava o await pra sempre (bug real
+    // encontrado escrevendo este teste).
+    final erroLocal = erro;
+    final future = erroLocal != null
+        ? Future<Map<String, dynamic>?>.error(erroLocal)
+        : Future.value(_resultado);
+    return future.then(onValue, onError: onError);
+  }
+}
+
+/// Encadeamento falso de `.upsert(linha, onConflict: ...).select('id').single()`
+/// — usado só por [HealthSyncService._processarTreinos] pra descobrir o id
+/// do treino recém-gravado (RELATÓRIO 20260811_0002). Três classes, uma por
+/// etapa do builder real, mesmo padrão de [_FakeAlturaFilterBuilder]/
+/// [_FakeAlturaTransformBuilder] acima.
+class _FakeUpsertComSelectBuilder extends Fake
+    implements PostgrestFilterBuilder<dynamic> {
+  _FakeUpsertComSelectBuilder(this._linhaResultado, {this.erro});
+  final Map<String, dynamic>? _linhaResultado;
+  final Object? erro;
+
+  @override
+  PostgrestTransformBuilder<List<Map<String, dynamic>>> select([
+    String columns = '*',
+  ]) => _FakeSelectAposUpsert(_linhaResultado, erro: erro);
+}
+
+class _FakeSelectAposUpsert extends Fake
+    implements PostgrestTransformBuilder<List<Map<String, dynamic>>> {
+  _FakeSelectAposUpsert(this._linhaResultado, {this.erro});
+  final Map<String, dynamic>? _linhaResultado;
+  final Object? erro;
+
+  @override
+  PostgrestTransformBuilder<Map<String, dynamic>> single() =>
+      _FakeSingleAposUpsert(_linhaResultado, erro: erro);
+}
+
+class _FakeSingleAposUpsert extends Fake
+    implements PostgrestTransformBuilder<Map<String, dynamic>> {
+  _FakeSingleAposUpsert(this._linhaResultado, {this.erro});
+  final Map<String, dynamic>? _linhaResultado;
+  final Object? erro;
+
+  @override
+  Future<R> then<R>(
+    FutureOr<R> Function(Map<String, dynamic> value) onValue, {
+    Function? onError,
+  }) {
+    final erroLocal = erro;
+    final future = erroLocal != null
+        ? Future<Map<String, dynamic>>.error(erroLocal)
+        : Future.value(_linhaResultado!);
+    return future.then(onValue, onError: onError);
+  }
+}
+
+/// Encadeamento falso de `.delete().eq('treino_id', treinoId)` — usado só
+/// por [HealthSyncService._gravarRotaDoTreino] (limpa rotas antigas antes
+/// de reinserir, idempotência pedida na tarefa 20260811_0002).
+class _FakeRotasDeleteBuilder extends Fake
+    implements PostgrestFilterBuilder<List<Map<String, dynamic>>> {
+  @override
+  PostgrestFilterBuilder<List<Map<String, dynamic>>> eq(
+    String column,
+    Object value,
+  ) => this;
+
+  @override
+  Future<R> then<R>(
+    FutureOr<R> Function(List<Map<String, dynamic>> value) onValue, {
+    Function? onError,
+  }) => Future.value(const <Map<String, dynamic>>[]).then(onValue, onError: onError);
 }
 
 const _usuarioId = 'user-123';
@@ -84,6 +168,14 @@ HealthDataPoint _ponto({
   required DateTime dateFrom,
   DateTime? dateTo,
   String sourceName = 'TestWearable',
+  // Vazio por padrão de propósito: espelha o Android real
+  // (HealthDataConverter.kt/HealthDataReader.kt SEMPRE mandam
+  // source_id == "" — quem carrega o nome do pacote lá é source_name). A
+  // maioria dos testes deste arquivo simula leitura via Health Connect, não
+  // HealthKit — só os testes da Hierarquia de Fontes específicos de iOS
+  // passam sourceId de verdade (bundle id). Ver doc de
+  // HealthMetricPoint.identificadorFonte.
+  String sourceId = '',
 }) {
   return HealthDataPoint(
     uuid: 'uuid-${type.name}-${dateFrom.microsecondsSinceEpoch}',
@@ -94,10 +186,72 @@ HealthDataPoint _ponto({
     dateTo: dateTo ?? dateFrom,
     sourcePlatform: HealthPlatformType.googleHealthConnect,
     sourceDeviceId: 'device-1',
-    sourceId: 'source-1',
+    sourceId: sourceId,
     sourceName: sourceName,
   );
 }
+
+/// Ponto WORKOUT cru — RELATÓRIO 20260811_0002. Diferente de [_ponto]:
+/// carrega um `WorkoutHealthValue` de verdade (não um `NumericHealthValue`),
+/// então `HealthMetricPoint.rawValue` tem o que `_processarTreinos` precisa.
+HealthDataPoint _pontoTreino({
+  required HealthWorkoutActivityType tipo,
+  required DateTime dateFrom,
+  required DateTime dateTo,
+  int? totalEnergyBurned,
+  int? totalDistance,
+  int? totalSteps,
+  String sourceName = 'TestWearable',
+  String sourceId = '',
+}) {
+  return HealthDataPoint(
+    uuid: 'uuid-workout-${dateFrom.microsecondsSinceEpoch}',
+    value: WorkoutHealthValue(
+      workoutActivityType: tipo,
+      totalEnergyBurned: totalEnergyBurned,
+      totalDistance: totalDistance,
+      totalSteps: totalSteps,
+    ),
+    type: HealthDataType.WORKOUT,
+    unit: HealthDataUnit.NO_UNIT,
+    dateFrom: dateFrom,
+    dateTo: dateTo,
+    sourcePlatform: HealthPlatformType.googleHealthConnect,
+    sourceDeviceId: 'device-1',
+    sourceId: sourceId,
+    sourceName: sourceName,
+  );
+}
+
+/// Ponto WORKOUT_ROUTE cru — `locations: []` simula tanto "sem rota mesmo"
+/// quanto `ExerciseRouteResult.ConsentRequired` do Android (achado real:
+/// indistinguíveis do lado Dart, ver doc de
+/// `HealthSyncService._gravarRotaDoTreino`).
+HealthDataPoint _pontoRota({
+  required DateTime dateFrom,
+  required DateTime dateTo,
+  List<WorkoutRouteLocation> locations = const [],
+  String sourceName = 'TestWearable',
+  String sourceId = '',
+}) {
+  return HealthDataPoint(
+    uuid: 'uuid-route-${dateFrom.microsecondsSinceEpoch}',
+    value: WorkoutRouteHealthValue(locations: locations),
+    type: HealthDataType.WORKOUT_ROUTE,
+    unit: HealthDataUnit.NO_UNIT,
+    dateFrom: dateFrom,
+    dateTo: dateTo,
+    sourcePlatform: HealthPlatformType.googleHealthConnect,
+    sourceDeviceId: 'device-1',
+    sourceId: sourceId,
+    sourceName: sourceName,
+  );
+}
+
+/// Mesmo formato de `HealthSyncService._dataOnly` — usado só para indexar
+/// `resultado.linhas` por dia em testes que precisam checar mais de uma
+/// linha (a ordem de `linhas` não é garantida como "hoje antes de ontem").
+String _dataIso(DateTime data) => data.toIso8601String().split('T').first;
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -115,8 +269,21 @@ void main() {
   late _MockSupabaseQueryBuilder metricasBuilder;
   late _MockSupabaseQueryBuilder anomaliasBuilder;
   late _MockSupabaseQueryBuilder perfisBuilder;
+  late _MockSupabaseQueryBuilder treinosBuilder;
+  late _MockSupabaseQueryBuilder rotasBuilder;
   late FakeSecureStorage secureStorage;
   late HealthSyncService service;
+
+  /// Id do treino que `.upsert(...).select('id').single()` devolve —
+  /// RELATÓRIO 20260811_0002. `erro` não-nulo simula falha no upsert do
+  /// treino (best-effort: não pode derrubar a sincronização principal).
+  void stubUpsertTreino({String id = 'treino-1', Object? erro}) {
+    when(
+      () => treinosBuilder.upsert(any(), onConflict: any(named: 'onConflict')),
+    ).thenAnswer(
+      (_) => _FakeUpsertComSelectBuilder({'id': id}, erro: erro),
+    );
+  }
 
   /// Altura cadastrada em `perfis_usuarios.altura_cm` que o mock devolve —
   /// `null` por padrão (mesma situação da maioria dos usuários hoje: coluna
@@ -154,6 +321,8 @@ void main() {
     metricasBuilder = _MockSupabaseQueryBuilder();
     anomaliasBuilder = _MockSupabaseQueryBuilder();
     perfisBuilder = _MockSupabaseQueryBuilder();
+    treinosBuilder = _MockSupabaseQueryBuilder();
+    rotasBuilder = _MockSupabaseQueryBuilder();
     secureStorage = FakeSecureStorage();
 
     when(() => health.configure()).thenAnswer((_) async {});
@@ -187,6 +356,19 @@ void main() {
     // testes específicos chamam stubAltura(valor) para sobrescrever.
     when(() => supabase.from('perfis_usuarios')).thenAnswer((_) => perfisBuilder);
     stubAltura(null);
+
+    // Treinos/Rotas (RELATÓRIO 20260811_0002) — padrão "sucesso", id
+    // fixo 'treino-1', pra não afetar os testes que não são sobre isso;
+    // nem entra em jogo em testes sem WORKOUT nos pontos (_processarTreinos
+    // sai cedo se não houver nenhum).
+    when(() => supabase.from('atividades_fisicas_treinos')).thenAnswer((_) => treinosBuilder);
+    when(() => supabase.from('atividades_fisicas_rotas')).thenAnswer((_) => rotasBuilder);
+    stubUpsertTreino();
+    when(() => rotasBuilder.delete()).thenAnswer(
+      (_) => _FakeRotasDeleteBuilder(),
+    );
+    when(() => rotasBuilder.insert(any()))
+        .thenAnswer((_) => _FakeFilterBuilder<dynamic>(Future.value(const <Map<String, dynamic>>[])));
 
     service = HealthSyncService(
       health: health,
@@ -305,6 +487,154 @@ void main() {
       expect(resultado.linhas.single['distancia_metros'], 5200);
     });
 
+    group('Hierarquia de Fontes (RELATÓRIO 20260810_0007 — passos+distância vêm SEMPRE da mesma fonte)', () {
+      final hoje = DateTime(2026, 7, 8, 10);
+
+    test('pedômetro nativo (Google Fit) tem MAIS passos, mas o wearable vence — prioridade bate número bruto', () async {
+      when(
+        () => health.getHealthDataFromTypes(
+          types: any(named: 'types'),
+          startTime: any(named: 'startTime'),
+          endTime: any(named: 'endTime'),
+        ),
+      ).thenAnswer(
+        (_) async => [
+          // Google Fit: mais passos, mas é pedômetro nativo — despriorizado.
+          _ponto(
+            type: HealthDataType.STEPS,
+            value: 9000,
+            dateFrom: hoje,
+            sourceName: 'com.google.android.apps.fitness',
+          ),
+          _ponto(
+            type: HealthDataType.DISTANCE_DELTA,
+            value: 6000, // proporção incoerente de propósito — não deve ganhar
+            dateFrom: hoje,
+            sourceName: 'com.google.android.apps.fitness',
+          ),
+          // Garmin: menos passos, mas prioridade alta (não é pedômetro nativo).
+          _ponto(
+            type: HealthDataType.STEPS,
+            value: 7000,
+            dateFrom: hoje,
+            sourceName: 'com.garmin.android.apps.connectmobile',
+          ),
+          _ponto(
+            type: HealthDataType.DISTANCE_DELTA,
+            value: 5100,
+            dateFrom: hoje,
+            sourceName: 'com.garmin.android.apps.connectmobile',
+          ),
+        ],
+      );
+
+      final resultado = await service.sincronizarDeltaDiario();
+
+      final linha = resultado.linhas.single;
+      expect(linha['passos'], 7000);
+      expect(linha['distancia_metros'], 5100);
+    });
+
+    test('sem pedômetro nativo envolvido, desempate pelo maior nº de passos — distância vem da MESMA fonte, nunca mistura', () async {
+      when(
+        () => health.getHealthDataFromTypes(
+          types: any(named: 'types'),
+          startTime: any(named: 'startTime'),
+          endTime: any(named: 'endTime'),
+        ),
+      ).thenAnswer(
+        (_) async => [
+          _ponto(
+            type: HealthDataType.STEPS,
+            value: 8000,
+            dateFrom: hoje,
+            sourceName: 'com.garmin.android.apps.connectmobile',
+          ),
+          _ponto(
+            type: HealthDataType.DISTANCE_DELTA,
+            value: 6000,
+            dateFrom: hoje,
+            sourceName: 'com.garmin.android.apps.connectmobile',
+          ),
+          _ponto(
+            type: HealthDataType.STEPS,
+            value: 6500,
+            dateFrom: hoje,
+            sourceName: 'com.polar.polarflow',
+          ),
+          _ponto(
+            type: HealthDataType.DISTANCE_DELTA,
+            value: 4900,
+            dateFrom: hoje,
+            sourceName: 'com.polar.polarflow',
+          ),
+        ],
+      );
+
+      final resultado = await service.sincronizarDeltaDiario();
+
+      final linha = resultado.linhas.single;
+      // Garmin venceu por ter mais passos (8000 > 6500) — a distância tem
+      // que vir DELE também (6000), nunca do Polar (4900), mesmo que 4900
+      // não fosse a maior distância isolada.
+      expect(linha['passos'], 8000);
+      expect(linha['distancia_metros'], 6000);
+    });
+
+    test('iOS: classifica pelo bundle id (sourceId), não pelo nome amigável (sourceName)', () async {
+      // No iOS, sourceName é o nome amigável ("Health") e sourceId é o
+      // bundle id de verdade (com.apple.health) — o oposto do Android, onde
+      // sourceId vem sempre vazio (ver doc de
+      // HealthMetricPoint.identificadorFonte). Sem usar sourceId aqui, o
+      // pedômetro nativo do iPhone não seria reconhecido e "ganharia" por
+      // ter mais passos, exatamente o bug que esta tarefa corrige.
+      when(
+        () => health.getHealthDataFromTypes(
+          types: any(named: 'types'),
+          startTime: any(named: 'startTime'),
+          endTime: any(named: 'endTime'),
+        ),
+      ).thenAnswer(
+        (_) async => [
+          _ponto(
+            type: HealthDataType.STEPS,
+            value: 9000,
+            dateFrom: hoje,
+            sourceName: 'Health',
+            sourceId: 'com.apple.health',
+          ),
+          _ponto(
+            type: HealthDataType.DISTANCE_WALKING_RUNNING,
+            value: 6000,
+            dateFrom: hoje,
+            sourceName: 'Health',
+            sourceId: 'com.apple.health',
+          ),
+          _ponto(
+            type: HealthDataType.STEPS,
+            value: 7000,
+            dateFrom: hoje,
+            sourceName: 'Apple Watch',
+            sourceId: 'com.apple.health.watch',
+          ),
+          _ponto(
+            type: HealthDataType.DISTANCE_WALKING_RUNNING,
+            value: 5100,
+            dateFrom: hoje,
+            sourceName: 'Apple Watch',
+            sourceId: 'com.apple.health.watch',
+          ),
+        ],
+      );
+
+      final resultado = await service.sincronizarDeltaDiario();
+
+      final linha = resultado.linhas.single;
+      expect(linha['passos'], 7000);
+      expect(linha['distancia_metros'], 5100);
+    });
+    });
+
     test('mescla fc (mÃ©dia) e fc_repouso do mesmo dia em uma Ãºnica linha e sincroniza', () async {
       final hoje = DateTime(2026, 7, 8, 10);
       when(
@@ -353,9 +683,13 @@ void main() {
       expect(linha['frequencia_cardiaca'], 80);
       expect(linha['fc_repouso'], 58);
       expect(linha['massa_magra_kg'], 62.5);
+      // RELATÓRIO 20260811_0002 (upsert destrutivo): um .upsert() POR
+      // LINHA, nunca o lote inteiro num só request — ver doc de
+      // _enviarLinhas. Com 1 linha só, isso ainda é uma chamada só, mas
+      // com a linha (Map), não a lista.
       verify(
         () => metricasBuilder.upsert(
-          resultado.linhas,
+          linha,
           onConflict: 'usuario_id_anonimo,data_referencia',
         ),
       ).called(1);
@@ -598,6 +932,77 @@ void main() {
 
       expect(resultado.outcome, DeltaSyncOutcome.erro);
       expect(await service.obterUltimaSincronizacao(), isNull);
+    });
+  });
+
+  group('Modo Raio-X (RELATÓRIO 20260811_0002 — diretriz "até o último fio de cabelo")', () {
+    late DebugPrintCallback debugPrintOriginal;
+    late List<String> logsCapturados;
+
+    setUp(() {
+      debugPrintOriginal = debugPrint;
+      logsCapturados = [];
+      debugPrint = (String? message, {int? wrapWidth}) {
+        if (message != null) logsCapturados.add(message);
+      };
+    });
+
+    tearDown(() {
+      debugPrint = debugPrintOriginal;
+    });
+
+    test('imprime resumo cru por dia/fonte ANTES de qualquer agregação nossa', () async {
+      final hoje = DateTime(2026, 7, 8, 10);
+      when(
+        () => health.getHealthDataFromTypes(
+          types: any(named: 'types'),
+          startTime: any(named: 'startTime'),
+          endTime: any(named: 'endTime'),
+        ),
+      ).thenAnswer(
+        (_) async => [
+          _ponto(
+            type: HealthDataType.STEPS,
+            value: 4000,
+            dateFrom: hoje,
+            sourceName: 'com.garmin.android.apps.connectmobile',
+          ),
+          _ponto(
+            type: HealthDataType.DISTANCE_DELTA,
+            value: 3000,
+            dateFrom: hoje,
+            sourceName: 'com.garmin.android.apps.connectmobile',
+          ),
+          _ponto(
+            type: HealthDataType.STEPS,
+            value: 3500,
+            dateFrom: hoje,
+            sourceName: 'com.google.android.apps.fitness',
+          ),
+        ],
+      );
+
+      await service.sincronizarDeltaDiario();
+
+      final linhaResumo =
+          logsCapturados.firstWhere((l) => l.contains('[RAIO-X] 3 registros'));
+      expect(linhaResumo, contains('cobrindo 1 dia(s)'));
+
+      final linhaDoDia =
+          logsCapturados.firstWhere((l) => l.contains('Dia 2026-07-08'));
+      expect(linhaDoDia, contains('Recebidos 3 registros'));
+      expect(linhaDoDia, contains('com.garmin.android.apps.connectmobile: STEPS'));
+      expect(linhaDoDia, contains('DISTANCE_DELTA'));
+      expect(linhaDoDia, contains('com.google.android.apps.fitness: STEPS'));
+    });
+
+    test('0 registros brutos também loga (não fica em silêncio quando o Health Connect não devolve nada)', () async {
+      await service.sincronizarDeltaDiario();
+
+      expect(
+        logsCapturados,
+        contains('🩻 [RAIO-X] 0 registros brutos recebidos do health store.'),
+      );
     });
   });
 
@@ -847,6 +1252,358 @@ void main() {
       expect(resultado.linhas.every((linha) => linha['imc'] != null), isTrue);
       verify(() => perfisBuilder.select(any())).called(1);
     });
+
+    test('achado RELATÓRIO 20260810_0007: falha transitória na 1ª tentativa NÃO apaga o IMC do resto do lote — tenta de novo', () async {
+      // Antes desta tarefa, alturaJaBuscada virava true mesmo quando a
+      // busca LANÇAVA (não só quando tinha sucesso) — uma falha pontual no
+      // primeiro dia processado matava o IMC do lote de 30 dias inteiro,
+      // com só um debugPrint invisível como rastro. Aqui: 1ª tentativa
+      // lança, 2ª tem sucesso — o dia da 1ª tentativa fica sem IMC (correto,
+      // não dava pra saber a altura ainda), mas o lote NÃO desiste: o dia
+      // seguinte tenta de novo e consegue.
+      var tentativas = 0;
+      when(() => perfisBuilder.select(any())).thenAnswer((_) {
+        tentativas++;
+        return tentativas == 1
+            ? _FakeAlturaFilterBuilder(null, erro: Exception('timeout de rede'))
+            : _FakeAlturaFilterBuilder({'altura_cm': 180});
+      });
+      final ontem = hoje.subtract(const Duration(days: 1));
+      when(
+        () => health.getHealthDataFromTypes(
+          types: any(named: 'types'),
+          startTime: any(named: 'startTime'),
+          endTime: any(named: 'endTime'),
+        ),
+      ).thenAnswer(
+        (_) async => [
+          _ponto(type: HealthDataType.WEIGHT, value: 80, dateFrom: hoje),
+          _ponto(type: HealthDataType.WEIGHT, value: 79, dateFrom: ontem),
+        ],
+      );
+
+      final resultado = await service.sincronizarDeltaDiario();
+
+      final porData = {
+        for (final linha in resultado.linhas) linha['data_referencia']: linha,
+      };
+      expect(porData[_dataIso(hoje)]!['imc'], isNull);
+      expect(porData[_dataIso(ontem)]!['imc'], isNotNull);
+      verify(() => perfisBuilder.select(any())).called(2);
+    });
+  });
+
+  group('Calorias granulares (RELATÓRIO 20260811_0002 — decisão do fundador)', () {
+    final hoje = DateTime(2026, 7, 8, 10);
+
+    test('calorias_basais: fica com a MAIOR fonte do dia, mesmo tratamento anti-double-counting de calorias_ativas', () async {
+      when(
+        () => health.getHealthDataFromTypes(
+          types: any(named: 'types'),
+          startTime: any(named: 'startTime'),
+          endTime: any(named: 'endTime'),
+        ),
+      ).thenAnswer(
+        (_) async => [
+          _ponto(
+            type: HealthDataType.BASAL_ENERGY_BURNED,
+            value: 1650,
+            dateFrom: hoje,
+            sourceName: 'com.garmin.android.apps.connectmobile',
+          ),
+          _ponto(
+            type: HealthDataType.BASAL_ENERGY_BURNED,
+            value: 1500,
+            dateFrom: hoje,
+            sourceName: 'com.google.android.apps.fitness',
+          ),
+        ],
+      );
+
+      final resultado = await service.sincronizarDeltaDiario();
+
+      expect(resultado.linhas.single['calorias_basais'], 1650);
+    });
+
+    test('calorias_totais = ativas + basais quando as duas estão presentes', () async {
+      when(
+        () => health.getHealthDataFromTypes(
+          types: any(named: 'types'),
+          startTime: any(named: 'startTime'),
+          endTime: any(named: 'endTime'),
+        ),
+      ).thenAnswer(
+        (_) async => [
+          _ponto(type: HealthDataType.ACTIVE_ENERGY_BURNED, value: 480, dateFrom: hoje),
+          _ponto(type: HealthDataType.BASAL_ENERGY_BURNED, value: 1650, dateFrom: hoje),
+        ],
+      );
+
+      final resultado = await service.sincronizarDeltaDiario();
+
+      final linha = resultado.linhas.single;
+      expect(linha['calorias_ativas'], 480);
+      expect(linha['calorias_basais'], 1650);
+      expect(linha['calorias_totais'], 2130);
+    });
+
+    test('calorias_totais só com ativas presente (sem basais naquele dia): soma tratando o ausente como 0, não fica de fora', () async {
+      when(
+        () => health.getHealthDataFromTypes(
+          types: any(named: 'types'),
+          startTime: any(named: 'startTime'),
+          endTime: any(named: 'endTime'),
+        ),
+      ).thenAnswer(
+        (_) async => [
+          _ponto(type: HealthDataType.ACTIVE_ENERGY_BURNED, value: 480, dateFrom: hoje),
+        ],
+      );
+
+      final resultado = await service.sincronizarDeltaDiario();
+
+      final linha = resultado.linhas.single;
+      expect(linha.containsKey('calorias_basais'), isFalse);
+      expect(linha['calorias_totais'], 480);
+    });
+
+    test('sem nenhum dado de caloria no dia: calorias_totais fica de fora, não é gravado como 0', () async {
+      when(
+        () => health.getHealthDataFromTypes(
+          types: any(named: 'types'),
+          startTime: any(named: 'startTime'),
+          endTime: any(named: 'endTime'),
+        ),
+      ).thenAnswer(
+        (_) async => [_ponto(type: HealthDataType.WEIGHT, value: 80, dateFrom: hoje)],
+      );
+
+      final resultado = await service.sincronizarDeltaDiario();
+
+      expect(resultado.linhas.single.containsKey('calorias_totais'), isFalse);
+    });
+  });
+
+  group('Treinos e Rotas (RELATÓRIO 20260811_0002)', () {
+    test('FC do treino: média/máxima/mínima só das leituras DENTRO do intervalo do treino, ignora as de fora', () async {
+      final inicioTreino = DateTime(2026, 7, 8, 7, 0);
+      final fimTreino = DateTime(2026, 7, 8, 8, 0);
+      when(
+        () => health.getHealthDataFromTypes(
+          types: any(named: 'types'),
+          startTime: any(named: 'startTime'),
+          endTime: any(named: 'endTime'),
+        ),
+      ).thenAnswer(
+        (_) async => [
+          _pontoTreino(
+            tipo: HealthWorkoutActivityType.RUNNING,
+            dateFrom: inicioTreino,
+            dateTo: fimTreino,
+            totalEnergyBurned: 450,
+            totalDistance: 8000,
+            totalSteps: 9500,
+          ),
+          // ANTES do treino começar — não pode entrar na conta.
+          _ponto(
+            type: HealthDataType.HEART_RATE,
+            value: 65,
+            dateFrom: inicioTreino.subtract(const Duration(minutes: 10)),
+          ),
+          // DENTRO do treino — essas três entram: média (150+160+170)/3=160.
+          _ponto(type: HealthDataType.HEART_RATE, value: 150, dateFrom: inicioTreino),
+          _ponto(
+            type: HealthDataType.HEART_RATE,
+            value: 170,
+            dateFrom: inicioTreino.add(const Duration(minutes: 30)),
+          ),
+          _ponto(type: HealthDataType.HEART_RATE, value: 160, dateFrom: fimTreino),
+          // DEPOIS do treino terminar — não pode entrar na conta.
+          _ponto(
+            type: HealthDataType.HEART_RATE,
+            value: 90,
+            dateFrom: fimTreino.add(const Duration(minutes: 15)),
+          ),
+        ],
+      );
+
+      await service.sincronizarDeltaDiario();
+
+      final linhaGravada = verify(
+        () => treinosBuilder.upsert(
+          captureAny(),
+          onConflict: 'usuario_id,inicio_atividade',
+        ),
+      ).captured.single as Map<String, dynamic>;
+
+      expect(linhaGravada['tipo_atividade_codigo'], 'RUNNING');
+      expect(linhaGravada['energia_queimada_kcal'], 450);
+      expect(linhaGravada['distancia_metros'], 8000);
+      expect(linhaGravada['passos_totais'], 9500);
+      expect(linhaGravada['fc_media'], 160);
+      expect(linhaGravada['fc_maxima'], 170);
+      expect(linhaGravada['fc_minima'], 150);
+    });
+
+    test('idempotência: upsert do treino usa onConflict (usuario_id, inicio_atividade)', () async {
+      final inicio = DateTime(2026, 7, 8, 7);
+      when(
+        () => health.getHealthDataFromTypes(
+          types: any(named: 'types'),
+          startTime: any(named: 'startTime'),
+          endTime: any(named: 'endTime'),
+        ),
+      ).thenAnswer(
+        (_) async => [
+          _pontoTreino(
+            tipo: HealthWorkoutActivityType.SWIMMING,
+            dateFrom: inicio,
+            dateTo: inicio.add(const Duration(minutes: 40)),
+          ),
+        ],
+      );
+
+      await service.sincronizarDeltaDiario();
+
+      verify(
+        () => treinosBuilder.upsert(
+          any(that: containsPair('usuario_id', _usuarioId)),
+          onConflict: 'usuario_id,inicio_atividade',
+        ),
+      ).called(1);
+    });
+
+    test('sem HEART_RATE nenhum no intervalo: treino é gravado sem fc_media/fc_maxima/fc_minima (não zerados)', () async {
+      final inicio = DateTime(2026, 7, 8, 7);
+      when(
+        () => health.getHealthDataFromTypes(
+          types: any(named: 'types'),
+          startTime: any(named: 'startTime'),
+          endTime: any(named: 'endTime'),
+        ),
+      ).thenAnswer(
+        (_) async => [
+          _pontoTreino(
+            tipo: HealthWorkoutActivityType.YOGA,
+            dateFrom: inicio,
+            dateTo: inicio.add(const Duration(minutes: 30)),
+          ),
+        ],
+      );
+
+      await service.sincronizarDeltaDiario();
+
+      final linhaGravada = verify(
+        () => treinosBuilder.upsert(
+          captureAny(),
+          onConflict: any(named: 'onConflict'),
+        ),
+      ).captured.single as Map<String, dynamic>;
+
+      expect(linhaGravada.containsKey('fc_media'), isFalse);
+      expect(linhaGravada.containsKey('fc_maxima'), isFalse);
+      expect(linhaGravada.containsKey('fc_minima'), isFalse);
+    });
+
+    test('rota GPS: grava os pontos linkados ao treino, limpando rotas antigas antes (idempotência)', () async {
+      final inicio = DateTime(2026, 7, 8, 7);
+      final fim = inicio.add(const Duration(minutes: 45));
+      when(
+        () => health.getHealthDataFromTypes(
+          types: any(named: 'types'),
+          startTime: any(named: 'startTime'),
+          endTime: any(named: 'endTime'),
+        ),
+      ).thenAnswer(
+        (_) async => [
+          _pontoTreino(tipo: HealthWorkoutActivityType.RUNNING, dateFrom: inicio, dateTo: fim),
+          _pontoRota(
+            dateFrom: inicio,
+            dateTo: fim,
+            locations: [
+              WorkoutRouteLocation(latitude: -23.55, longitude: -46.63, timestamp: inicio),
+              WorkoutRouteLocation(
+                latitude: -23.551,
+                longitude: -46.631,
+                timestamp: inicio.add(const Duration(minutes: 20)),
+                altitude: 760,
+                horizontalAccuracy: 5,
+              ),
+            ],
+          ),
+        ],
+      );
+      stubUpsertTreino(id: 'treino-xyz');
+
+      await service.sincronizarDeltaDiario();
+
+      verify(() => rotasBuilder.delete()).called(1);
+      final pontosGravados = verify(
+        () => rotasBuilder.insert(captureAny()),
+      ).captured.single as List<dynamic>;
+      expect(pontosGravados, hasLength(2));
+      expect(pontosGravados[0]['treino_id'], 'treino-xyz');
+      expect(pontosGravados[0]['latitude'], -23.55);
+      expect(pontosGravados[1]['altitude'], 760);
+      expect(pontosGravados[1]['precisao'], 5);
+    });
+
+    test('rota vazia (sem GPS de verdade OU ConsentRequired do Android — indistinguíveis): ignora silenciosamente, não grava nada', () async {
+      // Achado real (RELATÓRIO 20260811_0002): quando o Health Connect exige
+      // consentimento extra pra rota, a resposta que chega no Dart já vem
+      // com locations vazio — o mesmo formato de "este treino não tem
+      // rota". Não existe um jeito de distinguir os dois casos por aqui, e
+      // o comportamento certo (ignorar sem quebrar nada) é o mesmo pros
+      // dois.
+      final inicio = DateTime(2026, 7, 8, 7);
+      final fim = inicio.add(const Duration(minutes: 45));
+      when(
+        () => health.getHealthDataFromTypes(
+          types: any(named: 'types'),
+          startTime: any(named: 'startTime'),
+          endTime: any(named: 'endTime'),
+        ),
+      ).thenAnswer(
+        (_) async => [
+          _pontoTreino(tipo: HealthWorkoutActivityType.RUNNING, dateFrom: inicio, dateTo: fim),
+          _pontoRota(dateFrom: inicio, dateTo: fim, locations: const []),
+        ],
+      );
+
+      final resultado = await service.sincronizarDeltaDiario();
+
+      expect(resultado.outcome, DeltaSyncOutcome.semAlteracoes);
+      verifyNever(() => rotasBuilder.delete());
+      verifyNever(() => rotasBuilder.insert(any()));
+    });
+
+    test('falha ao gravar o treino (rede/RLS) é best-effort — não derruba a sincronização principal', () async {
+      stubUpsertTreino(erro: Exception('RLS negou'));
+      final inicio = DateTime(2026, 7, 8, 7);
+      when(
+        () => health.getHealthDataFromTypes(
+          types: any(named: 'types'),
+          startTime: any(named: 'startTime'),
+          endTime: any(named: 'endTime'),
+        ),
+      ).thenAnswer(
+        (_) async => [
+          _pontoTreino(
+            tipo: HealthWorkoutActivityType.RUNNING,
+            dateFrom: inicio,
+            dateTo: inicio.add(const Duration(minutes: 30)),
+          ),
+          _ponto(type: HealthDataType.WEIGHT, value: 80, dateFrom: inicio),
+        ],
+      );
+
+      final resultado = await service.sincronizarDeltaDiario();
+
+      // A falha foi só no treino — a sincronização de metricas_saude_diarias
+      // (peso, nesse caso) segue funcionando normalmente.
+      expect(resultado.outcome, DeltaSyncOutcome.sucesso);
+      expect(resultado.linhas.single['peso_kg'], 80);
+    });
   });
 
   group('carregarHistoricoInicial (N18 — Carga Inicial)', () {
@@ -902,6 +1659,59 @@ void main() {
         () => metricasBuilder.upsert(any(), onConflict: any(named: 'onConflict')),
       ).called(1);
     });
+
+    test('BUG CRÍTICO CORRIGIDO (RELATÓRIO 20260811_0002 — "upsert destrutivo"): dias com colunas diferentes no mesmo lote NÃO viram um upsert só com o lote inteiro', () async {
+      // Cenário exato do bug: dia A só tem passos, dia B só tem peso — bem
+      // comum na Carga de 30 dias (nem todo dia tem toda métrica). Antes
+      // desta correção, um único `.upsert([linhaA, linhaB])` fazia o
+      // PostgREST unir as colunas dos dois dias e preencher com NULL a
+      // coluna que cada linha não tem (confirmado no teste
+      // "bulk insert without column defaults" do próprio pacote
+      // postgrest) — sobrescrevendo, por exemplo, um peso_kg bom do dia A
+      // com null, mesmo o dia A nunca tendo mandado peso_kg=null.
+      final diaA = DateTime(2026, 7, 7);
+      final diaB = DateTime(2026, 7, 8);
+      when(
+        () => health.getHealthDataFromTypes(
+          types: any(named: 'types'),
+          startTime: any(named: 'startTime'),
+          endTime: any(named: 'endTime'),
+        ),
+      ).thenAnswer(
+        (_) async => [
+          _ponto(type: HealthDataType.STEPS, value: 4000, dateFrom: diaA),
+          _ponto(type: HealthDataType.WEIGHT, value: 80, dateFrom: diaB),
+        ],
+      );
+
+      final resultado = await service.carregarHistoricoInicial();
+
+      expect(resultado.linhas, hasLength(2));
+      final linhaA =
+          resultado.linhas.firstWhere((l) => l['data_referencia'] == '2026-07-07');
+      final linhaB =
+          resultado.linhas.firstWhere((l) => l['data_referencia'] == '2026-07-08');
+      // Cada linha só tem as colunas que aquele dia teve dado — nenhuma
+      // chave 'peso_kg'/'passos' cruzada, nem null explícito.
+      expect(linhaA.containsKey('peso_kg'), isFalse);
+      expect(linhaB.containsKey('passos'), isFalse);
+
+      // O ponto central do teste: DOIS upserts SEPARADOS, um por linha —
+      // nunca um upsert só recebendo a lista com as duas.
+      verify(
+        () => metricasBuilder.upsert(linhaA, onConflict: 'usuario_id_anonimo,data_referencia'),
+      ).called(1);
+      verify(
+        () => metricasBuilder.upsert(linhaB, onConflict: 'usuario_id_anonimo,data_referencia'),
+      ).called(1);
+      verifyNever(
+        () => metricasBuilder.upsert(
+          resultado.linhas,
+          onConflict: any(named: 'onConflict'),
+        ),
+      );
+    });
+
     test('lê 30 dias por padrão, mescla por dia e persiste via upsert', () async {
       final dia1 = DateTime(2026, 6, 10, 8);
       final dia2 = DateTime(2026, 7, 8, 9);
@@ -922,12 +1732,19 @@ void main() {
 
       expect(resultado.outcome, DeltaSyncOutcome.sucesso);
       expect(resultado.linhas, hasLength(2));
-      verify(
-        () => metricasBuilder.upsert(
-          resultado.linhas,
-          onConflict: 'usuario_id_anonimo,data_referencia',
-        ),
-      ).called(1);
+      // RELATÓRIO 20260811_0002 (upsert destrutivo): 2 dias com colunas
+      // diferentes NÃO podem ir num único .upsert() com o lote inteiro —
+      // é exatamente isso que fazia o PostgREST encher a coluna que um dia
+      // não tem com NULL explícito, sobrescrevendo dado bom de outro sync.
+      // Cada linha vira sua PRÓPRIA chamada.
+      for (final linha in resultado.linhas) {
+        verify(
+          () => metricasBuilder.upsert(
+            linha,
+            onConflict: 'usuario_id_anonimo,data_referencia',
+          ),
+        ).called(1);
+      }
       expect(await service.obterUltimaSincronizacao(), resultado.sincronizadoEm);
     });
 
@@ -1011,8 +1828,13 @@ void main() {
       final ok = await service.despacharLinhasPendentes(linhas);
 
       expect(ok, isTrue);
+      // RELATÓRIO 20260811_0002: um .upsert() por linha (linhas.single),
+      // não a lista inteira — ver doc de _enviarLinhas.
       verify(
-        () => metricasBuilder.upsert(linhas, onConflict: 'usuario_id_anonimo,data_referencia'),
+        () => metricasBuilder.upsert(
+          linhas.single,
+          onConflict: 'usuario_id_anonimo,data_referencia',
+        ),
       ).called(1);
       expect(await service.obterUltimaSincronizacao(), isNotNull);
     });
@@ -1266,6 +2088,7 @@ void main() {
         dateFrom: DateTime(2026, 7, 8, 8),
         dateTo: DateTime(2026, 7, 8, 8),
         sourceApp: 'Garmin Connect',
+        rawValue: NumericHealthValue(numericValue: 60),
       );
       final recente = HealthMetricPoint(
         type: HealthDataType.HEART_RATE,
@@ -1274,6 +2097,7 @@ void main() {
         dateFrom: DateTime(2026, 7, 8, 14),
         dateTo: DateTime(2026, 7, 8, 14),
         sourceApp: 'Garmin Connect',
+        rawValue: NumericHealthValue(numericValue: 72),
       );
 
       // Lista fora de ordem cronológica de propósito — a janela do Health

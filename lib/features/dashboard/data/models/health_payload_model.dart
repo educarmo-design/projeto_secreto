@@ -20,6 +20,14 @@ class HealthPayloadModel {
   final int? fcMaxima;
   final double? hrvMedio;
   final double? caloriasAtivas;
+  final double? caloriasBasais;
+  // Nunca populado por fromHealthDataType (não é um HealthDataType lido à
+  // parte) — computado em HealthSyncService._mesclarPorDia como
+  // caloriasAtivas + caloriasBasais, mesmo espírito de minutosSono/imc.
+  // Precisa existir aqui só para o round-trip fromJson/toJson da tela de
+  // histórico (mesmo bug já corrigido pro fc_maxima — RELATÓRIO
+  // 20260810_0005).
+  final double? caloriasTotais;
   final int? minutosSono;
   final int? sonoLeveMinutos;
   final int? sonoProfundoMinutos;
@@ -55,6 +63,8 @@ class HealthPayloadModel {
     this.fcMaxima,
     this.hrvMedio,
     this.caloriasAtivas,
+    this.caloriasBasais,
+    this.caloriasTotais,
     this.minutosSono,
     this.sonoLeveMinutos,
     this.sonoProfundoMinutos,
@@ -130,6 +140,15 @@ class HealthPayloadModel {
       case HealthDataType.ACTIVE_ENERGY_BURNED:
         return HealthPayloadModel(
           caloriasAtivas: value,
+          dateFrom: dateFrom,
+          dateTo: dateTo,
+          source: source,
+        );
+      // Calorias granulares (RELATÓRIO 20260811_0002, decisão do fundador)
+      // — metabolismo basal/repouso, sinal separado de ACTIVE_ENERGY_BURNED.
+      case HealthDataType.BASAL_ENERGY_BURNED:
+        return HealthPayloadModel(
+          caloriasBasais: value,
           dateFrom: dateFrom,
           dateTo: dateTo,
           source: source,
@@ -292,6 +311,8 @@ class HealthPayloadModel {
       fcMaxima: numOrNull('fc_maxima')?.round(),
       hrvMedio: numOrNull('hrv_medio')?.toDouble(),
       caloriasAtivas: numOrNull('calorias_ativas')?.toDouble(),
+      caloriasBasais: numOrNull('calorias_basais')?.toDouble(),
+      caloriasTotais: numOrNull('calorias_totais')?.toDouble(),
       minutosSono: numOrNull('minutos_sono')?.round(),
       sonoLeveMinutos: numOrNull('sono_leve_minutos')?.round(),
       sonoProfundoMinutos: numOrNull('sono_profundo_minutos')?.round(),
@@ -327,6 +348,8 @@ class HealthPayloadModel {
       fcMaxima: asNum('fc_maxima')?.toInt(),
       hrvMedio: asNum('hrv_medio')?.toDouble(),
       caloriasAtivas: asNum('calorias_ativas')?.toDouble(),
+      caloriasBasais: asNum('calorias_basais')?.toDouble(),
+      caloriasTotais: asNum('calorias_totais')?.toDouble(),
       minutosSono: asNum('minutos_sono')?.toInt(),
       sonoLeveMinutos: asNum('sono_leve_minutos')?.toInt(),
       sonoProfundoMinutos: asNum('sono_profundo_minutos')?.toInt(),
@@ -362,6 +385,8 @@ class HealthPayloadModel {
         if (fcMaxima != null) 'fc_maxima': fcMaxima,
         if (hrvMedio != null) 'hrv_medio': hrvMedio,
         if (caloriasAtivas != null) 'calorias_ativas': caloriasAtivas,
+        if (caloriasBasais != null) 'calorias_basais': caloriasBasais,
+        if (caloriasTotais != null) 'calorias_totais': caloriasTotais,
         if (minutosSono != null) 'minutos_sono': minutosSono,
         if (sonoLeveMinutos != null) 'sono_leve_minutos': sonoLeveMinutos,
         if (sonoProfundoMinutos != null)
@@ -398,6 +423,8 @@ class HealthPayloadModel {
         if (fcMaxima != null) MapEntry('fc_maxima', fcMaxima!),
         if (hrvMedio != null) MapEntry('hrv_medio', hrvMedio!),
         if (caloriasAtivas != null) MapEntry('calorias_ativas', caloriasAtivas!),
+        if (caloriasBasais != null) MapEntry('calorias_basais', caloriasBasais!),
+        if (caloriasTotais != null) MapEntry('calorias_totais', caloriasTotais!),
         if (minutosSono != null) MapEntry('minutos_sono', minutosSono!),
         if (sonoLeveMinutos != null)
           MapEntry('sono_leve_minutos', sonoLeveMinutos!),

@@ -22,6 +22,27 @@ const OPCOES_TIPO_PROFISSIONAL: Array<{ value: TipoProfissionalSaude; label: str
 ];
 
 /**
+ * N03 (RELATÓRIO 20260811_0005) — mesma aritmética de `calcular_idade()` no
+ * banco (`20260811190000_n03_trava_maioridade.sql`): anos completos entre
+ * `dataNascimento` e hoje, sem depender de bibliotecas de data. Só UX — a
+ * CHECK constraint `perfis_usuarios_maioridade` é a barreira real; ver
+ * `inserirPerfilPendente` em `core/supabase.ts` para o que acontece se
+ * alguém contornar esta validação.
+ */
+function calcularIdade(dataNascimentoISO: string): number {
+  const nascimento = new Date(dataNascimentoISO);
+  const hoje = new Date();
+  let idade = hoje.getFullYear() - nascimento.getFullYear();
+  const aindaNaoFezAniversarioEsteAno =
+    hoje.getMonth() < nascimento.getMonth() ||
+    (hoje.getMonth() === nascimento.getMonth() && hoje.getDate() < nascimento.getDate());
+  if (aindaNaoFezAniversarioEsteAno) idade -= 1;
+  return idade;
+}
+
+const IDADE_MINIMA_ANOS = 18;
+
+/**
  * Login + Sala de Espera de Profissionais de Saúde — rejeita explicitamente
  * qualquer credencial de paciente comum (ver `signInProfissional`), então a
  * mensagem de erro genérica de "Entrar" é proposital: nunca revela se o
@@ -160,6 +181,9 @@ function FormularioSolicitarAcesso({ onSolicitado }: FormularioSolicitarAcessoPr
   const [senha, setSenha] = useState('');
   const [nome, setNome] = useState('');
   const [tipoProfissional, setTipoProfissional] = useState<TipoProfissionalSaude>('Medico');
+  const [telefone, setTelefone] = useState('');
+  const [registroProfissional, setRegistroProfissional] = useState('');
+  const [dataNascimento, setDataNascimento] = useState('');
   const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [sucesso, setSucesso] = useState<string | null>(null);
@@ -168,10 +192,27 @@ function FormularioSolicitarAcesso({ onSolicitado }: FormularioSolicitarAcessoPr
     event.preventDefault();
     setErro(null);
     setSucesso(null);
+
+    // N03 (RELATÓRIO 20260811_0005): trava de 18+ client-side — só UX, a
+    // CHECK constraint `perfis_usuarios_maioridade` no banco é a barreira
+    // real (ver `inserirPerfilPendente`, core/supabase.ts).
+    if (calcularIdade(dataNascimento) < IDADE_MINIMA_ANOS) {
+      setErro(`É necessário ter ${IDADE_MINIMA_ANOS} anos ou mais para solicitar acesso.`);
+      return;
+    }
+
     setCarregando(true);
 
     try {
-      const resultado = await solicitarAcesso({ email, senha, nome, tipoProfissional });
+      const resultado = await solicitarAcesso({
+        email,
+        senha,
+        nome,
+        tipoProfissional,
+        telefone,
+        registroProfissional,
+        dataNascimento,
+      });
       setSucesso(
         resultado.perfilCriadoImediatamente
           ? 'Solicitação enviada com sucesso. A nossa equipa foi notificada e vai analisar o seu acesso em breve.'
@@ -234,6 +275,56 @@ function FormularioSolicitarAcesso({ onSolicitado }: FormularioSolicitarAcessoPr
             </option>
           ))}
         </select>
+      </div>
+
+      <div>
+        <label htmlFor="solicitar-registro" className="block text-sm font-medium text-slate-300">
+          Registro Profissional (CRM/CRN/CREFITO/CREF)
+        </label>
+        <input
+          id="solicitar-registro"
+          type="text"
+          required
+          value={registroProfissional}
+          onChange={(event) => setRegistroProfissional(event.target.value)}
+          placeholder="Ex.: CRM-SP 123456"
+          className="mt-1 w-full rounded-lg border border-clinical-border bg-clinical-bg px-3 py-2 text-slate-100 outline-none focus:border-clinical-primary"
+        />
+        <p className="mt-1 text-xs text-clinical-muted">
+          Visível ao Admin durante a aprovação — sem validação de formato (cada conselho tem o seu).
+        </p>
+      </div>
+
+      <div>
+        <label htmlFor="solicitar-nascimento" className="block text-sm font-medium text-slate-300">
+          Data de nascimento
+        </label>
+        <input
+          id="solicitar-nascimento"
+          type="date"
+          required
+          autoComplete="bday"
+          value={dataNascimento}
+          onChange={(event) => setDataNascimento(event.target.value)}
+          className="mt-1 w-full rounded-lg border border-clinical-border bg-clinical-bg px-3 py-2 text-slate-100 outline-none focus:border-clinical-primary"
+        />
+        <p className="mt-1 text-xs text-clinical-muted">É necessário ter 18 anos ou mais.</p>
+      </div>
+
+      <div>
+        <label htmlFor="solicitar-telefone" className="block text-sm font-medium text-slate-300">
+          Telefone
+        </label>
+        <input
+          id="solicitar-telefone"
+          type="tel"
+          required
+          autoComplete="tel"
+          value={telefone}
+          onChange={(event) => setTelefone(event.target.value)}
+          placeholder="(11) 90000-0000"
+          className="mt-1 w-full rounded-lg border border-clinical-border bg-clinical-bg px-3 py-2 text-slate-100 outline-none focus:border-clinical-primary"
+        />
       </div>
 
       <div>

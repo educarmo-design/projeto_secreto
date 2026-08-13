@@ -16,6 +16,24 @@ import '../models/health_payload_model.dart';
 /// the OS health store merges data from every wearable and third-party app
 /// connected to it, so this is what lets the UI tell "synced from Google
 /// Fit" apart from "synced from this app".
+///
+/// [sourceId] existe só para a Hierarquia de Fontes (RELATÓRIO
+/// 20260810_0007) — achado real ao ler o código nativo do pacote `health`
+/// (não adivinhado): as duas plataformas preenchem `source_id`/`source_name`
+/// de jeitos DIFERENTES:
+///   - **Android** (`HealthDataConverter.kt`/`HealthDataReader.kt`):
+///     `source_id` é SEMPRE `""` (string vazia, hardcoded); quem carrega o
+///     nome do pacote (`metadata.dataOrigin.packageName`, ex.:
+///     `com.garmin.android.apps.connectmobile`) é `source_name`.
+///   - **iOS** (`HealthDataReader.swift`): `source_id` é o
+///     `sourceRevision.source.bundleIdentifier` de verdade (ex.:
+///     `com.apple.health`); `source_name` é o nome amigável
+///     (`sourceRevision.source.name`, ex.: "Health"/"Garmin Connect").
+/// Ou seja, o campo que carrega o identificador de pacote/bundle "de
+/// verdade" TROCA de plataforma para plataforma. [identificadorFonte]
+/// resolve isso: usa `sourceId` quando não está vazio (iOS), cai para
+/// `sourceApp` quando está (Android) — funciona nos dois sistemas sem
+/// nenhum `Platform.isIOS` espalhado pelo código de classificação.
 class HealthMetricPoint {
   final HealthDataType type;
   final double value;
@@ -23,6 +41,18 @@ class HealthMetricPoint {
   final DateTime dateFrom;
   final DateTime dateTo;
   final String sourceApp;
+  final String sourceId;
+
+  /// O [HealthValue] ORIGINAL, sem achatar — RELATÓRIO 20260811_0002
+  /// (Treinos/Rotas). [value] só existe pra tipos numéricos
+  /// (`NumericHealthValue`); WORKOUT (`WorkoutHealthValue`: tipo de
+  /// atividade, energia/distância/passos totais) e WORKOUT_ROUTE
+  /// (`WorkoutRouteHealthValue`: lista de pontos GPS) carregam dados
+  /// estruturados que [value] simplesmente descarta (vira `0`). Nenhum
+  /// código anterior a esta tarefa precisava do valor cru, por isso não
+  /// existia; `HealthSyncService._processarTreinos` é o único lugar que lê
+  /// este campo.
+  final HealthValue rawValue;
 
   const HealthMetricPoint({
     required this.type,
@@ -31,7 +61,15 @@ class HealthMetricPoint {
     required this.dateFrom,
     required this.dateTo,
     required this.sourceApp,
+    required this.rawValue,
+    this.sourceId = '',
   });
+
+  /// Ver doc da classe — Android deixa `sourceId` vazio, iOS deixa
+  /// `sourceApp` como o nome amigável (não o bundle id). Este é o único
+  /// identificador que a Hierarquia de Fontes ([HealthSyncService.
+  /// _classificarPrioridadeFonte]) usa para reconhecer pacotes nativos.
+  String get identificadorFonte => sourceId.isNotEmpty ? sourceId : sourceApp;
 
   factory HealthMetricPoint.fromHealthDataPoint(HealthDataPoint point) {
     final rawValue = point.value;
@@ -44,19 +82,43 @@ class HealthMetricPoint {
       dateFrom: point.dateFrom,
       dateTo: point.dateTo,
       sourceApp: point.sourceName,
+      sourceId: point.sourceId,
+      rawValue: rawValue,
     );
   }
 
   /// Converts to the normalized [HealthPayloadModel] shape shared with the
   /// camera/AI extraction path — the fixed-column shape written to
   /// `metricas_saude_diarias` alongside camera-origin readings.
+  ///
+  /// `source:` carrega [identificadorFonte] (pacote/bundle id quando
+  /// disponível), não [sourceApp] cru — é o valor usado tanto para
+  /// agrupar por fonte em `_mesclarPorDia` quanto para a Hierarquia de
+  /// Fontes reconhecer pedômetros nativos.
   HealthPayloadModel toPayload() => HealthPayloadModel.fromHealthDataType(
     type: type,
     value: value,
     dateFrom: dateFrom,
     dateTo: dateTo,
-    source: sourceApp.isEmpty ? 'wearable' : sourceApp,
+    source: identificadorFonte.isEmpty ? 'wearable' : identificadorFonte,
   );
+}
+
+/// Acumulador de passos+distância de UMA fonte, num ÚNICO dia — Hierarquia
+/// de Fontes (RELATÓRIO 20260810_0007). `null` (não zero) enquanto a fonte
+/// nunca reportou aquela métrica no dia — distingue "esta fonte não mede
+/// distância" de "esta fonte mediu 0 metros", igual ao resto do
+/// `_mesclarPorDia`/[HealthPayloadModel] (campo ausente ≠ campo zerado).
+class _AgregadoFonte {
+  num? passos;
+  num? distanciaMetros;
+}
+
+/// Ver doc de [HealthSyncService._buscarAlturaMetros].
+class _AlturaResultado {
+  const _AlturaResultado({required this.alturaMetros, required this.sucesso});
+  final double? alturaMetros;
+  final bool sucesso;
 }
 
 class HealthSyncResult {
@@ -241,6 +303,12 @@ class HealthSyncService {
     HealthDataType.DISTANCE_WALKING_RUNNING,
     HealthDataType.DISTANCE_DELTA,
     HealthDataType.ACTIVE_ENERGY_BURNED,
+    // Calorias granulares (RELATÓRIO 20260811_0002, decisão do fundador) —
+    // metabolismo basal/repouso, sinal separado de ACTIVE_ENERGY_BURNED.
+    // calorias_totais é ativas+basais, computado em _mesclarPorDia — não é
+    // TOTAL_CALORIES_BURNED (esse tipo não tem implementação real no lado
+    // iOS do pacote `health`, ver RELATÓRIO 20260810_0007/spike).
+    HealthDataType.BASAL_ENERGY_BURNED,
     // RELATÓRIO 20260811 — sono por estágio granular, não mais um total
     // único. SLEEP_SESSION continua fora daqui (mesmo motivo do RELATÓRIO
     // 20260810: cobre bedtime->waketime inteiro, incluindo acordado —
@@ -274,6 +342,15 @@ class HealthSyncService {
     HealthDataType.BLOOD_OXYGEN,
     HealthDataType.BODY_TEMPERATURE,
     HealthDataType.WORKOUT,
+    // Treinos/Rotas (RELATÓRIO 20260811_0002, decisão do fundador) — rota
+    // GPS de cada WORKOUT. No Android, ler rota exige um consentimento
+    // extra POR SESSÃO do próprio Health Connect (ExerciseRouteResult.
+    // ConsentRequired) — não é uma permissão estática de manifest, é um
+    // fluxo dinâmico; quando negado, o pacote devolve a rota com 0 pontos
+    // (indistinguível de "esse treino não tem rota" no lado Dart — ver
+    // HealthSyncService._processarTreinos), então o app já lida com isso
+    // de graça, sem checagem especial.
+    HealthDataType.WORKOUT_ROUTE,
   ];
 
   List<HealthDataType> get _tiposSuportados =>
@@ -471,6 +548,8 @@ class HealthSyncService {
         startTime: start,
         endTime: now,
       );
+
+      _logRaioX(rawPoints);
 
       final points =
           rawPoints.map(HealthMetricPoint.fromHealthDataPoint).toList();
@@ -707,6 +786,16 @@ class HealthSyncService {
       );
     }
 
+    // Treinos/Rotas (RELATÓRIO 20260811_0002) — roda sobre leitura.points
+    // (cru, com HealthMetricPoint.rawValue), não sobre `payloads`:
+    // WORKOUT/WORKOUT_ROUTE não mapeiam pra nenhum campo de
+    // HealthPayloadModel (toPayloads() os filtra fora por isEmpty), então
+    // se o lote só tivesse treino e nada mais, `payloads.isEmpty` abaixo
+    // sairia cedo demais e o treino nunca seria processado. Best-effort,
+    // mesmo espírito de _detectarEregistrarAnomalias: nunca derruba o sync
+    // principal.
+    await _processarTreinos(usuarioId, leitura.points);
+
     final payloads = leitura.toPayloads();
     if (payloads.isEmpty) {
       final agora = DateTime.now();
@@ -754,21 +843,56 @@ class HealthSyncService {
     return true;
   }
 
+  /// BUG CRÍTICO CORRIGIDO NESTA TAREFA — "Upsert Destrutivo" (RELATÓRIO
+  /// 20260811_0002, confirmado no teste físico: dados de dias anteriores
+  /// sumindo/sendo zerados, distância e calorias somem em dias aleatórios).
+  ///
+  /// Achado real, não suposição: cada linha de [linhas] só tem as colunas
+  /// que aquele dia realmente teve dado — `_mesclarPorDia` nunca escreve
+  /// uma coluna sem valor (é assim desde sempre, é o padrão certo). O
+  /// problema nunca foi ESSA parte. O problema é que a versão anterior
+  /// deste método mandava TODAS as linhas do lote (até 30, numa Carga
+  /// Inicial) num ÚNICO `.upsert(linhas)`. Quando dois dias do MESMO lote
+  /// têm conjuntos de colunas DIFERENTES (ex.: dia A só teve passos, dia B
+  /// só teve peso), o PostgREST precisa gerar UM `INSERT ... VALUES (...),
+  /// (...) ON CONFLICT DO UPDATE` só, com uma lista de colunas ÚNICA pra
+  /// todas as linhas — e por padrão (`defaultToNull: true`, o padrão do
+  /// pacote `postgrest`), preenche a coluna que uma linha não tem com
+  /// `NULL` explícito, mesmo que a coluna já tivesse um valor bom gravado
+  /// no banco de um sync anterior. Confirmado lendo o teste
+  /// `bulk insert without column defaults` do próprio pacote `postgrest`
+  /// (`test/basic_test.dart`) — a linha que omite uma coluna que a OUTRA
+  /// linha do mesmo lote tem recebe `null`, mesmo a coluna tendo um
+  /// default de verdade no schema. `defaultToNull: false` NÃO resolve
+  /// aqui: nenhuma coluna de `metricas_saude_diarias` (`passos`,
+  /// `distancia_metros`, `calorias_ativas`, `imc`, ...) tem `DEFAULT`
+  /// declarado no schema — "usar o default" ainda resultaria em `NULL`.
+  ///
+  /// Correção definitiva: um `.upsert()` POR LINHA. Sem outras linhas no
+  /// mesmo request, não existe união de colunas pra preencher — o
+  /// PostgREST só enxerga as colunas que aquele dia específico realmente
+  /// tem. Efeito colateral positivo (não regressão): se uma linha no meio
+  /// do lote falhar, as anteriores já gravadas continuam gravadas — antes,
+  /// uma falha em QUALQUER linha descartava o lote inteiro.
   Future<DeltaSyncOutcome> _enviarLinhas(List<Map<String, dynamic>> linhas) async {
-    try {
-      await _supabase.from('metricas_saude_diarias').upsert(
-        linhas,
-        onConflict: 'usuario_id_anonimo,data_referencia',
-      );
-      return DeltaSyncOutcome.sucesso;
-    } on SocketException {
-      return DeltaSyncOutcome.offline;
-    } on http.ClientException {
-      return DeltaSyncOutcome.offline;
-    } on PostgrestException catch (e) {
-      debugPrint('Erro ao gravar metricas_saude_diarias: ${e.message}');
-      return DeltaSyncOutcome.erro;
+    for (final linha in linhas) {
+      try {
+        await _supabase.from('metricas_saude_diarias').upsert(
+          linha,
+          onConflict: 'usuario_id_anonimo,data_referencia',
+        );
+      } on SocketException {
+        return DeltaSyncOutcome.offline;
+      } on http.ClientException {
+        return DeltaSyncOutcome.offline;
+      } on PostgrestException catch (e) {
+        debugPrint(
+          'Erro ao gravar metricas_saude_diarias (${linha['data_referencia']}): ${e.message}',
+        );
+        return DeltaSyncOutcome.erro;
+      }
     }
+    return DeltaSyncOutcome.sucesso;
   }
 
   /// Merges [payloads] — each one carrying a single fixed column, per
@@ -776,34 +900,117 @@ class HealthSyncService {
   /// `metricas_saude_diarias` has a `unique (usuario_id_anonimo,
   /// data_referencia)` constraint a single upsert batch can't violate twice.
   ///
-  /// Quatro estratégias de junção, uma por natureza de sinal:
-  ///   - **Maior fonte do dia** (passos, calorias ativas): CORRIGIDO NO
-  ///     RELATÓRIO 20260810/reafirmado no 20260811. Somar todo ponto do dia
-  ///     (como este código fazia antes de qualquer correção) conta em dobro
-  ///     quando mais de uma fonte grava o mesmo intervalo — celular E
-  ///     relógio ambos contando os mesmos passos. Em vez de somar TODAS as
-  ///     fontes, soma cada fonte separadamente e fica com a MAIOR — não com
-  ///     a soma delas. Evita o double-count sem hardcodar o nome de um
-  ///     fabricante específico (Garmin hoje, outro relógio amanhã): duas
-  ///     fontes tentando cobrir o mesmo dia inteiro deveriam relatar totais
-  ///     parecidos — o maior tende a ser o mais completo; era a SOMA que
-  ///     estava errada, não uma fonte específica sendo "a certa".
+  /// Cinco estratégias de junção, uma por natureza de sinal:
+  ///   - **Fonte Vencedora do dia** (passos + distância, SEMPRE juntos):
+  ///     Hierarquia de Fontes, RELATÓRIO 20260810_0007. Somar todo ponto do
+  ///     dia (o que este código fazia antes de qualquer correção) conta em
+  ///     dobro quando mais de uma fonte grava o mesmo intervalo — celular E
+  ///     relógio ambos contando os mesmos passos. Escolher a "maior fonte"
+  ///     PARA CADA MÉTRICA SEPARADAMENTE (correção anterior, RELATÓRIO
+  ///     20260810_0006) resolvia o double-count mas abria um bug novo:
+  ///     passos podiam vir do pedômetro do celular e distância do Garmin no
+  ///     MESMO dia — dois aparelhos diferentes, proporção passos/distância
+  ///     sem sentido biológico. A partir desta tarefa as duas métricas
+  ///     escolhem a fonte JUNTAS: prioridade alta (qualquer fonte que não
+  ///     seja um pedômetro nativo reconhecido — ver [_ehPedometroNativo])
+  ///     ganha de prioridade baixa; dentro da mesma prioridade, quem tem
+  ///     mais passos vence. Passos E distância desse dia saem OS DOIS da
+  ///     mesma fonte vencedora — nunca misturados.
+  ///   - **Maior fonte do dia** (só calorias ativas, sozinha): mesma lógica
+  ///     de double-count acima, mas sem o requisito de vir "junto" com outra
+  ///     métrica — não faz parte da Hierarquia de Fontes desta tarefa.
   ///   - **Somados por estágio, bucketizados pela manhã do despertar**
-  ///     (sono_leve/profundo/rem/acordado_minutos): CORRIGIDO NESTA TAREFA.
-  ///     Cada estágio já vem granular do Health Connect (ver [todosOsTipos])
-  ///     — soma normalmente dentro do MESMO dia. A parte não-óbvia é QUAL
-  ///     dia: um estágio às 23h de segunda pertence à noite de sono que só
-  ///     termina terça de manhã, não ao "dia de segunda" que `_dataOnly`
-  ///     daria. Ver [_dataDoSonoLocal].
-  ///   - **Somados normais** (distância): não sofre o mesmo double-counting
-  ///     dos passos/calorias na prática (fundador confirmou correta) — sem
-  ///     motivo pra mudar.
+  ///     (sono_leve/profundo/rem/acordado_minutos): sono já vem granular do
+  ///     Health Connect (ver [todosOsTipos]) — soma normalmente dentro do
+  ///     MESMO dia. A parte não-óbvia é QUAL dia: um estágio às 23h de
+  ///     segunda pertence à noite de sono que só termina terça de manhã, não
+  ///     ao "dia de segunda" que `_dataOnly` daria. Ver [_dataDoSonoLocal].
   ///   - **Média aritmética** (frequência cardíaca genérica — `fc`, NÃO
-  ///     `fc_repouso`): mesma correção do RELATÓRIO 20260810, inalterada
-  ///     aqui.
+  ///     `fc_repouso`): FC não sofre double-counting entre fontes do mesmo
+  ///     jeito que passos/distância (não é cumulativo por natureza).
   ///   - **Última leitura** (fc_repouso, peso, HRV, pressão, glicose, ...):
   ///     sinais pontuais/de baixa frequência — a leitura mais recente do dia
   ///     é o que importa.
+  /// Pacotes/bundle ids reconhecidos como pedômetro NATIVO do sistema
+  /// operacional (Hierarquia de Fontes, RELATÓRIO 20260810_0007) — o app
+  /// "contador de passos" que já vem instalado por padrão em praticamente
+  /// todo Android/iPhone, contando pelo acelerômetro do próprio aparelho.
+  /// Lista-NEGRA de propósito (despriorizar o que reconhecemos), não
+  /// lista-branca: qualquer fonte não listada aqui (Garmin, Polar, Apple
+  /// Watch, ou qualquer wearable futuro que ainda não existe) entra em
+  /// prioridade ALTA por padrão — nunca corre o risco de derrubar um
+  /// wearable de verdade só por não estar cadastrado nominalmente.
+  ///
+  /// Os identificadores batem contra [HealthMetricPoint.identificadorFonte]
+  /// (bundle id no iOS, nome de pacote Android) — ver doc da classe para o
+  /// porquê de sourceId/sourceName trocarem de papel entre as duas
+  /// plataformas.
+  static const _pedometrosNativos = <String>{
+    'com.google.android.apps.fitness', // Google Fit
+    'com.sec.android.app.shealth', // Samsung Health
+    'com.apple.health', // app "Saúde" do iPhone (HealthKit, coprocessador M)
+  };
+
+  /// "Modo Raio-X" (RELATÓRIO 20260811_0002, diretriz do fundador — "até o
+  /// último fio de cabelo"): imprime um resumo cru do que o health store
+  /// devolveu, chamado logo depois de [Health.getHealthDataFromTypes] e
+  /// ANTES de qualquer filtro/agregação nossa (`_AgregadoFonte`, Hierarquia
+  /// de Fontes, merge por dia) tocar nos dados. Existe pra responder uma
+  /// pergunta específica que só de olhar o resultado final não dá: "esse
+  /// dado de distância/calorias do dia X saiu do Health Connect/HealthKit,
+  /// ou foi estrangulado pela NOSSA lógica depois?" — sem isso, um dia sem
+  /// distância na tela é indistinguível entre "o Health Connect nunca teve
+  /// esse dado" e "nosso código descartou/agregou errado".
+  ///
+  /// `debugPrint` — roda em toda sincronização (delta diário e Carga de 30
+  /// dias), aparece no console/logcat de debug, não afeta build de
+  /// release.
+  void _logRaioX(List<HealthDataPoint> rawPoints) {
+    if (rawPoints.isEmpty) {
+      debugPrint('🩻 [RAIO-X] 0 registros brutos recebidos do health store.');
+      return;
+    }
+
+    // dia -> fonte -> conjunto de tipos vistos daquela fonte naquele dia.
+    // Mesma regra de identificador de fonte da Hierarquia de Fontes (ver
+    // HealthMetricPoint.identificadorFonte): sourceId quando não vazio
+    // (iOS), senão sourceName (Android) — aqui em cima do HealthDataPoint
+    // cru, antes de virar HealthMetricPoint.
+    final tiposPorDiaEFonte = <String, Map<String, Set<String>>>{};
+    final contagemPorDia = <String, int>{};
+
+    for (final ponto in rawPoints) {
+      final dia = _dataOnly(ponto.dateFrom);
+      final fonte =
+          ponto.sourceId.isNotEmpty ? ponto.sourceId : ponto.sourceName;
+      final identificadorFonte = fonte.isEmpty ? '(fonte desconhecida)' : fonte;
+
+      contagemPorDia[dia] = (contagemPorDia[dia] ?? 0) + 1;
+      tiposPorDiaEFonte
+          .putIfAbsent(dia, () => {})
+          .putIfAbsent(identificadorFonte, () => {})
+          .add(ponto.type.name);
+    }
+
+    debugPrint(
+      '🩻 [RAIO-X] ${rawPoints.length} registros brutos recebidos do health '
+      'store, cobrindo ${tiposPorDiaEFonte.length} dia(s).',
+    );
+    for (final dia in tiposPorDiaEFonte.keys.toList()..sort()) {
+      final fontes = tiposPorDiaEFonte[dia]!;
+      final resumoFontes = fontes.entries
+          .map((e) => '[${e.key}: ${e.value.join(', ')}]')
+          .join(', ');
+      debugPrint(
+        '🩻 [RAIO-X] Dia $dia - Recebidos ${contagemPorDia[dia]} registros. '
+        'Fontes: $resumoFontes',
+      );
+    }
+  }
+
+  static bool _ehPedometroNativo(String identificadorFonte) =>
+      _pedometrosNativos.contains(identificadorFonte);
+
   List<Map<String, dynamic>> _mesclarPorDia(
     String usuarioId,
     List<HealthPayloadModel> payloads,
@@ -812,9 +1019,20 @@ class HealthSyncService {
     final somaFcPorDia = <String, double>{};
     final contagemFcPorDia = <String, int>{};
     final maximaFcPorDia = <String, int>{};
-    final passosPorDiaFonte = <String, Map<String, num>>{};
     final caloriasPorDiaFonte = <String, Map<String, num>>{};
-    final distanciaPorDiaFonte = <String, Map<String, num>>{};
+    // Calorias basais (RELATÓRIO 20260811_0002) — mesmo tratamento
+    // anti-double-counting de calorias ativas: mais de uma fonte pode
+    // reportar metabolismo basal do mesmo dia (celular+relógio), então
+    // maior fonte, nunca soma entre fontes.
+    final caloriasBasaisPorDiaFonte = <String, Map<String, num>>{};
+    // Hierarquia de Fontes (RELATÓRIO 20260810_0007, decisão do fundador):
+    // passos e distância NÃO escolhem mais a "maior fonte" cada um por
+    // conta própria (isso é o que produzia proporção passos/distância
+    // biologicamente incoerente — ex.: passos do pedômetro do celular
+    // misturados com distância do Garmin no mesmo dia). Os dois vêm juntos
+    // da MESMA "Fonte Vencedora" — um só mapa por (dia, fonte) acumulando
+    // ambos, ver _fonteVencedoraDoDia depois do loop principal.
+    final agregadoPorDiaFonte = <String, Map<String, _AgregadoFonte>>{};
 
     for (final payload in payloads) {
       final ehSono = payload.sonoLeveMinutos != null ||
@@ -844,25 +1062,29 @@ class HealthSyncService {
         linha[coluna] = valor;
       }
 
-      if (payload.passos != null) {
-        final porFonte = passosPorDiaFonte.putIfAbsent(dataReferencia, () => {});
-        porFonte[payload.source] = (porFonte[payload.source] ?? 0) + payload.passos!;
+      if (payload.passos != null || payload.distanciaMetros != null) {
+        final porFonte =
+            agregadoPorDiaFonte.putIfAbsent(dataReferencia, () => {});
+        final agregado =
+            porFonte.putIfAbsent(payload.source, () => _AgregadoFonte());
+        if (payload.passos != null) {
+          agregado.passos = (agregado.passos ?? 0) + payload.passos!;
+        }
+        if (payload.distanciaMetros != null) {
+          agregado.distanciaMetros =
+              (agregado.distanciaMetros ?? 0) + payload.distanciaMetros!;
+        }
       }
       if (payload.caloriasAtivas != null) {
         final porFonte = caloriasPorDiaFonte.putIfAbsent(dataReferencia, () => {});
         porFonte[payload.source] =
             (porFonte[payload.source] ?? 0) + payload.caloriasAtivas!;
       }
-      // BUG CORRIGIDO NESTA TAREFA (RELATÓRIO 20260810_0006, teste físico do
-      // fundador): distancia_metros ainda usava `somar` (soma pura) — mesmo
-      // double-counting de celular+relógio já corrigido para passos/
-      // calorias. DISTANCE_WALKING_RUNNING e DISTANCE_DELTA (ambos mapeiam
-      // pra este campo, ver HealthPayloadModel.fromHealthDataType) recebem
-      // o mesmo tratamento: maior fonte do dia, nunca a soma entre fontes.
-      if (payload.distanciaMetros != null) {
-        final porFonte = distanciaPorDiaFonte.putIfAbsent(dataReferencia, () => {});
+      if (payload.caloriasBasais != null) {
+        final porFonte =
+            caloriasBasaisPorDiaFonte.putIfAbsent(dataReferencia, () => {});
         porFonte[payload.source] =
-            (porFonte[payload.source] ?? 0) + payload.distanciaMetros!;
+            (porFonte[payload.source] ?? 0) + payload.caloriasBasais!;
       }
       somar('sono_leve_minutos', payload.sonoLeveMinutos);
       somar('sono_profundo_minutos', payload.sonoProfundoMinutos);
@@ -907,9 +1129,47 @@ class HealthSyncService {
       }
     }
 
-    aplicarMaiorFonte(passosPorDiaFonte, 'passos', arredondar: true);
     aplicarMaiorFonte(caloriasPorDiaFonte, 'calorias_ativas', arredondar: false);
-    aplicarMaiorFonte(distanciaPorDiaFonte, 'distancia_metros', arredondar: false);
+    aplicarMaiorFonte(caloriasBasaisPorDiaFonte, 'calorias_basais', arredondar: false);
+
+    // calorias_totais = ativas + basais — "melhor esforço" com o que
+    // estiver disponível naquele dia (soma tratando o ausente como 0), só
+    // quando pelo menos uma das duas existir. Não é um HealthDataType lido
+    // à parte (TOTAL_CALORIES_BURNED não tem implementação real no iOS do
+    // pacote `health` — RELATÓRIO 20260810_0007/spike).
+    for (final linha in porDia.values) {
+      final ativas = (linha['calorias_ativas'] as num?)?.toDouble();
+      final basais = (linha['calorias_basais'] as num?)?.toDouble();
+      if (ativas == null && basais == null) continue;
+      linha['calorias_totais'] = (ativas ?? 0) + (basais ?? 0);
+    }
+
+    // Hierarquia de Fontes: passos e distância do dia vêm os DOIS da mesma
+    // Fonte Vencedora — prioridade alta (qualquer coisa que não seja um
+    // pedômetro nativo reconhecido) primeiro, desempate pelo maior nº de
+    // passos dentro da mesma prioridade. Nunca mistura passos de uma fonte
+    // com distância de outra.
+    for (final entry in agregadoPorDiaFonte.entries) {
+      final dataReferencia = entry.key;
+      final fontes = entry.value;
+      if (fontes.isEmpty) continue;
+
+      final vencedora = fontes.entries.reduce((a, b) {
+        final aPrioridadeAlta = !_ehPedometroNativo(a.key);
+        final bPrioridadeAlta = !_ehPedometroNativo(b.key);
+        if (aPrioridadeAlta != bPrioridadeAlta) {
+          return aPrioridadeAlta ? a : b;
+        }
+        return (a.value.passos ?? 0) >= (b.value.passos ?? 0) ? a : b;
+      }).value;
+
+      if (vencedora.passos != null) {
+        porDia[dataReferencia]!['passos'] = vencedora.passos!.round();
+      }
+      if (vencedora.distanciaMetros != null) {
+        porDia[dataReferencia]!['distancia_metros'] = vencedora.distanciaMetros;
+      }
+    }
 
     // Fecha média e máxima de FC por último — precisa de todos os pontos do
     // dia somados/comparados antes de dividir pela contagem.
@@ -940,6 +1200,155 @@ class HealthSyncService {
     return porDia.values.toList();
   }
 
+  /// Treinos + Rotas GPS (RELATÓRIO 20260811_0002, decisão do fundador) —
+  /// um `atividades_fisicas_treinos` por ponto `WORKOUT` lido, com FC
+  /// isolada ao INTERVALO de tempo daquele treino específico (não a FC do
+  /// dia inteiro) e a rota GPS correspondente, quando existir.
+  ///
+  /// Best-effort do início ao fim (mesmo espírito de
+  /// [_detectarEregistrarAnomalias]/[_garantirPermissaoHistorico]): uma
+  /// falha em UM treino (upsert, rota, o que for) é logada e o loop segue
+  /// pros próximos — nunca derruba a sincronização principal de
+  /// `metricas_saude_diarias`.
+  Future<void> _processarTreinos(
+    String usuarioId,
+    List<HealthMetricPoint> points,
+  ) async {
+    final treinos =
+        points.where((p) => p.type == HealthDataType.WORKOUT).toList();
+    if (treinos.isEmpty) return;
+
+    // Cru, não achatado — precisa de HealthMetricPoint.value (o número em
+    // bpm), só filtrado pelo INTERVALO do treino, não do dia inteiro.
+    final fcBruta =
+        points.where((p) => p.type == HealthDataType.HEART_RATE).toList();
+    final rotas =
+        points.where((p) => p.type == HealthDataType.WORKOUT_ROUTE).toList();
+
+    bool dentroDoIntervalo(HealthMetricPoint ponto, HealthMetricPoint treino) =>
+        !ponto.dateFrom.isBefore(treino.dateFrom) &&
+        !ponto.dateTo.isAfter(treino.dateTo);
+
+    for (final treino in treinos) {
+      final workout = treino.rawValue;
+      if (workout is! WorkoutHealthValue) continue;
+
+      try {
+        // FC do treino: filtra o array de HEART_RATE bruto do LOTE inteiro
+        // (pode cobrir vários dias) pelas leituras cujo timestamp cai
+        // exatamente entre o início e o fim DESTE treino — pedido explícito
+        // do fundador. Sem lógica de anomalia/evento aqui (restrição F02,
+        // RELATÓRIO 20260810_0004) — só min/média/máxima, valores absolutos.
+        final fcDoTreino = fcBruta
+            .where((p) => dentroDoIntervalo(p, treino))
+            .map((p) => p.value)
+            .toList();
+
+        final linhaTreino = <String, dynamic>{
+          'usuario_id': usuarioId,
+          'tipo_atividade_codigo': workout.workoutActivityType.name,
+          'inicio_atividade': treino.dateFrom.toIso8601String(),
+          'fim_atividade': treino.dateTo.toIso8601String(),
+          'origem': treino.identificadorFonte.isEmpty
+              ? 'wearable'
+              : treino.identificadorFonte,
+          if (workout.totalEnergyBurned != null)
+            'energia_queimada_kcal': workout.totalEnergyBurned,
+          if (workout.totalDistance != null)
+            'distancia_metros': workout.totalDistance,
+          if (workout.totalSteps != null) 'passos_totais': workout.totalSteps,
+          if (fcDoTreino.isNotEmpty) ...{
+            'fc_media':
+                (fcDoTreino.reduce((a, b) => a + b) / fcDoTreino.length).round(),
+            'fc_maxima': fcDoTreino.reduce(math.max).round(),
+            'fc_minima': fcDoTreino.reduce(math.min).round(),
+          },
+        };
+
+        // onConflict na chave (usuario_id, inicio_atividade) — idempotência:
+        // reprocessar os mesmos 30 dias atualiza o mesmo treino, nunca
+        // duplica. .select('id') porque precisamos do id gerado (mesmo em
+        // cima de um conflito, PostgREST devolve a linha final) pra linkar
+        // a rota, sem uma segunda ida ao banco só pra descobrir.
+        final treinoGravado = await _supabase
+            .from('atividades_fisicas_treinos')
+            .upsert(linhaTreino, onConflict: 'usuario_id,inicio_atividade')
+            .select('id')
+            .single();
+        final treinoId = treinoGravado['id'] as String;
+
+        await _gravarRotaDoTreino(treinoId, treino, rotas, dentroDoIntervalo);
+      } catch (e) {
+        debugPrint(
+          'HealthSyncService: falha ao gravar treino de '
+          '${treino.dateFrom} (best-effort, sync principal segue): $e',
+        );
+      }
+    }
+  }
+
+  /// Grava a rota GPS de UM treino já upsertado — idempotência via
+  /// "limpa e reinsere" (pedido explícito da tarefa): sem uma chave única
+  /// de negócio por PONTO de rota para dar onConflict, apagar as rotas
+  /// antigas do treino e inserir as novas de novo é o jeito direto de
+  /// nunca duplicar pontos ao reprocessar os mesmos 30 dias.
+  ///
+  /// ACHADO REAL (não suposição): no Android, quando o Health Connect exige
+  /// consentimento extra POR SESSÃO para expor a rota
+  /// (`ExerciseRouteResult.ConsentRequired`, achado lendo `HealthDataReader.
+  /// kt` do pacote `health`), a resposta que chega aqui no Dart é uma rota
+  /// com `locations` VAZIO — não existe nenhum jeito de distinguir, do lado
+  /// Dart, "consentimento negado" de "este treino não tem rota GPS mesmo".
+  /// Por isso o `if (locations.isEmpty) return` abaixo já cobre os dois
+  /// casos ao mesmo tempo — é exatamente o "ignore a rota silenciosamente"
+  /// pedido pela tarefa, sem precisar de nenhuma checagem especial.
+  Future<void> _gravarRotaDoTreino(
+    String treinoId,
+    HealthMetricPoint treino,
+    List<HealthMetricPoint> rotas,
+    bool Function(HealthMetricPoint, HealthMetricPoint) dentroDoIntervalo,
+  ) async {
+    try {
+      final candidatas =
+          rotas.where((r) => dentroDoIntervalo(r, treino)).toList();
+      if (candidatas.isEmpty) return;
+      final rotaDoTreino = candidatas.first;
+
+      final rotaValue = rotaDoTreino.rawValue;
+      if (rotaValue is! WorkoutRouteHealthValue) return;
+      if (rotaValue.locations.isEmpty) return;
+
+      await _supabase
+          .from('atividades_fisicas_rotas')
+          .delete()
+          .eq('treino_id', treinoId);
+
+      await _supabase.from('atividades_fisicas_rotas').insert(
+        rotaValue.locations
+            .map(
+              (ponto) => {
+                'treino_id': treinoId,
+                'latitude': ponto.latitude,
+                'longitude': ponto.longitude,
+                'timestamp_ponto': ponto.timestamp.toIso8601String(),
+                if (ponto.altitude != null) 'altitude': ponto.altitude,
+                if (ponto.horizontalAccuracy != null)
+                  'precisao': ponto.horizontalAccuracy,
+              },
+            )
+            .toList(),
+      );
+    } catch (e) {
+      // Best-effort: falha ao gravar rota (rede, RLS, o que for) nunca
+      // pode derrubar o treino em si, que já foi upsertado com sucesso
+      // antes desta chamada.
+      debugPrint(
+        'HealthSyncService: falha ao gravar rota do treino $treinoId '
+        '(best-effort): $e',
+      );
+    }
+  }
+
   /// Inferência cruzada de balança/composição corporal — decisão do
   /// fundador (RELATÓRIO desta tarefa), roda DEPOIS de [_mesclarPorDia]
   /// porque precisa dos valores já consolidados por dia (peso/percentual/
@@ -955,15 +1364,31 @@ class HealthSyncService {
   /// entregou `BODY_MASS_INDEX` pronto naquele dia) e há peso, busca a
   /// altura em `perfis_usuarios.altura_cm` — UMA vez por chamada (mesmo
   /// usuário em todas as linhas de um sync), não uma vez por dia — e
-  /// calcula `imc = peso / altura_m²`. Sem altura cadastrada (coluna nova,
-  /// nullable, sem UI de preenchimento ainda — ver RELATÓRIO), o IMC
+  /// calcula `imc = peso / altura_m²`. Sem altura cadastrada, o IMC
   /// simplesmente fica de fora daquele dia; não é erro.
+  ///
+  /// ACHADO DESTA TAREFA (RELATÓRIO 20260810_0007 — "IMC não calculou no
+  /// histórico" mesmo com altura preenchida): [_buscarAlturaMetros] marcava
+  /// `alturaJaBuscada = true` mesmo quando a busca FALHAVA (rede/RLS/timeout
+  /// — o `catch` interno devolvia `null` do mesmo jeito que "coluna vazia").
+  /// Numa Carga de 30 dias, se a PRIMEIRA linha processada batesse nessa
+  /// falha, TODAS as ~30 linhas seguintes perdiam o IMC, mesmo tendo peso —
+  /// a falha de UM dia "envenenava" o lote inteiro, e o único rastro era um
+  /// `debugPrint` que não aparece em lugar nenhum que o fundador veja. Não
+  /// achei nenhum jeito de reproduzir uma falha DETERMINÍSTICA lendo o
+  /// código (a consulta em si está correta — testada e comprovada abaixo);
+  /// o mais provável é ter sido uma falha de rede pontual no momento exato
+  /// da primeira linha. De qualquer forma, "uma falha transitória apaga o
+  /// lote inteiro sem deixar rastro" É um erro silencioso de verdade — por
+  /// isso a correção: só passa a NÃO tentar de novo quando a consulta
+  /// respondeu com sucesso (com ou sem altura cadastrada); se lançou
+  /// exceção, a próxima linha do lote tenta de novo.
   Future<void> _aplicarInferenciasCruzadas(
     String usuarioId,
     List<Map<String, dynamic>> linhas,
   ) async {
     double? alturaMetros;
-    var alturaJaBuscada = false;
+    var alturaConfirmada = false;
 
     for (final linha in linhas) {
       final peso = (linha['peso_kg'] as num?)?.toDouble();
@@ -981,9 +1406,10 @@ class HealthSyncService {
       }
 
       if (linha['imc'] == null && peso != null && peso > 0) {
-        if (!alturaJaBuscada) {
-          alturaMetros = await _buscarAlturaMetros(usuarioId);
-          alturaJaBuscada = true;
+        if (!alturaConfirmada) {
+          final resultado = await _buscarAlturaMetros(usuarioId);
+          alturaMetros = resultado.alturaMetros;
+          alturaConfirmada = resultado.sucesso;
         }
         if (alturaMetros != null && alturaMetros > 0) {
           linha['imc'] = double.parse(
@@ -994,12 +1420,13 @@ class HealthSyncService {
     }
   }
 
-  /// Busca `perfis_usuarios.altura_cm` (migration desta tarefa) e converte
-  /// para metros. `null` tanto para "coluna vazia" quanto para qualquer
-  /// falha de rede/RLS — best-effort, mesmo espírito de
-  /// [_garantirPermissaoHistorico]: a ausência de altura não pode derrubar
-  /// a sincronização, só significa que o IMC daquele sync fica sem cálculo.
-  Future<double?> _buscarAlturaMetros(String usuarioId) async {
+  /// Busca `perfis_usuarios.altura_cm` e converte para metros.
+  /// [_AlturaResultado.sucesso] distingue "consulta funcionou" (mesmo que
+  /// sem altura cadastrada — cacheável pelo resto do lote, ver
+  /// [_aplicarInferenciasCruzadas]) de "a consulta lançou exceção" (rede/
+  /// RLS/timeout — NÃO cacheável, a próxima linha do lote tenta de novo em
+  /// vez de desistir pro resto da Carga de 30 dias inteira).
+  Future<_AlturaResultado> _buscarAlturaMetros(String usuarioId) async {
     try {
       final resposta = await _supabase
           .from('perfis_usuarios')
@@ -1007,11 +1434,16 @@ class HealthSyncService {
           .eq('id', usuarioId)
           .maybeSingle();
       final alturaCm = (resposta?['altura_cm'] as num?)?.toDouble();
-      if (alturaCm == null || alturaCm <= 0) return null;
-      return alturaCm / 100;
+      if (alturaCm == null || alturaCm <= 0) {
+        return const _AlturaResultado(alturaMetros: null, sucesso: true);
+      }
+      return _AlturaResultado(alturaMetros: alturaCm / 100, sucesso: true);
     } catch (e) {
-      debugPrint('HealthSyncService: falha ao buscar altura do perfil: $e');
-      return null;
+      debugPrint(
+        'HealthSyncService: falha ao buscar altura do perfil (tentará de '
+        'novo na próxima linha do lote, se houver): $e',
+      );
+      return const _AlturaResultado(alturaMetros: null, sucesso: false);
     }
   }
 
