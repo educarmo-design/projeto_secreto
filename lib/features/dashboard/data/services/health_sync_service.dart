@@ -148,10 +148,37 @@ class HealthSyncResult {
   /// `metricas_saude_diarias`. Points whose [HealthDataType] has no fixed
   /// column mapping (e.g. `WORKOUT`) yield an empty payload, filtered out
   /// here.
-  List<HealthPayloadModel> toPayloads() => points
-      .map((point) => point.toPayload())
-      .where((payload) => !payload.isEmpty)
-      .toList();
+  ///
+  /// RELATÓRIO 20260813_0015 (Parte 1 — Proteção Extrema no Parsing): era
+  /// `points.map((point) => point.toPayload()).where(...).toList()` — o
+  /// mesmo risco do `.map().toList()` de [HealthMetricPoint.
+  /// fromHealthDataPoint] (ver `_lerComPermissao`): `toPayload()` faz
+  /// `.round()` em cima de um `double` (ex.: calorias basais, passos) —
+  /// se o plugin nativo alguma vez devolver `NaN`/`Infinity` (valor
+  /// numericamente "válido" mas sem cast seguro pra inteiro), `.round()`
+  /// lança `UnsupportedError`, e ISSO propagava pro `.map()` inteiro:
+  /// um único ponto ruim jogava fora TODOS os payloads do lote, de
+  /// QUALQUER dia — exatamente o "distância zerada/ausente em vários dias"
+  /// relatado em device físico. Loop explícito com try/catch por ponto: um
+  /// ponto ruim é pulado e logado, os demais seguem normais.
+  List<HealthPayloadModel> toPayloads() {
+    final payloads = <HealthPayloadModel>[];
+    for (final point in points) {
+      try {
+        final payload = point.toPayload();
+        if (!payload.isEmpty) payloads.add(payload);
+      } catch (e, stackTrace) {
+        debugPrint(
+          '[SYNC_DIAGNOSTICO] Falha ao converter 1 ponto pra payload '
+          '(${point.type.name}, valor bruto ${point.value} '
+          '[${point.rawValue.runtimeType}], fonte "${point.sourceApp}") — '
+          'pulado, os demais pontos do lote continuam sendo processados: '
+          '$e\n$stackTrace',
+        );
+      }
+    }
+    return payloads;
+  }
 }
 
 /// One structured entry for the "Caixa Preta" (black box) of health
@@ -395,6 +422,21 @@ class HealthSyncService {
     return _lerEGravar(_tiposSuportados, dias: dias);
   }
 
+  /// Modo de Diagnóstico Profundo (RELATÓRIO 20260813_0015, decisão do
+  /// fundador) — botão "GERAR LOG DIAGNÓSTICO (30 DIAS)" da tela de
+  /// histórico. Reaproveita o MESMO [_lerEGravar] de [carregarHistoricoInicial]
+  /// (mesma permissão de histórico, mesma janela de 30 dias, mesmo
+  /// merge+upsert real — este NÃO é um modo "só leitura", ele sincroniza de
+  /// verdade) só com `diagnosticoProfundo: true`, que liga o log verboso
+  /// ponto-a-ponto em [_logDiagnosticoProfundo] — desligado por padrão em
+  /// todo o resto do app (delta diário automático, carga inicial ao
+  /// conectar wearable) porque é verboso demais pra rodar toda vez.
+  Future<DeltaSyncResult> executarDiagnosticoProfundo({int dias = 30}) async {
+    await _configured;
+    await _garantirPermissaoHistorico();
+    return _lerEGravar(_tiposSuportados, dias: dias, diagnosticoProfundo: true);
+  }
+
   /// Pede a permissão especial `READ_HEALTH_DATA_HISTORY` — separada das
   /// `READ_*` normais que [_lerComPermissao] já pede, com diálogo próprio
   /// do Health Connect. Só chamado por [carregarHistoricoInicial]: é a
@@ -501,6 +543,7 @@ class HealthSyncService {
   Future<HealthSyncResult> _lerComPermissao(
     List<HealthDataType> types, {
     required DateTime start,
+    bool diagnosticoProfundo = false,
   }) async {
     await _configured;
 
@@ -551,8 +594,32 @@ class HealthSyncService {
 
       _logRaioX(rawPoints);
 
-      final points =
-          rawPoints.map(HealthMetricPoint.fromHealthDataPoint).toList();
+      // RELATÓRIO 20260813_0015 (Parte 1 — Proteção Extrema no Parsing):
+      // era `rawPoints.map(HealthMetricPoint.fromHealthDataPoint).toList()`
+      // — um `.map().toList()` avalia TODO ponto de uma vez; se UM único
+      // ponto do lote lançasse (ex.: um cast numérico ruim vindo do
+      // plugin nativo), o `.toList()` inteiro lançava e NENHUM ponto do
+      // lote — de nenhum dia, de nenhum tipo — chegava a ser processado.
+      // Loop explícito com try/catch POR PONTO: um ponto ruim é pulado e
+      // logado, os demais (do mesmo dia ou de outros) continuam normais.
+      final points = <HealthMetricPoint>[];
+      for (final rawPoint in rawPoints) {
+        try {
+          points.add(HealthMetricPoint.fromHealthDataPoint(rawPoint));
+        } catch (e, stackTrace) {
+          debugPrint(
+            '[SYNC_DIAGNOSTICO] Falha ao converter 1 ponto bruto '
+            '(${rawPoint.type.name}, fonte "${rawPoint.sourceName}", '
+            'valor bruto ${rawPoint.value} [${rawPoint.value.runtimeType}]) — '
+            'pulado, os demais pontos do lote continuam sendo processados: '
+            '$e\n$stackTrace',
+          );
+        }
+      }
+
+      if (diagnosticoProfundo) {
+        _logDiagnosticoProfundo(points, start, now);
+      }
 
       // Checagem defensiva em primeiro plano: roda inline, como parte do
       // próprio sync, e nunca deixa uma falha de gravação (rede, RLS, sessão
@@ -612,86 +679,110 @@ class HealthSyncService {
 
     final anomalias = <EventoAnomaliaSaude>[];
 
+    // RELATÓRIO 20260813_0015 (Parte 1 — Proteção Extrema no Parsing):
+    // ACHADO REAL, não hipotético — `ponto.toPayload()` sem try/catch
+    // aqui era o terceiro (e mais grave) lugar com o mesmo risco de
+    // [HealthSyncResult.toPayloads()]: um único ponto com valor NaN/
+    // Infinity (ex.: STEPS, que usa `.round()`) lançava DENTRO de
+    // `_lerComPermissao` — ANTES do método sequer retornar — e o catch
+    // externo dele (RELATÓRIO 20260813_0014) tratava isso como "permissão
+    // negada", abortando o LOTE INTEIRO (todos os dias, todos os tipos:
+    // distância, calorias basais, peso, treinos — bate exatamente com o
+    // sintoma relatado em device físico). Confirmado escrevendo o teste
+    // antes da correção: um único ponto ruim derrubava até dias/campos
+    // completamente sem relação com ele. Try/catch por ponto: um ponto
+    // ruim é pulado e logado, a checagem de anomalia segue pros demais.
     for (final ponto in points) {
-      final payload = ponto.toPayload();
-      final origem = ponto.sourceApp.isEmpty ? 'wearable' : ponto.sourceApp;
+      try {
+        final payload = ponto.toPayload();
+        final origem = ponto.sourceApp.isEmpty ? 'wearable' : ponto.sourceApp;
 
-      // N17/N18: checa frequenciaCardiaca (leitura genérica/contínua), não
-      // mais fcRepouso — antes desta tarefa os dois eram o mesmo campo
-      // (HEART_RATE só existia como fcRepouso); agora que são sinais
-      // distintos, o pico que faz sentido pegar em primeiro plano é o da
-      // leitura contínua, não a métrica de repouso do Health Connect
-      // (calculada pelo próprio SO, tipicamente durante o sono — chega
-      // no máximo 1x/dia e já É esperada estar baixa, não é onde um pico
-      // fora de treino apareceria). Comportamento de detecção preservado:
-      // é a mesma fonte de dado (HEART_RATE) que já alimentava esta
-      // checagem antes, só o nome do campo/parametro que corrige.
-      final fc = payload.frequenciaCardiaca;
-      if (fc != null && (fc < _fcForaTreinoMin || fc > _fcForaTreinoMax)) {
-        final foraDoTreino = !emTreino(ponto);
-        if (foraDoTreino) {
+        // N17/N18: checa frequenciaCardiaca (leitura genérica/contínua),
+        // não mais fcRepouso — antes desta tarefa os dois eram o mesmo
+        // campo (HEART_RATE só existia como fcRepouso); agora que são
+        // sinais distintos, o pico que faz sentido pegar em primeiro
+        // plano é o da leitura contínua, não a métrica de repouso do
+        // Health Connect (calculada pelo próprio SO, tipicamente durante
+        // o sono — chega no máximo 1x/dia e já É esperada estar baixa,
+        // não é onde um pico fora de treino apareceria). Comportamento de
+        // detecção preservado: é a mesma fonte de dado (HEART_RATE) que
+        // já alimentava esta checagem antes, só o nome do campo/parametro
+        // que corrige.
+        final fc = payload.frequenciaCardiaca;
+        if (fc != null && (fc < _fcForaTreinoMin || fc > _fcForaTreinoMax)) {
+          final foraDoTreino = !emTreino(ponto);
+          if (foraDoTreino) {
+            anomalias.add(EventoAnomaliaSaude(
+              tipoAnomalia: 'frequencia_cardiaca_fora_faixa',
+              parametro: 'frequencia_cardiaca',
+              valorDetectado: fc,
+              valorLimiteMin: _fcForaTreinoMin,
+              valorLimiteMax: _fcForaTreinoMax,
+              emTreino: false,
+              severidade: (fc < _fcCriticoMin || fc > _fcCriticoMax)
+                  ? 'critico'
+                  : 'atencao',
+              origem: origem,
+              detectadoEm: ponto.dateTo,
+            ));
+          }
+        }
+
+        final glicose = payload.glicoseJejum;
+        if (glicose != null &&
+            (glicose < _glicoseMin || glicose > _glicoseMax)) {
           anomalias.add(EventoAnomaliaSaude(
-            tipoAnomalia: 'frequencia_cardiaca_fora_faixa',
-            parametro: 'frequencia_cardiaca',
-            valorDetectado: fc,
-            valorLimiteMin: _fcForaTreinoMin,
-            valorLimiteMax: _fcForaTreinoMax,
-            emTreino: false,
-            severidade: (fc < _fcCriticoMin || fc > _fcCriticoMax)
-                ? 'critico'
-                : 'atencao',
+            tipoAnomalia: 'glicose_critica',
+            parametro: 'glicose_jejum',
+            valorDetectado: glicose,
+            valorLimiteMin: _glicoseMin,
+            valorLimiteMax: _glicoseMax,
+            emTreino: emTreino(ponto),
+            severidade:
+                (glicose < _glicoseCriticoMin || glicose > _glicoseCriticoMax)
+                    ? 'critico'
+                    : 'atencao',
             origem: origem,
             detectadoEm: ponto.dateTo,
           ));
         }
-      }
 
-      final glicose = payload.glicoseJejum;
-      if (glicose != null &&
-          (glicose < _glicoseMin || glicose > _glicoseMax)) {
-        anomalias.add(EventoAnomaliaSaude(
-          tipoAnomalia: 'glicose_critica',
-          parametro: 'glicose_jejum',
-          valorDetectado: glicose,
-          valorLimiteMin: _glicoseMin,
-          valorLimiteMax: _glicoseMax,
-          emTreino: emTreino(ponto),
-          severidade:
-              (glicose < _glicoseCriticoMin || glicose > _glicoseCriticoMax)
-                  ? 'critico'
-                  : 'atencao',
-          origem: origem,
-          detectadoEm: ponto.dateTo,
-        ));
-      }
+        final sistolica = payload.pressaoSistolica;
+        if (sistolica != null && sistolica > _sistolicaMax) {
+          anomalias.add(EventoAnomaliaSaude(
+            tipoAnomalia: 'pressao_critica',
+            parametro: 'pressao_sistolica',
+            valorDetectado: sistolica,
+            valorLimiteMax: _sistolicaMax,
+            emTreino: emTreino(ponto),
+            severidade:
+                sistolica > _sistolicaCriticoMax ? 'critico' : 'atencao',
+            origem: origem,
+            detectadoEm: ponto.dateTo,
+          ));
+        }
 
-      final sistolica = payload.pressaoSistolica;
-      if (sistolica != null && sistolica > _sistolicaMax) {
-        anomalias.add(EventoAnomaliaSaude(
-          tipoAnomalia: 'pressao_critica',
-          parametro: 'pressao_sistolica',
-          valorDetectado: sistolica,
-          valorLimiteMax: _sistolicaMax,
-          emTreino: emTreino(ponto),
-          severidade: sistolica > _sistolicaCriticoMax ? 'critico' : 'atencao',
-          origem: origem,
-          detectadoEm: ponto.dateTo,
-        ));
-      }
-
-      final diastolica = payload.pressaoDiastolica;
-      if (diastolica != null && diastolica > _diastolicaMax) {
-        anomalias.add(EventoAnomaliaSaude(
-          tipoAnomalia: 'pressao_critica',
-          parametro: 'pressao_diastolica',
-          valorDetectado: diastolica,
-          valorLimiteMax: _diastolicaMax,
-          emTreino: emTreino(ponto),
-          severidade:
-              diastolica > _diastolicaCriticoMax ? 'critico' : 'atencao',
-          origem: origem,
-          detectadoEm: ponto.dateTo,
-        ));
+        final diastolica = payload.pressaoDiastolica;
+        if (diastolica != null && diastolica > _diastolicaMax) {
+          anomalias.add(EventoAnomaliaSaude(
+            tipoAnomalia: 'pressao_critica',
+            parametro: 'pressao_diastolica',
+            valorDetectado: diastolica,
+            valorLimiteMax: _diastolicaMax,
+            emTreino: emTreino(ponto),
+            severidade:
+                diastolica > _diastolicaCriticoMax ? 'critico' : 'atencao',
+            origem: origem,
+            detectadoEm: ponto.dateTo,
+          ));
+        }
+      } catch (e, stackTrace) {
+        debugPrint(
+          '[SYNC_DIAGNOSTICO] Falha ao checar anomalia de 1 ponto '
+          '(${ponto.type.name}, valor bruto ${ponto.value} '
+          '[${ponto.rawValue.runtimeType}]) — pulado, os demais pontos '
+          'continuam sendo checados: $e\n$stackTrace',
+        );
       }
     }
 
@@ -754,6 +845,7 @@ class HealthSyncService {
     List<HealthDataType> types, {
     int? dias,
     DateTime? start,
+    bool diagnosticoProfundo = false,
   }) async {
     await _configured;
 
@@ -788,7 +880,11 @@ class HealthSyncService {
     final inicioAlinhado =
         DateTime(inicioBruto.year, inicioBruto.month, inicioBruto.day);
 
-    final leitura = await _lerComPermissao(types, start: inicioAlinhado);
+    final leitura = await _lerComPermissao(
+      types,
+      start: inicioAlinhado,
+      diagnosticoProfundo: diagnosticoProfundo,
+    );
     if (!leitura.granted) {
       return DeltaSyncResult(
         outcome: DeltaSyncOutcome.permissaoNegada,
@@ -1019,6 +1115,110 @@ class HealthSyncService {
     }
   }
 
+  /// Modo de Diagnóstico Profundo (RELATÓRIO 20260813_0015, decisão do
+  /// fundador) — diferente do "Raio-X" (que roda em TODA sincronização e só
+  /// resume contagem por dia/fonte), este só roda sob demanda (botão
+  /// "GERAR LOG DIAGNÓSTICO (30 DIAS)" da tela de histórico, via
+  /// [executarDiagnosticoProfundo]) e vai fundo demais pra rodar sempre:
+  /// tipo NATIVO (`runtimeType`) e valor bruto de CADA ponto individual,
+  /// não só contagem. Existe porque o Raio-X e as duas auditorias
+  /// anteriores (RELATÓRIOs 20260812_0013/20260813_0014) não conseguiram
+  /// reproduzir em código as falhas relatadas em device físico
+  /// (distância/calorias basais/peso/treinos faltando em dias
+  /// específicos) — o próximo passo só é possível com o valor CRU que o
+  /// pacote `health` devolveu na hora, direto do aparelho real.
+  void _logDiagnosticoProfundo(
+    List<HealthMetricPoint> points,
+    DateTime start,
+    DateTime end,
+  ) {
+    debugPrint('[SYNC_DIAGNOSTICO] ============ INÍCIO DO RELATÓRIO ============');
+    // Restrição explícita da tarefa: `endTime` tem que ser o instante EXATO
+    // de agora, nunca truncado pra meia-noite anterior — já era assim antes
+    // desta tarefa (`_lerComPermissao` sempre usou `DateTime.now()` puro),
+    // este log só torna isso verificável olhando o console, sem precisar
+    // ler o código-fonte pra confirmar.
+    debugPrint(
+      '[SYNC_DIAGNOSTICO] Janela pedida ao pacote health: '
+      'startTime=${start.toIso8601String()} endTime=${end.toIso8601String()} '
+      '(endTime = DateTime.now() exato, nunca truncado à meia-noite).',
+    );
+    debugPrint(
+      '[SYNC_DIAGNOSTICO] Total de pontos brutos convertidos com sucesso: '
+      '${points.length}',
+    );
+
+    if (points.isEmpty) {
+      debugPrint(
+        '[SYNC_DIAGNOSTICO] Nenhum ponto na janela inteira — nada a detalhar.',
+      );
+      debugPrint('[SYNC_DIAGNOSTICO] ============= FIM DO RELATÓRIO =============');
+      return;
+    }
+
+    final porDia = <String, List<HealthMetricPoint>>{};
+    for (final ponto in points) {
+      porDia.putIfAbsent(_dataOnly(ponto.dateFrom), () => []).add(ponto);
+    }
+
+    for (final dia in porDia.keys.toList()..sort()) {
+      final pontosDoDia = porDia[dia]!;
+      final porTipo = <HealthDataType, List<HealthMetricPoint>>{};
+      for (final ponto in pontosDoDia) {
+        porTipo.putIfAbsent(ponto.type, () => []).add(ponto);
+      }
+
+      debugPrint(
+        '[SYNC_DIAGNOSTICO] --- Dia $dia: ${pontosDoDia.length} ponto(s) '
+        'brutos, ${porTipo.length} tipo(s) diferente(s) ---',
+      );
+      for (final tipo in porTipo.keys) {
+        final pontosDoTipo = porTipo[tipo]!;
+        debugPrint(
+          '[SYNC_DIAGNOSTICO]   ${tipo.name}: ${pontosDoTipo.length} ponto(s)',
+        );
+        for (final ponto in pontosDoTipo) {
+          debugPrint(
+            '[SYNC_DIAGNOSTICO]     valor=${ponto.value} '
+            'tipoNativo=${ponto.rawValue.runtimeType} unidade=${ponto.unit} '
+            'fonte=${ponto.sourceApp} de=${ponto.dateFrom.toIso8601String()} '
+            'até=${ponto.dateTo.toIso8601String()}',
+          );
+        }
+      }
+
+      // Achado específico pedido pela tarefa: dia com pontos de distância
+      // recebidos mas soma 0/null — dump bruto completo desses pontos, pra
+      // diagnosticar se é falha de conversão/cast do nosso lado ou o
+      // Health Connect genuinamente devolvendo 0.
+      final pontosDistancia = pontosDoDia
+          .where((p) =>
+              p.type == HealthDataType.DISTANCE_DELTA ||
+              p.type == HealthDataType.DISTANCE_WALKING_RUNNING)
+          .toList();
+      if (pontosDistancia.isNotEmpty) {
+        final somaDistancia =
+            pontosDistancia.fold<double>(0, (soma, p) => soma + p.value);
+        if (somaDistancia <= 0) {
+          debugPrint(
+            '[SYNC_DIAGNOSTICO]   ⚠️ Dia $dia tem ${pontosDistancia.length} '
+            'ponto(s) de distância mas a soma deu $somaDistancia — dump '
+            'bruto completo:',
+          );
+          for (final p in pontosDistancia) {
+            debugPrint(
+              '[SYNC_DIAGNOSTICO]     ⚠️ rawValue=${p.rawValue} '
+              '(${p.rawValue.runtimeType}) value=${p.value} unidade=${p.unit} '
+              'fonte=${p.sourceApp}/${p.sourceId}',
+            );
+          }
+        }
+      }
+    }
+
+    debugPrint('[SYNC_DIAGNOSTICO] ============= FIM DO RELATÓRIO =============');
+  }
+
   static bool _ehPedometroNativo(String identificadorFonte) =>
       _pedometrosNativos.contains(identificadorFonte);
 
@@ -1045,87 +1245,102 @@ class HealthSyncService {
     // ambos, ver _fonteVencedoraDoDia depois do loop principal.
     final agregadoPorDiaFonte = <String, Map<String, _AgregadoFonte>>{};
 
+    // RELATÓRIO 20260813_0015 (Parte 1 — Proteção Extrema no Parsing): o
+    // corpo inteiro do loop agora roda dentro de um try/catch por
+    // iteração. Antes, qualquer exceção aqui dentro (ex.: um cast
+    // inesperado num campo do payload) escapava do `for` e cancelava o
+    // processamento de TODOS os payloads restantes do lote inteiro
+    // (outros dias, outras métricas) — não só o ponto problemático.
     for (final payload in payloads) {
-      final ehSono = payload.sonoLeveMinutos != null ||
-          payload.sonoProfundoMinutos != null ||
-          payload.sonoRemMinutos != null ||
-          payload.sonoAcordadoMinutos != null;
-      final dataReferencia = ehSono
-          ? _dataDoSonoLocal(payload.dateFrom)
-          : _dataOnly(payload.dateFrom);
+      try {
+        final ehSono = payload.sonoLeveMinutos != null ||
+            payload.sonoProfundoMinutos != null ||
+            payload.sonoRemMinutos != null ||
+            payload.sonoAcordadoMinutos != null;
+        final dataReferencia = ehSono
+            ? _dataDoSonoLocal(payload.dateFrom)
+            : _dataOnly(payload.dateFrom);
 
-      final linha = porDia.putIfAbsent(
-        dataReferencia,
-        () => {
-          'usuario_id_anonimo': usuarioId,
-          'data_referencia': dataReferencia,
-          'origem': payload.source,
-        },
-      );
+        final linha = porDia.putIfAbsent(
+          dataReferencia,
+          () => {
+            'usuario_id_anonimo': usuarioId,
+            'data_referencia': dataReferencia,
+            'origem': payload.source,
+          },
+        );
 
-      void somar(String coluna, num? valor) {
-        if (valor == null) return;
-        linha[coluna] = ((linha[coluna] as num?) ?? 0) + valor;
-      }
-
-      void sobrescrever(String coluna, num? valor) {
-        if (valor == null) return;
-        linha[coluna] = valor;
-      }
-
-      if (payload.passos != null || payload.distanciaMetros != null) {
-        final porFonte =
-            agregadoPorDiaFonte.putIfAbsent(dataReferencia, () => {});
-        final agregado =
-            porFonte.putIfAbsent(payload.source, () => _AgregadoFonte());
-        if (payload.passos != null) {
-          agregado.passos = (agregado.passos ?? 0) + payload.passos!;
+        void somar(String coluna, num? valor) {
+          if (valor == null) return;
+          linha[coluna] = ((linha[coluna] as num?) ?? 0) + valor;
         }
-        if (payload.distanciaMetros != null) {
-          agregado.distanciaMetros =
-              (agregado.distanciaMetros ?? 0) + payload.distanciaMetros!;
-        }
-      }
-      if (payload.caloriasAtivas != null) {
-        final porFonte = caloriasPorDiaFonte.putIfAbsent(dataReferencia, () => {});
-        porFonte[payload.source] =
-            (porFonte[payload.source] ?? 0) + payload.caloriasAtivas!;
-      }
-      if (payload.caloriasBasais != null) {
-        final porFonte =
-            caloriasBasaisPorDiaFonte.putIfAbsent(dataReferencia, () => {});
-        porFonte[payload.source] =
-            (porFonte[payload.source] ?? 0) + payload.caloriasBasais!;
-      }
-      somar('sono_leve_minutos', payload.sonoLeveMinutos);
-      somar('sono_profundo_minutos', payload.sonoProfundoMinutos);
-      somar('sono_rem_minutos', payload.sonoRemMinutos);
-      somar('sono_acordado_minutos', payload.sonoAcordadoMinutos);
 
-      if (payload.frequenciaCardiaca != null) {
-        final valor = payload.frequenciaCardiaca!;
-        somaFcPorDia[dataReferencia] = (somaFcPorDia[dataReferencia] ?? 0) + valor;
-        contagemFcPorDia[dataReferencia] =
-            (contagemFcPorDia[dataReferencia] ?? 0) + 1;
-        // fc_maxima: SÓ o maior valor absoluto do dia — nenhuma lógica de
-        // limite/faixa/evento aqui (Parte 5/BL.1, ver doc de
-        // _detectarEregistrarAnomalias). É a mesma fonte de dado
-        // (HEART_RATE) que já alimenta a média, não uma leitura à parte.
-        maximaFcPorDia[dataReferencia] =
-            math.max(valor, maximaFcPorDia[dataReferencia] ?? valor);
+        void sobrescrever(String coluna, num? valor) {
+          if (valor == null) return;
+          linha[coluna] = valor;
+        }
+
+        if (payload.passos != null || payload.distanciaMetros != null) {
+          final porFonte =
+              agregadoPorDiaFonte.putIfAbsent(dataReferencia, () => {});
+          final agregado =
+              porFonte.putIfAbsent(payload.source, () => _AgregadoFonte());
+          if (payload.passos != null) {
+            agregado.passos = (agregado.passos ?? 0) + payload.passos!;
+          }
+          if (payload.distanciaMetros != null) {
+            agregado.distanciaMetros =
+                (agregado.distanciaMetros ?? 0) + payload.distanciaMetros!;
+          }
+        }
+        if (payload.caloriasAtivas != null) {
+          final porFonte = caloriasPorDiaFonte.putIfAbsent(dataReferencia, () => {});
+          porFonte[payload.source] =
+              (porFonte[payload.source] ?? 0) + payload.caloriasAtivas!;
+        }
+        if (payload.caloriasBasais != null) {
+          final porFonte =
+              caloriasBasaisPorDiaFonte.putIfAbsent(dataReferencia, () => {});
+          porFonte[payload.source] =
+              (porFonte[payload.source] ?? 0) + payload.caloriasBasais!;
+        }
+        somar('sono_leve_minutos', payload.sonoLeveMinutos);
+        somar('sono_profundo_minutos', payload.sonoProfundoMinutos);
+        somar('sono_rem_minutos', payload.sonoRemMinutos);
+        somar('sono_acordado_minutos', payload.sonoAcordadoMinutos);
+
+        if (payload.frequenciaCardiaca != null) {
+          final valor = payload.frequenciaCardiaca!;
+          somaFcPorDia[dataReferencia] = (somaFcPorDia[dataReferencia] ?? 0) + valor;
+          contagemFcPorDia[dataReferencia] =
+              (contagemFcPorDia[dataReferencia] ?? 0) + 1;
+          // fc_maxima: SÓ o maior valor absoluto do dia — nenhuma lógica de
+          // limite/faixa/evento aqui (Parte 5/BL.1, ver doc de
+          // _detectarEregistrarAnomalias). É a mesma fonte de dado
+          // (HEART_RATE) que já alimenta a média, não uma leitura à parte.
+          maximaFcPorDia[dataReferencia] =
+              math.max(valor, maximaFcPorDia[dataReferencia] ?? valor);
+        }
+        sobrescrever('fc_repouso', payload.fcRepouso);
+        sobrescrever('hrv_medio', payload.hrvMedio);
+        sobrescrever('peso_kg', payload.pesoKg);
+        sobrescrever('massa_magra_kg', payload.massaMagraKg);
+        sobrescrever('percentual_gordura', payload.percentualGordura);
+        sobrescrever('agua_corporal', payload.aguaCorporalKg);
+        sobrescrever('imc', payload.imc);
+        sobrescrever('pressao_sistolica', payload.pressaoSistolica);
+        sobrescrever('pressao_diastolica', payload.pressaoDiastolica);
+        sobrescrever('glicose_jejum', payload.glicoseJejum);
+        sobrescrever('saturacao_oxigenio', payload.saturacaoOxigenio);
+        sobrescrever('temperatura_corporal', payload.temperaturaCorporal);
+      } catch (e, stackTrace) {
+        debugPrint(
+          '[SYNC_DIAGNOSTICO] Falha ao agregar 1 payload no dia '
+          '(origem "${payload.source}", de ${payload.dateFrom}) — pulado, '
+          'os demais payloads do lote continuam sendo processados: '
+          '$e\n$stackTrace',
+        );
       }
-      sobrescrever('fc_repouso', payload.fcRepouso);
-      sobrescrever('hrv_medio', payload.hrvMedio);
-      sobrescrever('peso_kg', payload.pesoKg);
-      sobrescrever('massa_magra_kg', payload.massaMagraKg);
-      sobrescrever('percentual_gordura', payload.percentualGordura);
-      sobrescrever('agua_corporal', payload.aguaCorporalKg);
-      sobrescrever('imc', payload.imc);
-      sobrescrever('pressao_sistolica', payload.pressaoSistolica);
-      sobrescrever('pressao_diastolica', payload.pressaoDiastolica);
-      sobrescrever('glicose_jejum', payload.glicoseJejum);
-      sobrescrever('saturacao_oxigenio', payload.saturacaoOxigenio);
-      sobrescrever('temperatura_corporal', payload.temperaturaCorporal);
     }
 
     void aplicarMaiorFonte(

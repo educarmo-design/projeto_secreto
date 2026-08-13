@@ -1030,6 +1030,194 @@ void main() {
     });
   });
 
+  group('Proteção Extrema no Parsing (RELATÓRIO 20260813_0015, Parte 1)', () {
+    test('1 ponto com valor NaN (ex.: STEPS, que usa .round()) não derruba os demais pontos do lote', () async {
+      final hoje = DateTime(2026, 7, 8, 10);
+      final ontem = hoje.subtract(const Duration(days: 1));
+      // STEPS usa `.round()` na conversão pra payload — `double.nan.round()`
+      // lança `UnsupportedError`. Antes desta tarefa, isso propagava pro
+      // `.map().toList()` de `toPayloads()` e derrubava TODOS os payloads
+      // do lote inteiro, de QUALQUER dia — não só o de `hoje`.
+      when(
+        () => health.getHealthDataFromTypes(
+          types: any(named: 'types'),
+          startTime: any(named: 'startTime'),
+          endTime: any(named: 'endTime'),
+        ),
+      ).thenAnswer(
+        (_) async => [
+          _ponto(type: HealthDataType.STEPS, value: double.nan, dateFrom: hoje),
+          _ponto(type: HealthDataType.WEIGHT, value: 79, dateFrom: ontem),
+        ],
+      );
+
+      final resultado = await service.sincronizarDeltaDiario();
+
+      expect(resultado.outcome, DeltaSyncOutcome.sucesso);
+      final porData = {
+        for (final linha in resultado.linhas) linha['data_referencia']: linha,
+      };
+      // O dia com o ponto ruim fica de fora (não dá pra confiar num NaN),
+      // mas o dia bom não é afetado.
+      expect(porData.containsKey(_dataIso(hoje)), isFalse);
+      expect(porData[_dataIso(ontem)]!['peso_kg'], 79);
+    });
+
+    test('mistura de ponto ruim e bons no MESMO dia: o dia ainda é gravado com os campos bons', () async {
+      final hoje = DateTime(2026, 7, 8, 10);
+      when(
+        () => health.getHealthDataFromTypes(
+          types: any(named: 'types'),
+          startTime: any(named: 'startTime'),
+          endTime: any(named: 'endTime'),
+        ),
+      ).thenAnswer(
+        (_) async => [
+          _ponto(type: HealthDataType.STEPS, value: double.nan, dateFrom: hoje),
+          _ponto(type: HealthDataType.WEIGHT, value: 80, dateFrom: hoje),
+        ],
+      );
+
+      final resultado = await service.sincronizarDeltaDiario();
+
+      expect(resultado.outcome, DeltaSyncOutcome.sucesso);
+      final linha = resultado.linhas.single;
+      expect(linha['data_referencia'], _dataIso(hoje));
+      expect(linha['peso_kg'], 80);
+      expect(linha.containsKey('passos'), isFalse);
+    });
+  });
+
+  group('Modo de Diagnóstico Profundo (RELATÓRIO 20260813_0015, Parte 2)', () {
+    late DebugPrintCallback debugPrintOriginal;
+    late List<String> logsCapturados;
+
+    setUp(() {
+      debugPrintOriginal = debugPrint;
+      logsCapturados = [];
+      debugPrint = (String? message, {int? wrapWidth}) {
+        if (message != null) logsCapturados.add(message);
+      };
+    });
+
+    tearDown(() {
+      debugPrint = debugPrintOriginal;
+    });
+
+    bool logContem(String trecho) =>
+        logsCapturados.any((l) => l.contains(trecho));
+
+    test('desligado por padrão: sincronizarDeltaDiario/carregarHistoricoInicial NUNCA imprimem [SYNC_DIAGNOSTICO]', () async {
+      final hoje = DateTime(2026, 7, 8, 10);
+      when(
+        () => health.getHealthDataFromTypes(
+          types: any(named: 'types'),
+          startTime: any(named: 'startTime'),
+          endTime: any(named: 'endTime'),
+        ),
+      ).thenAnswer(
+        (_) async => [_ponto(type: HealthDataType.STEPS, value: 4000, dateFrom: hoje)],
+      );
+
+      await service.sincronizarDeltaDiario();
+      await service.carregarHistoricoInicial();
+
+      expect(logsCapturados.any((l) => l.contains('[SYNC_DIAGNOSTICO]')), isFalse);
+    });
+
+    test('executarDiagnosticoProfundo imprime os limites exatos startTime/endTime (endTime = agora, não meia-noite)', () async {
+      when(
+        () => health.getHealthDataFromTypes(
+          types: any(named: 'types'),
+          startTime: any(named: 'startTime'),
+          endTime: any(named: 'endTime'),
+        ),
+      ).thenAnswer((_) async => const []);
+
+      await service.executarDiagnosticoProfundo();
+
+      expect(
+        logsCapturados,
+        contains(predicate<String>(
+          (l) =>
+              l.contains('[SYNC_DIAGNOSTICO] Janela pedida ao pacote health') &&
+              l.contains('startTime=') &&
+              l.contains('endTime=') &&
+              l.contains('endTime = DateTime.now() exato'),
+        )),
+      );
+    });
+
+    test('imprime contagem por tipo/dia e o valor bruto + runtimeType de cada ponto', () async {
+      final hoje = DateTime(2026, 7, 8, 10);
+      when(
+        () => health.getHealthDataFromTypes(
+          types: any(named: 'types'),
+          startTime: any(named: 'startTime'),
+          endTime: any(named: 'endTime'),
+        ),
+      ).thenAnswer(
+        (_) async => [
+          _ponto(type: HealthDataType.WEIGHT, value: 80, dateFrom: hoje),
+          _ponto(
+            type: HealthDataType.BASAL_ENERGY_BURNED,
+            value: 1650,
+            dateFrom: hoje,
+          ),
+        ],
+      );
+
+      await service.executarDiagnosticoProfundo();
+
+      expect(logContem('WEIGHT: 1 ponto(s)'), isTrue);
+      expect(logContem('BASAL_ENERGY_BURNED: 1 ponto(s)'), isTrue);
+      expect(logContem('valor=80.0'), isTrue);
+      expect(logContem('tipoNativo=NumericHealthValue'), isTrue);
+    });
+
+    test('distância com pontos recebidos mas soma 0/null: imprime o dump bruto de diagnóstico daquele dia', () async {
+      final hoje = DateTime(2026, 7, 8, 10);
+      when(
+        () => health.getHealthDataFromTypes(
+          types: any(named: 'types'),
+          startTime: any(named: 'startTime'),
+          endTime: any(named: 'endTime'),
+        ),
+      ).thenAnswer(
+        (_) async => [
+          _ponto(type: HealthDataType.DISTANCE_DELTA, value: 0, dateFrom: hoje),
+        ],
+      );
+
+      await service.executarDiagnosticoProfundo();
+
+      expect(
+        logContem('⚠️ Dia ${_dataIso(hoje)} tem 1 ponto(s) de distância mas a soma deu 0.0'),
+        isTrue,
+      );
+      expect(logContem('⚠️ rawValue='), isTrue);
+    });
+
+    test('dia com distância normal (soma > 0) NÃO dispara o alerta de dump bruto', () async {
+      final hoje = DateTime(2026, 7, 8, 10);
+      when(
+        () => health.getHealthDataFromTypes(
+          types: any(named: 'types'),
+          startTime: any(named: 'startTime'),
+          endTime: any(named: 'endTime'),
+        ),
+      ).thenAnswer(
+        (_) async => [
+          _ponto(type: HealthDataType.DISTANCE_DELTA, value: 500, dateFrom: hoje),
+        ],
+      );
+
+      await service.executarDiagnosticoProfundo();
+
+      expect(logsCapturados.any((l) => l.contains('⚠️')), isFalse);
+    });
+  });
+
   group('leitura crua alinhada ao fuso local (RELATÓRIO 20260811)', () {
     // Trava a causa raiz do bug "passos/sono com corte em UTC": a consulta
     // agregada nativa (getHealthIntervalDataFromTypes) foi abandonada por

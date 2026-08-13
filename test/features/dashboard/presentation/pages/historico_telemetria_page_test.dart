@@ -187,6 +187,28 @@ void main() {
     verifyNever(() => syncUiController.forcarSincronizacaoAtleta());
   });
 
+  testWidgets('"GERAR LOG DIAGNÓSTICO (30 DIAS)" chama gerarDiagnosticoProfundo e recarrega do banco (RELATÓRIO 20260813_0015)', (tester) async {
+    when(() => repository.buscarUltimosDias()).thenAnswer((_) async => const []);
+    when(() => syncUiController.gerarDiagnosticoProfundo()).thenAnswer(
+      (_) async => const DeltaSyncResult(outcome: DeltaSyncOutcome.sucesso, linhas: []),
+    );
+
+    await tester.pumpWidget(criarApp());
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('GERAR LOG DIAGNÓSTICO (30 DIAS)'));
+    await tester.pumpAndSettle();
+
+    verify(() => syncUiController.gerarDiagnosticoProfundo()).called(1);
+    verify(() => repository.buscarUltimosDias()).called(2);
+    verifyNever(() => syncUiController.forcarSincronizacaoAtleta());
+    verifyNever(() => syncUiController.conectarWearablePelaPrimeiraVez());
+    expect(
+      find.text('Diagnóstico gerado — veja o console do Flutter (prefixo [SYNC_DIAGNOSTICO]).'),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('resultado offline do botão de debug mostra a mensagem de fila offline', (tester) async {
     when(() => repository.buscarUltimosDias()).thenAnswer((_) async => const []);
     when(() => syncUiController.forcarSincronizacaoAtleta()).thenAnswer(

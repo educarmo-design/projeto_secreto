@@ -200,6 +200,8 @@
     "historico_telemetria_error": "Error loading history.",
     "historico_telemetria_debug_force_today": "FORCE SYNC TODAY",
     "historico_telemetria_debug_force_30_days": "FORCE 30-DAY LOAD",
+    "historico_telemetria_debug_diagnostico": "GENERATE DIAGNOSTIC LOG (30 DAYS)",
+    "historico_telemetria_debug_diagnostico_result": "Diagnostic generated — check the Flutter console (prefix [SYNC_DIAGNOSTICO]).",
     "historico_telemetria_debug_running": "Running...",
     "historico_telemetria_debug_result": "{{count}} day(s) recorded — reloading list from the database...",
 

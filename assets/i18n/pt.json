@@ -200,6 +200,8 @@
     "historico_telemetria_error": "Erro ao carregar o histórico.",
     "historico_telemetria_debug_force_today": "FORÇAR SYNC HOJE",
     "historico_telemetria_debug_force_30_days": "FORÇAR CARGA 30 DIAS",
+    "historico_telemetria_debug_diagnostico": "GERAR LOG DIAGNÓSTICO (30 DIAS)",
+    "historico_telemetria_debug_diagnostico_result": "Diagnóstico gerado — veja o console do Flutter (prefixo [SYNC_DIAGNOSTICO]).",
     "historico_telemetria_debug_running": "Rodando...",
     "historico_telemetria_debug_result": "{{count}} dia(s) gravado(s) — recarregando lista do banco...",
 
