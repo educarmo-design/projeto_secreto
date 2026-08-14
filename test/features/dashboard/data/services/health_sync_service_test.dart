@@ -633,6 +633,53 @@ void main() {
       expect(linha['passos'], 7000);
       expect(linha['distancia_metros'], 5100);
     });
+
+    test('RELATÓRIO 20260813_0018 — passos nativos do Health Connect (sem app dono, hash por instalação) têm MAIS passos, mas o wearable vence e a distância dele não é descartada', () async {
+      // Achado real (device `atleta1000@teste.com`, 2026-08-11): o próprio
+      // Health Connect registra passos contados pelo acelerômetro sob um
+      // identificador gerado por instalação — sem estar na lista exata de
+      // `_pedometrosNativos`, essa fonte entrava em prioridade ALTA (mesmo
+      // nível de um wearable de verdade) e podia vencer a Fonte Vencedora só
+      // por ter mais passos, derrubando em silêncio a distância real do
+      // Garmin (essa fonte nunca reporta DISTANCE_DELTA).
+      when(
+        () => health.getHealthDataFromTypes(
+          types: any(named: 'types'),
+          startTime: any(named: 'startTime'),
+          endTime: any(named: 'endTime'),
+        ),
+      ).thenAnswer(
+        (_) async => [
+          // Passos nativos do Health Connect: mais passos, mas é pedômetro
+          // nativo (hash de instalação) — despriorizado, e nunca tem distância.
+          _ponto(
+            type: HealthDataType.STEPS,
+            value: 9000,
+            dateFrom: hoje,
+            sourceName: 'com.android.healthconnect.phone.j2a624ede62c5300086a4c5d757082ec3',
+          ),
+          // Garmin: menos passos, mas prioridade alta — e é quem reporta distância.
+          _ponto(
+            type: HealthDataType.STEPS,
+            value: 7000,
+            dateFrom: hoje,
+            sourceName: 'com.garmin.android.apps.connectmobile',
+          ),
+          _ponto(
+            type: HealthDataType.DISTANCE_DELTA,
+            value: 5100,
+            dateFrom: hoje,
+            sourceName: 'com.garmin.android.apps.connectmobile',
+          ),
+        ],
+      );
+
+      final resultado = await service.sincronizarDeltaDiario();
+
+      final linha = resultado.linhas.single;
+      expect(linha['passos'], 7000);
+      expect(linha['distancia_metros'], 5100);
+    });
     });
 
     group('preenchimento defensivo de distância faltante (RELATÓRIO 20260812_0013 — investigação de "distância sumindo em dias aleatórios")', () {

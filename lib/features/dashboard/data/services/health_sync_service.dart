@@ -1059,6 +1059,26 @@ class HealthSyncService {
     'com.apple.health', // app "Saúde" do iPhone (HealthKit, coprocessador M)
   };
 
+  /// RELATÓRIO 20260813_0018 — achado real, confirmado por device físico
+  /// (`atleta1000@teste.com`, `2026-08-11`): o próprio Health Connect
+  /// registra passos contados pelo acelerômetro do aparelho sob um
+  /// identificador gerado por instalação, no formato
+  /// `com.android.healthconnect.phone.<hash>` — não é nenhum app de
+  /// terceiros, é o equivalente ao pedômetro nativo do sistema (mesmo
+  /// papel de Google Fit/Samsung Health/Apple Health), só que sem
+  /// identificador fixo porque o hash muda por device/instalação. Como
+  /// `_pedometrosNativos` era lista exata, essa fonte entrava em
+  /// prioridade ALTA (mesmo nível de um wearable de verdade) e podia
+  /// vencer a Fonte Vencedora só por ter mais passos brutos num dia —
+  /// e como ela nunca reporta `DISTANCE_DELTA`/`DISTANCE_WALKING_RUNNING`,
+  /// a distância do dia inteiro era descartada em silêncio mesmo com o
+  /// Garmin tendo reportado distância real naquele mesmo dia. Prefixo
+  /// (não lista exata) porque o hash é por instalação — não dá pra
+  /// cadastrar nominalmente.
+  static const _prefixosPedometrosNativos = <String>{
+    'com.android.healthconnect.phone.',
+  };
+
   /// "Modo Raio-X" (RELATÓRIO 20260811_0002, diretriz do fundador — "até o
   /// último fio de cabelo"): imprime um resumo cru do que o health store
   /// devolveu, chamado logo depois de [Health.getHealthDataFromTypes] e
@@ -1272,7 +1292,9 @@ class HealthSyncService {
   }
 
   static bool _ehPedometroNativo(String identificadorFonte) =>
-      _pedometrosNativos.contains(identificadorFonte);
+      _pedometrosNativos.contains(identificadorFonte) ||
+      _prefixosPedometrosNativos
+          .any((prefixo) => identificadorFonte.startsWith(prefixo));
 
   List<Map<String, dynamic>> _mesclarPorDia(
     String usuarioId,
