@@ -1820,6 +1820,72 @@ void main() {
       expect(resultado.linhas.single['calorias_basais'], 1650);
     });
 
+    test('RELATÓRIO 20260813_0019 — calorias_basais só do app da balança (Fitdays) no dia: fica de fora, nunca vira fallback', () async {
+      // Achado real (device atleta1000@teste.com): Fitdays só calcula
+      // BASAL_ENERGY_BURNED no instante exato de uma pesagem (mesmo
+      // timestamp do WEIGHT) — é uma estimativa pontual via fórmula, não
+      // medição contínua de wearable. Sem o Garmin reportando naquele dia,
+      // calorias_basais tem que ficar ausente, nunca preenchido com a
+      // estimativa da balança.
+      when(
+        () => health.getHealthDataFromTypes(
+          types: any(named: 'types'),
+          startTime: any(named: 'startTime'),
+          endTime: any(named: 'endTime'),
+        ),
+      ).thenAnswer(
+        (_) async => [
+          _ponto(
+            type: HealthDataType.WEIGHT,
+            value: 80.6,
+            dateFrom: hoje,
+            sourceName: 'cn.fitdays.fitdays',
+          ),
+          _ponto(
+            type: HealthDataType.BASAL_ENERGY_BURNED,
+            value: 1890,
+            dateFrom: hoje,
+            sourceName: 'cn.fitdays.fitdays',
+          ),
+        ],
+      );
+
+      final resultado = await service.sincronizarDeltaDiario();
+
+      final linha = resultado.linhas.single;
+      expect(linha['peso_kg'], 80.6); // peso em si continua vindo normalmente
+      expect(linha.containsKey('calorias_basais'), isFalse);
+    });
+
+    test('RELATÓRIO 20260813_0019 — Fitdays reporta MAIS calorias basais que o Garmin no mesmo dia: Garmin vence mesmo assim, nunca a balança', () async {
+      when(
+        () => health.getHealthDataFromTypes(
+          types: any(named: 'types'),
+          startTime: any(named: 'startTime'),
+          endTime: any(named: 'endTime'),
+        ),
+      ).thenAnswer(
+        (_) async => [
+          _ponto(
+            type: HealthDataType.BASAL_ENERGY_BURNED,
+            value: 1650,
+            dateFrom: hoje,
+            sourceName: 'com.garmin.android.apps.connectmobile',
+          ),
+          _ponto(
+            type: HealthDataType.BASAL_ENERGY_BURNED,
+            value: 1890, // maior que o Garmin — mesmo assim não pode vencer
+            dateFrom: hoje,
+            sourceName: 'cn.fitdays.fitdays',
+          ),
+        ],
+      );
+
+      final resultado = await service.sincronizarDeltaDiario();
+
+      expect(resultado.linhas.single['calorias_basais'], 1650);
+    });
+
     test('calorias_totais = ativas + basais quando as duas estão presentes', () async {
       when(
         () => health.getHealthDataFromTypes(

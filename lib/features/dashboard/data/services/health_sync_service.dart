@@ -1079,6 +1079,31 @@ class HealthSyncService {
     'com.android.healthconnect.phone.',
   };
 
+  /// RELATÓRIO 20260813_0019 — decisão do fundador, alinhada à
+  /// especificação: calorias (ativas/basais) precisam vir de um wearable de
+  /// verdade (Garmin ou equivalente), nunca de um app de balança/celular.
+  /// Achado real, confirmado por device físico: `cn.fitdays.fitdays` (app
+  /// da balança inteligente) só calcula/grava `BASAL_ENERGY_BURNED` no
+  /// INSTANTE exato de uma pesagem — mesmo timestamp do ponto de `WEIGHT`,
+  /// mesma fonte — porque é uma ESTIMATIVA pontual via fórmula (usa o peso
+  /// que acabou de medir), não uma medição contínua de metabolismo basal
+  /// como a de um wearable. Misturar isso no mesmo campo `calorias_basais`
+  /// do Garmin fazia a coluna só existir em dias de pesagem, mascarada de
+  /// dado do dia inteiro.
+  ///
+  /// Diferente da Hierarquia de Fontes de passos/distância (que aceita uma
+  /// fonte nativa como último recurso quando não há wearable naquele dia —
+  /// ver [_ehPedometroNativo]), calorias NUNCA caem para uma fonte
+  /// excluída: sem wearable reportando naquele dia, o campo fica `null`,
+  /// nunca preenchido com a estimativa de um app de balança/celular.
+  static const _fontesCaloriasExcluidas = <String>{
+    'cn.fitdays.fitdays', // balança inteligente — estimativa pontual no instante da pesagem, não medição contínua
+  };
+
+  static bool _ehFonteValidaParaCalorias(String identificadorFonte) =>
+      !_ehPedometroNativo(identificadorFonte) &&
+      !_fontesCaloriasExcluidas.contains(identificadorFonte);
+
   /// "Modo Raio-X" (RELATÓRIO 20260811_0002, diretriz do fundador — "até o
   /// último fio de cabelo"): imprime um resumo cru do que o health store
   /// devolveu, chamado logo depois de [Health.getHealthDataFromTypes] e
@@ -1367,12 +1392,14 @@ class HealthSyncService {
                 (agregado.distanciaMetros ?? 0) + payload.distanciaMetros!;
           }
         }
-        if (payload.caloriasAtivas != null) {
+        if (payload.caloriasAtivas != null &&
+            _ehFonteValidaParaCalorias(payload.source)) {
           final porFonte = caloriasPorDiaFonte.putIfAbsent(dataReferencia, () => {});
           porFonte[payload.source] =
               (porFonte[payload.source] ?? 0) + payload.caloriasAtivas!;
         }
-        if (payload.caloriasBasais != null) {
+        if (payload.caloriasBasais != null &&
+            _ehFonteValidaParaCalorias(payload.source)) {
           final porFonte =
               caloriasBasaisPorDiaFonte.putIfAbsent(dataReferencia, () => {});
           porFonte[payload.source] =
