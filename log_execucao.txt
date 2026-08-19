@@ -1,0 +1,169 @@
+=== Relatório de execução — Verificador de Naming ===
+Data/hora: 2026-08-07T21:40:53
+Modo: TESTE (200 candidatos)
+--- Geração ---
+Total bruto gerado (todos os moldes, antes de filtros): 926030
+Total após filtros de conteúdo + pronunciabilidade + dedup: 886227
+--- Verificação de domínio ---
+Candidatos avaliados nesta execução: 200
+Aprovados (.com e .com.br livres): 149
+Erros ao checar (ERRO_CHECAR em pelo menos um domínio): 28
+--- Tempo ---
+Duração desta execução: 777.3s
+
+=== Relatório de execução — Verificador de Naming ===
+Data/hora: 2026-08-08T11:54:16
+Modo: COMPLETO (limitado a 500)
+--- Geração ---
+Total bruto gerado (todos os moldes, antes de filtros): 926030
+Total após filtros de conteúdo + pronunciabilidade + dedup: 886227
+--- Verificação de domínio ---
+Candidatos avaliados nesta execução: 500
+Aprovados (.com e .com.br livres): 0
+Erros ao checar (ERRO_CHECAR em pelo menos um domínio): 105
+--- Tempo ---
+Duração desta execução: 1748.5s
+
+=== Relatório de execução — Verificador de Naming ===
+Data/hora: 2026-08-08T21:27:49
+Modo: COMPLETO (limitado a 100)
+--- Geração ---
+Total bruto gerado (todos os moldes, antes de filtros): 926030
+Total após filtros de conteúdo + pronunciabilidade + dedup: 886227
+--- Verificação de domínio ---
+Candidatos avaliados nesta execução: 100
+Aprovados (.com e .com.br livres): 90
+Erros ao checar (ERRO_CHECAR em pelo menos um domínio): 8
+--- Tempo ---
+Duração desta execução: 594.9s
+
+=== Relatório de execução — Verificador de Naming ===
+Data/hora: 2026-08-08T21:38:57
+Modo: COMPLETO (amostra aleatória de 50, molde=CVVCV_ly)
+--- Geração ---
+Total bruto gerado (todos os moldes, antes de filtros): 926030
+Total após filtros de conteúdo + pronunciabilidade + dedup: 886227
+--- Verificação de domínio ---
+Candidatos avaliados nesta execução: 50
+Aprovados (.com e .com.br livres): 49
+Erros ao checar (ERRO_CHECAR em pelo menos um domínio): 0
+--- Tempo ---
+Duração desta execução: 568.0s
+
+=== Relatório de execução — Verificador de Naming ===
+Data/hora: 2026-08-09T19:29:52
+Modo: COMPLETO (amostra aleatória de 50, molde=VCVCV_omada)
+--- Geração ---
+Total bruto gerado (todos os moldes, antes de filtros): 1010530
+Total após filtros de conteúdo + pronunciabilidade + dedup: 935727
+--- Verificação de domínio ---
+Candidatos avaliados nesta execução: 50
+Aprovados (.com e .com.br livres): 18
+Erros ao checar (ERRO_CHECAR em pelo menos um domínio): 7
+--- Tempo ---
+Duração desta execução: 275.8s
+
+=== Relatório de execução — Verificador de Naming ===
+Data/hora: 2026-08-09T19:39:56
+Modo: COMPLETO (amostra aleatória de 50, molde=VCVCV_omada)
+--- Geração ---
+Total bruto gerado (todos os moldes, antes de filtros): 1010530
+Total após filtros de conteúdo + pronunciabilidade + dedup: 935727
+--- Verificação de domínio ---
+Candidatos avaliados nesta execução: 50
+Aprovados (.com e .com.br livres): 15
+Erros ao checar (ERRO_CHECAR em pelo menos um domínio): 7
+--- Tempo ---
+Duração desta execução: 458.2s
+
+=== Relatório de execução — Verificador de Naming ===
+Data/hora: 2026-08-09T20:10:18
+Modo: COMPLETO (amostra aleatória de 50, molde=VCVCV_omada_simples)
+--- Geração ---
+Total bruto gerado (todos os moldes, antes de filtros): 1042530
+Total após filtros de conteúdo + pronunciabilidade + dedup: 935727
+--- Verificação de domínio ---
+Candidatos avaliados nesta execução: 0
+Aprovados (.com e .com.br livres): 0
+Erros ao checar (ERRO_CHECAR em pelo menos um domínio): 0
+--- Tempo ---
+Duração desta execução: 278.4s
+
+=== Relatório de execução — Verificador de Naming ===
+Data/hora: 2026-08-09T21:25:50
+Modo: COMPLETO (amostra aleatória de 50, molde=VCVCV_omada)
+--- Geração ---
+Total bruto gerado (todos os moldes, antes de filtros): 1010530
+Total após filtros de conteúdo + pronunciabilidade + dedup: 935727
+--- Verificação de domínio ---
+Candidatos avaliados nesta execução: 50
+Aprovados (.com e .com.br livres): 3
+Erros ao checar (ERRO_CHECAR em pelo menos um domínio): 9
+--- Tempo ---
+Duração desta execução: 417.7s
+
+=== Relatório de execução — Verificador de Naming ===
+Data/hora: 2026-08-09T21:33:56
+Modo: COMPLETO (amostra aleatória de 50, molde=CVVCVC_medio)
+--- Geração ---
+Total bruto gerado (todos os moldes, antes de filtros): 1010530
+Total após filtros de conteúdo + pronunciabilidade + dedup: 935727
+--- Verificação de domínio ---
+Candidatos avaliados nesta execução: 50
+Aprovados (.com e .com.br livres): 36
+Erros ao checar (ERRO_CHECAR em pelo menos um domínio): 9
+--- Tempo ---
+Duração desta execução: 324.1s
+
+=== Relatório de execução — Verificador de Naming ===
+Data/hora: 2026-08-12T12:03:23
+Modo: COMPLETO (amostra ponderada de 50: CVCV_principal=5%(2), VCV_principal=49%(0), VCVC_principal=8%(4), RAIZ_ARVORE_menor=38%(19))
+--- Geração ---
+Total bruto gerado (todos os moldes, antes de filtros): 1010530
+Total após filtros de conteúdo + pronunciabilidade + dedup: 935727
+--- Verificação de domínio ---
+Candidatos avaliados nesta execução: 25
+Aprovados (.com e .com.br livres): 3
+Erros ao checar (ERRO_CHECAR em pelo menos um domínio): 0
+--- Tempo ---
+Duração desta execução: 386.1s
+
+=== Relatório de execução — Verificador de Naming ===
+Data/hora: 2026-08-12T12:10:52
+Modo: COMPLETO (amostra ponderada de 50: CVCV_principal=5%(11/9904), VCV_principal=49%(0/0), VCVC_principal=8%(13/10318), RAIZ_ARVORE_menor=38%(26/26))
+--- Geração ---
+Total bruto gerado (todos os moldes, antes de filtros): 1010530
+Total após filtros de conteúdo + pronunciabilidade + dedup: 935727
+--- Verificação de domínio ---
+Candidatos avaliados nesta execução: 49
+Aprovados (.com e .com.br livres): 2
+Erros ao checar (ERRO_CHECAR em pelo menos um domínio): 7
+--- Tempo ---
+Duração desta execução: 359.1s
+
+=== Relatório de execução — Verificador de Naming ===
+Data/hora: 2026-08-12T12:28:02
+Modo: COMPLETO (amostra ponderada de 50: CVCV_principal=5%(2/16387), VCV_principal=49%(25/250), VCVC_principal=8%(4/10318), RAIZ_ARVORE_menor=38%(19/26))
+--- Geração ---
+Total bruto gerado (todos os moldes, antes de filtros): 1010530
+Total após filtros de conteúdo + pronunciabilidade + dedup: 974901
+--- Verificação de domínio ---
+Candidatos avaliados nesta execução: 49
+Aprovados (.com e .com.br livres): 0
+Erros ao checar (ERRO_CHECAR em pelo menos um domínio): 12
+--- Tempo ---
+Duração desta execução: 389.2s
+
+=== Relatório de execução — Verificador de Naming ===
+Data/hora: 2026-08-12T13:08:20
+Modo: COMPLETO (amostra ponderada de 50: CVCV_principal=59%(29/16387), VCVC_principal=24%(12/10318), RAIZ_ARVORE_menor=18%(9/26))
+--- Geração ---
+Total bruto gerado (todos os moldes, antes de filtros): 1010530
+Total após filtros de conteúdo + pronunciabilidade + dedup: 974901
+--- Verificação de domínio ---
+Candidatos avaliados nesta execução: 50
+Aprovados (.com e .com.br livres): 1
+Erros ao checar (ERRO_CHECAR em pelo menos um domínio): 8
+--- Tempo ---
+Duração desta execução: 448.1s
+
