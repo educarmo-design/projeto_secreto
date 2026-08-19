@@ -1,0 +1,94 @@
+ainda continua errada o numero mudou mas não corrigiu, vamos la com os dados
+Sono do dia 09/08 para 10/08 total 6h 41m, profundo 1h 13m, leve 3h 59 m, rem 1h 29m, acordado 3 m
+Sono do dia 08/08 para 09/08 total 7h 10m, profundo 1h 50m, leve 3h 47 m, rem 1h 34m, acordado 1h 30 m
+Sono do dia 07/08 para 08/08 total 6h 58m, profundo 1h 8m, leve 4h 50 m, rem 1h 0m, acordado 9m
+
+NO SISTEMA 404 minutos 09/08, 520 minutos 08/08, 758 minutos 07/08
+Numero de passos 09/08 3069 no sistema 14673
+	08/08 16080 no sistema 4794
+	07/08 9886 no sistema 16672
+	06/08 12044  no sistema 12568
+
+em relação a massa magra ele não apresentou, mas apresentou o percentual de gordura que o mesmo do sistema da balança em anexo as informações
+
+Vamos corrigir por parte, os passos ele pode investigar melhor o com o registros em anexo informado
+Em relação ao sono se tiver dividido conforme disponibilizado pelo garmin acho ate melhor trazer mais informação para o sistema. 
+
+Depois vamos para frequência e informações da balança
+
+Para resolver esta questão a partir de que horas o usuário dorme, a solução e boa implatada a partir das 15 horas e boa e funcionou, mas para aumentar a precisão, e tb o usuário pode tirar um cochilo a tarde e contabilizar de formar errada. Então deve começar a contar sugiro entaõ incluir na anaminese uma perguntar a partir de que hora ele dorme, e que horas ele normalmente levanta, então esta informação sera gravada no banco junto com os dados do usuário, ele poderá ver esta informação junto com os seus dados pessoais no perfil do usuário do app, então devera ser criado um campo no banco e a tela na aplicação. A manutenção poderá ser feita via app e painel web, criar a tela para o painel web tambem . A partir desta hora que o usuário informar de ele deita devera ser subtraido x horas esta informação devera ser um paramentro que poderá ser alterado pelo administrador do sistema via banco de dados, criar uma tela painel web para manutenção deste valor, pode incluir 3 neste campo para os teste. Então o sistema ira contabilizar a hora de sono a partir da hora que dorme mesmos x horas, ex se ele deita as 22:00 horas se o paramentro e menos 3, então qualquer hora a partir das 19:00 sera contabilizado, o que vc acha sobre isso, seja sincero e honesto
+
+Em relação FC, vamos fazer o seguinte fc media do dia, Frequencia de repouso, vamos tb gravar o HRV, E fc maxima, e importante lembrar que temos a questão do evento que no momento da leitura da FC caso haja um comportamento diferente do  normal e a pessoa não esteja fazendo atividade fisica deveriamos registra isso como evento e o intervalo de variação e a curva
+
+Em relação a Massa vamos gravar o peso, % de gordura (quando tiver), massa magra (quando tiver), agua corportal (quando tiver). Se tiver % de gordura calcula massa magra e vice - versa, se tiver os dois ja grava o dois.
+O IMC sera sempre calculado quando tiver uma nova entrada peso, a altura sera informada pelo usuario, este paramentro devera ter uma campo no perfil do usuario no app para ele dar manutenção, e tb no painel web para o profissional de saude dar manutenção, construir as telas se não tiver no app e painel web
+
+
+ui de manutenção no perfil de usuario do APP 
+
+
+10/08 passos 11075 distancia 10976
+09/08 passos 3069 distancia 2499
+08/08 passos 16080 distancia 14108
+07/08 passos 9886 distancia 8979
+06/08 passos 12044 distancia 10701
+05/08 passos 13101 distancia 12727
+04/08 passos 6294 distancia 4274 - chama atenção
+03/08 passos 15024 distancia 13269
+02/08 passos 4903 distancia 2981 - chama atenção
+29/07 passos 16212 distancia 12671
+27/07 passos 9258 distancia 5905- chama atenção
+26/07 passos 9904 distancia 6760- chama atenção
+
+
+
+O IMC ainda continua não calculando nem no banco nem aparecendo na tela, outro bug encontrado no dia de hj ao abrir o aplicativo ele apagou alguns dados do dia de ontem, ao clicar no botão d trinta dias ele atualizou. no dado dia dia de hj ele não calculo distancia em metro nem calorias ativas. Tb esta faltando distancia no dia 29/07 05/08	26/07, calorias ativas faltando calcular 25/07, 26/07,2707,02/08 09/08
+
+Como neste momento não tenho verificar se a correção do bug foi resolvida, e não podemos perder tempo no desenvolvimento, então vamos desenvolver a coleta de calorias para active e basal e trazer este informação para a mesma tela que estamos trazendo a frequência cárdica e os demais dados do aplicativo. Para atividades (workout), vamos trazer tb,  tipo de atividade + energia total + distância total + passos totais, se não esta em uma tabela acho ação que a atividade poderia ir para uma tabela, recomento desenvolver uma outra tela no APP dirente da tela atual, tb e muito importante trazer data e hora de inicio e fim da atividade para que possamos trazer informações da frequência cardia (media, máxima e mínima), outra informação caso tem informação de workout_route a mesma devera ser associada o workout, talvez seja uma outra tabela com todas as informações adicionais, para workout_route não vamos trazer as informações que tem no ios. Para os tipos de atividade vamos trazer todas as comuns, as presentes no IOS e Android, em uma tabela tb, pq não sabemos o que pode vim de atividades. Nutrição não vamos mecher agora
+
+Para a atividade de workout vamos tb trazer ou fazer a conta da frequência cardíaca media, máxima e mínima, criar este campo tb e implementar qual for a solução, se for através dever ser baseado na data e hora de inicio e fim
+Para a informação de workout_route vamos trazer tb, mas em outra tabela, so iremos implentar os campos comum aos dois sistema operacionas.
+Para os tipos de atividade vamos trazer todas as comuns, as presentes no IOS e Android, em uma tabela tb, pq não sabemos o que pode vim de atividades.
+
+
+
+Atividades físicas deve ser as mesmas que cadastramos na telemetria, mesma tabela, estou certo
+
+As atividades física os usuário poderão cadastrar mais de uma por dia na anaminses.
+
+Ao colocar a atividade física o sistema devera estimar o gasto calórico, em função do minutos que de atividade que o usuário faz por dia, logico que esta gasto vai depender do sexo e do seu peso atual, esta estimativa e por dia.
+
+Lembrando que a meta poderá ou ser por dia que ira determinar sera o profissional de saúde, para o profissional que tem acompanhamento com profissional de saúde, o que não ele estima por dia mas meta sera a media
+
+
+A tabela de alimentos e mesma que estamos usando para calculo de calorias e a taco certo?
+
+
+
+Tb estou sentindo falta tabela de problema de saúde que devera ser criada a tabela e sua tela de manutenção. Os problemas de saúde deverão ficar registrado na anaminesse, e um usuário pode ter vários problemas de saúde
+
+
+pROBLEMA
+
+iMC não esta calculando 
+Possíveis problema a tela do app de meus dados físicos pode não esta gravando no banco
+Ou usuário que estou logado no aplicativo ele não esta como perfil de usuário, estou usuando o usario com email "atleta1000@teste.com"
+
+
+Problema 
+
+Atividades 
+Os tipos da atividade físicas não estão listadas por completa tem apenas 43, e nas interface de coleta de dados foi informado que tem a cerca de 100 atividade, carregar todas
+
+na tela de detalhes de usuário não tem chamada para a tela de anaminese
+
+
+
+Na tela de ananminesse do APP
+não consegue cadastra as atividades por dia
+o problema de saúde esta vazia - buscar uma relação confiável e comprovada e carregar
+alergia, esta vazia - buscar uma relação confiável e comprovada e carregar
+
+Como a lista de problema de saúde e alergia, sera grande a forma de buscar deve ser diferente na tela do app
+
+As distancias não estão aparecendo nos dia 12/08, 11/08, 05/08, 29/07, 26/07, o bug continua

@@ -1,0 +1,2348 @@
+MÓDULO 1 – MOTOR METABÓLICO
+
+Versão: 1.0
+
+Status: Em Desenvolvimento
+
+1. Objetivo
+
+O Motor Metabólico é responsável por calcular as necessidades energéticas iniciais do paciente a partir da anamnese realizada pelo profissional de saúde.
+
+O módulo deverá produzir uma estimativa inicial baseada em evidências científicas, servindo como entrada para os módulos de Planejamento Nutricional, Motor Adaptativo e Motor de Qualidade dos Dados.
+
+O Motor Metabólico não possui aprendizado. Todos os cálculos são determinísticos.
+
+2. Responsabilidades
+
+O módulo deverá:
+
+Validar os dados antropométricos.
+Permitir ao profissional selecionar a fórmula metabólica.
+Validar se existem dados suficientes para executar a fórmula escolhida.
+Calcular a Taxa Metabólica Basal (TMB).
+Calcular o Gasto Energético Diário Total (TDEE).
+Gerar metas energéticas diárias e semanais.
+Calcular distribuição inicial de macronutrientes.
+Disponibilizar todos os cálculos para auditoria.
+
+O módulo não deverá:
+
+Alterar automaticamente a fórmula escolhida pelo profissional.
+Aprender com dados históricos.
+Corrigir metabolismo.
+Alterar metas após o cálculo inicial.
+
+Essas funções pertencem ao Motor Adaptativo.
+
+3. Entradas
+Obrigatórias
+Sexo biológico (conforme exigido pelas fórmulas clássicas).
+Data de nascimento.
+Peso atual (kg).
+Altura (cm).
+Objetivo nutricional (manutenção, perda de peso, ganho de peso ou outro definido pelo profissional).
+Fórmula metabólica selecionada pelo profissional.
+
+Opcionais
+Massa magra (kg).
+Percentual de gordura corporal.
+Circunferências corporais.
+Bioimpedância.
+DEXA.
+Rotina semanal planejada.
+Frequência de exercícios.
+Tipo de exercício.
+Duração do exercício.
+Intensidade percebida.
+Profissão.
+Horas sentado.
+Horas em pé.
+Horas de sono.
+Dados provenientes de smartwatch.
+
+4. Seleção da Fórmula
+RF-001
+
+A fórmula metabólica deverá ser escolhida exclusivamente pelo profissional de saúde.
+
+O sistema não deverá substituir automaticamente a fórmula selecionada.
+
+RF-002
+
+O sistema deverá validar se existem dados suficientes para executar a fórmula escolhida.
+
+RN-001
+
+Se a fórmula exigir Massa Magra e esse dado não existir, o cálculo deverá ser impedido.
+
+O sistema deverá informar ao profissional quais dados estão ausentes.
+
+Fórmulas suportadas
+Mifflin-St Jeor
+
+Dados necessários
+
+Sexo
+Peso
+Altura
+Idade
+
+Indicação
+
+Estimativa da TMB para adultos quando não há informação de composição corporal.
+
+Katch-McArdle
+
+Dados necessários
+
+Massa Magra (Lean Body Mass)
+
+Indicação
+
+Quando houver estimativa confiável da massa magra.
+
+Cunningham
+
+Dados necessários
+
+Massa Magra
+
+Indicação
+
+Quando o profissional optar por essa equação e houver estimativa confiável da massa magra.
+
+5. Cálculo da TMB
+RF-003
+
+Após validação dos dados, o sistema deverá calcular a Taxa Metabólica Basal utilizando exclusivamente a fórmula selecionada.
+
+RF-004
+
+O resultado deverá ser armazenado sem arredondamento interno.
+
+A interface poderá apresentar valores arredondados.
+
+6. Cálculo do Gasto Energético Diário
+
+O TDEE deverá ser calculado utilizando a seguinte decomposição lógica:
+
+TDEE = TMB + NEAT + EAT + TEF
+
+Onde:
+
+TMB: Taxa Metabólica Basal.
+NEAT: gasto energético de atividades não relacionadas ao exercício.
+EAT: gasto energético do exercício planejado.
+TEF: efeito térmico dos alimentos.
+
+Decisão de Arquitetura (DA-001): a implementação do cálculo de NEAT, EAT e TEF será configurável, permitindo evolução futura sem alterar a interface do Motor Metabólico.
+
+7. Planejamento Semanal
+RF-005
+
+O sistema deverá permitir metas distintas para cada dia da semana.
+
+Cada dia poderá possuir:
+
+Meta calórica.
+Meta de proteínas.
+Meta de carboidratos.
+Meta de lipídios.
+Meta de ingestão hídrica.
+Meta de atividade física.
+
+Decisão de Arquitetura (DA-002): o planejamento semanal será utilizado como referência para comparação com os dados observados pelo Motor Adaptativo.
+
+A decisão de separar por dia da semana e do profissional de saúde, se optar terá uma calculo por dia da semana de acordo com os aptos diários, se não optar ser feito definida a mesma para todos os dias
+
+
+
+8. Distribuição Inicial de Macronutrientes
+RF-006
+
+O cálculo dos macronutrientes deverá ser realizado após a definição da meta calórica.
+
+RF-007
+
+O método de distribuição (percentual das calorias, g/kg de peso corporal, g/kg de massa magra ou outro protocolo) deverá ser definido pelo profissional de saúde ou pelo protocolo clínico configurado na plataforma.
+
+O Motor Metabólico não deverá impor um único método de distribuição.
+
+9. Saídas do Módulo
+
+O Motor Metabólico deverá disponibilizar:
+
+Fórmula utilizada.
+Data e hora do cálculo.
+Profissional responsável.
+Versão da regra de cálculo.
+TMB.
+TDEE.
+Meta calórica.
+Metas diárias.
+Metas semanais.
+Distribuição de macronutrientes.
+Dados utilizados no cálculo.
+Dados opcionais ignorados.
+Lista de validações executadas.
+
+10. Auditoria
+
+Cada cálculo deverá ser reproduzível.
+
+O sistema deverá registrar:
+
+Valores de entrada.
+Fórmula utilizada.
+Resultado obtido.
+Versão do algoritmo.
+Usuário responsável.
+Data e hora.
+
+Nenhum cálculo deverá ser sobrescrito.
+
+Novos cálculos deverão gerar um novo registro histórico.
+
+11. Dependências
+
+Este módulo fornece dados para:
+
+Motor de Planejamento Nutricional.
+Motor Adaptativo.
+Motor de Qualidade dos Dados.
+Painel do Profissional.
+Aplicativo do Paciente.
+
+Não depende do Motor Adaptativo para sua execução.
+
+12. Pontos para revisão clínica
+
+Antes da implementação, ainda precisamos definir e documentar alguns aspectos que impactam diretamente o comportamento do motor:
+
+Como calcular o TDEE: utilizar fatores de atividade (PAL) ou decompor em TMB + NEAT + EAT + TEF quando houver dados suficientes.
+Como estimar NEAT quando não houver smartwatch ou outra fonte objetiva de atividade.
+Como calcular o TEF: valor fixo, percentual da ingestão calórica ou estimativa baseada na composição da dieta.
+Quais protocolos de distribuição de macronutrientes serão disponibilizados na plataforma (por exemplo, percentual das calorias, g/kg de peso ou g/kg de massa magra).
+Faixas de validação para idade, peso, altura e demais entradas aceitas pelo sistema.
+População-alvo da V1: confirmar se o módulo será destinado apenas a adultos ou se incluirá adolescentes, idosos, gestantes e outras populações, pois isso influencia as regras clínicas e as fórmulas aplicáveis.
+
+Esses pontos devem ser definidos antes da implementação para evitar decisões implícitas no código.
+
+MÓDULO 2 – MOTOR DE EXCEÇÕES
+
+Versão: 1.0
+
+Status: Em Desenvolvimento
+
+1. Objetivo
+
+O Motor de Exceções é responsável por identificar dados ausentes, inconsistentes, inválidos ou insuficientes durante qualquer etapa do cálculo metabólico.
+
+Este módulo não executa cálculos metabólicos.
+
+Sua responsabilidade é definir o comportamento esperado do sistema para cada situação excepcional, garantindo que nenhum cálculo seja realizado utilizando dados inválidos ou sem o conhecimento do profissional de saúde.
+
+2. Princípios Gerais
+EX-RN-001
+
+Nenhum dado informado pelo profissional poderá ser alterado automaticamente.
+
+EX-RN-002
+
+Toda exceção deverá possuir um nível de severidade:
+
+BLOQUEANTE
+ALERTA
+INFORMATIVA
+EX-RN-003
+
+Toda exceção deverá possuir:
+
+Código
+Descrição
+Severidade
+Causa
+Ação recomendada
+Módulo impactado
+EX-RN-004
+
+Todas as exceções deverão ser registradas para auditoria.
+
+3. Estrutura da Exceção
+
+Cada exceção deverá conter:
+
+Código
+
+Nome
+
+Descrição
+
+Categoria
+
+Severidade
+
+Condição de disparo
+
+Comportamento esperado
+
+Mensagem ao profissional
+
+Mensagem ao paciente (quando aplicável)
+
+Impacto no cálculo
+
+Permite continuar?
+
+Sim
+
+Não
+4. Exceções Antropométricas
+EX-001
+
+Nome
+
+Peso não informado
+
+Severidade
+
+BLOQUEANTE
+
+Impacto
+
+Não calcular TMB
+
+EX-002
+
+Altura não informada
+
+BLOQUEANTE
+
+Não calcular TMB
+
+EX-003
+
+Sexo biológico não informado
+
+BLOQUEANTE
+
+Necessário para fórmulas que utilizam sexo como variável.
+
+EX-004
+
+Idade não informada
+
+BLOQUEANTE
+
+Não calcular TMB.
+
+EX-005
+
+Massa magra ausente
+
+ALERTA
+
+Impacto
+
+Impedir apenas fórmulas que dependam desse dado (por exemplo, Katch-McArdle e Cunningham).
+
+EX-006
+
+Percentual de gordura ausente
+
+INFORMATIVA
+
+O sistema poderá continuar se a fórmula escolhida não exigir esse dado.
+
+5. Exceções da Anamnese
+EX-010
+
+Objetivo nutricional não definido.
+
+BLOQUEANTE.
+
+Não gerar meta calórica.
+
+EX-011
+
+Rotina semanal não preenchida.
+
+ALERTA.
+
+Gerar planejamento utilizando parâmetros padrão definidos pelo profissional ou protocolo configurado.
+
+EX-012
+
+Nível de atividade não informado.
+
+ALERTA.
+
+Utilizar o método alternativo previsto na configuração do sistema (por exemplo, estimativa baseada na rotina descrita), registrando a origem da estimativa.
+
+6. Exceções de Smartwatch
+EX-020
+
+Paciente não possui smartwatch.
+
+INFORMATIVA.
+
+Impacto
+
+Nenhum.
+
+O sistema deverá funcionar normalmente.
+
+EX-021
+
+Smartwatch não sincronizado.
+
+ALERTA.
+
+Utilizar apenas informações declaradas na anamnese e registros manuais.
+
+EX-022
+
+Smartwatch sem dados suficientes.
+
+ALERTA.
+
+Desconsiderar dados incompletos.
+
+EX-023
+
+Troca de smartwatch.
+
+INFORMATIVA.
+
+Registrar mudança de dispositivo.
+
+Não apagar histórico anterior.
+
+EX-024
+
+Dados duplicados.
+
+ALERTA.
+
+Ignorar duplicidades.
+
+Registrar ocorrência.
+
+7. Exceções Alimentares
+EX-030
+
+Nenhuma refeição registrada.
+
+ALERTA.
+
+Motor Adaptativo deverá reduzir confiança na recalibração.
+
+EX-031
+
+Refeições incompletas.
+
+ALERTA.
+
+Calcular ingestão parcial.
+
+Registrar cobertura alimentar.
+
+EX-032
+
+Calorias incompatíveis com macronutrientes.
+
+ALERTA.
+
+Solicitar revisão.
+
+Não alterar automaticamente.
+
+EX-033
+
+Fotos sem identificação suficiente, ou qualquer outro tipo de registro de refeição inconsistente
+
+ALERTA.
+
+Ignorar somente aquela refeição.
+
+8. Exceções de Peso
+EX-040
+
+Peso não atualizado.
+
+ALERTA.
+
+Manter último cálculo.
+
+Registrar perda de confiabilidade.
+
+EX-041
+
+Perda abrupta de peso.
+
+ALERTA.
+
+Solicitar confirmação ao profissional.
+
+EX-042
+
+Ganho abrupto de peso.
+
+ALERTA.
+
+Solicitar confirmação.
+
+EX-043
+
+Pesagens em horários distintos.
+
+INFORMATIVA.
+
+Registrar horário da medição para interpretação longitudinal.
+
+9. Exceções de Exercício
+EX-050
+
+Treino planejado não realizado.
+
+INFORMATIVA.
+
+Registrar divergência entre planejado e executado.
+
+EX-051
+
+Treino extra.
+
+INFORMATIVA.
+
+Registrar exercício adicional.
+
+EX-052
+
+Intensidade diferente da planejada.
+
+INFORMATIVA.
+
+Registrar diferença.
+
+10. Exceções de Sono
+EX-060
+
+Sem dados de sono.
+
+INFORMATIVA.
+
+Continuar funcionamento.
+
+EX-061
+
+Dados inconsistentes.
+
+ALERTA.
+
+Ignorar registros inconsistentes.
+
+11. Exceções de Exames
+EX-070
+
+Nenhum exame disponível.
+
+INFORMATIVA.
+
+Continuar normalmente.
+
+EX-071
+
+Exames vencidos.
+
+ALERTA.
+
+Informar ao profissional.
+
+EX-072
+
+Resultados conflitantes.
+
+ALERTA.
+
+Solicitar revisão.
+
+12. Exceções Clínicas
+
+Estas condições não impedem o uso da plataforma, mas podem exigir protocolos específicos definidos pelo profissional ou pela instituição.
+
+Devera ser criada uma tabela com esta exceções, devera ter uma tela de manutenção no painel web igual as demais, e devera ser incluída uma na anaminesse, onde o paciente poderá ou usuário poderá ter mais de uma delas
+
+EX-080
+
+Gestação.
+
+EX-081
+
+Lactação.
+
+EX-082
+
+Diabetes.
+
+EX-083
+
+Doença renal.
+
+EX-084
+
+Doença hepática.
+
+EX-085
+
+Hipotireoidismo.
+
+EX-086
+
+Hipertireoidismo.
+
+EX-087
+
+Uso de corticoides.
+
+EX-088
+
+Obesidade grave.
+
+EX-089
+
+Paciente bariátrico.
+
+Comportamento esperado
+
+Registrar condição clínica.
+Informar ao profissional que protocolos específicos podem ser necessários. 
+Não alterar automaticamente a fórmula metabólica ou metas nutricionais.
+Para este caso o sistema todas as informações calculadas mas devera apresentar um aviso na tela para o profissional de saúde.
+
+13. Exceções de Integração
+EX-090
+
+Falha de comunicação com smartwatch.
+
+EX-091
+
+Falha de comunicação com balança.
+
+EX-092
+
+Falha de sincronização com laboratório.
+
+EX-093
+
+Falha na leitura de exame em PDF.
+
+EX-094
+
+Arquivo corrompido.
+
+EX-095
+
+Arquivo incompatível.
+
+Comportamento esperado
+
+Registrar erro.
+Não excluir dados anteriores.
+Permitir nova tentativa.
+
+14. Exceções de Auditoria
+EX-100
+
+Tentativa de alteração manual de cálculo histórico.
+
+Severidade
+
+BLOQUEANTE.
+
+EX-101
+
+Versão da fórmula diferente da versão registrada.
+
+ALERTA.
+
+EX-102
+
+Dados históricos incompletos.
+
+ALERTA.
+
+15. Regras Gerais
+Nenhuma exceção poderá alterar automaticamente dados informados pelo profissional.
+Nenhuma exceção poderá modificar resultados já auditados.
+Toda exceção deverá ser registrada com data, hora, usuário, módulo de origem e impacto.
+Exceções classificadas como BLOQUEANTE impedem a execução da operação correspondente.
+Exceções classificadas como ALERTA permitem a continuidade da operação, mas exigem registro e comunicação ao profissional.
+Exceções classificadas como INFORMATIVA não impedem o processamento e servem apenas para rastreabilidade e apoio à decisão.
+Dependências
+
+Este módulo é utilizado por:
+
+Motor Metabólico.
+Motor de Qualidade dos Dados.
+Motor Adaptativo.
+Fluxos Clínicos.
+Painel do Profissional.
+
+Não executa cálculos e não modifica resultados; apenas determina o comportamento do sistema diante de condições excepcionais.
+
+Observações para implementação
+Todas as mensagens exibidas ao paciente devem ser configuráveis e passíveis de tradução.
+Os códigos das exceções (EX-001, EX-002...) devem permanecer estáveis para permitir referência em logs, testes automatizados e documentação.
+A lógica de tratamento das exceções deve ser centralizada para evitar comportamentos diferentes entre módulos.
+O sistema deve permitir a inclusão de novas exceções sem necessidade de alterar as regras existentes, utilizando um catálogo extensível.
+
+
+MÓDULO 3 – MOTOR DE QUALIDADE DOS DADOS
+
+Versão: 1.0
+
+Status: Em Desenvolvimento
+
+1. Objetivo
+
+O Motor de Qualidade dos Dados é responsável por avaliar continuamente a confiabilidade, completude, consistência, atualidade e origem dos dados utilizados pelos demais módulos.
+
+Este módulo não altera nenhum dado.
+
+Sua responsabilidade é produzir indicadores objetivos que serão utilizados pelo:
+
+Motor Metabólico
+Motor Adaptativo
+Painel do Profissional
+Aplicativo do Paciente
+2. Objetivos Funcionais
+
+O módulo deverá:
+
+Avaliar qualidade dos dados individuais.
+Avaliar qualidade do histórico.
+Avaliar cobertura dos registros.
+Detectar inconsistências.
+Detectar dados desatualizados.
+Gerar Score de Qualidade.
+Gerar Score de Confiabilidade.
+Informar quais cálculos podem ou não ser realizados.
+3. Princípios
+QD-RN-001
+
+Nenhum dado será alterado pelo Motor de Qualidade.
+
+QD-RN-002
+
+O motor apenas classifica os dados.
+
+QD-RN-003
+
+Todo Score deverá ser reproduzível.
+
+QD-RN-004
+
+Todos os Scores deverão possuir histórico.
+
+QD-RN-005
+
+A ausência de um dado não implica erro.
+
+O sistema deverá avaliar o impacto da ausência daquele dado.
+
+4. Dimensões Avaliadas
+
+O Motor deverá calcular, independentemente, os seguintes indicadores:
+
+QD-001
+
+Completude
+
+Percentual de informações disponíveis.
+
+QD-002
+
+Consistência
+
+Verifica conflitos entre informações.
+
+Exemplos:
+
+Peso incompatível.
+
+Idade incompatível.
+
+Altura incompatível.
+
+Macros incompatíveis com calorias.
+
+QD-003
+
+Atualidade
+
+Tempo desde a última atualização.
+
+QD-004
+
+Continuidade
+
+Regularidade dos registros.
+
+Exemplo:
+
+Alimentação registrada diariamente
+Peso registrado semanalmente.
+
+
+QD-005
+
+Origem
+
+Classificação da origem do dado.
+
+Exemplo:
+
+Profissional
+
+Paciente
+
+Smartwatch
+
+Laboratório
+
+Integração
+
+Estimativa
+
+QD-006
+
+Confiabilidade
+
+Classificação da qualidade da origem.
+
+Exemplo:
+
+Laboratório > Bioimpedância clínica > Smartwatch > Entrada manual > Estimativa.
+
+Decisão de Arquitetura (DA-QD-001): a ordem de confiabilidade das fontes deverá ser configurável pela plataforma, área de configuração do sistema painel web
+
+5. Scores Individuais
+
+Cada conjunto de dados deverá possuir Score independente.
+
+Peso
+Composição Corporal
+Alimentação
+Sono
+Exercício
+Frequência Cardíaca
+HRV
+Pressão Arterial
+Glicemia
+Exames
+Smartwatch
+Hidratação
+
+6. Score Global
+
+O sistema deverá calcular um Score Global.
+
+Este Score será utilizado pelo Motor Adaptativo.
+
+O cálculo do Score Global deverá considerar, no mínimo:
+
+Completude.
+Consistência.
+Atualidade.
+Continuidade.
+Confiabilidade das fontes.
+
+Decisão de Arquitetura (DA-QD-002): a fórmula matemática do Score Global deverá ser parametrizável e versionada, permitindo ajustes futuros sem alteração dos demais módulos. Isso não sera Hardcode opção configuração painel web
+
+7. Classificação do Score
+
+O sistema deverá classificar o Score Global.
+
+Exemplo:
+
+Faixa	Classificação
+90–100	Excelente
+75–89	Alta
+60–74	Moderada
+40–59	Baixa
+<40	Insuficiente
+
+DA-QD-003: os limites das faixas deverão ser configuráveis.
+
+8. Cobertura dos Dados
+
+O sistema deverá calcular cobertura individual.
+
+Exemplos:
+
+Peso
+
+Dias registrados / dias esperados.
+
+Alimentação
+
+Refeições registradas / refeições esperadas.
+
+Sono
+
+Noites registradas / noites esperadas.
+
+Exercício
+
+Treinos realizados / planejados.
+
+Smartwatch
+
+Dias sincronizados / dias esperados.
+
+9. Dados Desatualizados
+
+O sistema deverá identificar dados potencialmente desatualizados.
+
+Exemplos:
+
+Peso.
+
+Bioimpedância.
+
+Exames.
+
+Anamnese.
+
+Circunferências.
+
+Cada tipo de dado deverá possuir prazo máximo configurável.
+
+10. Dados Conflitantes
+
+O sistema deverá detectar inconsistências.
+
+Exemplos:
+
+Peso incompatível com bioimpedância.
+
+Macros incompatíveis.
+
+Exercício incompatível com smartwatch.
+
+Passos incompatíveis.
+
+Horários conflitantes.
+
+Não deverá corrigir automaticamente.
+
+11. Influência nos Demais Módulos
+Motor Metabólico
+
+Recebe apenas alertas.
+
+Não altera cálculos.
+
+Motor Adaptativo
+
+Utiliza o Score para decidir se poderá recalibrar.
+
+Painel Profissional
+
+Exibe todos os indicadores.
+
+Aplicativo
+
+Exibe apenas informações destinadas ao paciente.
+
+12. Regras para Recalibração
+
+O Motor de Qualidade não recalibra.
+
+Ele apenas informa ao Motor Adaptativo:
+
+Dados suficientes.
+Dados insuficientes.
+Dados inconsistentes.
+Dados desatualizados.
+
+A decisão final pertence exclusivamente ao Motor Adaptativo.
+
+13. Histórico
+
+Todo Score deverá possuir:
+
+Data.
+Hora.
+Versão da regra.
+Componentes utilizados.
+Valor calculado.
+Usuário responsável (quando aplicável).
+
+Nenhum Score poderá ser sobrescrito.
+
+14. Auditoria
+
+Cada avaliação deverá registrar:
+
+Dados utilizados.
+Dados ignorados.
+Regras aplicadas.
+Versão do algoritmo.
+Resultado.
+15. Dependências
+
+Este módulo depende de:
+
+Motor Metabólico.
+Banco Histórico.
+Integrações.
+Motor de Exceções.
+
+Fornece informações para:
+
+Motor Adaptativo.
+Painel Profissional.
+Aplicativo.
+16. Critérios de Aceitação
+
+O módulo será considerado implementado quando:
+
+Avaliar individualmente cada categoria de dado.
+Gerar Score Global reproduzível.
+Identificar dados incompletos, inconsistentes e desatualizados.
+Gerar histórico versionado de todas as avaliações.
+Disponibilizar os resultados para os demais módulos sem alterar os dados originais.
+17. Requisitos para IA Implementadora
+
+O módulo deverá ser implementado como um serviço independente, sem regras clínicas embutidas.
+
+Todos os pesos, limites, prazos de atualização, classificações e critérios de cálculo deverão ser parametrizáveis, versionados e configuráveis, evitando valores fixos no código-fonte.
+
+O Motor de Qualidade nunca deverá modificar dados clínicos, apenas avaliá-los e fornecer indicadores objetivos para suporte aos demais módulos. Isso garante desacoplamento, facilidade de manutenção e evolução futura das regras de qualidade sem impacto direto na lógica clínica.
+
+
+MÓDULO 4 – MOTOR ADAPTATIVO
+
+Versão: 1.0
+
+Status: Em Desenvolvimento
+
+1. Objetivo
+
+O Motor Adaptativo é responsável por personalizar continuamente as estimativas metabólicas do paciente a partir da comparação entre o planejamento inicial e os dados observados ao longo do tempo.
+
+Este módulo não substitui o cálculo inicial do Motor Metabólico. Ele utiliza esse cálculo como ponto de partida e realiza ajustes progressivos quando houver dados suficientes e de qualidade adequada.
+
+2. Objetivos Funcionais
+
+O módulo deverá:
+
+Aprender com o histórico individual do paciente.
+Comparar valores planejados com valores observados.
+Detectar mudanças de comportamento.
+Recalibrar parâmetros metabólicos quando apropriado.
+Gerar novas metas nutricionais.
+Manter histórico completo de todas as recalibrações.
+Explicar ao profissional quais fatores motivaram cada ajuste.
+3. Princípios
+AD-RN-001
+
+Nenhuma recalibração poderá ocorrer sem histórico suficiente.
+
+AD-RN-002
+
+Toda recalibração deverá ser reproduzível.
+
+AD-RN-003
+
+Nenhum cálculo anterior poderá ser sobrescrito.
+
+AD-RN-004
+
+Toda recalibração deverá gerar uma nova versão da estimativa metabólica.
+
+AD-RN-005
+
+O Motor Adaptativo nunca altera a fórmula metabólica selecionada pelo profissional.
+
+4. Entradas
+
+O Motor Adaptativo poderá utilizar, quando disponíveis:
+
+Dados Clínicos
+Peso
+Massa magra
+Percentual de gordura
+Circunferências
+Bioimpedância
+DEXA
+Exames laboratoriais
+
+Dados Nutricionais
+Calorias ingeridas
+Macronutrientes
+Horários das refeições
+Hidratação
+
+Dados de Atividade
+Exercícios planejados
+Exercícios realizados
+Passos
+Distância
+Gasto energético estimado
+Frequência cardíaca
+Frequência cardíaca em repouso
+VO₂ estimado (quando disponível)
+
+
+Dados de Recuperação 
+Sono (quando disponível)
+
+HRV (quando disponível)
+
+Estresse (quando disponível)
+
+Dados do Motor de Qualidade
+Score Global
+Completude
+Continuidade
+Atualidade
+Consistência
+Confiabilidade
+
+Sera utilizando quando tiver o dado disponível
+
+
+5. Requisitos Funcionais
+RF-AD-001
+
+Comparar continuamente:
+
+Planejado x Observado
+
+RF-AD-002
+
+Detectar desvios persistentes.
+
+RF-AD-003
+
+Gerar histórico das diferenças.
+
+RF-AD-004
+
+Atualizar apenas parâmetros permitidos.
+
+RF-AD-005
+
+Gerar nova recomendação nutricional.
+
+6. Variáveis Adaptáveis
+
+O Motor poderá recalibrar, quando permitido:
+
+Estimativa de gasto energético diário.
+Metas calóricas.
+Distribuição diária das metas.
+Estimativa de NEAT.
+Estimativa de gasto com exercício (quando baseada em planejamento).
+
+Não poderá recalibrar automaticamente:
+
+Sexo.
+Idade.
+Altura.
+Fórmula metabólica escolhida.
+Objetivo clínico definido pelo profissional.
+
+A recalibração devara se solicitada pelo profissional através da tela de planejamento alimentar
+
+
+
+7. Critérios para Recalibração
+
+Uma recalibração somente poderá ocorrer quando:
+
+Existir histórico suficiente conforme política configurada pela plataforma.
+O Motor de Qualidade indicar dados adequados para análise.
+Não existirem exceções bloqueantes.
+
+O profissional não tiver bloqueado a adaptação automática (caso essa funcionalidade seja oferecida).
+
+Decisão de Arquitetura (DA-AD-001): a quantidade mínima de dias para análise (por exemplo, 30 dias) deverá ser configurável e não codificada de forma fixa.
+
+8. Processo de Aprendizado
+
+Fluxo lógico:
+
+Estimativa Inicial
+
+↓
+
+Planejamento
+
+↓
+
+Execução
+
+↓
+
+Coleta de Dados
+
+↓
+
+Avaliação da Qualidade
+
+↓
+
+Comparação Planejado × Observado
+
+↓
+
+Identificação de Desvios
+
+↓
+
+Recalibração
+
+↓
+
+Nova Meta
+
+↓
+
+Nova Versão
+
+9. Comparação Planejado x Observado 
+
+O Motor deverá comparar, entre outros:
+
+Peso esperado × peso observado.
+Consumo calórico planejado × registrado.
+Exercícios planejados × realizados.
+Passos planejados × observados.
+Sono esperado × observado.
+Frequência cardíaca esperada × observada (quando aplicável).
+
+Devera ser criado um dashboard do modulo
+
+10. Regras de Aprendizado
+
+O Motor deverá considerar:
+
+Tendências de médio prazo.
+Persistência dos desvios.
+Qualidade dos dados.
+Mudanças de rotina.
+Mudanças de objetivo.
+
+Não deverá realizar ajustes com base em eventos isolados.
+
+Devera ser criado um dashboard do modulo
+
+
+11. Mudanças de Rotina
+
+O Motor deverá identificar alterações relevantes, como:
+
+Início ou interrupção de programa de exercícios.
+Mudança de profissão.
+Alteração significativa do nível de atividade.
+Viagens prolongadas.
+Períodos de doença registrados.
+Atualização da anamnese.
+
+Quando identificadas, essas mudanças deverão ser consideradas antes de qualquer recalibração.
+
+Devera ter uma tela no perfil do usuário que o mesmo poderá informar esta alteração, devera ser registrado o dia de inicio, e o usuário poderá interroper informando a data de fim. o profissional de saúde tb poderá incluir esta informação. incluir função na tela. tudo registrado em banco
+
+12. Explicabilidade
+
+Toda recalibração deverá registrar:
+
+Motivo do ajuste.
+Dados utilizados.
+Dados descartados.
+Período analisado.
+Versão do algoritmo.
+Impacto estimado.
+
+O profissional deverá conseguir entender por que uma recomendação foi modificada.
+
+13. Histórico
+
+Cada recalibração deverá gerar:
+
+Identificador único.
+Data e hora.
+Versão do modelo.
+Valores anteriores.
+Novos valores.
+Justificativa.
+
+Nenhuma versão poderá ser apagada.
+
+14. Dependências
+
+Depende de:
+
+Motor Metabólico.
+Motor de Exceções.
+Motor de Qualidade dos Dados.
+Banco Histórico.
+
+Fornece informações para:
+
+Planejamento Nutricional.
+Painel do Profissional.
+Aplicativo do Paciente.
+
+
+15. Restrições
+
+O Motor Adaptativo não deverá:
+
+Alterar automaticamente diagnósticos clínicos.
+Alterar objetivos definidos pelo profissional.
+Alterar a fórmula metabólica escolhida.
+Alterar dados antropométricos informados pelo profissional.
+Executar recalibração utilizando dados classificados como insuficientes pelo Motor de Qualidade.
+
+16. Auditoria
+
+Toda adaptação deverá registrar:
+
+Entradas utilizadas.
+Entradas ignoradas.
+Regras aplicadas.
+Resultado.
+Data.
+Hora.
+Versão do algoritmo.
+
+Todo cálculo deverá ser reproduzível.
+
+17. Critérios de Aceitação
+
+O módulo será considerado implementado quando:
+
+Comparar continuamente dados planejados e observados.
+Identificar desvios persistentes.
+Respeitar as restrições definidas pelo Motor de Qualidade e pelo Motor de Exceções.
+Produzir novas estimativas sem sobrescrever versões anteriores.
+Disponibilizar histórico completo e justificativas de todas as recalibrações.
+Permitir que todas as políticas de adaptação (janela de análise, limites de ajuste, critérios mínimos de qualidade etc.) sejam parametrizáveis.
+
+
+18. Requisitos para IA Implementadora
+Implementar o Motor Adaptativo como um serviço independente e desacoplado.
+Não utilizar valores fixos ("hardcoded") para períodos de análise, limites de ajuste ou limiares de decisão; esses parâmetros devem ser configuráveis.
+Garantir versionamento completo das recomendações e auditoria de todas as decisões.
+Separar claramente:
+Lógica de adaptação (comparação, detecção de desvios e geração de novas estimativas).
+Regras clínicas (definidas por protocolos).
+Políticas de configuração (definidas pela plataforma).
+
+Observação importante: este módulo define a arquitetura do aprendizado, mas não impõe um algoritmo específico de IA ou aprendizado de máquina. A implementação poderá utilizar regras determinísticas, filtros adaptativos, modelos estatísticos ou modelos de IA, desde que respeite a interface funcional, a rastreabilidade e os critérios definidos nesta especificação. Isso permitirá evoluir o mecanismo de adaptação no futuro sem alterar os demais módulos da plataforma.
+
+MÓDULO 5 – FLUXOS CLÍNICOS
+
+Versão: 1.0
+
+Status: Em Desenvolvimento
+
+1. Objetivo
+
+Definir todos os fluxos clínicos suportados pela plataforma e estabelecer como os módulos interagem durante o ciclo de vida do paciente.
+
+Este módulo não executa cálculos. Sua função é orquestrar os processos entre o profissional de saúde, o paciente e os motores da plataforma.
+
+2. Princípios Gerais
+FC-RN-001
+
+Todo fluxo clínico deverá ser rastreável.
+
+FC-RN-002
+
+Nenhum cálculo poderá ser executado sem registro da versão da anamnese utilizada.
+
+FC-RN-003
+
+Toda alteração clínica deverá gerar um novo evento no histórico do paciente.
+
+FC-RN-004
+
+Os dados históricos nunca poderão ser sobrescritos.
+
+FC-RN-005
+
+Todo fluxo deverá ser interrompido caso exista uma exceção classificada como BLOQUEANTE pelo Motor de Exceções.
+
+3. Fluxo FC-001 – Primeiro Atendimento
+Objetivo
+
+Cadastrar um novo paciente e gerar a primeira prescrição nutricional.
+
+Fluxo
+Cadastro do paciente.
+Registro da anamnese.
+Registro das medidas antropométricas.
+Registro dos objetivos clínicos.
+Registro da rotina semanal.
+Seleção da fórmula metabólica pelo profissional.
+Execução do Motor Metabólico.
+Execução do Motor de Exceções.
+Execução do Motor de Qualidade dos Dados.
+Geração da prescrição inicial.
+Armazenamento da versão inicial.
+4. Fluxo FC-002 – Consulta de Retorno
+Objetivo
+
+Atualizar o estado clínico do paciente mantendo todo o histórico.
+
+Fluxo
+Registrar novas medidas.
+Registrar mudanças clínicas.
+Registrar novos exames (quando disponíveis).
+Atualizar rotina semanal (quando aplicável).
+Atualizar objetivos (quando alterados pelo profissional).
+Executar Motor de Qualidade.
+Executar Motor Adaptativo.
+Gerar nova recomendação.
+Criar nova versão da prescrição.
+
+Criar tela 
+
+
+5. Fluxo FC-003 – Nova Anamnese
+
+Executado quando houver necessidade de revisão completa.
+
+Exemplos:
+
+Mudança significativa da rotina.
+Novo diagnóstico relevante.
+Mudança importante do objetivo.
+Longo período sem acompanhamento.
+Fluxo
+Encerrar versão anterior.
+Criar nova anamnese.
+Reexecutar Motor Metabólico.
+Reexecutar Motor de Qualidade.
+Reiniciar ciclo adaptativo mantendo o histórico.
+
+
+6. Fluxo FC-004 – Inclusão de Exames
+Sera implementado quando implantar sistema de leitura de pdf
+
+Atualizar Motor de Qualidade.
+
+
+7. Fluxo FC-005 – Nova Avaliação Corporal
+
+Exemplos:
+
+Bioimpedância.
+DEXA.
+Adipometria.
+Fluxo
+Registrar avaliação.
+Versionar resultados.
+Atualizar composição corporal.
+Disponibilizar novos dados para futuras execuções do Motor Metabólico (quando o profissional decidir realizar novo cálculo) e para o Motor Adaptativo.
+
+
+8. Fluxo FC-006 – Integração com Smartwatch
+Fluxo
+Autorizar integração.
+Sincronizar dispositivo.
+Validar dados recebidos.
+Registrar origem dos dados.
+Atualizar Banco Histórico.
+Atualizar Motor de Qualidade.
+
+A ausência de smartwatch não deverá impedir o funcionamento da plataforma.
+
+9. Fluxo FC-007 – Registro Manual
+
+Caso não exista integração automática.
+
+Fluxo
+
+Paciente
+
+↓
+
+Registra peso
+
+↓
+
+Registra alimentação
+
+↓
+
+Registra exercícios
+
+↓
+
+Registra sono
+
+↓
+
+Atualiza histórico
+
+↓
+
+Motor de Qualidade
+
+
+10. Fluxo FC-008 – Recalibração
+
+Fluxo
+
+Motor Adaptativo
+
+↓
+
+Solicita avaliação
+
+↓
+
+Motor de Qualidade
+
+↓
+
+Verifica critérios
+
+↓
+
+Motor de Exceções
+
+↓
+
+Valida bloqueios
+
+↓
+
+Recalibrar
+
+↓
+
+Nova versão
+
+↓
+
+Registrar histórico
+
+11. Fluxo FC-009 – Mudança de Objetivo
+
+Exemplos:
+
+Emagrecimento.
+Hipertrofia.
+Manutenção.
+Performance.
+Reeducação alimentar.
+
+Levar esta informações para a tabela, criar de tela manutenção painel web
+
+Fluxo
+Registrar novo objetivo.
+Versionar objetivo anterior.
+Atualizar metas energéticas.
+Gerar nova prescrição.
+Reiniciar acompanhamento adaptativo preservando o histórico.
+
+12. Fluxo FC-010 – Troca de Profissional
+Fluxo
+Registrar novo profissional.
+Manter histórico clínico.
+Registrar responsável pela alteração.
+Preservar auditoria.
+
+13. Fluxo FC-011 – Alta Clínica
+Fluxo
+Encerrar acompanhamento ativo.
+Bloquear novas prescrições automáticas.
+Preservar histórico.
+Permitir reativação futura.
+
+
+14. Fluxo FC-012 – Reativação
+Fluxo
+Reabrir acompanhamento.
+Validar necessidade de nova anamnese.
+Atualizar dados clínicos.
+Gerar nova versão do plano.
+
+
+15. Eventos que Geram Nova Versão
+
+O sistema deverá criar uma nova versão quando ocorrer:
+
+Nova anamnese.
+Nova prescrição.
+Mudança de objetivo.
+Nova avaliação corporal utilizada para novo cálculo.
+Recalibração realizada pelo Motor Adaptativo.
+Alteração manual aprovada pelo profissional.
+
+16. Eventos que NÃO Geram Nova Versão
+
+Não deverão gerar nova versão:
+
+Sincronização de smartwatch.
+Inclusão de novas refeições.
+Registro diário de peso.
+Atualização diária de passos.
+Atualização diária do sono.
+Inclusão de fotografias.
+
+Esses eventos alimentam o histórico e poderão influenciar análises futuras, mas não alteram diretamente a prescrição vigente.
+
+17. Auditoria
+
+Todo fluxo deverá registrar:
+
+Identificador do paciente.
+Identificador do profissional.
+Data e hora.
+Evento executado.
+Módulos acionados.
+Resultado.
+Versão criada (quando aplicável).
+
+18. Dependências
+
+Interage com:
+
+Motor Metabólico.
+Motor de Exceções.
+Motor de Qualidade dos Dados.
+Motor Adaptativo.
+Banco Histórico.
+Integrações.
+Painel do Profissional.
+Aplicativo do Paciente.
+19. Critérios de Aceitação
+
+O módulo será considerado implementado quando:
+
+Todos os fluxos clínicos definidos estiverem disponíveis.
+Cada fluxo gerar eventos rastreáveis e auditáveis.
+Nenhum dado histórico for sobrescrito.
+Todas as novas prescrições e recalibrações gerarem versionamento.
+Os módulos forem executados na ordem definida em cada fluxo.
+
+
+20. Requisitos para IA Implementadora
+Implementar os fluxos utilizando uma arquitetura orientada a eventos, sempre que possível, permitindo desacoplamento entre os módulos.
+Tratar cada fluxo como uma máquina de estados, com transições válidas, eventos de entrada e critérios de conclusão.
+Garantir idempotência das operações críticas (por exemplo, evitar geração duplicada de versões caso um evento seja processado mais de uma vez).
+Centralizar a auditoria e o versionamento para que qualquer decisão clínica possa ser reconstruída posteriormente.
+
+
+
+MATRIZ DE REGRAS DE NEGÓCIO (BRM - Business Rules Matrix)
+
+Documento: BRM-001
+
+Versão: 1.0
+
+Objetivo
+
+Centralizar todas as regras funcionais da plataforma em um único documento, permitindo que uma IA utilize esta matriz como índice para implementação, testes automatizados e rastreabilidade.
+
+1. Motor Metabólico (MB)
+ID	Regra	Prioridade	Dependência
+MB-001	O cálculo metabólico somente poderá ser iniciado após conclusão da anamnese obrigatória.	Alta	Anamnese
+MB-002	A fórmula metabólica deverá ser escolhida exclusivamente pelo profissional de saúde.	Alta	Interface Clínica
+MB-003	O sistema deverá validar todos os parâmetros obrigatórios antes do cálculo.	Alta	Motor de Exceções
+MB-004	O sistema não poderá substituir automaticamente a fórmula escolhida.	Alta	—
+MB-005	O cálculo da TMB deverá utilizar apenas uma fórmula por execução.	Alta	—
+MB-006	O TDEE deverá ser calculado a partir da TMB e dos componentes configurados pela plataforma.	Alta	Configuração
+MB-007	O sistema deverá gerar metas diárias e semanais.	Alta	Planejamento
+MB-008	O método de distribuição dos macronutrientes deverá ser configurável.	Média	Configuração
+MB-009	Todo cálculo deverá possuir versão e auditoria.	Alta	Auditoria
+MB-010	Nenhum cálculo poderá ser sobrescrito.	Alta	Banco Histórico
+2. Motor de Exceções (EX)
+ID	Regra	Severidade
+EX-001	Peso ausente impede cálculo metabólico.	Bloqueante
+EX-002	Altura ausente impede cálculo metabólico.	Bloqueante
+EX-003	Idade ausente impede cálculo metabólico.	Bloqueante
+EX-004	Sexo ausente impede fórmulas dependentes desta variável.	Bloqueante
+EX-005	Massa magra ausente impede apenas fórmulas que a utilizam.	Alerta
+EX-006	Percentual de gordura ausente não impede o cálculo quando não exigido.	Informativa
+EX-007	Objetivo clínico ausente impede geração das metas.	Bloqueante
+EX-008	Rotina semanal ausente gera planejamento padrão.	Alerta
+EX-009	Smartwatch ausente não impede funcionamento da plataforma.	Informativa
+EX-010	Falhas deverão ser registradas para auditoria.	Alta
+3. Motor de Qualidade dos Dados (QD)
+ID	Regra	Prioridade
+QD-001	Todo dado deverá possuir avaliação de qualidade.	Alta
+QD-002	O Motor não poderá modificar dados clínicos.	Alta
+QD-003	O sistema deverá calcular Score de Completude.	Alta
+QD-004	O sistema deverá calcular Score de Consistência.	Alta
+QD-005	O sistema deverá calcular Score de Atualidade.	Alta
+QD-006	O sistema deverá calcular Score de Continuidade.	Alta
+QD-007	O sistema deverá calcular Score de Confiabilidade.	Alta
+QD-008	O sistema deverá calcular Score Global.	Alta
+QD-009	Todo Score deverá possuir histórico.	Alta
+QD-010	O Score Global deverá ser disponibilizado ao Motor Adaptativo.	Alta
+4. Motor Adaptativo (AD)
+ID	Regra	Prioridade
+AD-001	O aprendizado somente poderá ocorrer com histórico suficiente.	Alta
+AD-002	O Motor Adaptativo dependerá do Score do Motor de Qualidade.	Alta
+AD-003	O Motor deverá comparar Planejado × Observado continuamente.	Alta
+AD-004	O sistema deverá identificar desvios persistentes.	Alta
+AD-005	Apenas parâmetros autorizados poderão ser recalibrados.	Alta
+AD-006	Toda recalibração deverá gerar nova versão.	Alta
+AD-007	Nenhuma versão poderá ser sobrescrita.	Alta
+AD-008	Toda decisão deverá possuir justificativa.	Alta
+AD-009	Toda decisão deverá ser auditável.	Alta
+AD-010	O Motor nunca alterará automaticamente a fórmula metabólica.	Alta
+5. Fluxos Clínicos (FC)
+ID	Regra	Prioridade
+FC-001	Todo paciente deverá possuir versão da anamnese.	Alta
+FC-002	Toda consulta deverá gerar evento clínico.	Alta
+FC-003	Toda alteração clínica deverá gerar histórico.	Alta
+FC-004	Nova anamnese deverá gerar nova versão do plano.	Alta
+FC-005	Mudança de objetivo deverá gerar nova prescrição.	Alta
+FC-006	Recalibração deverá gerar nova versão.	Alta
+FC-007	Inclusão de exames deverá preservar o documento original.	Média
+FC-008	Integrações deverão registrar a origem dos dados.	Média
+FC-009	Nenhum histórico poderá ser excluído.	Alta
+FC-010	Todo fluxo deverá ser auditável.	Alta
+6. Auditoria (AU)
+ID	Regra
+AU-001	Todo cálculo deverá registrar data e hora.
+AU-002	Todo cálculo deverá registrar o profissional responsável.
+AU-003	Toda alteração deverá registrar usuário responsável.
+AU-004	Toda versão deverá permanecer disponível para consulta.
+AU-005	Nenhum dado histórico poderá ser sobrescrito.
+AU-006	Todo algoritmo deverá possuir controle de versão.
+AU-007	Toda decisão do Motor Adaptativo deverá ser explicável.
+7. Versionamento (VR)
+ID	Regra
+VR-001	Toda alteração clínica gera nova versão.
+VR-002	Toda recalibração gera nova versão.
+VR-003	Toda nova anamnese gera nova versão.
+VR-004	Todo histórico permanece imutável.
+VR-005	Versões anteriores deverão permanecer consultáveis.
+8. Integrações (IT)
+ID	Regra
+IT-001	A plataforma deverá funcionar sem smartwatch.
+IT-002	A plataforma deverá funcionar sem balança inteligente.
+IT-003	A plataforma deverá funcionar sem integração laboratorial.
+IT-004	Toda origem de dado deverá ser registrada.
+IT-005	Falhas de sincronização não poderão interromper o funcionamento do sistema.
+9. Qualidade Mínima para Recalibração
+Critério	Obrigatório
+Histórico mínimo configurável	Sim
+Score Global mínimo configurável	Sim
+Ausência de exceções bloqueantes	Sim
+Dados consistentes	Sim
+Dados auditáveis	Sim
+Histórico versionado	Sim
+10. Matriz de Dependências
+Módulo	Depende de	Fornece para
+Motor Metabólico	Anamnese, Exceções	Qualidade, Adaptativo, Planejamento
+Motor de Exceções	Anamnese	Todos os módulos
+Motor de Qualidade	Histórico, Exceções	Adaptativo, Painel
+Motor Adaptativo	Metabólico, Qualidade, Histórico	Planejamento, Painel
+Fluxos Clínicos	Todos os módulos	Orquestração
+11. Regras Gerais da Plataforma
+ID	Regra
+GR-001	Nenhum dado informado pelo profissional poderá ser alterado automaticamente.
+GR-002	Nenhum histórico poderá ser perdido.
+GR-003	Toda decisão deverá ser auditável.
+GR-004	Toda decisão deverá ser reproduzível.
+GR-005	Todo cálculo deverá possuir rastreabilidade completa.
+GR-006	Todos os parâmetros clínicos deverão ser configuráveis quando tecnicamente possível.
+GR-007	O sistema deverá operar mesmo na ausência de integrações externas, utilizando os dados disponíveis e informando suas limitações.
+GR-008	O sistema deverá separar claramente regras clínicas, regras de negócio e parâmetros de configuração.
+Recomendação para a IA implementadora
+
+A implementação deve utilizar esta matriz como índice mestre do projeto. Cada identificador (MB, EX, QD, AD, FC, AU, VR, IT e GR) deve ser tratado como um requisito rastreável, permitindo vincular código, testes automatizados, documentação e futuras evoluções da plataforma ao mesmo identificador. Isso facilita manutenção, auditoria e evolução do sistema sem perda de consistência.
+
+
+Excelente ponto. Para uma plataforma clínica, **esses itens não devem ser definidos por preferência**, mas sim por **consenso científico e prática clínica amplamente utilizada**. Minha recomendação para a V1 é a seguinte.
+
+---
+
+# 1. Cálculo do TDEE
+
+## Decisão Recomendada
+
+**Implementar um modelo híbrido.**
+
+### Nível 1 (Obrigatório)
+
+Calcular inicialmente utilizando:
+
+**TDEE = TMB × PAL**
+
+Esse é o método mais utilizado na prática clínica e recomendado em diversas diretrizes quando não há dados objetivos suficientes.
+
+### Nível 2 (Opcional)
+
+Quando houver dados confiáveis (smartwatch, exercício registrado e histórico suficiente), calcular:
+
+**TDEE = TMB + NEAT + EAT + TEF**
+
+Nesse caso, o resultado poderá ser utilizado pelo Motor Adaptativo para melhorar a estimativa.
+
+**Implementação recomendada**
+
+* V1: PAL como cálculo oficial inicial.
+* Motor Adaptativo: utiliza decomposição completa quando houver dados suficientes.
+
+---
+
+# 2. Estimativa do NEAT
+
+O NEAT nunca deve ser "inventado".
+
+A ordem recomendada é:
+
+### Prioridade 1
+
+Estimativa baseada em smartwatch.
+
+---
+
+### Prioridade 2
+
+Estimativa baseada em passos registrados manualmente.
+
+---
+
+### Prioridade 3
+
+Estimativa baseada na rotina ocupacional informada na anamnese.
+
+Categorias sugeridas:
+
+* Muito sedentário
+* Sedentário
+* Levemente ativo
+* Moderadamente ativo
+* Muito ativo
+
+---
+
+### Prioridade 4
+
+Caso não exista nenhuma informação
+
+NEAT permanece incorporado ao fator PAL.
+
+**Nunca estimar um valor arbitrário de NEAT.**
+
+---
+
+# 3. Cálculo do TEF
+
+A literatura mostra que o TEF varia conforme a composição da dieta.
+
+Para a V1:
+
+### Quando apenas calorias forem conhecidas
+
+Utilizar:
+
+**TEF = 10% da ingestão energética**
+
+É a abordagem mais utilizada e suficientemente robusta para uso clínico geral.
+
+---
+
+### Quando houver macronutrientes
+
+Permitir cálculo mais refinado.
+
+Utilizar aproximadamente:
+
+Proteína
+
+20–30%
+
+Carboidrato
+
+5–10%
+
+Lipídios
+
+0–3%
+
+Álcool
+
+10–15%
+
+O sistema calcula automaticamente o TEF total da dieta.
+
+---
+
+# 4. Distribuição de Macronutrientes
+
+A plataforma **não deve impor um único método**.
+
+Ela deverá permitir os seguintes protocolos:
+
+## Protocolo 1
+
+Percentual das calorias.
+
+Exemplo:
+
+* Proteína 20%
+* Carboidrato 50%
+* Lipídios 30%
+
+---
+
+## Protocolo 2
+
+g/kg de peso corporal.
+
+Muito utilizado em nutrição clínica.
+
+---
+
+## Protocolo 3
+
+g/kg de massa magra.
+
+Muito utilizado em atletas e composição corporal.
+
+---
+
+## Protocolo 4
+
+Protocolos personalizados definidos pelo profissional.
+
+Exemplos:
+
+* Low Carb.
+* Cetogênica.
+* DASH.
+* Mediterrânea.
+* Plant-based.
+* Hiperproteica.
+
+O Motor Metabólico apenas executa o protocolo selecionado.
+
+---
+
+# 5. Faixas de Validação
+
+Estas faixas devem ser usadas apenas para **validação de entrada**, não como critério clínico.
+
+| Variável                 |              Faixa recomendada |
+| ------------------------ | -----------------------------: |
+| Idade                    |                    18–120 anos |
+| Peso                     |                      25–350 kg |
+| Altura                   |                     120–250 cm |
+| IMC                      |                    10–80 kg/m² |
+| Percentual de gordura    |                          2–70% |
+| Massa magra              | >0 e menor que o peso corporal |
+| Circunferência abdominal |                      30–250 cm |
+
+Valores fora dessas faixas devem gerar **alerta** ou exigir confirmação do profissional, em vez de serem automaticamente rejeitados, para contemplar situações clínicas excepcionais.
+
+---
+
+# 6. População-Alvo da V1
+
+Esta é a decisão mais importante.
+
+## Minha recomendação
+
+A primeira versão deve atender **apenas adultos (18 anos ou mais)**.
+
+### Excluir da V1
+
+* Crianças.
+* Adolescentes.
+* Gestantes.
+* Lactantes.
+* Pacientes internados.
+* Pacientes em terapia intensiva.
+* Nutrição enteral.
+* Nutrição parenteral.
+
+Motivos:
+
+* As equações metabólicas e recomendações nutricionais diferem entre essas populações.
+* Existem protocolos específicos e requisitos regulatórios próprios.
+* Isso reduz significativamente a complexidade inicial e facilita a validação clínica.
+
+### Idosos
+
+Podem ser incluídos na V1, desde que adultos, pois as fórmulas utilizadas (como Mifflin-St Jeor) também são aplicadas nessa população, embora a interpretação dos resultados deva permanecer sob responsabilidade do profissional.
+
+---
+
+# Decisão Final Recomendada para a V1
+
+| Item                            | Decisão                                                                                                 |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| Cálculo inicial do TDEE         | **TMB × PAL**                                                                                           |
+| Evolução do TDEE                | **TMB + NEAT + EAT + TEF**, quando houver dados suficientes                                             |
+| NEAT                            | Smartwatch → passos → rotina ocupacional → PAL                                                          |
+| TEF                             | 10% das calorias; cálculo refinado quando houver macronutrientes                                        |
+| Distribuição de macronutrientes | Percentual das calorias, g/kg de peso, g/kg de massa magra e protocolos personalizados                  |
+| Validação de entradas           | Faixas configuráveis com confirmação para valores extremos                                              |
+| População da V1                 | Adultos (≥18 anos), incluindo idosos; exclusão inicial de crianças, adolescentes, gestantes e lactantes |
+
+Essa abordagem é compatível com a prática clínica atual, amplamente utilizada por nutricionistas e médicos, e oferece uma base sólida para que o Motor Adaptativo refine as estimativas à medida que o histórico do paciente cresce, sem comprometer a rastreabilidade ou a segurança clínica.
+
+
+Essa é uma das decisões mais importantes do projeto. Minha recomendação é **não implementar todas as fórmulas existentes**, mas criar uma **Biblioteca Oficial de Fórmulas Metabólicas (BOFM)**, contendo apenas equações amplamente validadas e utilizadas na prática clínica. Assim, a plataforma permanece confiável e extensível.
+
+# BIBLIOTECA OFICIAL DE FÓRMULAS METABÓLICAS (BOFM)
+
+**Versão:** 1.0
+
+## 1. Objetivo
+
+Disponibilizar um conjunto de fórmulas metabólicas cientificamente validadas para cálculo da Taxa Metabólica Basal (TMB), permitindo que o profissional de saúde escolha a mais adequada ao perfil do paciente.
+
+O sistema **não deverá selecionar automaticamente** a fórmula, exceto se o profissional optar por utilizar uma regra de seleção automática configurável.
+
+---
+
+# 2. Fórmulas da V1
+
+## FM-001 – Mifflin-St Jeor
+
+**Status:** Obrigatória
+
+**População:**
+
+* Adultos (≥18 anos)
+* IMC normal, sobrepeso e obesidade
+
+**Entradas obrigatórias:**
+
+* Sexo
+* Idade
+* Peso
+* Altura
+
+**Uso recomendado:**
+
+* Fórmula padrão da plataforma quando não houver dados de composição corporal.
+
+---
+
+## FM-002 – Katch-McArdle
+
+**Status:** Obrigatória
+
+**População:**
+
+* Adultos com massa magra conhecida
+
+**Entradas obrigatórias:**
+
+* Massa magra
+
+**Uso recomendado:**
+
+* Pacientes com bioimpedância, DEXA ou outra avaliação confiável da composição corporal.
+
+---
+
+## FM-003 – Cunningham
+
+**Status:** Obrigatória
+
+**População:**
+
+* Atletas
+* Pessoas fisicamente ativas
+* Pacientes com massa magra conhecida
+
+**Entradas obrigatórias:**
+
+* Massa magra
+
+**Uso recomendado:**
+
+* Quando o profissional desejar uma estimativa baseada na massa livre de gordura.
+
+---
+
+# 3. Fórmulas previstas para versões futuras
+
+Estas fórmulas não devem ser implementadas na V1, mas a arquitetura deve permitir sua inclusão:
+
+| Código | Fórmula                    | Público                            |
+| ------ | -------------------------- | ---------------------------------- |
+| FM-101 | Harris-Benedict (revisada) | Comparação e legado                |
+| FM-102 | Owen                       | Adultos                            |
+| FM-103 | Schofield                  | Crianças e adolescentes            |
+| FM-104 | Henry                      | Adultos e idosos                   |
+| FM-105 | IOM                        | Gestantes e populações específicas |
+| FM-106 | WHO/FAO/UNU                | Uso institucional e internacional  |
+
+---
+
+# 4. Regras de Seleção
+
+| Condição                                  | Fórmula sugerida            |
+| ----------------------------------------- | --------------------------- |
+| Não há composição corporal                | Mifflin-St Jeor             |
+| Há massa magra confiável                  | Katch-McArdle ou Cunningham |
+| Atleta com composição corporal disponível | Cunningham                  |
+| Adulto em acompanhamento clínico geral    | Mifflin-St Jeor             |
+
+**Observação:** a decisão final sempre pertence ao profissional.
+
+---
+
+# 5. Regras de Validação
+
+Antes de executar qualquer fórmula, o sistema deverá verificar:
+
+* Dados obrigatórios preenchidos.
+* Faixas válidas para idade, peso e altura.
+* Massa magra compatível com o peso corporal.
+* Ausência de exceções bloqueantes.
+
+Caso algum requisito não seja atendido, o cálculo não deverá ser realizado.
+
+---
+
+# 6. Estrutura de Implementação
+
+Cada fórmula deverá ser cadastrada com os seguintes atributos:
+
+* Código único.
+* Nome.
+* Descrição.
+* Referência científica.
+* Variáveis obrigatórias.
+* População-alvo.
+* Faixa etária aplicável.
+* Condições de uso.
+* Restrições.
+* Versão.
+* Status (ativa/inativa).
+
+Essa estrutura permitirá adicionar novas fórmulas sem modificar o código principal.
+
+---
+
+# 7. Referências Científicas
+
+Cada fórmula deve possuir referência bibliográfica associada, incluindo:
+
+* Autor(es).
+* Ano de publicação.
+* DOI (quando disponível).
+* População em que foi desenvolvida.
+* População em que foi validada.
+
+Isso facilita auditorias, documentação técnica e futuras atualizações.
+
+---
+
+# 8. Critérios de Aceitação
+
+A Biblioteca Oficial será considerada implementada quando:
+
+* As três fórmulas da V1 estiverem disponíveis.
+* O profissional puder selecionar a fórmula desejada.
+* O sistema validar automaticamente os requisitos de cada fórmula.
+* Todas as execuções forem registradas com identificação da fórmula, versão e dados utilizados.
+* A arquitetura permitir inclusão de novas fórmulas sem alterações estruturais.
+
+## Minha recomendação adicional
+
+Para uma plataforma que pretende se tornar uma referência em nutrição baseada em IA, eu incluiria também uma **Biblioteca Oficial de Equações Complementares**, separada da biblioteca metabólica. Nela ficariam fórmulas como IMC, peso ideal, peso ajustado, massa gorda, massa livre de gordura, relação cintura-estatura, índice de adiposidade corporal, estimativas de gasto energético por atividade, entre outras. Manter essas equações em um módulo próprio deixa a arquitetura mais organizada e facilita a expansão futura.
+
+
+A biblioteca de protocolo nutrientes sera preenchida e informada pelo profissional, apenas para conhecimento no sistema mas tratativas serão feitas pelo profissional fora do sistema
+
+Essa decisão é muito acertada para a V1, pois mantém uma separação clara entre:
+
+Motor Metabólico → faz cálculos baseados em fórmulas científicas.
+Profissional de saúde → define a estratégia nutricional e o protocolo clínico.
+Sistema → registra, versiona e apresenta essas informações, sem interferir na conduta clínica.
+
+Essa separação reduz a complexidade, facilita a validação regulatória e preserva a autonomia do profissional, além de deixar espaço para que, em versões futuras, a plataforma possa oferecer sugestões baseadas em IA sem alterar a responsabilidade pela decisão clínica.
+
+egras adaptativa a ia irá mostrar e sugerir ao profissional de saúde mas a definição se usa ou nao sera do profissional de saúde, na tela planejando do próximo ciclo deve trazer esta opção e outras disponíveis no sistema para profissional de saude decidir o que usar, ele tb pode fazer a dele
+
+
+Essa decisão é excelente e, na minha opinião, torna a plataforma muito mais alinhada com a prática clínica e com futuras exigências regulatórias. Eu documentaria da seguinte forma:
+
+---
+
+# Atualização do Módulo 4 – Motor Adaptativo
+
+## DA-AD-002 – Papel do Motor Adaptativo
+
+O Motor Adaptativo **não possui autonomia para alterar prescrições, metas nutricionais ou protocolos clínicos**.
+
+Sua função é exclusivamente:
+
+* Analisar os dados históricos do paciente.
+* Identificar tendências e padrões.
+* Gerar recomendações baseadas nos dados disponíveis.
+* Justificar tecnicamente cada recomendação.
+* Disponibilizar essas recomendações ao profissional de saúde.
+
+A decisão final será sempre do profissional de saúde.
+
+---
+
+# Fluxo de Decisão Clínica
+
+```text
+Coleta de Dados
+        ↓
+Motor de Qualidade
+        ↓
+Motor Adaptativo
+        ↓
+Geração de Sugestões
+        ↓
+Tela "Planejamento do Próximo Ciclo"
+        ↓
+Análise pelo Profissional
+        ↓
+Decisão Clínica
+        ↓
+Nova Prescrição
+```
+
+---
+
+# Tela – Planejamento do Próximo Ciclo
+
+Ao iniciar uma nova consulta ou um novo ciclo de acompanhamento, o sistema deverá apresentar ao profissional uma área denominada **"Planejamento do Próximo Ciclo"**, contendo:
+
+## 1. Situação Atual
+
+* Peso atual.
+* Evolução do peso.
+* Evolução da composição corporal.
+* Evolução da ingestão calórica.
+* Evolução da adesão ao plano.
+* Evolução da atividade física.
+* Evolução do sono.
+* Indicadores clínicos relevantes.
+* Score de Qualidade dos Dados.
+
+---
+
+## 2. Sugestões do Motor Adaptativo
+
+Para cada sugestão, o sistema deverá apresentar:
+
+* Identificador da sugestão.
+* Categoria (calorias, macronutrientes, atividade física, metas etc.).
+* Valor atual.
+* Valor sugerido.
+* Diferença proposta.
+* Justificativa técnica.
+* Dados utilizados na análise.
+* Nível de confiança da recomendação.
+* Data da geração.
+* Versão do algoritmo responsável.
+
+Exemplo:
+
+**Sugestão AD-024**
+
+* Meta atual: 2.200 kcal/dia.
+* Meta sugerida: 2.050 kcal/dia.
+* Justificativa: perda de peso inferior ao esperado nas últimas quatro semanas, com adesão alimentar elevada e atividade física estável.
+* Confiança: alta.
+
+---
+
+## 3. Biblioteca de Sugestões
+
+Além das recomendações do Motor Adaptativo, a tela deverá disponibilizar outras opções configuradas na plataforma, como:
+
+* Ajustar meta calórica.
+* Alterar distribuição de macronutrientes.
+* Alterar metas por dia da semana.
+* Alterar frequência de acompanhamento.
+* Registrar novo protocolo clínico.
+* Manter planejamento atual.
+* Outras ações configuráveis pela instituição.
+
+---
+
+## 4. Decisão do Profissional
+
+Para cada sugestão, o profissional poderá:
+
+* Aceitar integralmente.
+* Aceitar parcialmente (editando os valores).
+* Rejeitar.
+* Criar uma recomendação totalmente nova.
+* Adiar a decisão para uma consulta futura.
+
+O sistema **nunca aplicará automaticamente** uma recomendação.
+
+---
+
+# Registro da Decisão
+
+Toda decisão deverá registrar:
+
+* Profissional responsável.
+* Data e hora.
+* Sugestão original.
+* Decisão tomada.
+* Valores finais prescritos.
+* Justificativa opcional do profissional.
+* Versão do plano gerada.
+
+---
+
+# Regras de Negócio
+
+**AD-RN-010**
+
+Nenhuma sugestão poderá ser aplicada automaticamente ao plano do paciente.
+
+**AD-RN-011**
+
+Toda recomendação deverá ser revisada por um profissional de saúde antes de produzir efeitos clínicos.
+
+**AD-RN-012**
+
+O profissional poderá modificar qualquer valor sugerido pelo sistema antes da geração da nova prescrição.
+
+**AD-RN-013**
+
+O profissional poderá ignorar todas as sugestões e elaborar um plano completamente novo.
+
+**AD-RN-014**
+
+As sugestões do Motor Adaptativo deverão permanecer disponíveis no histórico para auditoria, mesmo quando rejeitadas.
+
+---
+
+## Minha única sugestão adicional
+
+Eu incluiria um recurso que considero um grande diferencial: para cada sugestão, o profissional poderá clicar em **"Ver Evidências"**.
+
+Ao abrir essa opção, o sistema mostrará exatamente **quais dados sustentaram a recomendação**, por exemplo:
+
+* Período analisado: últimos 30 dias.
+* Peso: -0,2 kg (meta: -1,0 kg).
+* Adesão alimentar: 94%.
+* Exercícios realizados: 96% do planejado.
+* Qualidade dos dados: 93/100.
+* Algoritmo utilizado: Motor Adaptativo v1.0.
+
+Isso torna as recomendações totalmente explicáveis e auditáveis, aumenta a confiança do profissional e está alinhado com as melhores práticas para sistemas de apoio à decisão clínica baseados em IA.

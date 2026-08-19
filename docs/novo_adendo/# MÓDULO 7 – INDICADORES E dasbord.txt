@@ -1,0 +1,665 @@
+# MÓDULO 7 – MOTOR DE INDICADORES E DASHBOARDS
+
+**Documento:** MID-001
+
+**Versão:** 1.0
+
+**Status:** Em Desenvolvimento
+
+---
+
+# 1. Objetivo
+
+O Motor de Indicadores e Dashboards é responsável por consolidar, calcular e disponibilizar todos os indicadores da plataforma para profissionais de saúde e pacientes.
+
+Este módulo **não executa decisões clínicas**, **não altera prescrições** e **não modifica dados**.
+
+Sua função é transformar dados clínicos, nutricionais e comportamentais em informações visuais para apoio à tomada de decisão.
+
+---
+
+# 2. Responsabilidades
+
+O módulo deverá:
+
+* Consolidar indicadores.
+* Calcular indicadores derivados.
+* Gerar dashboards.
+* Gerar gráficos.
+* Gerar comparativos históricos.
+* Gerar tendências.
+* Gerar alertas visuais.
+* Disponibilizar indicadores para outros módulos.
+
+---
+
+# 3. Fontes de Dados
+
+O módulo poderá consumir informações provenientes de:
+
+* Módulo Clínico.
+* Motor Metabólico.
+* Motor Adaptativo.
+* Motor de Qualidade dos Dados.
+* Motor de Exceções.
+* Banco Histórico.
+* Aplicativo do Paciente.
+* Smartwatch.
+* Exames laboratoriais.
+* Bioimpedância.
+* DEXA.
+* Integrações futuras.
+
+---
+
+# 4. Perfis de Visualização
+
+## Dashboard do Profissional
+
+Visualização completa.
+
+Inclui:
+
+* Dados clínicos.
+* Indicadores técnicos.
+* Histórico completo.
+* Auditoria.
+* Recomendações da IA.
+* Indicadores de qualidade.
+
+---
+
+## Dashboard do Paciente
+
+Visualização simplificada.
+
+Não deverá apresentar:
+
+* Scores internos.
+* Regras adaptativas.
+* Indicadores técnicos.
+* Logs.
+* Auditoria.
+
+---
+
+## Dashboard Administrativo
+
+Indicadores operacionais.
+
+Exemplos:
+
+* Número de pacientes.
+* Número de consultas.
+* Taxa de adesão.
+* Uso da plataforma.
+* Integrações.
+
+---
+
+# 5. Biblioteca Oficial de Indicadores
+
+Cada indicador deverá possuir:
+
+* Código.
+* Nome.
+* Descrição.
+* Unidade.
+* Fórmula.
+* Origem.
+* Frequência de atualização.
+* Categoria.
+* Responsável pelo cálculo.
+* Versão.
+
+---
+
+# 6. Indicadores Antropométricos
+
+## IND-001
+
+Peso Atual
+
+---
+
+## IND-002
+
+Variação de Peso
+
+---
+
+## IND-003
+
+IMC
+
+---
+
+## IND-004
+
+Percentual de Gordura
+
+---
+
+## IND-005
+
+Massa Magra
+
+---
+
+## IND-006
+
+Massa Gorda
+
+---
+
+## IND-007
+
+Circunferência Abdominal
+
+---
+
+## IND-008
+
+Relação Cintura/Estatura
+
+---
+
+## IND-009
+
+Evolução da Composição Corporal
+
+---
+
+# 7. Indicadores Metabólicos
+
+## IND-020
+
+TMB
+
+---
+
+## IND-021
+
+TDEE
+
+---
+
+## IND-022
+
+PAL
+
+---
+
+## IND-023
+
+NEAT estimado
+
+---
+
+## IND-024
+
+EAT
+
+---
+
+## IND-025
+
+TEF
+
+---
+
+## IND-026
+
+Meta Calórica
+
+---
+
+## IND-027
+
+Consumo Calórico Médio
+
+---
+
+## IND-028
+
+Déficit ou Superávit Energético
+
+---
+
+# 8. Indicadores Nutricionais
+
+## IND-040
+
+Proteína planejada.
+
+---
+
+## IND-041
+
+Proteína consumida.
+
+---
+
+## IND-042
+
+Carboidratos planejados.
+
+---
+
+## IND-043
+
+Carboidratos consumidos.
+
+---
+
+## IND-044
+
+Lipídios planejados.
+
+---
+
+## IND-045
+
+Lipídios consumidos.
+
+---
+
+## IND-046
+
+Fibra.
+
+---
+
+## IND-047
+
+Água.
+
+---
+
+## IND-048
+
+Adesão alimentar.
+
+---
+
+# 9. Indicadores de Atividade Física
+
+## IND-060
+
+Passos.
+
+---
+
+## IND-061
+
+Tempo ativo.
+
+---
+
+## IND-062
+
+Tempo sedentário.
+
+---
+
+## IND-063
+
+Treinos planejados.
+
+---
+
+## IND-064
+
+Treinos realizados.
+
+---
+
+## IND-065
+
+Gasto energético estimado.
+
+---
+
+## IND-066
+
+VO₂ estimado.
+
+---
+
+# 10. Indicadores de Recuperação
+
+## IND-080
+
+Horas de sono.
+
+---
+
+## IND-081
+
+Qualidade do sono.
+
+---
+
+## IND-082
+
+HRV.
+
+---
+
+## IND-083
+
+Frequência cardíaca de repouso.
+
+---
+
+## IND-084
+
+Tempo de recuperação.
+
+---
+
+# 11. Indicadores Clínicos
+
+## IND-100
+
+Pressão arterial.
+
+---
+
+## IND-101
+
+Glicemia.
+
+---
+
+## IND-102
+
+Hemoglobina glicada.
+
+---
+
+## IND-103
+
+Perfil lipídico.
+
+---
+
+## IND-104
+
+Função renal.
+
+---
+
+## IND-105
+
+Função hepática.
+
+---
+
+## IND-106
+
+Ferritina.
+
+---
+
+## IND-107
+
+Vitamina D.
+
+---
+
+## IND-108
+
+Outros exames configuráveis.
+
+---
+
+# 12. Indicadores do Motor Adaptativo
+
+## IND-120
+
+Número de recalibrações.
+
+---
+
+## IND-121
+
+Última recalibração.
+
+---
+
+## IND-122
+
+Confiança da recomendação.
+
+---
+
+## IND-123
+
+Desvio entre planejado e observado.
+
+---
+
+## IND-124
+
+Precisão histórica.
+
+---
+
+# 13. Indicadores de Qualidade
+
+## IND-140
+
+Score Global.
+
+---
+
+## IND-141
+
+Completude.
+
+---
+
+## IND-142
+
+Consistência.
+
+---
+
+## IND-143
+
+Atualidade.
+
+---
+
+## IND-144
+
+Continuidade.
+
+---
+
+## IND-145
+
+Confiabilidade.
+
+---
+
+# 14. Dashboard do Profissional
+
+O dashboard deverá conter, no mínimo:
+
+### Resumo Clínico
+
+* Objetivos ativos.
+* Última consulta.
+* Próximo retorno.
+* Alertas clínicos.
+
+---
+
+### Evolução
+
+* Peso.
+* Massa magra.
+* Gordura corporal.
+* Circunferências.
+* Exames.
+
+---
+
+### Planejamento
+
+* Metas atuais.
+* Metas anteriores.
+* Sugestões do Motor Adaptativo.
+* Histórico de decisões.
+
+---
+
+### Adesão
+
+* Alimentação.
+* Exercícios.
+* Sono.
+* Hidratação.
+
+---
+
+### Qualidade dos Dados
+
+* Score Global.
+* Dados faltantes.
+* Última sincronização.
+* Exceções abertas.
+
+---
+
+# 15. Dashboard do Paciente
+
+O paciente deverá visualizar apenas:
+
+* Evolução do peso.
+* Evolução corporal.
+* Cumprimento das metas.
+* Alimentação.
+* Exercícios.
+* Sono.
+* Hidratação.
+* Próximas metas.
+* Mensagens do profissional.
+
+O paciente **não visualizará**:
+
+* Logs.
+* Auditoria.
+* Sugestões rejeitadas.
+* Scores internos.
+* Regras do Motor Adaptativo.
+* Informações destinadas exclusivamente ao profissional.
+
+---
+
+# 16. Atualização dos Indicadores
+
+Cada indicador deverá possuir sua própria política de atualização.
+
+Exemplos:
+
+| Indicador           | Atualização                       |
+| ------------------- | --------------------------------- |
+| Peso                | Novo registro                     |
+| TMB                 | Novo cálculo metabólico           |
+| TDEE                | Novo cálculo ou recalibração      |
+| Sono                | Sincronização diária              |
+| Passos              | Sincronização diária              |
+| Exames              | Inclusão de novo exame            |
+| Qualidade dos Dados | Após qualquer alteração relevante |
+
+---
+
+# 17. Auditoria
+
+Cada indicador deverá registrar:
+
+* Origem dos dados.
+* Data de atualização.
+* Algoritmo utilizado.
+* Versão do algoritmo.
+* Usuário responsável (quando aplicável).
+* Valores utilizados no cálculo.
+
+---
+
+# 18. Dependências
+
+Consome informações de:
+
+* Módulo Clínico.
+* Motor Metabólico.
+* Motor Adaptativo.
+* Motor de Qualidade.
+* Banco Histórico.
+* Integrações.
+
+Fornece informações para:
+
+* Painel do Profissional.
+* Aplicativo do Paciente.
+* Relatórios.
+* Exportações.
+* APIs.
+
+---
+
+# 19. Critérios de Aceitação
+
+O módulo será considerado implementado quando:
+
+* Todos os indicadores forem calculados de forma reproduzível.
+* Os dashboards forem separados por perfil de usuário.
+* Os indicadores possuírem histórico e auditoria.
+* Nenhum indicador modificar dados clínicos.
+* Os gráficos apresentarem evolução temporal e comparação entre períodos.
+* O sistema permitir adicionar novos indicadores sem alterar a arquitetura existente.
+
+---
+
+# 20. Requisitos para IA Implementadora
+
+### Arquitetura
+
+Implementar um **Catálogo de Indicadores**, onde cada indicador seja tratado como uma entidade configurável, contendo:
+
+* Identificador único.
+* Nome.
+* Categoria.
+* Unidade.
+* Fórmula de cálculo (quando aplicável).
+* Fonte dos dados.
+* Frequência de atualização.
+* Permissões de visualização.
+* Dependências.
+* Versão.
+
+Os dashboards devem consumir exclusivamente esse catálogo, evitando cálculos diretamente na interface.
+
+### Princípios
+
+* Nenhum cálculo deverá ser implementado na camada de apresentação (frontend).
+* Todos os indicadores devem ser reutilizáveis por APIs, relatórios e dashboards.
+* Os componentes gráficos devem ser configuráveis (linhas, barras, radar, velocímetro, tabelas e heatmaps).
+* O controle de acesso deve garantir que cada perfil visualize apenas os indicadores autorizados.
+* Toda informação exibida deve ser rastreável até sua origem, permitindo auditoria completa.
+
+---
+
+## Recomendação de evolução (V2)
+
+Para diferenciar a plataforma, recomendo que o Motor de Indicadores incorpore futuramente um conceito de **"Indicadores Compostos"**, calculados a partir da combinação de múltiplas métricas. Exemplos:
+
+* **Índice de Adesão ao Tratamento** (alimentação + exercícios + sono + hidratação).
+* **Índice de Risco Metabólico** (circunferência abdominal + HbA1c + perfil lipídico + pressão arterial + IMC).
+* **Índice de Recuperação** (sono + HRV + frequência cardíaca de repouso + carga de treino).
+* **Índice de Qualidade Nutricional** (macronutrientes + fibras + ingestão hídrica + regularidade alimentar).
+
+Esses indicadores devem ser configuráveis, versionados e sempre acompanhados da fórmula de composição e dos dados utilizados, preservando a transparência e a rastreabilidade da plataforma.

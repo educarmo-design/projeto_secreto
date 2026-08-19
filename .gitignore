@@ -33,3 +33,7 @@ ntuser.dat.LOG*
 ntuser.ini 
 # Arquivo local de chaves (Nao commitar)
 config_local.json
+
+# Python (naming_checker.py)
+__pycache__/
+*.pyc

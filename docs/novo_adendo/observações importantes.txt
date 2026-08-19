@@ -1,0 +1,247 @@
+Na minha avaliação, o projeto já atingiu um nível muito bom de especificação. Entretanto, antes de entregar esse material para uma IA implementar, **ainda existem algumas decisões importantes**. Não são lacunas de documentação, mas **decisões de produto** que evitarão que a IA faça suposições.
+
+Eu classificaria assim:
+
+---
+
+# 🔴 Críticas (devem ser definidas antes da implementação)
+
+## 1. Biblioteca de fórmulas metabólicas
+
+Hoje definimos Mifflin-St Jeor, Katch-McArdle e Cunningham.
+
+É preciso definir oficialmente:
+
+* Quais fórmulas serão suportadas na V1.
+* Quais ficarão fora da V1.
+* Em quais situações cada uma poderá ser utilizada.
+
+Isso evita que a IA implemente fórmulas adicionais sem controle.
+
+---
+
+## 2. Biblioteca de protocolos nutricionais
+
+Hoje apenas citamos exemplos.
+
+É necessário definir exatamente quais protocolos estarão disponíveis.
+
+Exemplo:
+
+* Padrão
+* Emagrecimento
+* Hipertrofia
+* Low Carb
+* Cetogênica
+* Mediterrânea
+* DASH
+* Plant-Based
+
+---
+
+## 3. Regras do Motor Adaptativo
+
+Ainda falta definir:
+
+Quanto a IA pode modificar?
+
+Exemplo:
+
+Meta inicial
+
+2200 kcal
+
+Após aprendizado
+
+Pode virar:
+
+2180?
+
+2100?
+
+1900?
+
+Existe limite?
+
+Quanto?
+
+Por semana?
+
+Por mês?
+
+Isso precisa existir.
+
+---
+
+## 4. Política de Versionamento
+
+Ainda não definimos:
+
+Quanto tempo manter versões?
+
+Nunca apagar?
+
+Arquivar?
+
+Compactar?
+
+Como restaurar?
+
+---
+
+## 5. Política de Segurança
+
+Quem pode alterar:
+
+* Fórmula?
+* Metas?
+* Diagnóstico?
+* Exames?
+* Peso?
+
+Paciente?
+
+Nutricionista?
+
+Administrador?
+
+---
+
+# 🟡 Importantes
+
+## 6. Biblioteca de Questionários
+
+A anamnese já existe.
+
+Mas vale definir:
+
+Cada pergunta possui:
+
+* Tipo.
+* Obrigatória?
+* Condicional?
+* Peso?
+
+---
+
+## 7. Biblioteca de Métricas
+
+Precisamos listar tudo que poderá ser calculado.
+
+Exemplo:
+
+* IMC
+* RCQ
+* RCEst
+* Massa Gorda
+* Massa Magra
+* FFMI
+* FMI
+* TMB
+* TDEE
+* PAL
+* NEAT
+* TEF
+
+---
+
+## 8. Biblioteca de Indicadores
+
+Tudo que aparecerá no Dashboard.
+
+Exemplo
+
+Score Nutricional
+
+Score Sono
+
+Score Exercício
+
+Score Adesão
+
+Score Evolução
+
+---
+
+## 9. Política de Alertas
+
+Hoje sabemos que existirão alertas.
+
+Mas não definimos:
+
+Quando notificar?
+
+Quem?
+
+Como?
+
+Push?
+
+Email?
+
+Painel?
+
+---
+
+## 10. Política de IA
+
+A IA poderá:
+
+Sugerir?
+
+Modificar?
+
+Executar?
+
+Ou somente recomendar?
+
+Isso precisa ficar extremamente claro.
+
+---
+
+# 🟢 Melhorias Futuras
+
+Não são necessárias para a V1.
+
+* Predição de peso.
+* Predição de glicemia.
+* Predição de composição corporal.
+* Predição de adesão.
+* Detecção precoce de abandono.
+* Recomendações personalizadas.
+* Benchmark populacional.
+* IA explicável avançada.
+
+---
+
+# O que eu acrescentaria
+
+Na sua arquitetura, eu criaria mais **três módulos**, porque eles serão fundamentais conforme a plataforma evoluir:
+
+### Módulo 7 – Motor de Protocolos Clínicos
+
+Centraliza protocolos nutricionais, esportivos e clínicos, permitindo criar ou atualizar protocolos sem alterar o código.
+
+### Módulo 8 – Motor de Indicadores e Dashboards
+
+Responsável por gerar todos os indicadores, gráficos e KPIs para profissionais e pacientes.
+
+### Módulo 9 – Motor de IA Clínica
+
+Concentraria as funcionalidades inteligentes da plataforma, como análise de exames, interpretação de fotos, sugestões de conduta e futuras capacidades de IA generativa. Mantê-lo separado dos módulos determinísticos facilita evolução, validação e conformidade regulatória.
+
+---
+
+## Minha conclusão
+
+**Para uma V1**, eu estimaria que a especificação está **cerca de 92–95% completa**.
+
+Os pontos que considero realmente indispensáveis antes da implementação são:
+
+1. Biblioteca oficial de fórmulas metabólicas.
+2. Biblioteca oficial de protocolos nutricionais.
+3. Limites e políticas do Motor Adaptativo.
+4. Matriz de permissões por perfil de usuário.
+5. Política de IA (o que ela pode e não pode fazer).
+
+Depois dessas definições, eu consideraria a especificação suficientemente madura para servir como base de implementação por uma IA, reduzindo bastante a necessidade de decisões implícitas durante a geração do código.
