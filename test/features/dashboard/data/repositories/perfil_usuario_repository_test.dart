@@ -330,4 +330,62 @@ void main() {
       verifyNever(() => supabase.from('metricas_saude_diarias'));
     });
   });
+
+  // N16 (RELATÓRIO 20260819) — mesmo padrão de buscarAlturaCm/
+  // atualizarAlturaCm, exceto o valor padrão de "campo em branco": aqui é
+  // 200 (o padrão de produto/coluna no banco), não `null`.
+  group('buscarTamanhoCopoMl', () {
+    test('devolve o tamanho quando a coluna está preenchida', () async {
+      when(() => perfisBuilder.select(any())).thenAnswer(
+        (_) => _FakeSelectFilterBuilder({'tamanho_copo_ml': 350}),
+      );
+
+      final tamanho = await repository.buscarTamanhoCopoMl();
+
+      expect(tamanho, 350);
+    });
+
+    test('devolve 200 (padrão) quando a coluna está vazia (não é erro)', () async {
+      when(() => perfisBuilder.select(any())).thenAnswer(
+        (_) => _FakeSelectFilterBuilder({'tamanho_copo_ml': null}),
+      );
+
+      final tamanho = await repository.buscarTamanhoCopoMl();
+
+      expect(tamanho, 200);
+    });
+
+    test('devolve 200 sem consultar o Supabase quando ninguém está logado', () async {
+      when(() => auth.currentUser).thenReturn(null);
+
+      final tamanho = await repository.buscarTamanhoCopoMl();
+
+      expect(tamanho, 200);
+      verifyNever(() => supabase.from('perfis_usuarios'));
+    });
+  });
+
+  group('atualizarTamanhoCopoMl', () {
+    test('faz UPSERT em perfis_usuarios com o id do usuário logado (cria a linha se faltar)', () async {
+      when(() => perfisBuilder.upsert(any(), onConflict: any(named: 'onConflict'))).thenAnswer(
+        (_) => _FakeFilterBuilder<dynamic>(
+          Future.value(const <Map<String, dynamic>>[]),
+        ),
+      );
+
+      await repository.atualizarTamanhoCopoMl(350);
+
+      verify(() => perfisBuilder.upsert(
+            {'id': _usuarioId, 'tamanho_copo_ml': 350},
+            onConflict: 'id',
+          )).called(1);
+    });
+
+    test('lança StateError sem chamar o Supabase quando ninguém está logado', () async {
+      when(() => auth.currentUser).thenReturn(null);
+
+      expect(() => repository.atualizarTamanhoCopoMl(350), throwsStateError);
+      verifyNever(() => supabase.from('perfis_usuarios'));
+    });
+  });
 }

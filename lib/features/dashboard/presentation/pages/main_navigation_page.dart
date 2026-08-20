@@ -9,6 +9,8 @@ import '../../../../core/theme/senior_theme.dart';
 import '../../../gamification/models/gamification_models.dart';
 import '../../../gamification/repositories/gamification_repository.dart';
 import '../../../intelligence/data/repositories/recommendations_repository.dart';
+import '../../../nutrition/data/repositories/coleta_diaria_repository.dart';
+import '../../../nutrition/presentation/pages/registro_hidratacao_page.dart';
 import '../../data/models/health_payload_model.dart';
 import '../../data/models/widget_layout_model.dart';
 import '../controllers/camera_capture_controller.dart';
@@ -55,10 +57,14 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
   final RecommendationsRepository _recommendationsRepository =
       RecommendationsRepository();
   final SyncUiController _syncUiController = SyncUiController();
+  final ColetaDiariaRepository _coletaDiariaRepository = ColetaDiariaRepository();
 
   Streak? _streak;
   League? _liga;
   String? _recomendacaoIa;
+  // N16 — `null` = ainda carregando (card mostra estado vazio, nunca "0 ml"
+  // antes da primeira leitura real chegar); ver [HidratacaoCard].
+  int? _totalAguaHojeMl;
 
   @override
   void initState() {
@@ -67,6 +73,7 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
     layoutController.addListener(_onLayoutChanged);
     _carregarGamificacao();
     _carregarRecomendacaoIa();
+    _carregarHidratacaoHoje();
     // N17 — Sincronização Oportunista "ao abrir o app": fire-and-forget,
     // não bloqueia a primeira renderização (mesmo padrão de
     // _carregarGamificacao/_carregarRecomendacaoIa acima). Roda para
@@ -119,6 +126,15 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
     setState(() => _recomendacaoIa = insight);
   }
 
+  /// N16 — total de água já registrado hoje, para [HidratacaoCard]. Mesmo
+  /// padrão fire-and-forget de [_carregarGamificacao]/[_carregarRecomendacaoIa]:
+  /// não bloqueia a primeira renderização do Dashboard.
+  Future<void> _carregarHidratacaoHoje() async {
+    final total = await _coletaDiariaRepository.buscarTotalAguaDoDia();
+    if (!mounted) return;
+    setState(() => _totalAguaHojeMl = total);
+  }
+
   /// Abre [GerenciadorLayoutPage] em página cheia com uma transição de
   /// slide (da direita para a esquerda) em vez do `MaterialPageRoute`
   /// padrão — microinteração deliberada, não incidental.
@@ -162,6 +178,18 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
     Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => const HistoricoTreinosPage()),
     );
+  }
+
+  /// N16 — abre o registro de Hidratação. Mesmo padrão de [_abrirHistorico]:
+  /// `Navigator.push` simples, tela secundária fora do roteador enxuto.
+  /// `.then` recarrega o total do dia no [HidratacaoCard] ao voltar — o
+  /// card não tem seu próprio ciclo de refresh (mesmo princípio de
+  /// "SEMPRE um SELECT novo" das telas de histórico, só que disparado pelo
+  /// retorno da navegação em vez de `initState`).
+  void _abrirHidratacao() {
+    Navigator.of(context)
+        .push(MaterialPageRoute(builder: (_) => const RegistroHidratacaoPage()))
+        .then((_) => _carregarHidratacaoHoje());
   }
 
   Future<void> _capturarEExibir(TipoAparelho tipoAparelho) async {
@@ -209,6 +237,8 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
       onFotoRotulo: () => _capturarEExibir(TipoAparelho.rotulo),
       onFotoBalanca: () => _capturarEExibir(TipoAparelho.balanca),
       onFotoPressao: () => _capturarEExibir(TipoAparelho.pressaoArterial),
+      totalAguaHojeMl: _totalAguaHojeMl,
+      onAbrirHidratacao: _abrirHidratacao,
     );
 
     return _AthleteShell(
@@ -220,6 +250,7 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
       onCustomizePressed: _abrirGerenciadorLayout,
       onHistoricoPressed: _abrirHistorico,
       onHistoricoTreinosPressed: _abrirHistoricoTreinos,
+      onHidratacaoPressed: _abrirHidratacao,
     );
   }
 }
@@ -237,6 +268,7 @@ class _AthleteShell extends StatelessWidget {
     required this.onCustomizePressed,
     required this.onHistoricoPressed,
     required this.onHistoricoTreinosPressed,
+    required this.onHidratacaoPressed,
   });
 
   final int currentIndex;
@@ -247,6 +279,7 @@ class _AthleteShell extends StatelessWidget {
   final VoidCallback onCustomizePressed;
   final VoidCallback onHistoricoPressed;
   final VoidCallback onHistoricoTreinosPressed;
+  final VoidCallback onHidratacaoPressed;
 
   static const List<_TabSpec> _tabs = [
     _TabSpec(icon: Icons.dashboard_outlined, labelKey: 'dashboard.title'),
@@ -279,6 +312,14 @@ class _AthleteShell extends StatelessWidget {
                 icon: const Icon(Icons.directions_run),
                 tooltip: i18n.tr('dashboard.historico_treinos_button'),
                 onPressed: onHistoricoTreinosPressed,
+              ),
+            // N16 — mesmo critério dos outros botões desta AppBar: só na
+            // aba Dashboard.
+            if (currentIndex == 0)
+              IconButton(
+                icon: const Icon(Icons.local_drink_outlined),
+                tooltip: i18n.tr('hidratacao.button'),
+                onPressed: onHidratacaoPressed,
               ),
             // Botão discreto — só aparece na própria aba que ele customiza.
             if (currentIndex == 0)

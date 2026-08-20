@@ -41,6 +41,11 @@ class DashboardCardData {
   final VoidCallback? onFotoBalanca;
   final VoidCallback? onFotoPressao;
 
+  /// N16 (RELATÓRIO 20260819) — `null` = ainda carregando (card mostra
+  /// estado vazio, nunca "0 ml" antes da primeira leitura real).
+  final int? totalAguaHojeMl;
+  final VoidCallback? onAbrirHidratacao;
+
   const DashboardCardData({
     this.recomendacaoIaResumo,
     this.ultimaAtividadeGarmin,
@@ -51,6 +56,8 @@ class DashboardCardData {
     this.onFotoRotulo,
     this.onFotoBalanca,
     this.onFotoPressao,
+    this.totalAguaHojeMl,
+    this.onAbrirHidratacao,
   });
 }
 
@@ -103,6 +110,12 @@ class DashboardWidgetFactory {
 
       case DashboardWidgetId.micronutrientesStatus:
         return MicronutrientesStatusCard(status: data.statusMicronutrientes);
+
+      case DashboardWidgetId.hidratacao:
+        return HidratacaoCard(
+          totalHojeMl: data.totalAguaHojeMl,
+          onPressed: data.onAbrirHidratacao,
+        );
     }
   }
 
@@ -127,6 +140,8 @@ class DashboardWidgetFactory {
         return 'dashboard.widget_streak_title';
       case DashboardWidgetId.micronutrientesStatus:
         return 'dashboard.widget_micronutrientes_title';
+      case DashboardWidgetId.hidratacao:
+        return 'hidratacao.title';
     }
   }
 
@@ -151,6 +166,8 @@ class DashboardWidgetFactory {
         return 'dashboard.card_streak_desc';
       case DashboardWidgetId.micronutrientesStatus:
         return 'dashboard.card_micronutrientes_desc';
+      case DashboardWidgetId.hidratacao:
+        return 'hidratacao.card_desc';
     }
   }
 }
@@ -517,6 +534,47 @@ class MicronutrientesStatusCard extends StatelessWidget {
                 ],
               ],
             ),
+    );
+  }
+}
+
+/// Card do 9º id (`hidratacao`, N16 — RELATÓRIO 20260819) — total de água já
+/// registrado hoje (via [ColetaDiariaRepository.buscarTotalAguaDoDia] em
+/// [MainNavigationPage]), com um botão que abre [RegistroHidratacaoPage]
+/// (mesmo padrão de [AparelhoClinicoCard]: o card só resume/navega, nunca
+/// registra inline).
+class HidratacaoCard extends StatelessWidget {
+  const HidratacaoCard({super.key, this.totalHojeMl, this.onPressed});
+
+  final int? totalHojeMl;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final total = totalHojeMl;
+    return _DashboardCardShell(
+      icon: Icons.local_drink_outlined,
+      titleKey: 'hidratacao.title',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            total == null
+                ? i18n.tr('hidratacao.card_empty')
+                : i18n.tr('hidratacao.total_hoje', params: {'total': total.toString()}),
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  color: AppColors.lightText,
+                  fontWeight: FontWeight.bold,
+                ),
+          ),
+          const SizedBox(height: 12),
+          OutlinedButton.icon(
+            onPressed: onPressed,
+            icon: const Icon(Icons.add, size: 18),
+            label: Text(i18n.tr('hidratacao.button')),
+          ),
+        ],
+      ),
     );
   }
 }

@@ -390,6 +390,31 @@
     "load_error": "Failed to load your data. Please try again."
   },
 
+  "hidratacao": {
+    "button": "Hydration",
+    "title": "Hydration",
+    "card_desc": "Water logged today",
+    "card_empty": "Tap to log",
+    "subtitle": "Log the water you drink throughout the day — it feeds into your analytics.",
+    "total_hoje": "Today: {{total}} ml",
+    "adicionar_copo_button": "+1 glass ({{ml}} ml)",
+    "quantidade_customizada_label": "Other amount (ml)",
+    "quantidade_customizada_hint": "E.g.: 350",
+    "adicionar_button": "Add",
+    "quantidade_validation_invalid": "Numbers only",
+    "quantidade_validation_range": "Amount must be between 1 and 5000 ml",
+    "historico_title": "Last 7 days",
+    "historico_vazio": "No records in the last 7 days.",
+    "tamanho_copo_label": "Glass size (ml)",
+    "tamanho_copo_hint": "E.g.: 200",
+    "tamanho_copo_validation_range": "Glass size must be between 50 and 1000 ml",
+    "salvar_tamanho_copo_button": "Save glass size",
+    "registro_sucesso": "Logged!",
+    "registro_erro": "Failed to log. Please try again.",
+    "load_error": "Failed to load your hydration data.",
+    "retry_button": "Try again"
+  },
+
   "nutricao": {
     "anamnese_title": "Nutrition Intake",
     "anamnese_subtitle": "Tell us a bit about yourself so we can personalize your recommendations. Filling this out again replaces this version with the latest one.",

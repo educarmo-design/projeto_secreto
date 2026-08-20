@@ -182,6 +182,44 @@ class PerfilUsuarioRepository {
 
     return PesoRecente(pesoKg: pesoKg, dataReferencia: DateTime.parse(dataReferencia));
   }
+
+  /// N16 (RELATÓRIO 20260819) — tamanho do copo (ml) usado pelo botão
+  /// "+1 copo" da tela de hidratação. `200` (o padrão da coluna no banco,
+  /// `20260819160000_n16_hidratacao_tamanho_copo.sql`) tanto para "ninguém
+  /// logado" quanto para "linha de perfil ainda não existe" — diferente do
+  /// resto da classe (que devolve `null` pra "campo em branco"), aqui o
+  /// valor em branco JÁ TEM um padrão de produto definido (200 ml,
+  /// Documento Mestre Parte V1.I), então nunca faz sentido a tela mostrar
+  /// um campo vazio.
+  Future<int> buscarTamanhoCopoMl() async {
+    final usuarioId = _supabase.auth.currentUser?.id;
+    if (usuarioId == null) return 200;
+
+    final linha = await _supabase
+        .from('perfis_usuarios')
+        .select('tamanho_copo_ml')
+        .eq('id', usuarioId)
+        .maybeSingle();
+
+    return (linha?['tamanho_copo_ml'] as num?)?.toInt() ?? 200;
+  }
+
+  /// Mesma regra de segurança de [atualizarAlturaCm] — RLS
+  /// `perfis_usuarios_update_own` já garante que só o dono da linha grava.
+  /// Faixa plausível (50–1000 ml) é validada em
+  /// `RegistroHidratacaoPage`, não aqui — mesmo padrão de altura_cm (a
+  /// coluna não tem CHECK no banco, ver comentário da migration).
+  Future<void> atualizarTamanhoCopoMl(int tamanhoCopoMl) async {
+    final usuarioId = _supabase.auth.currentUser?.id;
+    if (usuarioId == null) {
+      throw StateError('Nenhum usuário logado.');
+    }
+
+    await _supabase.from('perfis_usuarios').upsert(
+      {'id': usuarioId, 'tamanho_copo_ml': tamanhoCopoMl},
+      onConflict: 'id',
+    );
+  }
 }
 
 /// Última leitura de peso conhecida + o dia a que ela se refere — usada só

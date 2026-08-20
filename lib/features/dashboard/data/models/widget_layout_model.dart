@@ -19,7 +19,15 @@ enum DashboardWidgetId {
   fotoPressao('foto_pressao'),
   ultimasAtividadesGarmin('ultimas_atividades_garmin'),
   statusStreakDuolingo('status_streak_duolingo'),
-  micronutrientesStatus('micronutrientes_status');
+  micronutrientesStatus('micronutrientes_status'),
+  // N16 (RELATÓRIO 20260819) — total de água registrado hoje. Adicionado
+  // depois dos 8 originais, no fim da lista (não reordena os ids
+  // existentes): [WidgetLayoutModel.padrao] usa `DashboardWidgetId.values`
+  // como a ordem canônica, então um usuário com layout já salvo em
+  // storage (sem este id ainda) só ganha o card novo no fim da própria
+  // lista quando [WidgetLayoutModel.fromJson] mesclar — nunca desloca o
+  // que ele já organizou.
+  hidratacao('hidratacao');
 
   const DashboardWidgetId(this.id);
 
@@ -48,8 +56,8 @@ class WidgetLayoutModel {
 
   const WidgetLayoutModel({required this.ordem, required this.desativados});
 
-  /// Layout inicial: todos os 8 cards ativos, na ordem em que o PRD Mestre
-  /// os lista.
+  /// Layout inicial: todos os cards ativos (9 desde N16 — RELATÓRIO
+  /// 20260819), na ordem em que o PRD Mestre os lista.
   factory WidgetLayoutModel.padrao() => const WidgetLayoutModel(
         ordem: DashboardWidgetId.values,
         desativados: {},

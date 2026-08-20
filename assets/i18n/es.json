@@ -390,6 +390,31 @@
     "load_error": "Error al cargar tus datos. Inténtalo de nuevo."
   },
 
+  "hidratacao": {
+    "button": "Hidratación",
+    "title": "Hidratación",
+    "card_desc": "Agua registrada hoy",
+    "card_empty": "Toca para registrar",
+    "subtitle": "Registra el agua que bebes durante el día — entra en tus análisis.",
+    "total_hoje": "Hoy: {{total}} ml",
+    "adicionar_copo_button": "+1 vaso ({{ml}} ml)",
+    "quantidade_customizada_label": "Otra cantidad (ml)",
+    "quantidade_customizada_hint": "Ej.: 350",
+    "adicionar_button": "Agregar",
+    "quantidade_validation_invalid": "Solo números",
+    "quantidade_validation_range": "La cantidad debe estar entre 1 y 5000 ml",
+    "historico_title": "Últimos 7 días",
+    "historico_vazio": "Sin registros en los últimos 7 días.",
+    "tamanho_copo_label": "Tamaño del vaso (ml)",
+    "tamanho_copo_hint": "Ej.: 200",
+    "tamanho_copo_validation_range": "El tamaño del vaso debe estar entre 50 y 1000 ml",
+    "salvar_tamanho_copo_button": "Guardar tamaño del vaso",
+    "registro_sucesso": "¡Registrado!",
+    "registro_erro": "Error al registrar. Inténtalo de nuevo.",
+    "load_error": "Error al cargar tus datos de hidratación.",
+    "retry_button": "Intentar de nuevo"
+  },
+
   "nutricao": {
     "anamnese_title": "Anamnesis Nutricional",
     "anamnese_subtitle": "Cuéntanos un poco sobre ti para personalizar tus recomendaciones. Completar de nuevo reemplaza esta versión por la más reciente.",

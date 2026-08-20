@@ -339,4 +339,21 @@ class _FakeColetaDiariaRepository implements ColetaDiariaRepository {
     chamadas.add((payload: payloadRevisado, confianca: confianca));
     return resultado;
   }
+
+  // N16 (RELATÓRIO 20260819) — este teste nunca exercita hidratação;
+  // implementações mínimas só para satisfazer `implements
+  // ColetaDiariaRepository` (interface completa, não um mock parcial).
+  @override
+  Future<ColetaDiariaResult> gravarAgua({
+    required int mililitros,
+    DateTime? dataColeta,
+  }) =>
+      throw UnimplementedError();
+
+  @override
+  Future<int> buscarTotalAguaDoDia({DateTime? data}) => throw UnimplementedError();
+
+  @override
+  Future<List<HidratacaoDia>> buscarHistoricoAgua({int dias = 7}) =>
+      throw UnimplementedError();
 }
