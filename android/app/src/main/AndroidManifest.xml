@@ -89,6 +89,37 @@
          Health Connect recusa a leitura fora do app em primeiro plano. -->
     <uses-permission android:name="android.permission.health.READ_HEALTH_DATA_IN_BACKGROUND"/>
 
+    <!-- RELATÓRIO 20260819_0020 — CAUSA RAIZ real de "treino não aparece na
+         tela nem grava no banco" (achado no device físico, stack trace
+         capturado via logcat): o próprio pacote `health`, ao processar
+         HealthDataType.WORKOUT, lê TotalCaloriesBurnedRecord por baixo dos
+         panos pra calcular a energia queimada de cada sessão
+         (HealthDataReader.kt#handleWorkoutData) — sem esta permissão, o
+         Health Connect lança SecurityException NESSA leitura interna, que
+         sobe e derruba a leitura do WORKOUT inteiro (o plugin devolve lista
+         vazia pro tipo inteiro, não só o campo de calorias). Consequência
+         boa (não só o fix do bug): também destrava a leitura de
+         TOTAL_CALORIES_BURNED como tipo de primeira classe — calorias
+         totais direto do wearable (Garmin publica esse registro agregado
+         continuamente, mesmo em dias sem pesagem/sem treino — diferente de
+         BASAL_ENERGY_BURNED, que o Garmin nunca publica, ver RELATÓRIO
+         20260813_0019/20260819_0020). -->
+    <uses-permission android:name="android.permission.health.READ_TOTAL_CALORIES_BURNED"/>
+
+    <!-- RELATÓRIO 20260819_0020 — FLIGHTS_CLIMBED (andares subidos):
+         confirmado no bytecode do pacote `health` (HealthConstants.kt) que
+         mapeia pra FloorsClimbedRecord nativo do Health Connect; pedido do
+         fundador (variável presente na tela de permissões do Garmin, nunca
+         solicitada por este app). -->
+    <uses-permission android:name="android.permission.health.READ_FLOORS_CLIMBED"/>
+
+    <!-- RELATÓRIO 20260819_0020 — SPEED (velocidade): mapeia pra SpeedRecord
+         nativo do Health Connect (série contínua, mesmo tratamento de
+         HEART_RATE dentro de um treino — filtrada pelo intervalo exato da
+         sessão em HealthSyncService._processarTreinos, não é métrica diária
+         solta). Pedido do fundador. -->
+    <uses-permission android:name="android.permission.health.READ_SPEED"/>
+
     <application
         android:label="atleta_gamificacao"
         android:name="${applicationName}"

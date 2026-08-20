@@ -9,6 +9,11 @@ import 'package:health/health.dart';
 class HealthPayloadModel {
   final int? passos;
   final double? distanciaMetros;
+  // RELATÓRIO 20260819_0020, pedido do fundador — HealthDataType.FLIGHTS_CLIMBED
+  // (mapeia pra FloorsClimbedRecord do Health Connect). Métrica diária
+  // cumulativa própria, não emparelhada com a Hierarquia de Fontes de
+  // passos/distância (ver HealthSyncService._mesclarPorDia).
+  final int? andaresSubidos;
   final int? fcRepouso;
   final int? frequenciaCardiaca;
   // BUG desta tarefa (RELATÓRIO 20260810_0005): fc_maxima foi gravado em
@@ -21,12 +26,13 @@ class HealthPayloadModel {
   final double? hrvMedio;
   final double? caloriasAtivas;
   final double? caloriasBasais;
-  // Nunca populado por fromHealthDataType (não é um HealthDataType lido à
-  // parte) — computado em HealthSyncService._mesclarPorDia como
-  // caloriasAtivas + caloriasBasais, mesmo espírito de minutosSono/imc.
-  // Precisa existir aqui só para o round-trip fromJson/toJson da tela de
-  // histórico (mesmo bug já corrigido pro fc_maxima — RELATÓRIO
-  // 20260810_0005).
+  // Até o RELATÓRIO 20260819_0020, nunca populado por fromHealthDataType —
+  // só computado em HealthSyncService._mesclarPorDia como caloriasAtivas +
+  // caloriasBasais (mesmo espírito de minutosSono/imc). A partir desta
+  // tarefa, TOTAL_CALORIES_BURNED também alimenta este campo diretamente
+  // (leitura real do wearable, quando disponível naquele dia) —
+  // _mesclarPorDia prioriza a leitura direta e só cai pro fallback
+  // ativas+basais quando ela não vier (ver doc de _mesclarPorDia).
   final double? caloriasTotais;
   final int? minutosSono;
   final int? sonoLeveMinutos;
@@ -58,6 +64,7 @@ class HealthPayloadModel {
   const HealthPayloadModel({
     this.passos,
     this.distanciaMetros,
+    this.andaresSubidos,
     this.fcRepouso,
     this.frequenciaCardiaca,
     this.fcMaxima,
@@ -137,6 +144,14 @@ class HealthPayloadModel {
           dateTo: dateTo,
           source: source,
         );
+      // RELATÓRIO 20260819_0020, pedido do fundador.
+      case HealthDataType.FLIGHTS_CLIMBED:
+        return HealthPayloadModel(
+          andaresSubidos: value.round(),
+          dateFrom: dateFrom,
+          dateTo: dateTo,
+          source: source,
+        );
       case HealthDataType.ACTIVE_ENERGY_BURNED:
         return HealthPayloadModel(
           caloriasAtivas: value,
@@ -149,6 +164,16 @@ class HealthPayloadModel {
       case HealthDataType.BASAL_ENERGY_BURNED:
         return HealthPayloadModel(
           caloriasBasais: value,
+          dateFrom: dateFrom,
+          dateTo: dateTo,
+          source: source,
+        );
+      // RELATÓRIO 20260819_0020 — leitura direta de calorias totais do
+      // wearable (ver doc de HealthSyncService.todosOsTipos/_mesclarPorDia
+      // para o achado que destravou este tipo).
+      case HealthDataType.TOTAL_CALORIES_BURNED:
+        return HealthPayloadModel(
+          caloriasTotais: value,
           dateFrom: dateFrom,
           dateTo: dateTo,
           source: source,
@@ -306,6 +331,7 @@ class HealthPayloadModel {
     return HealthPayloadModel(
       passos: numOrNull('passos')?.round(),
       distanciaMetros: numOrNull('distancia_metros')?.toDouble(),
+      andaresSubidos: numOrNull('andares_subidos')?.round(),
       fcRepouso: numOrNull('fc_repouso')?.round(),
       frequenciaCardiaca: numOrNull('frequencia_cardiaca')?.round(),
       fcMaxima: numOrNull('fc_maxima')?.round(),
@@ -343,6 +369,7 @@ class HealthPayloadModel {
     return HealthPayloadModel(
       passos: asNum('passos')?.toInt(),
       distanciaMetros: asNum('distancia_metros')?.toDouble(),
+      andaresSubidos: asNum('andares_subidos')?.toInt(),
       fcRepouso: asNum('fc_repouso')?.toInt(),
       frequenciaCardiaca: asNum('frequencia_cardiaca')?.toInt(),
       fcMaxima: asNum('fc_maxima')?.toInt(),
@@ -379,6 +406,7 @@ class HealthPayloadModel {
         'origem': source,
         if (passos != null) 'passos': passos,
         if (distanciaMetros != null) 'distancia_metros': distanciaMetros,
+        if (andaresSubidos != null) 'andares_subidos': andaresSubidos,
         if (fcRepouso != null) 'fc_repouso': fcRepouso,
         if (frequenciaCardiaca != null)
           'frequencia_cardiaca': frequenciaCardiaca,
@@ -417,6 +445,8 @@ class HealthPayloadModel {
         if (passos != null) MapEntry('passos', passos!),
         if (distanciaMetros != null)
           MapEntry('distancia_metros', distanciaMetros!),
+        if (andaresSubidos != null)
+          MapEntry('andares_subidos', andaresSubidos!),
         if (fcRepouso != null) MapEntry('fc_repouso', fcRepouso!),
         if (frequenciaCardiaca != null)
           MapEntry('frequencia_cardiaca', frequenciaCardiaca!),

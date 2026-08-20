@@ -21,6 +21,11 @@ class TreinoModel {
   final int? fcMedia;
   final int? fcMaxima;
   final int? fcMinima;
+  // RELATÓRIO 20260819_0020, pedido do fundador — m/s (HealthDataType.SPEED,
+  // filtrada ao intervalo do treino em HealthSyncService._processarTreinos,
+  // mesmo tratamento de fcMedia/fcMaxima).
+  final double? velocidadeMediaMs;
+  final double? velocidadeMaximaMs;
   final String? origem;
 
   const TreinoModel({
@@ -35,6 +40,8 @@ class TreinoModel {
     this.fcMedia,
     this.fcMaxima,
     this.fcMinima,
+    this.velocidadeMediaMs,
+    this.velocidadeMaximaMs,
     this.origem,
   });
 
@@ -60,6 +67,8 @@ class TreinoModel {
       fcMedia: (json['fc_media'] as num?)?.toInt(),
       fcMaxima: (json['fc_maxima'] as num?)?.toInt(),
       fcMinima: (json['fc_minima'] as num?)?.toInt(),
+      velocidadeMediaMs: (json['velocidade_media_ms'] as num?)?.toDouble(),
+      velocidadeMaximaMs: (json['velocidade_maxima_ms'] as num?)?.toDouble(),
       origem: json['origem'] as String?,
     );
   }

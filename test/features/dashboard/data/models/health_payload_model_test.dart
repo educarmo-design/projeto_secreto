@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:health/health.dart';
 
 import 'package:atleta_gamificacao/features/dashboard/data/models/health_payload_model.dart';
 
@@ -68,6 +69,64 @@ void main() {
 
       expect(payload.toJson()['calorias_basais'], 1650);
       expect(payload.toJson()['calorias_totais'], 2130);
+    });
+  });
+
+  group('HealthPayloadModel.fromJson/toJson — andares_subidos (RELATÓRIO 20260819_0020)', () {
+    test('fromJson lê andares_subidos da linha do banco', () {
+      final payload = HealthPayloadModel.fromJson({
+        'data_referencia': '2026-08-19',
+        'andares_subidos': 8,
+      });
+
+      expect(payload.andaresSubidos, 8);
+    });
+
+    test('toJson grava andares_subidos de volta quando presente', () {
+      final payload = HealthPayloadModel(
+        andaresSubidos: 8,
+        dateFrom: DateTime(2026, 8, 19),
+        dateTo: DateTime(2026, 8, 19),
+        source: 'wearable',
+      );
+
+      expect(payload.toJson()['andares_subidos'], 8);
+    });
+
+    test('fromJson sem andares_subidos na linha devolve null, não quebra', () {
+      final payload = HealthPayloadModel.fromJson({
+        'data_referencia': '2026-08-19',
+      });
+
+      expect(payload.andaresSubidos, isNull);
+    });
+  });
+
+  group('HealthPayloadModel.fromHealthDataType — tipos novos (RELATÓRIO 20260819_0020)', () {
+    test('FLIGHTS_CLIMBED mapeia pra andaresSubidos', () {
+      final payload = HealthPayloadModel.fromHealthDataType(
+        type: HealthDataType.FLIGHTS_CLIMBED,
+        value: 8,
+        dateFrom: DateTime(2026, 8, 19),
+        dateTo: DateTime(2026, 8, 19),
+        source: 'com.garmin.android.apps.connectmobile',
+      );
+
+      expect(payload.andaresSubidos, 8);
+      expect(payload.isEmpty, isFalse);
+    });
+
+    test('TOTAL_CALORIES_BURNED mapeia pra caloriasTotais', () {
+      final payload = HealthPayloadModel.fromHealthDataType(
+        type: HealthDataType.TOTAL_CALORIES_BURNED,
+        value: 2239,
+        dateFrom: DateTime(2026, 8, 19),
+        dateTo: DateTime(2026, 8, 19),
+        source: 'com.garmin.android.apps.connectmobile',
+      );
+
+      expect(payload.caloriasTotais, 2239);
+      expect(payload.isEmpty, isFalse);
     });
   });
 }

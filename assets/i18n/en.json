@@ -216,6 +216,8 @@
     "historico_treinos_field_fc_media": "Avg HR",
     "historico_treinos_field_fc_minima": "Min HR",
     "historico_treinos_field_fc_maxima": "Max HR",
+    "historico_treinos_field_velocidade_media": "Avg. speed",
+    "historico_treinos_field_velocidade_maxima": "Max. speed",
 
     "clinical_panel_tab": "Clinical Panel",
     "exam_folder_tab": "Digital Exam Folder",

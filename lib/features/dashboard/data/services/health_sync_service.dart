@@ -329,13 +329,35 @@ class HealthSyncService {
     HealthDataType.STEPS,
     HealthDataType.DISTANCE_WALKING_RUNNING,
     HealthDataType.DISTANCE_DELTA,
+    // RELATÓRIO 20260819_0020, pedido do fundador — andares subidos, métrica
+    // diária cumulativa (mesmo tratamento anti-double-counting de
+    // calorias_ativas: "maior fonte do dia", não a Hierarquia de Fontes de
+    // passos/distância — floors não precisa vir emparelhado com nenhuma
+    // outra métrica). Mapeia pra FloorsClimbedRecord do Health Connect.
+    HealthDataType.FLIGHTS_CLIMBED,
     HealthDataType.ACTIVE_ENERGY_BURNED,
     // Calorias granulares (RELATÓRIO 20260811_0002, decisão do fundador) —
     // metabolismo basal/repouso, sinal separado de ACTIVE_ENERGY_BURNED.
-    // calorias_totais é ativas+basais, computado em _mesclarPorDia — não é
-    // TOTAL_CALORIES_BURNED (esse tipo não tem implementação real no lado
-    // iOS do pacote `health`, ver RELATÓRIO 20260810_0007/spike).
     HealthDataType.BASAL_ENERGY_BURNED,
+    // RELATÓRIO 20260819_0020 — ACHADO REAL (stack trace capturada em
+    // device físico via logcat): o pacote `health` lê TotalCaloriesBurnedRecord
+    // por baixo dos panos ao processar HealthDataType.WORKOUT (pra calcular
+    // a energia queimada de cada sessão) — sem a permissão
+    // READ_TOTAL_CALORIES_BURNED no Manifest, essa leitura interna lançava
+    // SecurityException e derrubava a leitura do WORKOUT INTEIRO (é por
+    // isso que treino nunca aparecia na tela nem gravava no banco, não era
+    // um bug de parsing do lado Dart). Adicionar o tipo aqui, além de
+    // corrigir os treinos, destrava calorias totais como leitura direta do
+    // wearable (Garmin publica esse registro agregado continuamente,
+    // inclusive em dias sem pesagem/sem treino — diferente de
+    // BASAL_ENERGY_BURNED, que o Garmin nunca publica, ver RELATÓRIO
+    // 20260813_0019). Nota anterior (RELATÓRIO 20260810_0007/spike) dizia
+    // que TOTAL_CALORIES_BURNED "não tem implementação real no iOS do
+    // pacote health" — segue verdade lá (HealthSyncService._mesclarPorDia
+    // preserva o fallback ativas+basais quando a leitura direta vem
+    // ausente), mas nunca foi um problema no Android, onde este app roda de
+    // verdade hoje.
+    HealthDataType.TOTAL_CALORIES_BURNED,
     // RELATÓRIO 20260811 — sono por estágio granular, não mais um total
     // único. SLEEP_SESSION continua fora daqui (mesmo motivo do RELATÓRIO
     // 20260810: cobre bedtime->waketime inteiro, incluindo acordado —
@@ -378,6 +400,14 @@ class HealthSyncService {
     // HealthSyncService._processarTreinos), então o app já lida com isso
     // de graça, sem checagem especial.
     HealthDataType.WORKOUT_ROUTE,
+    // RELATÓRIO 20260819_0020, pedido do fundador — velocidade. Série
+    // contínua (mesmo perfil de HEART_RATE), por isso tratada igual à FC
+    // dentro de um treino em [_processarTreinos] (média/mínima/máxima
+    // filtradas pelo intervalo exato da sessão), não como métrica diária
+    // solta em metricas_saude_diarias — "velocidade do dia" sozinha não é
+    // um conceito com sentido de produto, velocidade de um treino é.
+    // Mapeia pra SpeedRecord do Health Connect.
+    HealthDataType.SPEED,
   ];
 
   List<HealthDataType> get _tiposSuportados =>
@@ -1335,6 +1365,18 @@ class HealthSyncService {
     // reportar metabolismo basal do mesmo dia (celular+relógio), então
     // maior fonte, nunca soma entre fontes.
     final caloriasBasaisPorDiaFonte = <String, Map<String, num>>{};
+    // RELATÓRIO 20260819_0020 — leitura direta de TOTAL_CALORIES_BURNED,
+    // mesmo tratamento anti-double-counting/exclusão de fonte de
+    // calorias_ativas/calorias_basais (nunca cai pra Fitdays/pedômetro
+    // nativo — ver _ehFonteValidaParaCalorias). Tem prioridade sobre o
+    // fallback ativas+basais somadas no Dart (ver bloco depois do loop).
+    final caloriasTotaisDiretasPorDiaFonte = <String, Map<String, num>>{};
+    // RELATÓRIO 20260819_0020, pedido do fundador — andares subidos.
+    // Mesmo padrão "maior fonte do dia" de calorias_ativas (sem a exclusão
+    // de _ehFonteValidaParaCalorias: FLIGHTS_CLIMBED não tem o mesmo
+    // problema de app-de-balança-mascarando-estimativa-pontual que motivou
+    // aquela lista — qualquer fonte que reporte é candidata).
+    final andaresSubidosPorDiaFonte = <String, Map<String, num>>{};
     // Hierarquia de Fontes (RELATÓRIO 20260810_0007, decisão do fundador):
     // passos e distância NÃO escolhem mais a "maior fonte" cada um por
     // conta própria (isso é o que produzia proporção passos/distância
@@ -1405,6 +1447,19 @@ class HealthSyncService {
           porFonte[payload.source] =
               (porFonte[payload.source] ?? 0) + payload.caloriasBasais!;
         }
+        if (payload.caloriasTotais != null &&
+            _ehFonteValidaParaCalorias(payload.source)) {
+          final porFonte = caloriasTotaisDiretasPorDiaFonte.putIfAbsent(
+              dataReferencia, () => {});
+          porFonte[payload.source] =
+              (porFonte[payload.source] ?? 0) + payload.caloriasTotais!;
+        }
+        if (payload.andaresSubidos != null) {
+          final porFonte =
+              andaresSubidosPorDiaFonte.putIfAbsent(dataReferencia, () => {});
+          porFonte[payload.source] =
+              (porFonte[payload.source] ?? 0) + payload.andaresSubidos!;
+        }
         somar('sono_leve_minutos', payload.sonoLeveMinutos);
         somar('sono_profundo_minutos', payload.sonoProfundoMinutos);
         somar('sono_rem_minutos', payload.sonoRemMinutos);
@@ -1458,13 +1513,34 @@ class HealthSyncService {
 
     aplicarMaiorFonte(caloriasPorDiaFonte, 'calorias_ativas', arredondar: false);
     aplicarMaiorFonte(caloriasBasaisPorDiaFonte, 'calorias_basais', arredondar: false);
+    aplicarMaiorFonte(andaresSubidosPorDiaFonte, 'andares_subidos', arredondar: true);
 
-    // calorias_totais = ativas + basais — "melhor esforço" com o que
-    // estiver disponível naquele dia (soma tratando o ausente como 0), só
-    // quando pelo menos uma das duas existir. Não é um HealthDataType lido
-    // à parte (TOTAL_CALORIES_BURNED não tem implementação real no iOS do
-    // pacote `health` — RELATÓRIO 20260810_0007/spike).
-    for (final linha in porDia.values) {
+    // RELATÓRIO 20260819_0020: dia com leitura real de TOTAL_CALORIES_BURNED
+    // usa ela direto (maior fonte, mesmo tratamento acima) — é o dado mais
+    // fiel que existe (o próprio wearable soma ativa+basal com o algoritmo
+    // dele). Guardado num map à parte (não em `porDia` ainda) porque o
+    // fallback abaixo precisa saber, por dia, se já existe leitura direta
+    // antes de decidir se soma ativas+basais.
+    final diasComCaloriasTotaisDiretas = <String, num>{};
+    for (final entry in caloriasTotaisDiretasPorDiaFonte.entries) {
+      diasComCaloriasTotaisDiretas[entry.key] =
+          entry.value.values.reduce((a, b) => a > b ? a : b);
+    }
+
+    // calorias_totais: leitura direta de TOTAL_CALORIES_BURNED quando o
+    // wearable publicou naquele dia (ver achado acima); senão, fallback
+    // "melhor esforço" = ativas + basais (soma tratando o ausente como 0),
+    // só quando pelo menos uma das duas existir — mesmo comportamento de
+    // antes desta tarefa, preservado pros dias/plataforma (iOS) sem leitura
+    // direta.
+    for (final entry in porDia.entries) {
+      final dataReferencia = entry.key;
+      final linha = entry.value;
+      final direta = diasComCaloriasTotaisDiretas[dataReferencia];
+      if (direta != null) {
+        linha['calorias_totais'] = direta;
+        continue;
+      }
       final ativas = (linha['calorias_ativas'] as num?)?.toDouble();
       final basais = (linha['calorias_basais'] as num?)?.toDouble();
       if (ativas == null && basais == null) continue;
@@ -1549,6 +1625,11 @@ class HealthSyncService {
     // bpm), só filtrado pelo INTERVALO do treino, não do dia inteiro.
     final fcBruta =
         points.where((p) => p.type == HealthDataType.HEART_RATE).toList();
+    // RELATÓRIO 20260819_0020, pedido do fundador — velocidade (m/s), mesmo
+    // tratamento de fcBruta: série contínua filtrada pelo intervalo exato
+    // do treino, não uma métrica diária solta.
+    final velocidadeBruta =
+        points.where((p) => p.type == HealthDataType.SPEED).toList();
     final rotas =
         points.where((p) => p.type == HealthDataType.WORKOUT_ROUTE).toList();
 
@@ -1567,6 +1648,10 @@ class HealthSyncService {
         // do fundador. Sem lógica de anomalia/evento aqui (restrição F02,
         // RELATÓRIO 20260810_0004) — só min/média/máxima, valores absolutos.
         final fcDoTreino = fcBruta
+            .where((p) => dentroDoIntervalo(p, treino))
+            .map((p) => p.value)
+            .toList();
+        final velocidadeDoTreino = velocidadeBruta
             .where((p) => dentroDoIntervalo(p, treino))
             .map((p) => p.value)
             .toList();
@@ -1589,6 +1674,19 @@ class HealthSyncService {
                 (fcDoTreino.reduce((a, b) => a + b) / fcDoTreino.length).round(),
             'fc_maxima': fcDoTreino.reduce(math.max).round(),
             'fc_minima': fcDoTreino.reduce(math.min).round(),
+          },
+          // RELATÓRIO 20260819_0020, pedido do fundador — m/s (mesma
+          // unidade de HealthDataType.SPEED, ver HealthConstants.kt do
+          // pacote `health`).
+          if (velocidadeDoTreino.isNotEmpty) ...{
+            'velocidade_media_ms': double.parse(
+              (velocidadeDoTreino.reduce((a, b) => a + b) /
+                      velocidadeDoTreino.length)
+                  .toStringAsFixed(2),
+            ),
+            'velocidade_maxima_ms': double.parse(
+              velocidadeDoTreino.reduce(math.max).toStringAsFixed(2),
+            ),
           },
         };
 

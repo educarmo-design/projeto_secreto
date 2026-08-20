@@ -302,6 +302,8 @@ class _LinhaTelemetria extends StatelessWidget {
 
   static const List<_CampoLabel> _campos = [
     _CampoLabel('Passos', _CampoTipo.passos),
+    // RELATÓRIO 20260819_0020, pedido do fundador.
+    _CampoLabel('Andares subidos', _CampoTipo.andaresSubidos),
     _CampoLabel('FC', _CampoTipo.frequenciaCardiaca),
     // FC Máxima/HRV/Água/IMC: RELATÓRIO 20260810_0005 — existiam desde a
     // tarefa anterior (metricas_saude_diarias.fc_maxima/agua_corporal/imc),
@@ -339,6 +341,8 @@ class _LinhaTelemetria extends StatelessWidget {
     switch (tipo) {
       case _CampoTipo.passos:
         return payload.passos?.toString();
+      case _CampoTipo.andaresSubidos:
+        return payload.andaresSubidos?.toString();
       case _CampoTipo.frequenciaCardiaca:
         return payload.frequenciaCardiaca?.toString();
       case _CampoTipo.fcMaxima:
@@ -428,6 +432,7 @@ class _LinhaTelemetria extends StatelessWidget {
 
 enum _CampoTipo {
   passos,
+  andaresSubidos,
   frequenciaCardiaca,
   fcMaxima,
   fcRepouso,

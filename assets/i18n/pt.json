@@ -216,6 +216,8 @@
     "historico_treinos_field_fc_media": "FC média",
     "historico_treinos_field_fc_minima": "FC mín.",
     "historico_treinos_field_fc_maxima": "FC máx.",
+    "historico_treinos_field_velocidade_media": "Vel. média",
+    "historico_treinos_field_velocidade_maxima": "Vel. máx.",
 
     "clinical_panel_tab": "Painel Clínico",
     "exam_folder_tab": "Pasta Digital de Exames",
