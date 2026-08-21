@@ -71,7 +71,11 @@ class _RegistrarMetricaPageState extends State<RegistrarMetricaPage> {
       MaterialPageRoute(builder: (_) => CameraCaptureView(tipoAparelho: tipo)),
     );
     if (extracted != null && mounted) {
-      await showExtractedDataDialog(context, extracted);
+      await mostrarDialogoConfirmarLeituraAparelho(
+        context,
+        payload: extracted,
+        tipoAparelho: tipo,
+      );
     }
   }
 

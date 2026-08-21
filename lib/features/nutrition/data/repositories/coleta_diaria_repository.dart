@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../dashboard/data/models/health_payload_model.dart';
+
 class ColetaDiariaResult {
   final bool success;
   final String? errorMessage;
@@ -27,12 +29,32 @@ class HidratacaoDia {
   final int totalMl;
 }
 
+/// Totais de consumo já registrados num dia — soma de todos os `totais` de
+/// [ColetaDiariaRepository.gravarRefeicao] gravados naquele dia. Usado pelo
+/// card "consumo × meta" pra comparar contra [MetaResumo]
+/// (`meta_bem_estar_repository.dart`), nunca lido direto por outra tela.
+class ConsumoDia {
+  const ConsumoDia({
+    required this.calorias,
+    required this.proteinasG,
+    required this.carboidratosG,
+    required this.gordurasG,
+  });
+
+  final double calorias;
+  final double proteinasG;
+  final double carboidratosG;
+  final double gordurasG;
+
+  static const zero = ConsumoDia(calorias: 0, proteinasG: 0, carboidratosG: 0, gordurasG: 0);
+}
+
 /// Gravador de `coleta_diaria` (F34, Documento Mestre §3.5 G.2) — EAV
 /// genérico para leituras frequentes de device/OCR/manual. Grava refeições
-/// confirmadas ([gravarRefeicao]) e, desde N16 (RELATÓRIO 20260819),
-/// hidratação ([gravarAgua]/[buscarTotalAguaDoDia]/[buscarHistoricoAgua]) —
-/// os demais atributos (peso, pressão, glicose de dedo via aparelho) seguem
-/// sem gravador próprio, fora do escopo desta classe até então.
+/// confirmadas ([gravarRefeicao]), hidratação (N16 — RELATÓRIO 20260819,
+/// [gravarAgua]/[buscarTotalAguaDoDia]/[buscarHistoricoAgua]) e, desde N15
+/// (RELATÓRIO 20260820), leituras de aparelho por foto
+/// ([gravarLeituraAparelho] — balança/pressão/glicosímetro).
 class ColetaDiariaRepository {
   ColetaDiariaRepository({SupabaseClient? supabaseClient})
       : _supabaseOverride = supabaseClient;
@@ -203,6 +225,108 @@ class ColetaDiariaRepository {
     return datasOrdenadas
         .map((d) => HidratacaoDia(data: DateTime.parse(d), totalMl: totalPorDia[d]!))
         .toList();
+  }
+
+  /// N15 (RELATÓRIO 20260820) — grava UMA leitura de aparelho por foto
+  /// (balança/pressão arterial/glicosímetro) em `coleta_diaria`. Até esta
+  /// tarefa, [showExtractedDataDialog] só EXIBIA o resultado extraído —
+  /// nada persistia, o dado se perdia ao fechar o diálogo (achado real,
+  /// não suposição: `HealthPayloadDialog`'s "Confirmar" só dava
+  /// `Navigator.pop()`, sem chamada nenhuma ao Supabase).
+  ///
+  /// [atributo] é o mesmo nome de [TipoAparelho] em texto livre
+  /// (`'balanca'`/`'pressao_arterial'`/`'glicosimetro'` — resolvido pelo
+  /// chamador, esta classe não depende do enum de `dashboard`, só do
+  /// [HealthPayloadModel] que ele já produz). `valor_jsonb` = o
+  /// [HealthPayloadModel.toJson()] inteiro, mesmo padrão de
+  /// `gravarRefeicao`: nenhum EAV puro pra um payload que já é uma leitura
+  /// atômica.
+  Future<ColetaDiariaResult> gravarLeituraAparelho({
+    required HealthPayloadModel payload,
+    required String atributo,
+    DateTime? dataColeta,
+  }) async {
+    final usuarioId = _supabase.auth.currentUser?.id;
+    if (usuarioId == null) {
+      return ColetaDiariaResult(
+        success: false,
+        errorMessage: 'Sessão expirada — faça login novamente.',
+        debugDetail:
+            'ColetaDiariaRepository.gravarLeituraAparelho($atributo): currentUser é null.',
+      );
+    }
+
+    try {
+      await _supabase.from('coleta_diaria').insert({
+        'usuario_id': usuarioId,
+        'atributo': atributo,
+        'valor_jsonb': payload.toJson(),
+        'origem': 'ocr_$atributo',
+        'data_coleta': _dateOnly(dataColeta ?? DateTime.now()),
+      });
+      return const ColetaDiariaResult(success: true);
+    } on PostgrestException catch (e) {
+      debugPrint(
+        'ColetaDiariaRepository.gravarLeituraAparelho($atributo): ${e.code} — ${e.message}',
+      );
+      return ColetaDiariaResult(
+        success: false,
+        errorMessage: 'Não foi possível salvar a leitura agora. Tente novamente.',
+        debugDetail: 'PostgrestException ${e.code}: ${e.message}',
+      );
+    } catch (e, stackTrace) {
+      debugPrint('ColetaDiariaRepository.gravarLeituraAparelho($atributo): ${e.runtimeType} — $e');
+      debugPrint(stackTrace.toString());
+      return ColetaDiariaResult(
+        success: false,
+        errorMessage: 'Erro inesperado ao salvar a leitura.',
+        debugDetail: '${e.runtimeType}: $e',
+      );
+    }
+  }
+
+  /// RELATÓRIO 20260820 — soma de todas as refeições confirmadas HOJE, pro
+  /// card "consumo × meta". Lê `valor_jsonb->totais` (gravado por
+  /// [gravarRefeicao]) de cada linha e soma em Dart — mesmo padrão de
+  /// [buscarHistoricoAgua] (poucas linhas/dia, não justifica RPC). Nunca
+  /// lança: erro de rede/parsing devolve [ConsumoDia.zero] (mesma convenção
+  /// "ausência benigna" do resto da classe) — o card mostra "sem dados
+  /// ainda", nunca quebra a tela.
+  Future<ConsumoDia> buscarConsumoHoje() async {
+    final usuarioId = _supabase.auth.currentUser?.id;
+    if (usuarioId == null) return ConsumoDia.zero;
+
+    try {
+      final linhas = await _supabase
+          .from('coleta_diaria')
+          .select('valor_jsonb')
+          .eq('usuario_id', usuarioId)
+          .eq('atributo', _atributoRefeicao)
+          .eq('data_coleta', _dateOnly(DateTime.now()));
+
+      var calorias = 0.0;
+      var proteinas = 0.0;
+      var carboidratos = 0.0;
+      var gorduras = 0.0;
+      for (final linha in (linhas as List).cast<Map<String, dynamic>>()) {
+        final totais = (linha['valor_jsonb'] as Map<String, dynamic>?)?['totais']
+            as Map<String, dynamic>?;
+        if (totais == null) continue;
+        calorias += (totais['calorias'] as num?)?.toDouble() ?? 0;
+        proteinas += (totais['proteinas_g'] as num?)?.toDouble() ?? 0;
+        carboidratos += (totais['carboidratos_g'] as num?)?.toDouble() ?? 0;
+        gorduras += (totais['gorduras_g'] as num?)?.toDouble() ?? 0;
+      }
+      return ConsumoDia(
+        calorias: calorias,
+        proteinasG: proteinas,
+        carboidratosG: carboidratos,
+        gordurasG: gorduras,
+      );
+    } catch (e) {
+      debugPrint('ColetaDiariaRepository.buscarConsumoHoje: ${e.runtimeType} — $e');
+      return ConsumoDia.zero;
+    }
   }
 
   static String _dateOnly(DateTime date) => date.toIso8601String().split('T').first;

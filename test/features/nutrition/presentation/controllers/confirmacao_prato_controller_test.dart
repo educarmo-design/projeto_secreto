@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:atleta_gamificacao/features/dashboard/data/models/health_payload_model.dart';
 import 'package:atleta_gamificacao/features/nutrition/data/models/prato_refeicao_extracao_model.dart';
 import 'package:atleta_gamificacao/features/nutrition/data/repositories/coleta_diaria_repository.dart';
 import 'package:atleta_gamificacao/features/nutrition/presentation/controllers/confirmacao_prato_controller.dart';
@@ -377,4 +378,16 @@ class _FakeColetaDiariaRepository implements ColetaDiariaRepository {
   @override
   Future<List<HidratacaoDia>> buscarHistoricoAgua({int dias = 7}) =>
       throw UnimplementedError();
+
+  // N15/N12 (RELATÓRIO 20260820) — mesma justificativa dos stubs acima.
+  @override
+  Future<ColetaDiariaResult> gravarLeituraAparelho({
+    required HealthPayloadModel payload,
+    required String atributo,
+    DateTime? dataColeta,
+  }) =>
+      throw UnimplementedError();
+
+  @override
+  Future<ConsumoDia> buscarConsumoHoje() => throw UnimplementedError();
 }

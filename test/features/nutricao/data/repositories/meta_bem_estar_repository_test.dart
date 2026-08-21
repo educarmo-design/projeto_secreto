@@ -157,6 +157,42 @@ void main() {
     });
   });
 
+  // RELATÓRIO 20260820 — card "consumo × meta" (N12) usa isto pra achar a
+  // meta EFETIVA sem duplicar a regra de precedência já em
+  // MetaBemEstarPage._carregar.
+  group('buscarMetaEfetivaAtual', () {
+    test('meta do profissional vence — própria nunca é consultada (short-circuit)', () async {
+      when(() => objetivosBuilder.select(any())).thenAnswer(
+        (_) => _FakeQuery<List<Map<String, dynamic>>>([
+          {
+            'calorias_alvo': 1900,
+            'proteina_g': 160,
+            'carbo_g': 180,
+            'gordura_g': 60,
+            'data_criacao': '2026-08-05T00:00:00Z',
+          },
+        ]),
+      );
+
+      final meta = await repository.buscarMetaEfetivaAtual();
+
+      expect(meta, isNotNull);
+      expect(meta!.caloriasAlvo, 1900);
+      verify(() => objetivosBuilder.select(any())).called(1);
+    });
+
+    test('sem meta do profissional, cai pra própria (as duas consultas rodam)', () async {
+      when(() => objetivosBuilder.select(any())).thenAnswer(
+        (_) => _FakeQuery<List<Map<String, dynamic>>>([]),
+      );
+
+      final meta = await repository.buscarMetaEfetivaAtual();
+
+      expect(meta, isNull);
+      verify(() => objetivosBuilder.select(any())).called(2);
+    });
+  });
+
   group('buscarSugestaoCalorias', () {
     test('devolve gasto_sedentario do Motor N07', () async {
       when(() => supabase.rpc('calcular_motor_metabolico', params: any(named: 'params')))

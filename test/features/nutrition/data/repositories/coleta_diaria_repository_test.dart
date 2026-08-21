@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'package:atleta_gamificacao/features/dashboard/data/models/health_payload_model.dart';
 import 'package:atleta_gamificacao/features/nutrition/data/repositories/coleta_diaria_repository.dart';
 
 class _MockSupabaseClient extends Mock implements SupabaseClient {}
@@ -197,6 +198,112 @@ void main() {
       final historico = await repository.buscarHistoricoAgua();
 
       expect(historico, isEmpty);
+      verifyNever(() => supabase.from('coleta_diaria'));
+    });
+  });
+
+  // N15 (RELATÓRIO 20260820) — leitura de aparelho por foto (balança/
+  // pressão/glicosímetro). ACHADO REAL que motivou esta tarefa: até então
+  // o diálogo de resultado só exibia o dado extraído, nunca gravava.
+  group('gravarLeituraAparelho', () {
+    test('grava valor_jsonb = payload.toJson(), origem = ocr_<atributo>', () async {
+      when(() => coletaBuilder.insert(any())).thenAnswer(
+        (_) => _FakeInsertBuilder(Future.value(null)),
+      );
+
+      final payload = HealthPayloadModel(
+        pesoKg: 80.6,
+        dateFrom: DateTime(2026, 8, 20),
+        dateTo: DateTime(2026, 8, 20),
+        source: 'camera',
+        tipoAparelho: 'balanca',
+      );
+
+      final resultado = await repository.gravarLeituraAparelho(
+        payload: payload,
+        atributo: 'balanca',
+        dataColeta: DateTime(2026, 8, 20),
+      );
+
+      expect(resultado.success, isTrue);
+      final capturado = verify(() => coletaBuilder.insert(captureAny())).captured.single
+          as Map<String, dynamic>;
+      expect(capturado['usuario_id'], _usuarioId);
+      expect(capturado['atributo'], 'balanca');
+      expect(capturado['origem'], 'ocr_balanca');
+      expect(capturado['data_coleta'], '2026-08-20');
+      expect((capturado['valor_jsonb'] as Map)['peso_kg'], 80.6);
+    });
+
+    test('falha sem chamar o Supabase quando ninguém está logado', () async {
+      when(() => auth.currentUser).thenReturn(null);
+
+      final resultado = await repository.gravarLeituraAparelho(
+        payload: HealthPayloadModel(
+          dateFrom: DateTime(2026, 8, 20),
+          dateTo: DateTime(2026, 8, 20),
+          source: 'camera',
+        ),
+        atributo: 'balanca',
+      );
+
+      expect(resultado.success, isFalse);
+      verifyNever(() => supabase.from('coleta_diaria'));
+    });
+  });
+
+  group('buscarConsumoHoje', () {
+    test('soma valor_jsonb->totais de todas as refeições de hoje', () async {
+      when(() => coletaBuilder.select(any())).thenAnswer(
+        (_) => _FakeSelectListBuilder([
+          {
+            'valor_jsonb': {
+              'totais': {
+                'calorias': 500,
+                'proteinas_g': 30,
+                'carboidratos_g': 60,
+                'gorduras_g': 15,
+              },
+            },
+          },
+          {
+            'valor_jsonb': {
+              'totais': {
+                'calorias': 300,
+                'proteinas_g': 10,
+                'carboidratos_g': 40,
+                'gorduras_g': 5,
+              },
+            },
+          },
+        ]),
+      );
+
+      final consumo = await repository.buscarConsumoHoje();
+
+      expect(consumo.calorias, 800);
+      expect(consumo.proteinasG, 40);
+      expect(consumo.carboidratosG, 100);
+      expect(consumo.gordurasG, 20);
+    });
+
+    test('ConsumoDia.zero quando não há refeição nenhuma hoje (não é erro)', () async {
+      when(() => coletaBuilder.select(any())).thenAnswer(
+        (_) => _FakeSelectListBuilder(const []),
+      );
+
+      final consumo = await repository.buscarConsumoHoje();
+
+      expect(consumo.calorias, 0);
+      expect(consumo.proteinasG, 0);
+    });
+
+    test('ConsumoDia.zero sem consultar o Supabase quando ninguém está logado', () async {
+      when(() => auth.currentUser).thenReturn(null);
+
+      final consumo = await repository.buscarConsumoHoje();
+
+      expect(consumo.calorias, 0);
       verifyNever(() => supabase.from('coleta_diaria'));
     });
   });

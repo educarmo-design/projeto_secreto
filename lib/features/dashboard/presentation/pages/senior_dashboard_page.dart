@@ -79,7 +79,11 @@ class _SeniorDashboardPageState extends State<SeniorDashboardPage> {
       ),
     );
     if (extracted != null && mounted) {
-      await showExtractedDataDialog(context, extracted);
+      await mostrarDialogoConfirmarLeituraAparelho(
+        context,
+        payload: extracted,
+        tipoAparelho: tipoAparelho,
+      );
     }
   }
 

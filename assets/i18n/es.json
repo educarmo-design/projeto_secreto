@@ -166,6 +166,8 @@
     "camera_result_title": "Datos Extraídos",
     "camera_confirm_button": "Confirmar",
     "camera_retry_button": "Intentar de Nuevo",
+    "camera_save_success": "Lectura guardada con éxito",
+    "camera_save_error": "No se pudo guardar la lectura. Inténtalo de nuevo.",
     "health_permission_denied": "Permiso de salud denegado. Habilite el acceso en Configuración.",
     "health_connect_unavailable": "Health Connect no está instalado en este dispositivo",
     "health_connect_install_button": "Instalar Health Connect",
@@ -268,6 +270,16 @@
     "widget_micronutrientes_title": "Micronutrientes",
     "widget_micronutrientes_empty": "Registra tus comidas para monitorear tus micronutrientes",
 
+    "widget_consumo_meta_title": "Consumo × Meta",
+    "widget_consumo_meta_sem_meta": "Define tu meta de bienestar para seguir el consumo de hoy",
+    "widget_consumo_meta_carregando": "Cargando consumo de hoy...",
+    "widget_consumo_meta_calorias": "{{consumido}} / {{meta}} kcal",
+    "widget_consumo_meta_restante": "Faltan {{valor}} kcal",
+    "widget_consumo_meta_excedido": "{{valor}} kcal por encima de la meta",
+    "widget_consumo_meta_proteina": "Proteína",
+    "widget_consumo_meta_carbo": "Carbo",
+    "widget_consumo_meta_gordura": "Grasa",
+
     "reorder_title": "Gestionar Panel",
     "reorder_subtitle": "Arrastra por la agarradera para reordenar. Usa el interruptor para mostrar u ocultar cada bloque.",
 
@@ -278,7 +290,8 @@
     "card_foto_pressao_desc": "Captura de la pantalla de tu tensiómetro sin Bluetooth",
     "card_garmin_desc": "Minutos y distancia sincronizados de tu wearable",
     "card_streak_desc": "Racha diaria y puntuación de la liga actual",
-    "card_micronutrientes_desc": "Progreso de tus metas diarias de nutrientes"
+    "card_micronutrientes_desc": "Progreso de tus metas diarias de nutrientes",
+    "card_consumo_meta_desc": "Calorías y macros de hoy frente a tu meta"
   },
 
   "gamification": {

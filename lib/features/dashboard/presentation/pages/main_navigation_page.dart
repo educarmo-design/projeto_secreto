@@ -9,6 +9,7 @@ import '../../../../core/theme/senior_theme.dart';
 import '../../../gamification/models/gamification_models.dart';
 import '../../../gamification/repositories/gamification_repository.dart';
 import '../../../intelligence/data/repositories/recommendations_repository.dart';
+import '../../../nutricao/data/repositories/meta_bem_estar_repository.dart';
 import '../../../nutrition/data/repositories/coleta_diaria_repository.dart';
 import '../../../nutrition/presentation/pages/registro_hidratacao_page.dart';
 import '../../data/models/health_payload_model.dart';
@@ -58,6 +59,7 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
       RecommendationsRepository();
   final SyncUiController _syncUiController = SyncUiController();
   final ColetaDiariaRepository _coletaDiariaRepository = ColetaDiariaRepository();
+  final MetaBemEstarRepository _metaBemEstarRepository = MetaBemEstarRepository();
 
   Streak? _streak;
   League? _liga;
@@ -65,6 +67,10 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
   // N16 — `null` = ainda carregando (card mostra estado vazio, nunca "0 ml"
   // antes da primeira leitura real chegar); ver [HidratacaoCard].
   int? _totalAguaHojeMl;
+  // N12 (RELATÓRIO 20260820) — `null` = ainda carregando (ou nunca definiu
+  // meta, no caso de [_metaAtiva]); ver [ConsumoMetaCard].
+  MetaResumo? _metaAtiva;
+  ConsumoDia? _consumoHoje;
 
   @override
   void initState() {
@@ -74,6 +80,7 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
     _carregarGamificacao();
     _carregarRecomendacaoIa();
     _carregarHidratacaoHoje();
+    _carregarConsumoMeta();
     // N17 — Sincronização Oportunista "ao abrir o app": fire-and-forget,
     // não bloqueia a primeira renderização (mesmo padrão de
     // _carregarGamificacao/_carregarRecomendacaoIa acima). Roda para
@@ -133,6 +140,22 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
     final total = await _coletaDiariaRepository.buscarTotalAguaDoDia();
     if (!mounted) return;
     setState(() => _totalAguaHojeMl = total);
+  }
+
+  /// N12 (RELATÓRIO 20260820) — meta efetiva + consumo de hoje, pro
+  /// [ConsumoMetaCard]. Mesmo padrão fire-and-forget dos demais
+  /// carregamentos do Dashboard; as duas buscas rodam em paralelo
+  /// (independentes uma da outra, nenhuma depende do resultado da outra).
+  Future<void> _carregarConsumoMeta() async {
+    final resultados = await Future.wait([
+      _metaBemEstarRepository.buscarMetaEfetivaAtual(),
+      _coletaDiariaRepository.buscarConsumoHoje(),
+    ]);
+    if (!mounted) return;
+    setState(() {
+      _metaAtiva = resultados[0] as MetaResumo?;
+      _consumoHoje = resultados[1] as ConsumoDia;
+    });
   }
 
   /// Abre [GerenciadorLayoutPage] em página cheia com uma transição de
@@ -199,8 +222,22 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
       ),
     );
     if (extracted != null && mounted) {
-      await showExtractedDataDialog(context, extracted);
+      // N15 (RELATÓRIO 20260820) — persiste balança/pressão/glicosímetro em
+      // coleta_diaria quando confirmado. `pratoRefeicao`/`rotulo` nunca
+      // chegam aqui (ver doc de HealthPayloadModel.fromHealthDataType/
+      // CameraCaptureController — `extracted` só existe pros 3 tipos de
+      // aparelho de verdade).
+      await mostrarDialogoConfirmarLeituraAparelho(
+        context,
+        payload: extracted,
+        tipoAparelho: tipoAparelho,
+      );
     }
+    // Prato confirmado dentro de ConfirmacaoPratoPage (navegação aninhada
+    // que este método nem enxerga o retorno — `extracted` é sempre null
+    // pra pratoRefeicao) muda o consumo do dia; recarrega sempre que a
+    // captura inteira termina, custo desprezível quando não houve mudança.
+    if (mounted) unawaited(_carregarConsumoMeta());
   }
 
   @override
@@ -239,6 +276,8 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
       onFotoPressao: () => _capturarEExibir(TipoAparelho.pressaoArterial),
       totalAguaHojeMl: _totalAguaHojeMl,
       onAbrirHidratacao: _abrirHidratacao,
+      metaAtiva: _metaAtiva,
+      consumoHoje: _consumoHoje,
     );
 
     return _AthleteShell(

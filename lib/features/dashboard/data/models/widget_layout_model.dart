@@ -27,7 +27,12 @@ enum DashboardWidgetId {
   // storage (sem este id ainda) só ganha o card novo no fim da própria
   // lista quando [WidgetLayoutModel.fromJson] mesclar — nunca desloca o
   // que ele já organizou.
-  hidratacao('hidratacao');
+  hidratacao('hidratacao'),
+  // N12 (RELATÓRIO 20260820) — consumo do dia (calorias/macros já
+  // registrados via refeição) × meta ativa (profissional ou self-service).
+  // Mesmo raciocínio de `hidratacao` acima: no fim da lista, nunca desloca
+  // ordem já salva.
+  consumoMeta('consumo_meta');
 
   const DashboardWidgetId(this.id);
 

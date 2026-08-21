@@ -166,6 +166,8 @@
     "camera_result_title": "Extracted Data",
     "camera_confirm_button": "Confirm",
     "camera_retry_button": "Try Again",
+    "camera_save_success": "Reading saved successfully",
+    "camera_save_error": "Couldn't save the reading. Please try again.",
     "health_permission_denied": "Health permission denied. Enable access in Settings.",
     "health_connect_unavailable": "Health Connect is not installed on this device",
     "health_connect_install_button": "Install Health Connect",
@@ -268,6 +270,16 @@
     "widget_micronutrientes_title": "Micronutrients",
     "widget_micronutrientes_empty": "Log your meals to track your micronutrients",
 
+    "widget_consumo_meta_title": "Intake × Goal",
+    "widget_consumo_meta_sem_meta": "Set your wellness goal to track today's intake",
+    "widget_consumo_meta_carregando": "Loading today's intake...",
+    "widget_consumo_meta_calorias": "{{consumido}} / {{meta}} kcal",
+    "widget_consumo_meta_restante": "{{valor}} kcal left",
+    "widget_consumo_meta_excedido": "{{valor}} kcal over goal",
+    "widget_consumo_meta_proteina": "Protein",
+    "widget_consumo_meta_carbo": "Carbs",
+    "widget_consumo_meta_gordura": "Fat",
+
     "reorder_title": "Manage Panel",
     "reorder_subtitle": "Drag by the handle to reorder. Use the switch to show or hide each block.",
 
@@ -278,7 +290,8 @@
     "card_foto_pressao_desc": "Capture your Bluetooth-less blood pressure monitor's display",
     "card_garmin_desc": "Minutes and distance synced from your wearable",
     "card_streak_desc": "Daily streak and current league score",
-    "card_micronutrientes_desc": "Progress toward your daily nutrient goals"
+    "card_micronutrientes_desc": "Progress toward your daily nutrient goals",
+    "card_consumo_meta_desc": "Today's calories and macros vs. your goal"
   },
 
   "gamification": {

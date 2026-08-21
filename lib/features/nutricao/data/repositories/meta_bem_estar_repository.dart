@@ -109,6 +109,19 @@ class MetaBemEstarRepository {
     return linha == null ? null : MetaResumo.fromJson(linha);
   }
 
+  /// RELATÓRIO 20260820 — meta EFETIVAMENTE ativa agora, pro card
+  /// "consumo × meta": mesma resolução de precedência que
+  /// [MetaBemEstarPage._carregar] já faz (profissional sempre vence se
+  /// tiver uma ativa; senão a última meta própria) — extraída aqui pra não
+  /// duplicar a regra numa segunda tela. `null` = usuário nunca definiu
+  /// meta nenhuma (nem próprio nem profissional) — o card mostra "defina
+  /// sua meta", não erro.
+  Future<MetaResumo?> buscarMetaEfetivaAtual() async {
+    final metaProfissional = await buscarMetaAtivaDoProfissional();
+    if (metaProfissional != null) return metaProfissional;
+    return buscarMinhaUltimaMetaPropria();
+  }
+
   /// Sugestão de calorias "baseada no TMB" — usa `gasto_sedentario`
   /// (TMB × 1.2) do Motor N07, não a TMB crua (que é só o gasto em
   /// repouso absoluto, baixo demais pra sugerir como meta diária). `null`

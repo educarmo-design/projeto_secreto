@@ -166,6 +166,8 @@
     "camera_result_title": "Dados Extraídos",
     "camera_confirm_button": "Confirmar",
     "camera_retry_button": "Tentar Novamente",
+    "camera_save_success": "Leitura salva com sucesso",
+    "camera_save_error": "Não foi possível salvar a leitura. Tente novamente.",
     "health_permission_denied": "Permissão de saúde negada. Habilite o acesso em Configurações.",
     "health_connect_unavailable": "Health Connect não está instalado neste dispositivo",
     "health_connect_install_button": "Instalar Health Connect",
@@ -268,6 +270,16 @@
     "widget_micronutrientes_title": "Micronutrientes",
     "widget_micronutrientes_empty": "Registre suas refeições para acompanhar seus micronutrientes",
 
+    "widget_consumo_meta_title": "Consumo × Meta",
+    "widget_consumo_meta_sem_meta": "Defina sua meta de bem-estar para acompanhar o consumo do dia",
+    "widget_consumo_meta_carregando": "Carregando consumo de hoje...",
+    "widget_consumo_meta_calorias": "{{consumido}} / {{meta}} kcal",
+    "widget_consumo_meta_restante": "Faltam {{valor}} kcal",
+    "widget_consumo_meta_excedido": "{{valor}} kcal acima da meta",
+    "widget_consumo_meta_proteina": "Proteína",
+    "widget_consumo_meta_carbo": "Carbo",
+    "widget_consumo_meta_gordura": "Gordura",
+
     "reorder_title": "Gerenciar Painel",
     "reorder_subtitle": "Arraste pela alça para reordenar. Use o interruptor para mostrar ou ocultar cada bloco.",
 
@@ -278,7 +290,8 @@
     "card_foto_pressao_desc": "Captura do visor do aparelho de pressão sem Bluetooth",
     "card_garmin_desc": "Minutos e distância sincronizados do wearable",
     "card_streak_desc": "Chama diária e pontuação da liga atual",
-    "card_micronutrientes_desc": "Progresso das metas diárias de nutrientes"
+    "card_micronutrientes_desc": "Progresso das metas diárias de nutrientes",
+    "card_consumo_meta_desc": "Calorias e macros de hoje contra sua meta"
   },
 
   "gamification": {
