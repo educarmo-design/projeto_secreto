@@ -1,4 +1,5 @@
 ﻿import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -7,6 +8,7 @@ import 'package:health/health.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'package:atleta_gamificacao/core/config/app_config.dart';
 import 'package:atleta_gamificacao/core/i18n/i18n_manager.dart';
 import 'package:atleta_gamificacao/features/dashboard/data/services/health_sync_service.dart';
 
@@ -2063,6 +2065,136 @@ void main() {
     });
   });
 
+  // RELATÓRIO 20260820 — SOLUÇÃO DEFINITIVA pro bug real (device físico,
+  // atleta1000@teste.com, viagem Brasília→Lima): dado histórico é
+  // bucketizado pelo fuso REALMENTE ativo quando foi gravado (via um
+  // histórico de transições próprio do app), nunca pelo fuso atual do
+  // sistema — decisão do fundador ("é um produto, qualquer usuário que
+  // viajar vai passar por isso").
+  group('Histórico de fuso horário (RELATÓRIO 20260820)', () {
+    test('ponto bucketiza pelo fuso HISTÓRICO ativo no instante dele, não o fuso atual do sistema de testes', () async {
+      // 03:30 UTC de 08/jul: sob UTC-3 vira 00:30 do dia 08 (mesmo dia UTC);
+      // sob UTC-5 vira 22:30 do dia 07 (dia ANTERIOR) — a mesma instante
+      // absoluta cai em dias de calendário diferentes dependendo só do
+      // fuso usado, provando que a bucketização depende do histórico
+      // seedado abaixo, não do relógio da máquina rodando o teste.
+      final instante = DateTime.utc(2026, 7, 8, 3, 30);
+      final transicaoAntes = instante.subtract(const Duration(days: 30));
+
+      await secureStorage.write(
+        key: AppConfig.storageKeyTimezoneHistory,
+        value: jsonEncode([
+          {'t': transicaoAntes.millisecondsSinceEpoch, 'o': -180}, // UTC-3
+        ]),
+      );
+
+      when(
+        () => health.getHealthDataFromTypes(
+          types: any(named: 'types'),
+          startTime: any(named: 'startTime'),
+          endTime: any(named: 'endTime'),
+        ),
+      ).thenAnswer(
+        (_) async => [_ponto(type: HealthDataType.STEPS, value: 1000, dateFrom: instante)],
+      );
+
+      final resultado = await service.sincronizarDeltaDiario();
+
+      expect(resultado.linhas.single['data_referencia'], '2026-07-08');
+    });
+
+    test('mesmo instante, histórico com offset DIFERENTE (UTC-5) bucketiza no dia calendário anterior', () async {
+      final instante = DateTime.utc(2026, 7, 8, 3, 30);
+      final transicaoAntes = instante.subtract(const Duration(days: 30));
+
+      await secureStorage.write(
+        key: AppConfig.storageKeyTimezoneHistory,
+        value: jsonEncode([
+          {'t': transicaoAntes.millisecondsSinceEpoch, 'o': -300}, // UTC-5
+        ]),
+      );
+
+      when(
+        () => health.getHealthDataFromTypes(
+          types: any(named: 'types'),
+          startTime: any(named: 'startTime'),
+          endTime: any(named: 'endTime'),
+        ),
+      ).thenAnswer(
+        (_) async => [_ponto(type: HealthDataType.STEPS, value: 1000, dateFrom: instante)],
+      );
+
+      final resultado = await service.sincronizarDeltaDiario();
+
+      expect(resultado.linhas.single['data_referencia'], '2026-07-07');
+    });
+
+    test('sem histórico nenhum (primeira sincronização de um usuário novo): não quebra, cai pro comportamento de antes desta tarefa', () async {
+      when(
+        () => health.getHealthDataFromTypes(
+          types: any(named: 'types'),
+          startTime: any(named: 'startTime'),
+          endTime: any(named: 'endTime'),
+        ),
+      ).thenAnswer(
+        (_) async => [_ponto(type: HealthDataType.STEPS, value: 1000, dateFrom: DateTime(2026, 7, 8, 10))],
+      );
+
+      final resultado = await service.sincronizarDeltaDiario();
+
+      expect(resultado.outcome, DeltaSyncOutcome.sucesso);
+      expect(resultado.linhas.single['passos'], 1000);
+    });
+
+    test('após uma sincronização bem-sucedida, o histórico de fuso passa a existir no storage (primeira transição registrada)', () async {
+      when(
+        () => health.getHealthDataFromTypes(
+          types: any(named: 'types'),
+          startTime: any(named: 'startTime'),
+          endTime: any(named: 'endTime'),
+        ),
+      ).thenAnswer(
+        (_) async => [_ponto(type: HealthDataType.STEPS, value: 1000, dateFrom: DateTime(2026, 7, 8, 10))],
+      );
+
+      await service.sincronizarDeltaDiario();
+
+      final gravado = await secureStorage.read(key: AppConfig.storageKeyTimezoneHistory);
+      expect(gravado, isNotNull);
+      final decodificado = jsonDecode(gravado!) as List<dynamic>;
+      expect(decodificado, hasLength(1));
+    });
+
+    test('histórico já com o mesmo offset atual: não grava uma segunda transição (só transições de verdade)', () async {
+      final agora = DateTime.now();
+      await secureStorage.write(
+        key: AppConfig.storageKeyTimezoneHistory,
+        value: jsonEncode([
+          {
+            't': agora.subtract(const Duration(days: 1)).millisecondsSinceEpoch,
+            'o': agora.timeZoneOffset.inMinutes,
+          },
+        ]),
+      );
+
+      when(
+        () => health.getHealthDataFromTypes(
+          types: any(named: 'types'),
+          startTime: any(named: 'startTime'),
+          endTime: any(named: 'endTime'),
+        ),
+      ).thenAnswer(
+        (_) async => [_ponto(type: HealthDataType.STEPS, value: 1000, dateFrom: DateTime(2026, 7, 8, 10))],
+      );
+
+      await service.sincronizarDeltaDiario();
+
+      final gravado = await secureStorage.read(key: AppConfig.storageKeyTimezoneHistory);
+      final decodificado = jsonDecode(gravado!) as List<dynamic>;
+      expect(decodificado, hasLength(1)); // continua 1, não virou 2
+    });
+  });
+
   group('Treinos e Rotas (RELATÓRIO 20260811_0002)', () {
     test('FC do treino: média/máxima/mínima só das leituras DENTRO do intervalo do treino, ignora as de fora', () async {
       final inicioTreino = DateTime(2026, 7, 8, 7, 0);
@@ -2228,6 +2360,53 @@ void main() {
         ),
       ).called(1);
     });
+
+    // RELATÓRIO 20260820 — achado real: treino de força nunca aparecia na
+    // tela nem gravava no banco. Causa raiz não era um bug de código Dart
+    // (esta suíte usa mocks, não exercita a FK real de
+    // tipos_atividades_fisicas), e sim o dicionário no banco nunca ter sido
+    // semeado com nenhum código de força (STRENGTH_TRAINING/WEIGHTLIFTING
+    // são Android-only, FUNCTIONAL/TRADITIONAL_STRENGTH_TRAINING são
+    // iOS-only — nenhum é "Both", a seção que o seed original cobria).
+    // Corrigido via migration `20260820100000_tipos_atividades_treino_
+    // forca.sql`. Este teste trava a string exata que
+    // `WorkoutHealthValue.workoutActivityType.name` produz pro upsert —
+    // tem que bater com `nome_codigo` da migration, ou a FK real volta a
+    // rejeitar silenciosamente.
+    for (final tipo in [
+      HealthWorkoutActivityType.STRENGTH_TRAINING,
+      HealthWorkoutActivityType.WEIGHTLIFTING,
+    ]) {
+      test('treino de força (${tipo.name}) é processado com o código exato semeado no dicionário', () async {
+        final inicio = DateTime(2026, 7, 8, 7);
+        when(
+          () => health.getHealthDataFromTypes(
+            types: any(named: 'types'),
+            startTime: any(named: 'startTime'),
+            endTime: any(named: 'endTime'),
+          ),
+        ).thenAnswer(
+          (_) async => [
+            _pontoTreino(
+              tipo: tipo,
+              dateFrom: inicio,
+              dateTo: inicio.add(const Duration(minutes: 45)),
+            ),
+          ],
+        );
+
+        await service.sincronizarDeltaDiario();
+
+        final linhaGravada = verify(
+          () => treinosBuilder.upsert(
+            captureAny(),
+            onConflict: 'usuario_id,inicio_atividade',
+          ),
+        ).captured.single as Map<String, dynamic>;
+
+        expect(linhaGravada['tipo_atividade_codigo'], tipo.name);
+      });
+    }
 
     test('sem HEART_RATE nenhum no intervalo: treino é gravado sem fc_media/fc_maxima/fc_minima (não zerados)', () async {
       final inicio = DateTime(2026, 7, 8, 7);

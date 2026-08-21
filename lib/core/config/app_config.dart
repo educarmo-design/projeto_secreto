@@ -53,6 +53,18 @@ class AppConfig {
   static const String storageKeyAuthToken = 'auth_token';
   static const String storageKeySyncTimestamp = 'last_sync_timestamp';
 
+  /// RELATÓRIO 20260820 — histórico de transições de fuso horário do
+  /// aparelho (JSON, lista de `{"t": epochMs, "o": offsetMinutos}`),
+  /// usado por `HealthSyncService._offsetParaInstante` pra bucketizar
+  /// cada ponto de saúde pelo fuso que estava REALMENTE ativo quando ele
+  /// foi gravado — não pelo fuso atual do aparelho, que é o que
+  /// `DateTime.fromMillisecondsSinceEpoch` (usado pelo pacote `health`)
+  /// sempre assume por padrão. Solução definitiva pro bug de "dados
+  /// sumindo/inflando em dias específicos" quando o usuário viaja entre
+  /// fusos — o Health Connect não expõe o fuso original por registro pro
+  /// pacote, então o app precisa manter esse histórico por conta própria.
+  static const String storageKeyTimezoneHistory = 'timezone_offset_history';
+
   /// Timeouts (in milliseconds)
   static const int defaultNetworkTimeout = 30000; // 30 seconds
   static const int minSyncInterval = 60000; // 1 minute

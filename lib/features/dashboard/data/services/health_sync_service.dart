@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 
@@ -846,6 +847,136 @@ class HealthSyncService {
     );
   }
 
+  /// RELATÓRIO 20260820 — SOLUÇÃO DEFINITIVA (decisão do fundador: "é um
+  /// produto, qualquer usuário que viajar vai passar por isso, precisa de
+  /// solução no código, não workaround manual") pro bug real encontrado em
+  /// device físico (`atleta1000@teste.com`, viagem Brasília→Lima):
+  /// `DateTime.fromMillisecondsSinceEpoch` (usado pelo pacote `health` pra
+  /// construir `dateFrom`/`dateTo`) SEMPRE reinterpreta um instante
+  /// histórico pelo fuso ATUAL do aparelho no momento da conversão — nunca
+  /// o fuso de quando o dado foi realmente gravado. O Health Connect não
+  /// expõe esse dado pro pacote (confirmado lendo `HealthDataConverter.kt`
+  /// — nenhuma leitura de `zoneOffset` nativo do registro), então não tem
+  /// como recuperar o fuso original por fora do nosso próprio controle.
+  ///
+  /// Mecanismo da correção: o app passa a manter seu PRÓPRIO histórico de
+  /// fuso horário — uma lista de "a partir do instante T, o fuso passou a
+  /// ser O", só uma entrada por TROCA real (não uma por sincronização).
+  /// Ao bucketizar um ponto por dia, em vez de confiar na conversão
+  /// "local" automática do Dart (que sempre usa o fuso de AGORA), o app
+  /// pega o instante ABSOLUTO do ponto (`.toUtc()` — Dart preserva o
+  /// instante exato independente da flag local/UTC, só muda como
+  /// ano/mês/dia são exibidos) e consulta o PRÓPRIO histórico pra saber
+  /// qual fuso estava realmente ativo naquele instante específico — ver
+  /// [_offsetParaInstante]/[_dataOnly].
+  ///
+  /// Elimina a classe inteira do bug DAQUI PRA FRENTE, permanentemente,
+  /// pra qualquer usuário: uma vez que o histórico de fuso está sendo
+  /// rastreado desde antes de um ponto ser sincronizado, a bucketização
+  /// fica correta mesmo que o aparelho troque de fuso entre a gravação e a
+  /// sincronização. Limitação real e aceita: dado sincronizado ANTES desta
+  /// tarefa existir (não temos histórico de fuso de antes de hoje) segue
+  /// sem correção retroativa possível — mesmo caso do 13-17/08 do
+  /// fundador, já removido do banco.
+  static const String _chaveHistoricoFuso = AppConfig.storageKeyTimezoneHistory;
+
+  /// Teto de entradas guardadas (transições de fuso são raras — viajar de
+  /// fuso é um evento incomum mesmo pra um usuário que viaja muito; 200
+  /// entradas cobrem anos de uso real sem custo de armazenamento
+  /// perceptível). Poda as mais antigas primeiro se ultrapassar.
+  static const int _maxEntradasHistoricoFuso = 200;
+
+  Future<List<(int instanteMs, int offsetMinutos)>> _carregarHistoricoFuso() async {
+    try {
+      final bruto = await _secureStorage.read(key: _chaveHistoricoFuso);
+      if (bruto == null || bruto.isEmpty) return [];
+      final decodificado = jsonDecode(bruto) as List<dynamic>;
+      return decodificado
+          .cast<Map<String, dynamic>>()
+          .map((e) => (e['t'] as int, e['o'] as int))
+          .toList()
+        ..sort((a, b) => a.$1.compareTo(b.$1));
+    } catch (e) {
+      // Best-effort: histórico corrompido/ilegível nunca derruba o sync —
+      // trata como "sem histórico ainda" (mesmo fallback de primeira
+      // sincronização).
+      debugPrint('HealthSyncService: falha ao carregar histórico de fuso (best-effort): $e');
+      return [];
+    }
+  }
+
+  /// Roda uma vez no início de cada sincronização (ver [_lerEGravar]).
+  /// Só grava uma entrada nova quando o fuso ATUAL difere da última
+  /// registrada (ou é a primeiríssima sincronização) — é uma lista de
+  /// TRANSIÇÕES, não um log de toda sincronização. Devolve o histórico já
+  /// atualizado, pronto pra [_offsetParaInstante] usar na bucketização
+  /// desta mesma chamada.
+  Future<List<(int instanteMs, int offsetMinutos)>> _registrarFusoAtualSeMudou(
+    List<(int instanteMs, int offsetMinutos)> historico,
+  ) async {
+    final agora = DateTime.now();
+    final offsetAtual = agora.timeZoneOffset.inMinutes;
+
+    if (historico.isNotEmpty && historico.last.$2 == offsetAtual) {
+      return historico; // sem mudança — nada a gravar
+    }
+
+    if (historico.isNotEmpty) {
+      debugPrint(
+        '⚠️ HealthSyncService: fuso horário do aparelho mudou '
+        '(${_formatarOffset(historico.last.$2)} -> ${_formatarOffset(offsetAtual)}). '
+        'Histórico de fuso atualizado — pontos sincronizados a partir de '
+        'agora bucketizam corretamente por dia, mesmo os que foram '
+        'gravados sob o fuso anterior.',
+      );
+    }
+
+    final atualizado = [...historico, (agora.millisecondsSinceEpoch, offsetAtual)];
+    final podado = atualizado.length > _maxEntradasHistoricoFuso
+        ? atualizado.sublist(atualizado.length - _maxEntradasHistoricoFuso)
+        : atualizado;
+
+    try {
+      await _secureStorage.write(
+        key: _chaveHistoricoFuso,
+        value: jsonEncode(
+          podado.map((e) => {'t': e.$1, 'o': e.$2}).toList(),
+        ),
+      );
+    } catch (e) {
+      debugPrint('HealthSyncService: falha ao gravar histórico de fuso (best-effort): $e');
+    }
+
+    return podado;
+  }
+
+  /// Qual fuso (offset em minutos) estava ativo no instante [instanteMs]
+  /// (epoch, absoluto) — a última transição registrada ANTES ou NO
+  /// instante pedido. Sem nenhuma transição anterior a ele (dado mais
+  /// antigo que todo o histórico rastreado — a primeira Carga de 30 dias
+  /// de um usuário novo, tipicamente), cai pro fuso ATUAL como melhor
+  /// estimativa disponível — mesmo comportamento de antes desta tarefa,
+  /// não uma regressão; só deixa de ser o ÚNICO comportamento.
+  static int _offsetParaInstante(
+    int instanteMs,
+    List<(int instanteMs, int offsetMinutos)> historico,
+  ) {
+    (int, int)? candidata;
+    for (final transicao in historico) {
+      if (transicao.$1 > instanteMs) break; // ordenado ascendente — para na primeira futura
+      candidata = transicao;
+    }
+    return candidata?.$2 ?? DateTime.now().timeZoneOffset.inMinutes;
+  }
+
+  static String _formatarOffset(int minutos) {
+    final sinal = minutos >= 0 ? '+' : '-';
+    final absolutos = minutos.abs();
+    final horas = (absolutos ~/ 60).toString().padLeft(2, '0');
+    final min = (absolutos % 60).toString().padLeft(2, '0');
+    return 'UTC$sinal$horas:$min';
+  }
+
   /// Delta Diário (Onda 1.5): reads only what the health store produced
   /// since the last successful sync (falling back to the last 24h the very
   /// first time it runs), maps every point directly onto
@@ -887,6 +1018,13 @@ class HealthSyncService {
       );
     }
 
+    // RELATÓRIO 20260820 — carrega + (se preciso) atualiza o histórico de
+    // fuso ANTES de ler/bucketizar qualquer ponto desta sincronização (ver
+    // doc completa em [_registrarFusoAtualSeMudou]). Best-effort: uma
+    // falha aqui já é tratada dentro dos próprios métodos (nunca lança),
+    // então nunca derruba o sync principal.
+    final historicoFuso = await _registrarFusoAtualSeMudou(await _carregarHistoricoFuso());
+
     // CAUSA RAIZ do bug "passos/sono com fuso errado" (RELATÓRIO 20260811,
     // corrigindo a tentativa anterior do RELATÓRIO 20260810): a consulta
     // agregada nativa do Health Connect (`getHealthIntervalDataFromTypes`,
@@ -899,11 +1037,11 @@ class HealthSyncService {
     // (leitura crua) — mas alinhando a janela aqui, só no caminho de
     // sincronização/gravação (não em [_lerComPermissao] diretamente, para
     // não mudar a janela exata que os 3 métodos de leitura pontual pedem —
-    // ver doc de [_lerComPermissao]). `DateTime.fromMillisecondsSinceEpoch`
-    // (usado pelo pacote `health` para construir dateFrom/dateTo) já devolve
-    // horário local, então bucketizar por dia em Dart
+    // ver doc de [_lerComPermissao]). Bucketizar por dia em Dart
     // (`_dataOnly`/`_dataDoSonoLocal` em [_mesclarPorDia]) é correto por
-    // construção — o problema nunca esteve aí, só na fatia nativa em UTC.
+    // construção, DESDE que use o fuso certo pra cada ponto — ver
+    // [_offsetParaInstante] (RELATÓRIO 20260820) — o problema nunca esteve
+    // na fatia em si, só na fatia nativa em UTC.
     final agoraParaJanela = DateTime.now();
     final inicioBruto =
         start ?? agoraParaJanela.subtract(Duration(days: dias ?? 30));
@@ -943,9 +1081,9 @@ class HealthSyncService {
       );
     }
 
-    final linhas = _mesclarPorDia(usuarioId, payloads);
+    final linhas = _mesclarPorDia(usuarioId, payloads, historicoFuso);
     await _aplicarInferenciasCruzadas(usuarioId, linhas);
-    await _preencherDistanciaFaltante(linhas, inicioAlinhado);
+    await _preencherDistanciaFaltante(linhas, inicioAlinhado, historicoFuso);
     final envio = await _enviarLinhas(linhas);
 
     if (envio == DeltaSyncOutcome.sucesso) {
@@ -1162,8 +1300,15 @@ class HealthSyncService {
     final tiposPorDiaEFonte = <String, Map<String, Set<String>>>{};
     final contagemPorDia = <String, int>{};
 
+    // RELATÓRIO 20260820 — só diagnóstico (debugPrint, nunca gravado no
+    // banco): usa o fuso ATUAL, não o histórico por ponto de
+    // [_offsetParaInstante]. Aceitável aqui — o agrupamento por dia deste
+    // log pode divergir do que realmente foi gravado numa sincronização
+    // com troca de fuso no meio, mas é só pra leitura humana, não afeta
+    // nenhum dado persistido.
+    final offsetDiagnostico = DateTime.now().timeZoneOffset.inMinutes;
     for (final ponto in rawPoints) {
-      final dia = _dataOnly(ponto.dateFrom);
+      final dia = _dataOnly(ponto.dateFrom, offsetDiagnostico);
       final fonte =
           ponto.sourceId.isNotEmpty ? ponto.sourceId : ponto.sourceName;
       final identificadorFonte = fonte.isEmpty ? '(fonte desconhecida)' : fonte;
@@ -1265,9 +1410,12 @@ class HealthSyncService {
       return;
     }
 
+    // RELATÓRIO 20260820 — mesma ressalva de [_logRaioX]: só diagnóstico,
+    // fuso atual (não o histórico por ponto), nunca afeta dado persistido.
+    final offsetDiagnostico = DateTime.now().timeZoneOffset.inMinutes;
     final porDia = <String, List<HealthMetricPoint>>{};
     for (final ponto in points) {
-      porDia.putIfAbsent(_dataOnly(ponto.dateFrom), () => []).add(ponto);
+      porDia.putIfAbsent(_dataOnly(ponto.dateFrom, offsetDiagnostico), () => []).add(ponto);
     }
 
     for (final dia in porDia.keys.toList()..sort()) {
@@ -1354,6 +1502,7 @@ class HealthSyncService {
   List<Map<String, dynamic>> _mesclarPorDia(
     String usuarioId,
     List<HealthPayloadModel> payloads,
+    List<(int instanteMs, int offsetMinutos)> historicoFuso,
   ) {
     final porDia = <String, Map<String, dynamic>>{};
     final somaFcPorDia = <String, double>{};
@@ -1394,13 +1543,20 @@ class HealthSyncService {
     // (outros dias, outras métricas) — não só o ponto problemático.
     for (final payload in payloads) {
       try {
+        // RELATÓRIO 20260820 — fuso REALMENTE ativo quando este ponto foi
+        // gravado, não o fuso atual do aparelho (ver doc de
+        // [_offsetParaInstante]/[_registrarFusoAtualSeMudou]).
+        final offsetDoPonto = _offsetParaInstante(
+          payload.dateFrom.millisecondsSinceEpoch,
+          historicoFuso,
+        );
         final ehSono = payload.sonoLeveMinutos != null ||
             payload.sonoProfundoMinutos != null ||
             payload.sonoRemMinutos != null ||
             payload.sonoAcordadoMinutos != null;
         final dataReferencia = ehSono
-            ? _dataDoSonoLocal(payload.dateFrom)
-            : _dataOnly(payload.dateFrom);
+            ? _dataDoSonoLocal(payload.dateFrom, offsetDoPonto)
+            : _dataOnly(payload.dateFrom, offsetDoPonto);
 
         final linha = porDia.putIfAbsent(
           dataReferencia,
@@ -1870,6 +2026,7 @@ class HealthSyncService {
   Future<void> _preencherDistanciaFaltante(
     List<Map<String, dynamic>> linhas,
     DateTime inicioJanela,
+    List<(int instanteMs, int offsetMinutos)> historicoFuso,
   ) async {
     final linhasFaltantes = <String, Map<String, dynamic>>{
       for (final linha in linhas)
@@ -1893,7 +2050,13 @@ class HealthSyncService {
         final distancia = payload.distanciaMetros;
         if (distancia == null) continue;
 
-        final dataReferencia = _dataOnly(payload.dateFrom);
+        // RELATÓRIO 20260820 — mesmo fuso histórico do ponto, não o atual
+        // (ver [_mesclarPorDia] pro mesmo tratamento).
+        final offsetDoPonto = _offsetParaInstante(
+          payload.dateFrom.millisecondsSinceEpoch,
+          historicoFuso,
+        );
+        final dataReferencia = _dataOnly(payload.dateFrom, offsetDoPonto);
         if (!linhasFaltantes.containsKey(dataReferencia)) continue;
 
         final porFonte = somaPorDiaFonte.putIfAbsent(dataReferencia, () => {});
@@ -1940,25 +2103,37 @@ class HealthSyncService {
     }
   }
 
-  static String _dataOnly(DateTime date) =>
-      date.toIso8601String().split('T').first;
+  /// RELATÓRIO 20260820 — bucketiza [instante] por dia calendário usando
+  /// [offsetMinutos] (o fuso REALMENTE ativo quando o ponto foi gravado,
+  /// resolvido via [_offsetParaInstante] antes de chamar isto), nunca o
+  /// fuso atual do sistema operacional. `.toUtc()` preserva o instante
+  /// absoluto exato (Dart guarda isso internamente independente da flag
+  /// local/UTC — só muda como ano/mês/dia/hora são exibidos); somar o
+  /// offset manualmente e ler os componentes do resultado é o mesmo
+  /// cálculo que um relógio de parede naquele fuso mostraria, sem
+  /// depender de `DateTime.toLocal()`/fuso do aparelho em nenhum momento.
+  static String _dataOnly(DateTime instante, int offsetMinutos) {
+    final l = instante.toUtc().add(Duration(minutes: offsetMinutos));
+    return '${l.year.toString().padLeft(4, '0')}-'
+        '${l.month.toString().padLeft(2, '0')}-'
+        '${l.day.toString().padLeft(2, '0')}';
+  }
 
-  /// Bucketiza um instante de estágio de sono na data (LOCAL) da manhã em
-  /// que a pessoa acordou, não no dia calendário em que o instante caiu.
-  /// Heurística deliberada (documentada, não chutada): sono que começa às
-  /// 15h ou depois pertence à noite que leva à manhã seguinte — cobre o
-  /// padrão comum (dormir à noite, acordar de manhã) sem precisar
-  /// reconstruir a SleepSessionRecord inteira a partir dos estágios
-  /// espalhados que o Health Connect devolve. Sono às 15h ou depois de
-  /// segunda conta para terça; sono entre meia-noite e 15h de terça (o
-  /// resto da mesma noite, já depois da virada) também conta para terça.
-  /// Limitação conhecida, registrada no RELATÓRIO: não modela cochilos à
-  /// tarde nem rotina de trabalho noturno — reavaliar se algum dia isso
-  /// virar um caso real.
-  static String _dataDoSonoLocal(DateTime instante) {
-    final data = instante.hour >= 15
-        ? instante.add(const Duration(days: 1))
-        : instante;
-    return _dataOnly(DateTime(data.year, data.month, data.day));
+  /// Bucketiza um instante de estágio de sono na data (LOCAL, sob
+  /// [offsetMinutos]) da manhã em que a pessoa acordou, não no dia
+  /// calendário em que o instante caiu. Heurística deliberada (documentada,
+  /// não chutada): sono que começa às 15h ou depois pertence à noite que
+  /// leva à manhã seguinte — cobre o padrão comum (dormir à noite, acordar
+  /// de manhã) sem precisar reconstruir a SleepSessionRecord inteira a
+  /// partir dos estágios espalhados que o Health Connect devolve. Sono às
+  /// 15h ou depois de segunda conta para terça; sono entre meia-noite e
+  /// 15h de terça (o resto da mesma noite, já depois da virada) também
+  /// conta para terça. Limitação conhecida, registrada no RELATÓRIO: não
+  /// modela cochilos à tarde nem rotina de trabalho noturno — reavaliar se
+  /// algum dia isso virar um caso real.
+  static String _dataDoSonoLocal(DateTime instante, int offsetMinutos) {
+    final l = instante.toUtc().add(Duration(minutes: offsetMinutos));
+    final data = l.hour >= 15 ? l.add(const Duration(days: 1)) : l;
+    return _dataOnly(data, 0); // `data` já está deslocada — offset extra 0
   }
 }
