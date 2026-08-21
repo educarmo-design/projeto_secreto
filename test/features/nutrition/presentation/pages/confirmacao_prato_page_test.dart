@@ -1,12 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:mocktail/mocktail.dart';
+
 import 'package:atleta_gamificacao/core/i18n/i18n_manager.dart';
 import 'package:atleta_gamificacao/features/dashboard/data/models/health_payload_model.dart';
+import 'package:atleta_gamificacao/features/nutrition/data/models/favorita_model.dart';
 import 'package:atleta_gamificacao/features/nutrition/data/models/prato_refeicao_extracao_model.dart';
 import 'package:atleta_gamificacao/features/nutrition/data/repositories/coleta_diaria_repository.dart';
+import 'package:atleta_gamificacao/features/nutrition/data/repositories/favoritas_repository.dart';
 import 'package:atleta_gamificacao/features/nutrition/presentation/controllers/confirmacao_prato_controller.dart';
 import 'package:atleta_gamificacao/features/nutrition/presentation/pages/confirmacao_prato_page.dart';
+
+class _MockFavoritasRepository extends Mock implements FavoritasRepository {}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -60,8 +66,14 @@ void main() {
   testWidgets('mostra nome, medida, macros e confiança do item', (tester) async {
     await pumpPagina(tester);
 
+    // RELATÓRIO 20260821 — corrigido pra bater com a UI real: o nome
+    // IDENTIFICADO pelo Gemini ("bifinho") é o título (bare, sem prefixo
+    // "Identificado como:" — isso nunca existiu na implementação, só no
+    // texto antigo deste teste); o nome CASADO no catálogo aparece como
+    // subtítulo só quando os dois divergem (ver `original.nomeCasado !=
+    // original.nomeIdentificado` em ConfirmacaoPratoPage).
+    expect(find.text('bifinho'), findsOneWidget);
     expect(find.text('Carne bovina, patinho, cru'), findsOneWidget);
-    expect(find.text('Identificado como: bifinho'), findsOneWidget);
     expect(find.text('Confiança da leitura: 90%'), findsOneWidget);
     expect(find.text('1 filé'), findsOneWidget);
     expect(find.text('130 kcal · 22.0g prot · 0.0g carb · 4.0g gord'), findsOneWidget);
@@ -319,6 +331,96 @@ void main() {
     // resto (transição de rota, snack) sem deixar nenhum timer pendente.
     await tester.pump(const Duration(milliseconds: 1200));
     await tester.pumpAndSettle();
+  });
+
+  // N13 (RELATÓRIO 20260821) — "marcar como favorita ao registrar".
+  group('salvar como favorita', () {
+    late _MockFavoritasRepository favoritasRepository;
+
+    setUpAll(() {
+      registerFallbackValue(TipoRefeicao.almoco);
+    });
+
+    setUp(() {
+      favoritasRepository = _MockFavoritasRepository();
+    });
+
+    Future<void> pumpComFavoritas(WidgetTester tester) async {
+      final extracao = PratoRefeicaoExtracaoModel(
+        itens: [item()],
+        itensNaoReconhecidos: const [],
+        possivelFotoDeTela: false,
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ConfirmacaoPratoPage(
+            extracao: extracao,
+            favoritasRepository: favoritasRepository,
+          ),
+        ),
+      );
+      await tester.pump();
+    }
+
+    testWidgets('botão de favoritar preenchido e nome válidos salva com o tipo escolhido', (tester) async {
+      when(() => favoritasRepository.salvar(
+            nome: any(named: 'nome'),
+            tipoRefeicao: any(named: 'tipoRefeicao'),
+            payloadJsonb: any(named: 'payloadJsonb'),
+          )).thenAnswer((_) async => const ColetaDiariaResult(success: true));
+
+      await pumpComFavoritas(tester);
+
+      await tester.tap(find.byIcon(Icons.star_outline));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byType(TextField), 'Meu prato favorito');
+      await tester.tap(find.widgetWithText(RadioListTile<TipoRefeicao>, 'Almoço'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, 'Salvar'));
+      await tester.pumpAndSettle();
+
+      verify(() => favoritasRepository.salvar(
+            nome: 'Meu prato favorito',
+            tipoRefeicao: TipoRefeicao.almoco,
+            payloadJsonb: any(named: 'payloadJsonb'),
+          )).called(1);
+      expect(find.text('Favorita salva com sucesso'), findsOneWidget);
+    });
+
+    testWidgets('sem nome preenchido, botão Salvar do diálogo fica desabilitado', (tester) async {
+      await pumpComFavoritas(tester);
+
+      await tester.tap(find.byIcon(Icons.star_outline));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Café da manhã'));
+      await tester.pumpAndSettle();
+
+      final botaoSalvar = tester.widget<FilledButton>(find.widgetWithText(FilledButton, 'Salvar'));
+      expect(botaoSalvar.onPressed, isNull);
+      verifyNever(() => favoritasRepository.salvar(
+            nome: any(named: 'nome'),
+            tipoRefeicao: any(named: 'tipoRefeicao'),
+            payloadJsonb: any(named: 'payloadJsonb'),
+          ));
+    });
+
+    testWidgets('cancelar o diálogo nunca chama o repositório', (tester) async {
+      await pumpComFavoritas(tester);
+
+      await tester.tap(find.byIcon(Icons.star_outline));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Cancelar'));
+      await tester.pumpAndSettle();
+
+      verifyNever(() => favoritasRepository.salvar(
+            nome: any(named: 'nome'),
+            tipoRefeicao: any(named: 'tipoRefeicao'),
+            payloadJsonb: any(named: 'payloadJsonb'),
+          ));
+    });
   });
 }
 

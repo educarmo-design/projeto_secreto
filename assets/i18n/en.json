@@ -375,6 +375,7 @@
     "weight_test_item": "Test Weight Reading",
     "sleep_test_item": "Test Sleep Reading",
     "manual_food_search_item": "Manual Food Search",
+    "favoritas_item": "My Favorites",
     "anamnese_item": "Nutrition Intake",
     "meta_bem_estar_item": "Wellness Goal"
   },
@@ -533,10 +534,44 @@
     "confirm_button": "Confirm",
     "saving": "Saving...",
     "save_success": "Meal saved successfully!",
+    "favorita_button": "Save as favorite",
+    "favorita_dialog_title": "Save as favorite",
+    "favorita_nome_label": "Favorite name",
+    "favorita_tipo_label": "Meal type",
+    "favorita_save_button": "Save",
+    "favorita_save_success": "Favorite saved successfully",
+    "favorita_save_error": "Couldn't save the favorite. Please try again.",
+    "tipo_refeicao_cafe_da_manha": "Breakfast",
+    "tipo_refeicao_almoco": "Lunch",
+    "tipo_refeicao_lanche": "Snack",
+    "tipo_refeicao_jantar": "Dinner",
     "motivo": {
       "alimento_nao_encontrado": "Food not found in the catalog",
       "medida_nao_encontrada": "No home measure registered for this food"
     }
+  },
+
+  "favoritas": {
+    "title": "My Favorites",
+    "filtro_todas": "All",
+    "empty_state": "No favorites saved yet. Save a meal as a favorite from the confirmation screen.",
+    "load_error": "Failed to load your favorites.",
+    "retry_button": "Try again",
+    "subtitulo": "{{tipo}} · {{calorias}} kcal · {{itens}} item(s)",
+    "usar_dialog_title": "Use favorite",
+    "usar_dialog_content": "Log \"{{nome}}\" now, with the same items and amounts saved?",
+    "usar_button": "Log it",
+    "usar_sucesso": "Meal logged from favorite",
+    "usar_erro": "Couldn't log the meal from this favorite.",
+    "trocar_tipo_button": "Change type",
+    "trocar_tipo_dialog_title": "Change meal type",
+    "trocar_tipo_sucesso": "Type updated",
+    "trocar_tipo_erro": "Couldn't change the type.",
+    "excluir_button": "Delete",
+    "excluir_dialog_title": "Delete favorite",
+    "excluir_dialog_content": "Delete \"{{nome}}\" from your favorites? This doesn't erase meals already logged with it.",
+    "excluir_sucesso": "Favorite deleted",
+    "excluir_erro": "Couldn't delete the favorite."
   },
 
   "intelligence": {

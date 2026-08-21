@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/i18n/i18n_manager.dart';
+import '../../../../core/theme/app_theme.dart';
+import '../../data/models/favorita_model.dart';
 import '../../data/models/prato_refeicao_extracao_model.dart';
+import '../../data/repositories/favoritas_repository.dart';
 import '../controllers/confirmacao_prato_controller.dart';
 
 /// Tela de Confirmação do Prato (F10 Passo 3 + F34, Parte 11.3 — "IA estima
@@ -12,12 +15,19 @@ import '../controllers/confirmacao_prato_controller.dart';
 /// quantidade, remover, confirmar) funciona de ponta a ponta; nenhum
 /// polimento visual além do mínimo (`Card`/`ListTile`).
 class ConfirmacaoPratoPage extends StatefulWidget {
-  const ConfirmacaoPratoPage({super.key, required this.extracao, this.controller});
+  const ConfirmacaoPratoPage({
+    super.key,
+    required this.extracao,
+    this.controller,
+    FavoritasRepository? favoritasRepository,
+  }) : _favoritasRepository = favoritasRepository;
 
   final PratoRefeicaoExtracaoModel extracao;
 
   /// Injetável em teste — mesmo padrão de [GerirVinculosPage]/[ManualFoodSearchPage].
   final ConfirmacaoPratoController? controller;
+
+  final FavoritasRepository? _favoritasRepository;
 
   @override
   State<ConfirmacaoPratoPage> createState() => _ConfirmacaoPratoPageState();
@@ -27,11 +37,48 @@ class _ConfirmacaoPratoPageState extends State<ConfirmacaoPratoPage> {
   late final ConfirmacaoPratoController _controller =
       widget.controller ?? ConfirmacaoPratoController(widget.extracao);
   late final bool _controllerEhProprio = widget.controller == null;
+  late final FavoritasRepository _favoritasRepository =
+      widget._favoritasRepository ?? FavoritasRepository();
 
   @override
   void dispose() {
     if (_controllerEhProprio) _controller.dispose();
     super.dispose();
+  }
+
+  /// N13 (RELATÓRIO 20260821) — "marcar como favorita ao registrar
+  /// (seleciona o tipo)": diálogo pede tipo de refeição + nome, salva
+  /// [ConfirmacaoPratoController.payloadRevisado] inteiro (itens + totais)
+  /// como está NAQUELE MOMENTO — inclui qualquer edição de quantidade/peso
+  /// já feita, "com a medida customizada", como a spec pede. Independente
+  /// de confirmar a refeição em si (o usuário pode favoritar sem
+  /// registrar, ou registrar sem favoritar).
+  Future<void> _salvarComoFavorita() async {
+    final resultado = await showDialog<({TipoRefeicao tipo, String nome})>(
+      context: context,
+      builder: (context) => const _DialogoSalvarFavorita(),
+    );
+    if (resultado == null || !mounted) return;
+
+    final salvo = await _favoritasRepository.salvar(
+      nome: resultado.nome,
+      tipoRefeicao: resultado.tipo,
+      payloadJsonb: _controller.payloadRevisado(),
+    );
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(
+            salvo.success
+                ? i18n.tr('confirmacao_prato.favorita_save_success')
+                : (salvo.errorMessage ?? i18n.tr('confirmacao_prato.favorita_save_error')),
+          ),
+          backgroundColor: salvo.success ? AppColors.success : AppColors.error,
+        ),
+      );
   }
 
   /// F34: grava em `coleta_diaria` e só então sai da tela — o
@@ -55,7 +102,19 @@ class _ConfirmacaoPratoPageState extends State<ConfirmacaoPratoPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(i18n.tr('confirmacao_prato.title'))),
+      appBar: AppBar(
+        title: Text(i18n.tr('confirmacao_prato.title')),
+        actions: [
+          ValueListenableBuilder<ConfirmacaoPratoState>(
+            valueListenable: _controller,
+            builder: (context, state, _) => IconButton(
+              icon: const Icon(Icons.star_outline),
+              tooltip: i18n.tr('confirmacao_prato.favorita_button'),
+              onPressed: state.itens.isEmpty ? null : _salvarComoFavorita,
+            ),
+          ),
+        ],
+      ),
       body: SafeArea(
         child: ValueListenableBuilder<ConfirmacaoPratoState>(
           valueListenable: _controller,
@@ -582,18 +641,26 @@ class _ItemPratoTileState extends State<_ItemPratoTile> {
                     ),
                   ],
                 ),
-                Flexible(
-                  child: Text(
-                    i18n.tr('confirmacao_prato.macros_resumo', params: {
-                      'calorias': item.calorias.toStringAsFixed(0),
-                      'proteinas': item.proteinasG.toStringAsFixed(1),
-                      'carboidratos': item.carboidratosG.toStringAsFixed(1),
-                      'gorduras': item.gordurasG.toStringAsFixed(1),
-                    }),
-                    style: Theme.of(context).textTheme.bodySmall,
-                    overflow: TextOverflow.ellipsis,
-                    maxLines: 2,
-                  ),
+                // RELATÓRIO 20260821 — ACHADO REAL: `Flexible` não pode ser
+                // filho direto de `Wrap` (só de `Row`/`Column`/`Flex`) —
+                // `Wrap` usa `WrapParentData`, `Flexible` exige
+                // `FlexParentData`. Isso derrubava a tela INTEIRA com
+                // "Incorrect use of ParentDataWidget" toda vez que este
+                // card renderizava (confirmado isolando numa worktree
+                // limpa do HEAD — bug pré-existente, não introduzido nesta
+                // tarefa). `Text` direto: `Wrap` já dá a cada filho uma
+                // constraint de largura própria, `overflow`/`maxLines`
+                // continuam funcionando sem precisar de `Flexible`.
+                Text(
+                  i18n.tr('confirmacao_prato.macros_resumo', params: {
+                    'calorias': item.calorias.toStringAsFixed(0),
+                    'proteinas': item.proteinasG.toStringAsFixed(1),
+                    'carboidratos': item.carboidratosG.toStringAsFixed(1),
+                    'gorduras': item.gordurasG.toStringAsFixed(1),
+                  }),
+                  style: Theme.of(context).textTheme.bodySmall,
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 2,
                 ),
               ],
             ),
@@ -640,6 +707,95 @@ class _TotaisBar extends StatelessWidget {
         }),
         style: Theme.of(context).textTheme.titleSmall,
       ),
+    );
+  }
+}
+
+/// N13 (RELATÓRIO 20260821) — diálogo pra "marcar como favorita ao
+/// registrar (seleciona o tipo)": tipo de refeição (obrigatório, um dos 4
+/// da spec) + nome (obrigatório — nunca inferido do primeiro item, ver doc
+/// da migration). `Navigator.pop` devolve `null` se cancelado, ou o par
+/// (tipo, nome) se confirmado — [_ConfirmacaoPratoPageState._salvarComoFavorita]
+/// só chama o repositório quando não-nulo.
+class _DialogoSalvarFavorita extends StatefulWidget {
+  const _DialogoSalvarFavorita();
+
+  @override
+  State<_DialogoSalvarFavorita> createState() => _DialogoSalvarFavoritaState();
+}
+
+class _DialogoSalvarFavoritaState extends State<_DialogoSalvarFavorita> {
+  final _nomeController = TextEditingController();
+  TipoRefeicao? _tipoSelecionado;
+
+  @override
+  void dispose() {
+    _nomeController.dispose();
+    super.dispose();
+  }
+
+  String _rotuloTipo(TipoRefeicao tipo) {
+    switch (tipo) {
+      case TipoRefeicao.cafeDaManha:
+        return i18n.tr('confirmacao_prato.tipo_refeicao_cafe_da_manha');
+      case TipoRefeicao.almoco:
+        return i18n.tr('confirmacao_prato.tipo_refeicao_almoco');
+      case TipoRefeicao.lanche:
+        return i18n.tr('confirmacao_prato.tipo_refeicao_lanche');
+      case TipoRefeicao.jantar:
+        return i18n.tr('confirmacao_prato.tipo_refeicao_jantar');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final nomeVazio = _nomeController.text.trim().isEmpty;
+    return AlertDialog(
+      title: Text(i18n.tr('confirmacao_prato.favorita_dialog_title')),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          TextField(
+            controller: _nomeController,
+            decoration: InputDecoration(
+              labelText: i18n.tr('confirmacao_prato.favorita_nome_label'),
+            ),
+            onChanged: (_) => setState(() {}),
+          ),
+          const SizedBox(height: 16),
+          Text(i18n.tr('confirmacao_prato.favorita_tipo_label')),
+          RadioGroup<TipoRefeicao>(
+            groupValue: _tipoSelecionado,
+            onChanged: (valor) => setState(() => _tipoSelecionado = valor),
+            child: Column(
+              children: [
+                for (final tipo in TipoRefeicao.values)
+                  RadioListTile<TipoRefeicao>(
+                    contentPadding: EdgeInsets.zero,
+                    value: tipo,
+                    title: Text(_rotuloTipo(tipo)),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text(i18n.tr('common.cancel')),
+        ),
+        FilledButton(
+          onPressed: (nomeVazio || _tipoSelecionado == null)
+              ? null
+              : () => Navigator.of(context).pop((
+                    tipo: _tipoSelecionado!,
+                    nome: _nomeController.text.trim(),
+                  )),
+          child: Text(i18n.tr('confirmacao_prato.favorita_save_button')),
+        ),
+      ],
     );
   }
 }

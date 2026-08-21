@@ -375,6 +375,7 @@
     "weight_test_item": "Testar Leitura de Peso",
     "sleep_test_item": "Testar Leitura de Sono",
     "manual_food_search_item": "Busca Manual de Alimentos",
+    "favoritas_item": "Minhas Favoritas",
     "anamnese_item": "Anamnese Nutricional",
     "meta_bem_estar_item": "Meta de Bem-Estar",
 
@@ -542,10 +543,44 @@
     "confirm_button": "Confirmar",
     "saving": "Salvando...",
     "save_success": "Refeição salva com sucesso!",
+    "favorita_button": "Salvar como favorita",
+    "favorita_dialog_title": "Salvar como favorita",
+    "favorita_nome_label": "Nome da favorita",
+    "favorita_tipo_label": "Tipo de refeição",
+    "favorita_save_button": "Salvar",
+    "favorita_save_success": "Favorita salva com sucesso",
+    "favorita_save_error": "Não foi possível salvar a favorita. Tente novamente.",
+    "tipo_refeicao_cafe_da_manha": "Café da manhã",
+    "tipo_refeicao_almoco": "Almoço",
+    "tipo_refeicao_lanche": "Lanche",
+    "tipo_refeicao_jantar": "Jantar",
     "motivo": {
       "alimento_nao_encontrado": "Alimento não encontrado no catálogo",
       "medida_nao_encontrada": "Medida não cadastrada para este alimento"
     }
+  },
+
+  "favoritas": {
+    "title": "Minhas Favoritas",
+    "filtro_todas": "Todas",
+    "empty_state": "Nenhuma favorita salva ainda. Salve uma refeição como favorita na tela de confirmação.",
+    "load_error": "Erro ao carregar suas favoritas.",
+    "retry_button": "Tentar de novo",
+    "subtitulo": "{{tipo}} · {{calorias}} kcal · {{itens}} item(ns)",
+    "usar_dialog_title": "Usar favorita",
+    "usar_dialog_content": "Registrar \"{{nome}}\" agora, com os mesmos itens e quantidades salvos?",
+    "usar_button": "Registrar",
+    "usar_sucesso": "Refeição registrada a partir da favorita",
+    "usar_erro": "Não foi possível registrar a partir da favorita.",
+    "trocar_tipo_button": "Trocar tipo",
+    "trocar_tipo_dialog_title": "Trocar tipo de refeição",
+    "trocar_tipo_sucesso": "Tipo atualizado",
+    "trocar_tipo_erro": "Não foi possível trocar o tipo.",
+    "excluir_button": "Excluir",
+    "excluir_dialog_title": "Excluir favorita",
+    "excluir_dialog_content": "Excluir \"{{nome}}\" das suas favoritas? Isso não apaga refeições já registradas com ela.",
+    "excluir_sucesso": "Favorita excluída",
+    "excluir_erro": "Não foi possível excluir a favorita."
   },
 
   "intelligence": {
