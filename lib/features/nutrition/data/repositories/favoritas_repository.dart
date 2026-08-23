@@ -158,4 +158,48 @@ class FavoritasRepository {
       );
     }
   }
+
+  /// RELATÓRIO 20260823 — 2º gap encontrado pelo fundador testando: editar o
+  /// CONTEÚDO (itens/quantidades) de uma favorita já salva nunca tinha sido
+  /// implementado, só [atualizarTipo]/[excluir]. Sobrescreve
+  /// `payload_jsonb` inteiro — mesmo formato de
+  /// `ConfirmacaoPratoController.payloadRevisado()`, chamado por
+  /// [ConfirmacaoPratoController.confirmar] quando injetado como
+  /// `aoConfirmar` (ver [FavoritaEmEdicao] em `ConfirmacaoPratoPage`). RLS
+  /// `alimentos_favoritos_update_own` já garante que só o dono edita.
+  Future<ColetaDiariaResult> atualizarPayload(
+    String id,
+    Map<String, dynamic> payloadJsonb,
+  ) async {
+    final usuarioId = _supabase.auth.currentUser?.id;
+    if (usuarioId == null) {
+      return const ColetaDiariaResult(
+        success: false,
+        errorMessage: 'Sessão expirada — faça login novamente.',
+        debugDetail: 'FavoritasRepository.atualizarPayload: currentUser é null.',
+      );
+    }
+
+    try {
+      await _supabase
+          .from('alimentos_favoritos')
+          .update({'payload_jsonb': payloadJsonb}).eq('id', id);
+      return const ColetaDiariaResult(success: true);
+    } on PostgrestException catch (e) {
+      debugPrint('FavoritasRepository.atualizarPayload: ${e.code} — ${e.message}');
+      return ColetaDiariaResult(
+        success: false,
+        errorMessage: 'Não foi possível salvar as alterações agora. Tente novamente.',
+        debugDetail: 'PostgrestException ${e.code}: ${e.message}',
+      );
+    } catch (e, stackTrace) {
+      debugPrint('FavoritasRepository.atualizarPayload: ${e.runtimeType} — $e');
+      debugPrint(stackTrace.toString());
+      return ColetaDiariaResult(
+        success: false,
+        errorMessage: 'Erro inesperado ao salvar as alterações.',
+        debugDetail: '${e.runtimeType}: $e',
+      );
+    }
+  }
 }

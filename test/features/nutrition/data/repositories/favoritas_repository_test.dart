@@ -222,4 +222,33 @@ void main() {
       verifyNever(() => supabase.from('alimentos_favoritos'));
     });
   });
+
+  // RELATÓRIO 20260823 — 2º gap: editar o CONTEÚDO (itens/quantidades) de
+  // uma favorita já salva.
+  group('atualizarPayload', () {
+    test('faz UPDATE do payload_jsonb pelo id', () async {
+      final novoPayload = {
+        'itens': [
+          {'nome': 'Feijão'},
+        ],
+        'totais': {'calorias': 300},
+      };
+      when(() => favoritosBuilder.update({'payload_jsonb': novoPayload}))
+          .thenAnswer((_) => _FakeEqBuilder(Future.value(null)));
+
+      final resultado = await repository.atualizarPayload('fav-1', novoPayload);
+
+      expect(resultado.success, isTrue);
+      verify(() => favoritosBuilder.update({'payload_jsonb': novoPayload})).called(1);
+    });
+
+    test('falha sem chamar o Supabase quando ninguém está logado', () async {
+      when(() => auth.currentUser).thenReturn(null);
+
+      final resultado = await repository.atualizarPayload('fav-1', const {});
+
+      expect(resultado.success, isFalse);
+      verifyNever(() => supabase.from('alimentos_favoritos'));
+    });
+  });
 }

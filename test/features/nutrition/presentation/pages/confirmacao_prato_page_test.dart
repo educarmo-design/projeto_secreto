@@ -422,6 +422,94 @@ void main() {
           ));
     });
   });
+
+  // RELATÓRIO 20260823 — 2º gap encontrado pelo fundador testando: editar
+  // o CONTEÚDO (itens/quantidades) de uma favorita já salva.
+  group('editar favorita (FavoritaEmEdicao)', () {
+    late _MockFavoritasRepository favoritasRepository;
+
+    setUpAll(() {
+      registerFallbackValue(TipoRefeicao.almoco);
+    });
+
+    setUp(() {
+      favoritasRepository = _MockFavoritasRepository();
+    });
+
+    Future<void> pumpEditando(WidgetTester tester) async {
+      final extracao = PratoRefeicaoExtracaoModel(
+        itens: [item()],
+        itensNaoReconhecidos: const [],
+        possivelFotoDeTela: false,
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ConfirmacaoPratoPage(
+            extracao: extracao,
+            favoritaEmEdicao: const FavoritaEmEdicao(id: 'fav-1'),
+            favoritasRepository: favoritasRepository,
+          ),
+        ),
+      );
+      await tester.pump();
+    }
+
+    testWidgets('título vira "Editar Favorita" e botão ⭐ some', (tester) async {
+      await pumpEditando(tester);
+
+      expect(find.text('Editar Favorita'), findsOneWidget);
+      expect(find.text('Confirmar Refeição'), findsNothing);
+      expect(find.byIcon(Icons.star_outline), findsNothing);
+    });
+
+    testWidgets('botão salvar diz "Salvar alterações" e chama atualizarPayload, não gravarRefeicao',
+        (tester) async {
+      when(() => favoritasRepository.atualizarPayload(any(), any()))
+          .thenAnswer((_) async => const ColetaDiariaResult(success: true));
+
+      await pumpEditando(tester);
+
+      expect(find.text('Salvar alterações'), findsOneWidget);
+      expect(find.text('Confirmar'), findsNothing);
+
+      await tester.tap(find.text('Salvar alterações'));
+      await tester.pump();
+      // Mesmo cuidado de `pumpEConfirmar` (grupo "confirmar refeição"
+      // acima): checar o SnackBar ANTES do `pumpAndSettle()` final, que
+      // resolve a transição do `pop` — depois dele o `ScaffoldMessenger`
+      // desta tela já não existe mais.
+      await tester.pump(const Duration(milliseconds: 1200));
+      expect(find.text('Favorita atualizada com sucesso!'), findsOneWidget);
+      await tester.pumpAndSettle();
+
+      verify(() => favoritasRepository.atualizarPayload('fav-1', any())).called(1);
+      verifyNever(() => favoritasRepository.salvar(
+            nome: any(named: 'nome'),
+            tipoRefeicao: any(named: 'tipoRefeicao'),
+            payloadJsonb: any(named: 'payloadJsonb'),
+          ));
+    });
+
+    testWidgets('falha ao atualizar mantém a tela e mostra o erro', (tester) async {
+      when(() => favoritasRepository.atualizarPayload(any(), any())).thenAnswer(
+        (_) async => const ColetaDiariaResult(
+          success: false,
+          errorMessage: 'Não foi possível salvar as alterações agora. Tente novamente.',
+        ),
+      );
+
+      await pumpEditando(tester);
+
+      await tester.tap(find.text('Salvar alterações'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('Não foi possível salvar as alterações agora. Tente novamente.'),
+        findsOneWidget,
+      );
+      expect(find.text('Salvar alterações'), findsOneWidget); // ainda na tela
+    });
+  });
 }
 
 /// Fake em memória — nunca toca `Supabase.instance`.

@@ -32,6 +32,44 @@ FavoritaModel _favorita({
   );
 }
 
+/// Payload completo — o mesmo formato que
+/// `ConfirmacaoPratoController.payloadRevisado()` produz — necessário só
+/// para o grupo "editar itens", que reabre a favorita em
+/// `ConfirmacaoPratoPage` via `PratoRefeicaoExtracaoModel.fromJson` (parse
+/// estrito, ao contrário de [_favorita] acima que basta pra `usar`/`trocar
+/// tipo`/`excluir`, nunca reparseada como extração).
+FavoritaModel _favoritaEditavel({String id = 'fav-1', String nome = 'Meu almoço'}) {
+  return FavoritaModel(
+    id: id,
+    tipoRefeicao: TipoRefeicao.almoco,
+    nome: nome,
+    payloadJsonb: {
+      'itens': [
+        {
+          'nome': 'Arroz branco cozido',
+          'nome_identificado': 'arroz',
+          'medida': 'colher de servir',
+          'quantidade': 1,
+          'gramas_estimados': 100,
+          'calorias': 130,
+          'proteinas_g': 2.5,
+          'carboidratos_g': 28,
+          'gorduras_g': 0.2,
+          'confianca': 0.9,
+        },
+      ],
+      'itens_nao_reconhecidos': const [],
+      'totais': {
+        'calorias': 130,
+        'proteinas_g': 2.5,
+        'carboidratos_g': 28,
+        'gorduras_g': 0.2,
+      },
+    },
+    criadoEm: DateTime(2026, 8, 20),
+  );
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -75,7 +113,9 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(
-      find.text('Nenhuma favorita salva ainda. Salve uma refeição como favorita na tela de confirmação.'),
+      find.text(
+        'Nenhuma favorita salva ainda. Toque em + para criar uma, ou salve uma refeição como favorita na tela de confirmação.',
+      ),
       findsOneWidget,
     );
   });
@@ -181,5 +221,66 @@ void main() {
     await tester.pumpAndSettle();
 
     verify(() => favoritasRepository.atualizarTipo('fav-1', TipoRefeicao.jantar)).called(1);
+  });
+
+  // RELATÓRIO 20260823 — 1º gap: criar uma favorita do zero, direto na tela
+  // de Favoritas (antes só existia o botão ⭐ em ConfirmacaoPratoPage).
+  testWidgets('botão + abre CriarFavoritaPage e recarrega ao voltar com sucesso', (tester) async {
+    when(() => favoritasRepository.listar(tipoRefeicao: any(named: 'tipoRefeicao')))
+        .thenAnswer((_) async => []);
+
+    await tester.pumpWidget(criarApp());
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byIcon(Icons.add));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Criar Favorita'), findsOneWidget);
+
+    // "Volta true" simulado: a própria página de criar dá pop(true) ao
+    // salvar — aqui só confirmamos que FavoritasPage recarrega quando isso
+    // acontece (a lógica de salvar em si é testada em
+    // criar_favorita_page_test.dart).
+    Navigator.of(tester.element(find.text('Criar Favorita'))).pop(true);
+    await tester.pumpAndSettle();
+
+    // 1 carga inicial + 1 recarga ao voltar com sucesso = 2.
+    verify(() => favoritasRepository.listar(tipoRefeicao: any(named: 'tipoRefeicao'))).called(2);
+  });
+
+  // RELATÓRIO 20260823 — 2º gap: editar o CONTEÚDO (itens/quantidades) de
+  // uma favorita já salva.
+  group('editar itens', () {
+    testWidgets('abre ConfirmacaoPratoPage em modo edição com os itens da favorita', (tester) async {
+      when(() => favoritasRepository.listar(tipoRefeicao: any(named: 'tipoRefeicao')))
+          .thenAnswer((_) async => [_favoritaEditavel()]);
+
+      await tester.pumpWidget(criarApp());
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byType(PopupMenuButton<String>));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Editar itens'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Editar Favorita'), findsOneWidget);
+      expect(find.text('arroz'), findsOneWidget); // nomeIdentificado do item
+    });
+
+    testWidgets('payload malformado mostra erro e não navega', (tester) async {
+      when(() => favoritasRepository.listar(tipoRefeicao: any(named: 'tipoRefeicao')))
+          .thenAnswer((_) async => [_favorita()]); // payload mínimo, não parseável como extração
+
+      await tester.pumpWidget(criarApp());
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byType(PopupMenuButton<String>));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Editar itens'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Não foi possível abrir esta favorita para edição.'), findsOneWidget);
+      expect(find.text('Editar Favorita'), findsNothing);
+    });
   });
 }

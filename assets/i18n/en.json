@@ -541,6 +541,9 @@
     "favorita_save_button": "Save",
     "favorita_save_success": "Favorite saved successfully",
     "favorita_save_error": "Couldn't save the favorite. Please try again.",
+    "editar_favorita_title": "Edit Favorite",
+    "salvar_alteracoes_button": "Save changes",
+    "favorita_atualizada_sucesso": "Favorite updated successfully!",
     "tipo_refeicao_cafe_da_manha": "Breakfast",
     "tipo_refeicao_almoco": "Lunch",
     "tipo_refeicao_lanche": "Snack",
@@ -554,15 +557,18 @@
   "favoritas": {
     "title": "My Favorites",
     "filtro_todas": "All",
-    "empty_state": "No favorites saved yet. Save a meal as a favorite from the confirmation screen.",
+    "empty_state": "No favorites saved yet. Tap + to create one, or save a meal as a favorite from the confirmation screen.",
     "load_error": "Failed to load your favorites.",
     "retry_button": "Try again",
     "subtitulo": "{{tipo}} · {{calorias}} kcal · {{itens}} item(s)",
+    "criar_tooltip": "Create new favorite",
     "usar_dialog_title": "Use favorite",
     "usar_dialog_content": "Log \"{{nome}}\" now, with the same items and amounts saved?",
     "usar_button": "Log it",
     "usar_sucesso": "Meal logged from favorite",
     "usar_erro": "Couldn't log the meal from this favorite.",
+    "editar_button": "Edit items",
+    "editar_payload_invalido": "Couldn't open this favorite for editing.",
     "trocar_tipo_button": "Change type",
     "trocar_tipo_dialog_title": "Change meal type",
     "trocar_tipo_sucesso": "Type updated",
@@ -572,6 +578,19 @@
     "excluir_dialog_content": "Delete \"{{nome}}\" from your favorites? This doesn't erase meals already logged with it.",
     "excluir_sucesso": "Favorite deleted",
     "excluir_erro": "Couldn't delete the favorite."
+  },
+
+  "criar_favorita": {
+    "title": "Create Favorite",
+    "adicionar_item": "Add",
+    "itens_selecionados_title": "Selected items ({{quantidade}})",
+    "nenhum_item_selecionado": "No items yet — search for a food above and tap to add it.",
+    "item_subtitulo": "{{gramas}}g · {{calorias}} kcal",
+    "totais": "Total: {{calorias}} kcal",
+    "salvar_button": "Save favorite",
+    "salvar_dialog_title": "Favorite name and type",
+    "salvar_sucesso": "Favorite created successfully",
+    "salvar_erro": "Couldn't create the favorite. Please try again."
   },
 
   "intelligence": {

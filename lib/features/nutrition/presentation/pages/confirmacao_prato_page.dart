@@ -6,6 +6,24 @@ import '../../data/models/favorita_model.dart';
 import '../../data/models/prato_refeicao_extracao_model.dart';
 import '../../data/repositories/favoritas_repository.dart';
 import '../controllers/confirmacao_prato_controller.dart';
+import '../widgets/dialogo_nome_tipo_favorita.dart';
+
+/// Identifica que esta tela está editando o CONTEÚDO de uma favorita já
+/// salva (RELATÓRIO 20260823 — 2º gap encontrado pelo fundador testando:
+/// "trocar tipo"/"excluir" existiam, editar itens/quantidades nunca tinha
+/// sido implementado). Passado por [FavoritasPage] ao abrir uma favorita
+/// para editar — muda o rótulo do botão de salvar e, principalmente,
+/// redireciona [ConfirmacaoPratoController.confirmar] para
+/// [FavoritasRepository.atualizarPayload] em vez de registrar uma refeição
+/// nova em `coleta_diaria`. Reaproveita TODA a tela de edição de itens
+/// (incrementar/decrementar/editar peso/remover) já construída para o F10
+/// Passo 3 — o formato de [ConfirmacaoPratoController.payloadRevisado] é
+/// exatamente o mesmo que [FavoritaModel.payloadJsonb] já usa.
+class FavoritaEmEdicao {
+  const FavoritaEmEdicao({required this.id});
+
+  final String id;
+}
 
 /// Tela de Confirmação do Prato (F10 Passo 3 + F34, Parte 11.3 — "IA estima
 /// + usuário edita"): recebe a extração já calculada pelo backend
@@ -19,6 +37,7 @@ class ConfirmacaoPratoPage extends StatefulWidget {
     super.key,
     required this.extracao,
     this.controller,
+    this.favoritaEmEdicao,
     FavoritasRepository? favoritasRepository,
   }) : _favoritasRepository = favoritasRepository;
 
@@ -27,6 +46,11 @@ class ConfirmacaoPratoPage extends StatefulWidget {
   /// Injetável em teste — mesmo padrão de [GerirVinculosPage]/[ManualFoodSearchPage].
   final ConfirmacaoPratoController? controller;
 
+  /// Não-nulo quando esta tela está editando o CONTEÚDO de uma favorita já
+  /// salva (ver doc de [FavoritaEmEdicao]) — [FavoritasPage] é quem passa
+  /// isto ao abrir "Editar" no menu de uma favorita.
+  final FavoritaEmEdicao? favoritaEmEdicao;
+
   final FavoritasRepository? _favoritasRepository;
 
   @override
@@ -34,11 +58,19 @@ class ConfirmacaoPratoPage extends StatefulWidget {
 }
 
 class _ConfirmacaoPratoPageState extends State<ConfirmacaoPratoPage> {
-  late final ConfirmacaoPratoController _controller =
-      widget.controller ?? ConfirmacaoPratoController(widget.extracao);
-  late final bool _controllerEhProprio = widget.controller == null;
   late final FavoritasRepository _favoritasRepository =
       widget._favoritasRepository ?? FavoritasRepository();
+  late final ConfirmacaoPratoController _controller = widget.controller ??
+      ConfirmacaoPratoController(
+        widget.extracao,
+        aoConfirmar: widget.favoritaEmEdicao == null
+            ? null
+            : (payload, _) => _favoritasRepository.atualizarPayload(
+                  widget.favoritaEmEdicao!.id,
+                  payload,
+                ),
+      );
+  late final bool _controllerEhProprio = widget.controller == null;
 
   @override
   void dispose() {
@@ -56,7 +88,7 @@ class _ConfirmacaoPratoPageState extends State<ConfirmacaoPratoPage> {
   Future<void> _salvarComoFavorita() async {
     final resultado = await showDialog<({TipoRefeicao tipo, String nome})>(
       context: context,
-      builder: (context) => const _DialogoSalvarFavorita(),
+      builder: (context) => const DialogoNomeTipoFavorita(),
     );
     if (resultado == null || !mounted) return;
 
@@ -93,7 +125,13 @@ class _ConfirmacaoPratoPageState extends State<ConfirmacaoPratoPage> {
     if (!mounted || !sucesso) return;
 
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(i18n.tr('confirmacao_prato.save_success'))),
+      SnackBar(
+        content: Text(
+          widget.favoritaEmEdicao == null
+              ? i18n.tr('confirmacao_prato.save_success')
+              : i18n.tr('confirmacao_prato.favorita_atualizada_sucesso'),
+        ),
+      ),
     );
     await Future<void>.delayed(const Duration(milliseconds: 900));
     if (mounted) Navigator.of(context).pop(true);
@@ -101,19 +139,31 @@ class _ConfirmacaoPratoPageState extends State<ConfirmacaoPratoPage> {
 
   @override
   Widget build(BuildContext context) {
+    final editandoFavorita = widget.favoritaEmEdicao != null;
     return Scaffold(
       appBar: AppBar(
-        title: Text(i18n.tr('confirmacao_prato.title')),
-        actions: [
-          ValueListenableBuilder<ConfirmacaoPratoState>(
-            valueListenable: _controller,
-            builder: (context, state, _) => IconButton(
-              icon: const Icon(Icons.star_outline),
-              tooltip: i18n.tr('confirmacao_prato.favorita_button'),
-              onPressed: state.itens.isEmpty ? null : _salvarComoFavorita,
-            ),
-          ),
-        ],
+        title: Text(
+          editandoFavorita
+              ? i18n.tr('confirmacao_prato.editar_favorita_title')
+              : i18n.tr('confirmacao_prato.title'),
+        ),
+        // Botão ⭐ ("salvar como NOVA favorita") só faz sentido ao confirmar
+        // uma refeição normal — editando o conteúdo de uma favorita já
+        // existente, o botão "Salvar alterações" já sobrescreve ELA MESMA
+        // (ver [FavoritaEmEdicao]); manter o ⭐ aqui criaria uma segunda
+        // favorita duplicada em vez de atualizar a atual.
+        actions: editandoFavorita
+            ? null
+            : [
+                ValueListenableBuilder<ConfirmacaoPratoState>(
+                  valueListenable: _controller,
+                  builder: (context, state, _) => IconButton(
+                    icon: const Icon(Icons.star_outline),
+                    tooltip: i18n.tr('confirmacao_prato.favorita_button'),
+                    onPressed: state.itens.isEmpty ? null : _salvarComoFavorita,
+                  ),
+                ),
+              ],
       ),
       body: SafeArea(
         child: ValueListenableBuilder<ConfirmacaoPratoState>(
@@ -146,7 +196,11 @@ class _ConfirmacaoPratoPageState extends State<ConfirmacaoPratoPage> {
                               Text(i18n.tr('confirmacao_prato.saving')),
                             ],
                           )
-                        : Text(i18n.tr('confirmacao_prato.confirm_button')),
+                        : Text(
+                            editandoFavorita
+                                ? i18n.tr('confirmacao_prato.salvar_alteracoes_button')
+                                : i18n.tr('confirmacao_prato.confirm_button'),
+                          ),
                   ),
                 ),
               ],
@@ -711,91 +765,6 @@ class _TotaisBar extends StatelessWidget {
   }
 }
 
-/// N13 (RELATÓRIO 20260821) — diálogo pra "marcar como favorita ao
-/// registrar (seleciona o tipo)": tipo de refeição (obrigatório, um dos 4
-/// da spec) + nome (obrigatório — nunca inferido do primeiro item, ver doc
-/// da migration). `Navigator.pop` devolve `null` se cancelado, ou o par
-/// (tipo, nome) se confirmado — [_ConfirmacaoPratoPageState._salvarComoFavorita]
-/// só chama o repositório quando não-nulo.
-class _DialogoSalvarFavorita extends StatefulWidget {
-  const _DialogoSalvarFavorita();
-
-  @override
-  State<_DialogoSalvarFavorita> createState() => _DialogoSalvarFavoritaState();
-}
-
-class _DialogoSalvarFavoritaState extends State<_DialogoSalvarFavorita> {
-  final _nomeController = TextEditingController();
-  TipoRefeicao? _tipoSelecionado;
-
-  @override
-  void dispose() {
-    _nomeController.dispose();
-    super.dispose();
-  }
-
-  String _rotuloTipo(TipoRefeicao tipo) {
-    switch (tipo) {
-      case TipoRefeicao.cafeDaManha:
-        return i18n.tr('confirmacao_prato.tipo_refeicao_cafe_da_manha');
-      case TipoRefeicao.almoco:
-        return i18n.tr('confirmacao_prato.tipo_refeicao_almoco');
-      case TipoRefeicao.lanche:
-        return i18n.tr('confirmacao_prato.tipo_refeicao_lanche');
-      case TipoRefeicao.jantar:
-        return i18n.tr('confirmacao_prato.tipo_refeicao_jantar');
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final nomeVazio = _nomeController.text.trim().isEmpty;
-    return AlertDialog(
-      title: Text(i18n.tr('confirmacao_prato.favorita_dialog_title')),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          TextField(
-            controller: _nomeController,
-            decoration: InputDecoration(
-              labelText: i18n.tr('confirmacao_prato.favorita_nome_label'),
-            ),
-            onChanged: (_) => setState(() {}),
-          ),
-          const SizedBox(height: 16),
-          Text(i18n.tr('confirmacao_prato.favorita_tipo_label')),
-          RadioGroup<TipoRefeicao>(
-            groupValue: _tipoSelecionado,
-            onChanged: (valor) => setState(() => _tipoSelecionado = valor),
-            child: Column(
-              children: [
-                for (final tipo in TipoRefeicao.values)
-                  RadioListTile<TipoRefeicao>(
-                    contentPadding: EdgeInsets.zero,
-                    value: tipo,
-                    title: Text(_rotuloTipo(tipo)),
-                  ),
-              ],
-            ),
-          ),
-        ],
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: Text(i18n.tr('common.cancel')),
-        ),
-        FilledButton(
-          onPressed: (nomeVazio || _tipoSelecionado == null)
-              ? null
-              : () => Navigator.of(context).pop((
-                    tipo: _tipoSelecionado!,
-                    nome: _nomeController.text.trim(),
-                  )),
-          child: Text(i18n.tr('confirmacao_prato.favorita_save_button')),
-        ),
-      ],
-    );
-  }
-}
+// N13 (RELATÓRIO 20260821) — o diálogo "nome + tipo" de favorita foi
+// extraído para DialogoNomeTipoFavorita (RELATÓRIO 20260823), reaproveitado
+// também por CriarFavoritaPage. Ver widgets/dialogo_nome_tipo_favorita.dart.

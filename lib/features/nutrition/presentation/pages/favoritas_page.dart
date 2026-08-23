@@ -3,8 +3,11 @@ import 'package:flutter/material.dart';
 import '../../../../core/i18n/i18n_manager.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../data/models/favorita_model.dart';
+import '../../data/models/prato_refeicao_extracao_model.dart';
 import '../../data/repositories/coleta_diaria_repository.dart';
 import '../../data/repositories/favoritas_repository.dart';
+import 'confirmacao_prato_page.dart';
+import 'criar_favorita_page.dart';
 
 enum _CargaStatus { carregando, sucesso, erro }
 
@@ -130,6 +133,48 @@ class _FavoritasPageState extends State<FavoritasPage> {
     }
   }
 
+  /// RELATÓRIO 20260823 — 1º gap: criar uma favorita do zero, sem passar
+  /// pela câmera/IA. Abre [CriarFavoritaPage] (busca manual + monta os
+  /// itens); recarrega a lista quando ela salva com sucesso.
+  Future<void> _criar() async {
+    final salvou = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => CriarFavoritaPage(favoritasRepository: _favoritasRepository),
+      ),
+    );
+    if (salvou == true) await _carregar();
+  }
+
+  /// RELATÓRIO 20260823 — 2º gap: editar o CONTEÚDO (itens/quantidades) de
+  /// uma favorita já salva — antes só existia "trocar tipo"/"excluir".
+  /// Reaproveita `ConfirmacaoPratoPage` inteira (mesma edição de
+  /// quantidade/peso do F10 Passo 3): [FavoritaModel.payloadJsonb] já é o
+  /// mesmo formato que `PratoRefeicaoExtracaoModel.fromJson` espera, porque
+  /// os dois lados desta ida-e-volta são
+  /// `ConfirmacaoPratoController.payloadRevisado()`.
+  Future<void> _editar(FavoritaModel favorita) async {
+    final PratoRefeicaoExtracaoModel extracao;
+    try {
+      extracao = PratoRefeicaoExtracaoModel.fromJson(favorita.payloadJsonb);
+    } catch (_) {
+      if (!mounted) return;
+      _mostrarSnack(i18n.tr('favoritas.editar_payload_invalido'), sucesso: false);
+      return;
+    }
+    if (!mounted) return;
+
+    final salvou = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => ConfirmacaoPratoPage(
+          extracao: extracao,
+          favoritaEmEdicao: FavoritaEmEdicao(id: favorita.id),
+          favoritasRepository: _favoritasRepository,
+        ),
+      ),
+    );
+    if (salvou == true) await _carregar();
+  }
+
   Future<void> _trocarTipo(FavoritaModel favorita) async {
     final novoTipo = await showDialog<TipoRefeicao>(
       context: context,
@@ -199,6 +244,11 @@ class _FavoritasPageState extends State<FavoritasPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text(i18n.tr('favoritas.title'))),
+      floatingActionButton: FloatingActionButton(
+        onPressed: _criar,
+        tooltip: i18n.tr('favoritas.criar_tooltip'),
+        child: const Icon(Icons.add),
+      ),
       body: SafeArea(
         child: Column(
           children: [
@@ -297,10 +347,15 @@ class _FavoritasPageState extends State<FavoritasPage> {
               onTap: () => _usarFavorita(favorita),
               trailing: PopupMenuButton<String>(
                 onSelected: (acao) {
+                  if (acao == 'editar') _editar(favorita);
                   if (acao == 'trocar_tipo') _trocarTipo(favorita);
                   if (acao == 'excluir') _excluir(favorita);
                 },
                 itemBuilder: (context) => [
+                  PopupMenuItem(
+                    value: 'editar',
+                    child: Text(i18n.tr('favoritas.editar_button')),
+                  ),
                   PopupMenuItem(
                     value: 'trocar_tipo',
                     child: Text(i18n.tr('favoritas.trocar_tipo_button')),

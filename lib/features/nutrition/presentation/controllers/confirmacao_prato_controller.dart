@@ -146,6 +146,7 @@ class ConfirmacaoPratoController extends ValueNotifier<ConfirmacaoPratoState> {
   ConfirmacaoPratoController(
     PratoRefeicaoExtracaoModel extracao, {
     ColetaDiariaRepository? repositorio,
+    this.aoConfirmar,
   })  : _repositorio = repositorio ?? ColetaDiariaRepository(),
         super(
           ConfirmacaoPratoState(
@@ -163,6 +164,17 @@ class ConfirmacaoPratoController extends ValueNotifier<ConfirmacaoPratoState> {
         );
 
   final ColetaDiariaRepository _repositorio;
+
+  /// Sobrescreve o destino de [confirmar] — por padrão grava uma refeição
+  /// nova em `coleta_diaria` via [ColetaDiariaRepository.gravarRefeicao].
+  /// [FavoritasPage]/[ConfirmacaoPratoPage] injetam aqui uma função que
+  /// chama [FavoritasRepository.atualizarPayload] no lugar, ao editar o
+  /// CONTEÚDO de uma favorita já salva (RELATÓRIO 20260823) — reaproveita
+  /// toda a máquina de estado (`salvando`/`erroSalvar`) sem duplicá-la.
+  final Future<ColetaDiariaResult> Function(
+    Map<String, dynamic> payloadRevisado,
+    double? confiancaMinima,
+  )? aoConfirmar;
 
   /// Incremento de 1 unidade — mesma granularidade que o Gemini reporta
   /// (medida caseira inteira: "1 escumadeira" -> "2 escumadeiras"). O botão
@@ -253,10 +265,12 @@ class ConfirmacaoPratoController extends ValueNotifier<ConfirmacaoPratoState> {
 
     value = value.copyWith(salvando: true, limparErroSalvar: true);
 
-    final resultado = await _repositorio.gravarRefeicao(
-      payloadRevisado: payloadRevisado(),
-      confianca: value.confiancaMinima,
-    );
+    final resultado = aoConfirmar != null
+        ? await aoConfirmar!(payloadRevisado(), value.confiancaMinima)
+        : await _repositorio.gravarRefeicao(
+            payloadRevisado: payloadRevisado(),
+            confianca: value.confiancaMinima,
+          );
 
     if (!resultado.success) {
       value = value.copyWith(

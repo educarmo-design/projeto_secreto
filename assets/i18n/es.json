@@ -541,6 +541,9 @@
     "favorita_save_button": "Guardar",
     "favorita_save_success": "Favorita guardada con éxito",
     "favorita_save_error": "No se pudo guardar la favorita. Inténtalo de nuevo.",
+    "editar_favorita_title": "Editar Favorita",
+    "salvar_alteracoes_button": "Guardar cambios",
+    "favorita_atualizada_sucesso": "¡Favorita actualizada con éxito!",
     "tipo_refeicao_cafe_da_manha": "Desayuno",
     "tipo_refeicao_almoco": "Almuerzo",
     "tipo_refeicao_lanche": "Merienda",
@@ -554,15 +557,18 @@
   "favoritas": {
     "title": "Mis Favoritas",
     "filtro_todas": "Todas",
-    "empty_state": "Ninguna favorita guardada todavía. Guarda una comida como favorita en la pantalla de confirmación.",
+    "empty_state": "Ninguna favorita guardada todavía. Toca + para crear una, o guarda una comida como favorita en la pantalla de confirmación.",
     "load_error": "Error al cargar tus favoritas.",
     "retry_button": "Intentar de nuevo",
     "subtitulo": "{{tipo}} · {{calorias}} kcal · {{itens}} elemento(s)",
+    "criar_tooltip": "Crear nueva favorita",
     "usar_dialog_title": "Usar favorita",
     "usar_dialog_content": "¿Registrar \"{{nome}}\" ahora, con los mismos elementos y cantidades guardados?",
     "usar_button": "Registrar",
     "usar_sucesso": "Comida registrada desde la favorita",
     "usar_erro": "No se pudo registrar desde la favorita.",
+    "editar_button": "Editar elementos",
+    "editar_payload_invalido": "No se pudo abrir esta favorita para editar.",
     "trocar_tipo_button": "Cambiar tipo",
     "trocar_tipo_dialog_title": "Cambiar tipo de comida",
     "trocar_tipo_sucesso": "Tipo actualizado",
@@ -572,6 +578,19 @@
     "excluir_dialog_content": "¿Eliminar \"{{nome}}\" de tus favoritas? Esto no borra comidas ya registradas con ella.",
     "excluir_sucesso": "Favorita eliminada",
     "excluir_erro": "No se pudo eliminar la favorita."
+  },
+
+  "criar_favorita": {
+    "title": "Crear Favorita",
+    "adicionar_item": "Añadir",
+    "itens_selecionados_title": "Elementos seleccionados ({{quantidade}})",
+    "nenhum_item_selecionado": "Ningún elemento todavía — busca un alimento arriba y toca para añadirlo.",
+    "item_subtitulo": "{{gramas}}g · {{calorias}} kcal",
+    "totais": "Total: {{calorias}} kcal",
+    "salvar_button": "Guardar favorita",
+    "salvar_dialog_title": "Nombre y tipo de la favorita",
+    "salvar_sucesso": "Favorita creada con éxito",
+    "salvar_erro": "No se pudo crear la favorita. Inténtalo de nuevo."
   },
 
   "intelligence": {
