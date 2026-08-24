@@ -1218,3 +1218,59 @@ Deno.test('criarChamadorGeminiReal: 404 do Gemini vira ErroHttp 502 com o nome d
     restaurar();
   }
 });
+
+// RELATÓRIO 20260824_0001 — achado real em device: 503 "high demand" do
+// Gemini (modelo CORE) virava 502 definitivo na hora, sem nenhuma
+// tentativa nova — mesmo erro transitório batido pela curadoria em massa
+// do catálogo na véspera (RELATÓRIO 20260823_0004).
+Deno.test('criarChamadorGeminiReal: 503 transitório retenta e devolve sucesso na 2ª tentativa', async () => {
+  let chamadas = 0;
+  const restaurar = stubFetch((() => {
+    chamadas++;
+    if (chamadas === 1) {
+      return Promise.resolve(
+        new Response('{"error":{"code":503,"message":"high demand"}}', { status: 503 }),
+      );
+    }
+    return Promise.resolve(
+      new Response(
+        JSON.stringify({ candidates: [{ content: { parts: [{ text: '{"ok":true}' }] } }] }),
+        { status: 200 },
+      ),
+    );
+  }) as typeof fetch);
+
+  try {
+    const chamar = criarChamadorGeminiReal('fake-key', 'gemini-flash-latest');
+    const texto = await chamar({ base64: 'YQ==', mimeType: 'image/jpeg', systemPrompt: 'x', userText: 'y' });
+    assertEquals(texto, '{"ok":true}');
+    assertEquals(chamadas, 2);
+  } finally {
+    restaurar();
+  }
+});
+
+Deno.test('criarChamadorGeminiReal: 429 esgotando todas as tentativas lança ErroHttp 502', async () => {
+  let chamadas = 0;
+  const restaurar = stubFetch((() => {
+    chamadas++;
+    return Promise.resolve(
+      new Response('{"error":{"code":429,"message":"rate limited"}}', { status: 429 }),
+    );
+  }) as typeof fetch);
+
+  try {
+    const chamar = criarChamadorGeminiReal('fake-key', 'gemini-flash-latest');
+    let erro: unknown;
+    try {
+      await chamar({ base64: 'YQ==', mimeType: 'image/jpeg', systemPrompt: 'x', userText: 'y' });
+    } catch (e) {
+      erro = e;
+    }
+    assertEquals(erro instanceof Error, true);
+    assertStringIncludes((erro as Error).message, '429');
+    assertEquals(chamadas, 3); // MAX_TENTATIVAS_VISAO
+  } finally {
+    restaurar();
+  }
+});

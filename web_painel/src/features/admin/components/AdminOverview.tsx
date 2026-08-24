@@ -4,27 +4,42 @@ import { supabase } from '@/core/supabase';
 
 type EstadoTela = 'carregando' | 'sucesso' | 'erro';
 
-/** Home do Admin: contagem rápida da fila de aprovação + atalho para a Sala de Espera (`AdminDashboard`). */
+/** Home do Admin: contagem rápida da fila de aprovação + atalho para a Sala de Espera (`AdminDashboard`) + fila de revisão do catálogo de alimentos (RELATÓRIO 20260824_0001). */
 export function AdminOverview() {
   const [estado, setEstado] = useState<EstadoTela>('carregando');
   const [totalPendentes, setTotalPendentes] = useState(0);
+  const [totalAlimentosRevisao, setTotalAlimentosRevisao] = useState(0);
+  const [totalMedidasRevisao, setTotalMedidasRevisao] = useState(0);
 
   useEffect(() => {
     let cancelado = false;
 
     async function carregar() {
       setEstado('carregando');
-      const { count, error } = await supabase
-        .from('perfis_usuarios')
-        .select('id', { count: 'exact', head: true })
-        .eq('status_aprovacao', 'pendente');
+
+      const [pendentesResp, alimentosResp, medidasResp] = await Promise.all([
+        supabase
+          .from('perfis_usuarios')
+          .select('id', { count: 'exact', head: true })
+          .eq('status_aprovacao', 'pendente'),
+        supabase
+          .from('alimentos_referencia')
+          .select('id', { count: 'exact', head: true })
+          .eq('revisao_necessaria', true),
+        supabase
+          .from('alimentos_medidas_caseiras')
+          .select('id', { count: 'exact', head: true })
+          .eq('revisao_necessaria', true),
+      ]);
 
       if (cancelado) return;
-      if (error) {
+      if (pendentesResp.error || alimentosResp.error || medidasResp.error) {
         setEstado('erro');
         return;
       }
-      setTotalPendentes(count ?? 0);
+      setTotalPendentes(pendentesResp.count ?? 0);
+      setTotalAlimentosRevisao(alimentosResp.count ?? 0);
+      setTotalMedidasRevisao(medidasResp.count ?? 0);
       setEstado('sucesso');
     }
 
@@ -62,6 +77,36 @@ export function AdminOverview() {
               className="mt-3 inline-block text-xs text-clinical-primary hover:underline"
             >
               Ir para a Sala de Espera →
+            </Link>
+          </div>
+
+          <div className="rounded-2xl border border-clinical-border bg-clinical-surface p-5">
+            <p className="text-xs uppercase tracking-wide text-clinical-muted">
+              Alimentos em revisão
+            </p>
+            <p className="mt-2 text-3xl font-semibold text-slate-100">
+              {estado === 'carregando' ? '—' : totalAlimentosRevisao}
+            </p>
+            <Link
+              to="/admin/revisao/alimentos"
+              className="mt-3 inline-block text-xs text-clinical-primary hover:underline"
+            >
+              Ver fila de revisão →
+            </Link>
+          </div>
+
+          <div className="rounded-2xl border border-clinical-border bg-clinical-surface p-5">
+            <p className="text-xs uppercase tracking-wide text-clinical-muted">
+              Medidas caseiras em revisão
+            </p>
+            <p className="mt-2 text-3xl font-semibold text-slate-100">
+              {estado === 'carregando' ? '—' : totalMedidasRevisao}
+            </p>
+            <Link
+              to="/admin/revisao/medidas-caseiras"
+              className="mt-3 inline-block text-xs text-clinical-primary hover:underline"
+            >
+              Ver fila de revisão →
             </Link>
           </div>
         </div>
