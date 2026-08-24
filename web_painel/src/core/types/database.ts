@@ -325,6 +325,24 @@ export interface Database {
           proteinas_g_100g: number;
           carboidratos_g_100g: number;
           gorduras_g_100g: number;
+          /**
+           * Categorização de consumo — migration `20260802120000_
+           * categorias_alimentos_pesos_padrao.sql`. Faltavam neste arquivo
+           * de tipos desde então (achado da investigação 20260823_0003:
+           * era por isso que AdminAlimentos.tsx nunca expunha estes
+           * campos, não só decisão de design).
+           */
+          categoria_consumo: 'liquido_frio' | 'liquido_quente' | 'unidade' | 'fatia' | 'peso_livre' | null;
+          unidade_medida_padrao: 'g' | 'ml' | null;
+          medida_padrao_nome: string | null;
+          medida_padrao_qtd: number | null;
+          /**
+           * RELATÓRIO 20260823_0004 — migration `20260823100000_revisao_
+           * alimentos_e_medidas_caseiras.sql`. `true` quando a curadoria
+           * (bulk IA ou manual) não teve confiança total na classificação.
+           */
+          revisao_necessaria: boolean;
+          observacao_revisao: string | null;
           criado_em: string;
         };
         Insert: Partial<Database['public']['Tables']['alimentos_referencia']['Row']> & {
@@ -350,6 +368,9 @@ export interface Database {
           alimento_id: string;
           medida: string;
           gramas: number;
+          /** RELATÓRIO 20260823_0004 — mesma semântica do campo irmão em `alimentos_referencia`, escopada a esta medida. */
+          revisao_necessaria: boolean;
+          observacao_revisao: string | null;
         };
         Insert: Partial<Database['public']['Tables']['alimentos_medidas_caseiras']['Row']> & {
           alimento_id: string;

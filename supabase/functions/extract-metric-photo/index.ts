@@ -570,6 +570,22 @@ export interface ItemPratoCalculado {
   /// Valor estimado em gramas ou ml (para mostrar na UI: "40g (típico)")
   /// Presente apenas quando quantidadeEstimada é true.
   pesoTipicoGramas?: number;
+  /// RELATÓRIO 20260823_0004 — ACHADO CORRIGIDO (investigação 20260823_0003):
+  /// estes 4 campos vêm de `AlimentoCatalogo` (lidos de `alimentos_referencia`
+  /// desde a migration 20260802120000) mas até esta correção NUNCA eram
+  /// copiados pra cá nem pra resposta HTTP — a UI condicional de
+  /// líquido/quente/unidade/fatia em `ConfirmacaoPratoPage` (Flutter) nunca
+  /// conseguia renderizar, porque `categoriaConsumo` chegava sempre `null`
+  /// no cliente. Presentes sempre que o alimento casado tem essa
+  /// categorização no catálogo (não só quando quantidadeEstimada) — o
+  /// cliente decide sozinho quando usar (Flutter mantém a mesma regra de
+  /// hoje: só exibe a UI especializada quando quantidadeEstimada é true;
+  /// mudar ISSO é uma decisão de produto separada, fora do escopo deste
+  /// fix).
+  categoriaConsumo?: string;
+  unidadeMedidaPadrao?: string;
+  medidaPadraoNome?: string;
+  medidaPadraoQtd?: number;
 }
 
 /// Item que o Gemini identificou mas que o backend NÃO conseguiu calcular —
@@ -1190,6 +1206,14 @@ function calcularItem(params: {
       quantidadeEstimada: params.quantidadeEstimada,
       pesoTipicoGramas: params.medida.gramas,
     } : {}),
+    // RELATÓRIO 20260823_0004 — fix do achado 20260823_0003: propaga a
+    // categorização do alimento (lida do catálogo, `AlimentoCatalogo`) até
+    // aqui, que antes deste fix nunca acontecia — ver doc de
+    // `ItemPratoCalculado.categoriaConsumo`.
+    ...(params.alimento.categoriaConsumo ? { categoriaConsumo: params.alimento.categoriaConsumo } : {}),
+    ...(params.alimento.unidadeMedidaPadrao ? { unidadeMedidaPadrao: params.alimento.unidadeMedidaPadrao } : {}),
+    ...(params.alimento.medidaPadraoNome ? { medidaPadraoNome: params.alimento.medidaPadraoNome } : {}),
+    ...(params.alimento.medidaPadraoQtd !== undefined ? { medidaPadraoQtd: params.alimento.medidaPadraoQtd } : {}),
   };
 }
 
@@ -1322,7 +1346,17 @@ export async function resolverComBuscaSemantica(
         console.log(`[resolverComBuscaSemantica] Alimento resolvido: "${alimento.nomeTaco}"`);
 
         const medida = encontrarMedida(alimento, item.medida);
-        // encontrarMedida nunca retorna null agora (fallback usa peso típico)
+        // `encontrarMedida` só retorna null quando `item.medida` vier vazia
+        // (Gemini sempre reporta algum texto de medida, então isto é
+        // inalcançável na prática) — guarda aqui só pra bater com a
+        // assinatura real da função (achado ao rodar `deno check` de
+        // verdade nesta tarefa, RELATÓRIO 20260823_0004): sem isto o
+        // TypeScript recusa compilar `medida.medida` duas linhas abaixo,
+        // já que o tipo de retorno é `MedidaCaseiraCatalogo | null`.
+        if (!medida) {
+          console.log(`[resolverComBuscaSemantica] Sem medida buscável para "${item.nome}" (medida vazia)`);
+          return { resolvido: null, naoReconhecido: item };
+        }
 
         // Detectar se é medida estimada (contém "est." no nome)
         const quantidadeEstimada = medida.medida.includes('est.');
@@ -1554,6 +1588,15 @@ interface LinhaAlimentoBruta {
   proteinas_g_100g: number | string;
   carboidratos_g_100g: number | string;
   gorduras_g_100g: number | string;
+  // RELATÓRIO 20260823_0004 — estas 4 colunas já eram lidas pela SELECT
+  // abaixo desde a migration 20260802120000 (o cálculo de fallback em
+  // `encontrarMedida` sempre dependeu delas), mas esta interface nunca
+  // tinha sido atualizada — achado ao rodar `deno check` de verdade
+  // (nunca tinha sido rodado nesta função desde aquela migration).
+  categoria_consumo: string | null;
+  unidade_medida_padrao: string | null;
+  medida_padrao_nome: string | null;
+  medida_padrao_qtd: number | string | null;
   alimentos_medidas_caseiras: Array<{ medida: string; gramas: number | string }> | null;
 }
 
@@ -2029,6 +2072,15 @@ async function processarPratoRefeicao(params: {
           quantidade_estimada: item.quantidadeEstimada,
           peso_tipico_gramas: item.pesoTipicoGramas,
         } : {}),
+        // RELATÓRIO 20260823_0004 — fix do achado 20260823_0003: antes deste
+        // fix, estes 4 campos nunca chegavam aqui (ver doc de
+        // `ItemPratoCalculado.categoriaConsumo`) — `ItemPratoExtraidoModel.
+        // fromJson` no Flutter já sabia ler `categoria_consumo`/etc., só
+        // nunca recebia.
+        ...(item.categoriaConsumo ? { categoria_consumo: item.categoriaConsumo } : {}),
+        ...(item.unidadeMedidaPadrao ? { unidade_medida_padrao: item.unidadeMedidaPadrao } : {}),
+        ...(item.medidaPadraoNome ? { medida_padrao_nome: item.medidaPadraoNome } : {}),
+        ...(item.medidaPadraoQtd !== undefined ? { medida_padrao_qtd: item.medidaPadraoQtd } : {}),
       })),
       itens_nao_reconhecidos: itensNaoReconhecidosFinais.map((item) => ({
         nome: item.nome,

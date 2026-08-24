@@ -12,7 +12,8 @@
     "seed:cloud": "tsx scripts/seed_cloud.ts",
     "seed:food-embeddings": "tsx scripts/seed_food_embeddings.ts",
     "seed:teste-alimentos": "tsx scripts/seed_teste_alimentos.ts",
-    "etl:carga-taco": "tsx scripts/etl_carga_taco.ts"
+    "etl:carga-taco": "tsx scripts/etl_carga_taco.ts",
+    "curar:catalogo-alimentos": "tsx scripts/curar_catalogo_alimentos_ia.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",
