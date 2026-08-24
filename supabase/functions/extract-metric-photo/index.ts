@@ -676,7 +676,10 @@ interface HandlerDeps {
   buscaSemantica?: BuscaSemanticaLike;
 }
 
-class ErroHttp extends Error {
+// Exportada para os testes de `criarChamadorGeminiReal`/
+// `criarChamadorGeminiComFallback` conferirem `.status` diretamente
+// (RELATÓRIO 20260824_0002).
+export class ErroHttp extends Error {
   constructor(readonly status: number, mensagem: string) {
     super(mensagem);
   }
@@ -1443,24 +1446,46 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-// RELATÓRIO 20260824_0001 — achado real em device (fundador, screenshots
-// em docs/bugs/): "Falha ao analisar a imagem" (502) e `TimeoutException`
-// de 30s no cliente ao fotografar um prato. Causa raiz confirmada nos
-// logs: o modelo CORE (`gemini-flash-latest`, usado por `pratoRefeicao` —
-// ver `NIVEL_POR_TIPO`) respondeu HTTP 503 "This model is currently
-// experiencing high demand" — o MESMO erro transitório que a curadoria em
-// massa do catálogo (RELATÓRIO 20260823_0004) bateu na véspera. Antes
-// desta correção, ZERO retry aqui: qualquer 429/5xx transitório do Gemini
-// virava 502 definitivo pro usuário na hora. Orçamento de retry CURTO de
-// propósito (2 tentativas extras, ~4.5s de backoff total) — ao contrário
-// dos scripts de carga em lote (que podem esperar minutos), esta é uma
-// requisição síncrona de usuário com timeout de 30s no cliente Flutter;
-// um backoff longo pioraria a lentidão em vez de resolvê-la.
+// RELATÓRIO 20260824_0002 — CORREÇÃO DA CORREÇÃO. O RELATÓRIO 20260824_0001
+// diagnosticou errado: viu um 503 "high demand" (instabilidade transitória)
+// durante a curadoria em massa da véspera e concluiu que retry/backoff
+// resolveria "Falha ao analisar a imagem" em produção. O fundador testou de
+// novo e reportou o padrão real: a 1ª foto do dia funciona, as seguintes
+// falham, e o tempo até falhar ficou MAIOR (não menor) — sintoma clássico
+// de retry inútil, não de instabilidade transitória. Investigação desta
+// tarefa (chamada real ao Gemini com a chave do projeto) confirma: o erro
+// de produção é HTTP 429 `RESOURCE_EXHAUSTED`, quota
+// `GenerateRequestsPerDayPerProjectPerModel-FreeTier`, **limite de 20
+// requisições por DIA** para o modelo CORE (`gemini-flash-latest`, que
+// hoje resolve para `gemini-3.7-flash` — um modelo bem mais novo/restrito
+// do que quando o alias foi escolhido). Retentar em 1.5s/3s NUNCA ajuda
+// uma cota DIÁRIA — só desperdiça o pouco que sobrar dela e faz o usuário
+// esperar mais pra ver a mesma falha (exatamente o "tempo maior" relatado).
+//
+// Duas correções reais, não uma terceira tentativa de retry:
+//   1. 429 nunca é retentado no MESMO modelo (`ErroCotaGemini`, abaixo) —
+//      só 5xx (instabilidade de verdade, como o 503 de ontem) continua
+//      retentando com backoff curto.
+//   2. `criarChamadorGeminiComFallback` — quando o modelo CORE esgota a
+//      cota, cai automaticamente pro modelo LITE (confirmado com quota
+//      disponível nesta investigação) em vez de falhar pro usuário. Ver
+//      uso em `deps.chamarGemini` no handler.
 const MAX_TENTATIVAS_VISAO = 3;
+
+/// Sinaliza pro caller (fallback de modelo) que a falha foi por COTA
+/// (429/RESOURCE_EXHAUSTED) — nunca por instabilidade transitória. A
+/// distinção importa: cota (geralmente "PerDay" no plano gratuito) não se
+/// resolve esperando alguns segundos, só trocando de modelo/tier.
+class ErroCotaGemini extends ErroHttp {
+  constructor(mensagem: string) {
+    super(429, mensagem);
+  }
+}
 
 // Exportada só para o teste de regressão do bug de 22/jul (modelo no
 // endpoint + no texto do erro) — que stuba `fetch` global. Nenhum outro
-// chamador deveria usar isto fora do próprio handler.
+// chamador deveria usar isto fora do próprio handler (que usa
+// `criarChamadorGeminiComFallback`, abaixo).
 export function criarChamadorGeminiReal(apiKey: string, modelo: string): ChamadorGemini {
   return async ({ base64, mimeType, systemPrompt, userText }) => {
     const url = `${GEMINI_ENDPOINT_BASE}/${modelo}:generateContent?key=${apiKey}`;
@@ -1510,12 +1535,26 @@ export function criarChamadorGeminiReal(apiKey: string, modelo: string): Chamado
       // significa "esse nome de modelo não existe mais para esta chave",
       // não um erro de rede — o log já diz de cara qual modelo falhou, sem
       // precisar ler o corpo da resposta pra descobrir.
+
+      // 429 = cota (quase sempre diária no free tier) — nunca retentável
+      // no mesmo modelo. Falha IMEDIATA pro caller decidir (fallback de
+      // modelo), sem gastar o orçamento de retry à toa.
+      if (resposta.status === 429) {
+        throw new ErroCotaGemini(
+          `Gemini (modelo "${modelo}") respondeu 429 (cota esgotada): ${detalhe.slice(0, 300)}`,
+        );
+      }
+
       ultimoErro = new ErroHttp(
         502,
         `Gemini (modelo "${modelo}") respondeu ${resposta.status}: ${detalhe.slice(0, 300)}`,
       );
 
-      const retentavel = resposta.status === 429 || resposta.status >= 500;
+      // Só 5xx é retentável agora (instabilidade transitória real, como o
+      // 503 "high demand" observado na curadoria de 23/ago) — 429 já
+      // lançou acima, outros 4xx (404 de modelo errado etc.) são bug de
+      // config, retry não resolve.
+      const retentavel = resposta.status >= 500;
       if (!retentavel || tentativa === MAX_TENTATIVAS_VISAO) {
         throw ultimoErro;
       }
@@ -1527,6 +1566,37 @@ export function criarChamadorGeminiReal(apiKey: string, modelo: string): Chamado
     }
     // Inalcançável (o for sempre retorna ou lança), só pra satisfazer o TypeScript.
     throw ultimoErro ?? new ErroHttp(502, 'Gemini generateContent falhou sem detalhe.');
+  };
+}
+
+/// Encadeia um modelo PRIMÁRIO com um modelo de FALLBACK — quando o
+/// primário esgota a cota diária (`ErroCotaGemini`), tenta automaticamente
+/// o fallback em vez de falhar pro usuário. `modeloFallback: null` (tipos
+/// já no nível LITE, o mais barato) significa "sem degradação possível" —
+/// comporta-se como `criarChamadorGeminiReal` puro. Qualquer erro que NÃO
+/// seja cota (5xx esgotado, 4xx de config) propaga direto, sem tentar o
+/// fallback — só cota justifica trocar de modelo no meio da requisição.
+export function criarChamadorGeminiComFallback(
+  apiKey: string,
+  modeloPrimario: string,
+  modeloFallback: string | null,
+): ChamadorGemini {
+  const chamarPrimario = criarChamadorGeminiReal(apiKey, modeloPrimario);
+
+  return async (params) => {
+    try {
+      return await chamarPrimario(params);
+    } catch (erro) {
+      const ehCota = erro instanceof ErroCotaGemini;
+      if (!ehCota || !modeloFallback || modeloFallback === modeloPrimario) {
+        throw erro;
+      }
+      console.warn(
+        `criarChamadorGeminiComFallback: cota esgotada em "${modeloPrimario}" — tentando fallback "${modeloFallback}"...`,
+      );
+      const chamarFallback = criarChamadorGeminiReal(apiKey, modeloFallback);
+      return await chamarFallback(params);
+    }
   };
 }
 
@@ -1798,7 +1868,14 @@ export function createHandler(deps: HandlerDeps = {}) {
           // Model Routing (ver bloco no topo do arquivo): o modelo muda por
           // tipo_captura, não é mais um único valor fixo pra função inteira.
           const modelo = resolverModeloParaTipo(tipo);
-          return criarChamadorGeminiReal(apiKey, modelo);
+          // RELATÓRIO 20260824_0002 — tipos no nível CORE (prato/rótulo)
+          // ganham fallback automático pro nível LITE se a cota diária do
+          // CORE esgotar (achado real em produção: free tier, 20
+          // requisições/dia). Tipos já em LITE não têm pra onde degradar
+          // mais (`null` = sem fallback, mesmo comportamento de antes).
+          const nivel = NIVEL_POR_TIPO[tipo] ?? 'core';
+          const modeloFallback = nivel === 'core' ? resolverModelo('lite') : null;
+          return criarChamadorGeminiComFallback(apiKey, modelo, modeloFallback);
         })();
 
       if (tipo === TIPO_GLICOSIMETRO) {
@@ -1862,12 +1939,20 @@ export function createHandler(deps: HandlerDeps = {}) {
     } catch (erro) {
       if (erro instanceof ErroHttp) {
         // 502 do Gemini / 500 de config ou banco: mensagem genérica ao
-        // cliente, detalhe só no log do servidor.
+        // cliente, detalhe só no log do servidor. 429 só chega até aqui se
+        // o fallback de modelo (CORE→LITE, ver `criarChamadorGeminiComFallback`)
+        // TAMBÉM esgotou — ou o tipo já era LITE e não tinha pra onde
+        // degradar. Mensagem HONESTA (Regra 0.15): "tente novamente" seria
+        // enganoso pra uma cota diária — não é uma falha que alguns
+        // segundos resolvem.
         console.error('extract-metric-photo:', erro.message);
-        return jsonResponse(
-          { error: erro.status === 502 ? 'Falha ao analisar a imagem.' : 'Erro interno.' },
-          erro.status,
-        );
+        const mensagem =
+          erro.status === 429
+            ? 'Limite diário de análises por IA atingido. Tente novamente amanhã, ou digite a refeição manualmente.'
+            : erro.status === 502
+              ? 'Falha ao analisar a imagem.'
+              : 'Erro interno.';
+        return jsonResponse({ error: mensagem }, erro.status);
       }
       console.error('extract-metric-photo (inesperado):', mensagemDeErro(erro));
       return jsonResponse({ error: 'Erro ao processar a imagem.' }, 500);

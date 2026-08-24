@@ -22,8 +22,10 @@ import {
   avaliarLeituraRotulo,
   calcularPrato,
   createHandler,
+  criarChamadorGeminiComFallback,
   criarChamadorGeminiReal,
   encontrarAlimento,
+  ErroHttp,
   encontrarMedida,
   normalizarTexto,
   parseRespostaGemini,
@@ -1250,12 +1252,21 @@ Deno.test('criarChamadorGeminiReal: 503 transitório retenta e devolve sucesso n
   }
 });
 
-Deno.test('criarChamadorGeminiReal: 429 esgotando todas as tentativas lança ErroHttp 502', async () => {
+// RELATÓRIO 20260824_0002 — CORREÇÃO DA CORREÇÃO: 429 é cota
+// (`RESOURCE_EXHAUSTED`, geralmente diária no free tier — confirmado
+// contra a chave real do projeto nesta tarefa), NUNCA instabilidade
+// transitória. Retentar em segundos não ajuda uma cota diária — só
+// desperdiça tempo e cota. Comportamento correto: falha na 1ª tentativa,
+// sem sleep nenhum (ao contrário do 503, que continua retentando).
+Deno.test('criarChamadorGeminiReal: 429 (cota) falha na 1ª tentativa, sem retry', async () => {
   let chamadas = 0;
   const restaurar = stubFetch((() => {
     chamadas++;
     return Promise.resolve(
-      new Response('{"error":{"code":429,"message":"rate limited"}}', { status: 429 }),
+      new Response(
+        '{"error":{"code":429,"status":"RESOURCE_EXHAUSTED","message":"quota exceeded"}}',
+        { status: 429 },
+      ),
     );
   }) as typeof fetch);
 
@@ -1269,7 +1280,85 @@ Deno.test('criarChamadorGeminiReal: 429 esgotando todas as tentativas lança Err
     }
     assertEquals(erro instanceof Error, true);
     assertStringIncludes((erro as Error).message, '429');
-    assertEquals(chamadas, 3); // MAX_TENTATIVAS_VISAO
+    assertEquals((erro as ErroHttp).status, 429);
+    assertEquals(chamadas, 1); // nenhum retry — cota não se resolve em segundos
+  } finally {
+    restaurar();
+  }
+});
+
+Deno.test('criarChamadorGeminiComFallback: cota no modelo primário cai pro fallback e devolve sucesso', async () => {
+  const modelosChamados: string[] = [];
+  const restaurar = stubFetch(((input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url.includes('/models/gemini-flash-latest:')) {
+      modelosChamados.push('gemini-flash-latest');
+      return Promise.resolve(
+        new Response('{"error":{"code":429,"status":"RESOURCE_EXHAUSTED"}}', { status: 429 }),
+      );
+    }
+    modelosChamados.push('gemini-flash-lite-latest');
+    return Promise.resolve(
+      new Response(
+        JSON.stringify({ candidates: [{ content: { parts: [{ text: '{"do_fallback":true}' }] } }] }),
+        { status: 200 },
+      ),
+    );
+  }) as typeof fetch);
+
+  try {
+    const chamar = criarChamadorGeminiComFallback('fake-key', 'gemini-flash-latest', 'gemini-flash-lite-latest');
+    const texto = await chamar({ base64: 'YQ==', mimeType: 'image/jpeg', systemPrompt: 'x', userText: 'y' });
+    assertEquals(texto, '{"do_fallback":true}');
+    assertEquals(modelosChamados, ['gemini-flash-latest', 'gemini-flash-lite-latest']);
+  } finally {
+    restaurar();
+  }
+});
+
+Deno.test('criarChamadorGeminiComFallback: sem fallback configurado (null), cota propaga direto', async () => {
+  let chamadas = 0;
+  const restaurar = stubFetch((() => {
+    chamadas++;
+    return Promise.resolve(
+      new Response('{"error":{"code":429,"status":"RESOURCE_EXHAUSTED"}}', { status: 429 }),
+    );
+  }) as typeof fetch);
+
+  try {
+    const chamar = criarChamadorGeminiComFallback('fake-key', 'gemini-flash-lite-latest', null);
+    let erro: unknown;
+    try {
+      await chamar({ base64: 'YQ==', mimeType: 'image/jpeg', systemPrompt: 'x', userText: 'y' });
+    } catch (e) {
+      erro = e;
+    }
+    assertEquals((erro as ErroHttp).status, 429);
+    assertEquals(chamadas, 1);
+  } finally {
+    restaurar();
+  }
+});
+
+Deno.test('criarChamadorGeminiComFallback: erro que NÃO é cota (5xx esgotado) nunca tenta o fallback', async () => {
+  let chamadas = 0;
+  const restaurar = stubFetch((() => {
+    chamadas++;
+    return Promise.resolve(new Response('{"error":{"code":503}}', { status: 503 }));
+  }) as typeof fetch);
+
+  try {
+    const chamar = criarChamadorGeminiComFallback('fake-key', 'gemini-flash-latest', 'gemini-flash-lite-latest');
+    let erro: unknown;
+    try {
+      await chamar({ base64: 'YQ==', mimeType: 'image/jpeg', systemPrompt: 'x', userText: 'y' });
+    } catch (e) {
+      erro = e;
+    }
+    assertEquals((erro as ErroHttp).status, 502);
+    // MAX_TENTATIVAS_VISAO (3) chamadas no primário, ZERO no fallback —
+    // 503 esgotado não é cota, não troca de modelo.
+    assertEquals(chamadas, 3);
   } finally {
     restaurar();
   }
