@@ -125,7 +125,15 @@ class CameraCaptureController extends ValueNotifier<CameraCaptureState> {
   /// [CameraCaptureStatus.ready]. Never null while ready.
   CameraController? get cameraController => _cameraController;
 
-  static const Duration _uploadTimeout = Duration(seconds: 30);
+  // RELATÓRIO 20260824_0001 — achado real em device: fotografar um prato
+  // batia `TimeoutException` aos 30s (screenshot em docs/bugs/) porque o
+  // servidor não tinha NENHUM retry num 503 transitório do Gemini (mesmo
+  // erro "high demand" batido pela curadoria em massa do catálogo,
+  // RELATÓRIO 20260823_0004) — o servidor agora retenta até 2x
+  // (~4,5s de backoff, ver `MAX_TENTATIVAS_VISAO` em
+  // extract-metric-photo/index.ts), então o cliente precisa de folga
+  // pra não desistir ANTES do servidor terminar de retentar.
+  static const Duration _uploadTimeout = Duration(seconds: 45);
 
   /// Adendo v5.1 A.4: "a resolução de envio é função do `tipo_captura`".
   /// Comida é barata (~512px, economiza token) porque a IA só precisa

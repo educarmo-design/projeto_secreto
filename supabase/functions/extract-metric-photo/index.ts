@@ -570,6 +570,22 @@ export interface ItemPratoCalculado {
   /// Valor estimado em gramas ou ml (para mostrar na UI: "40g (típico)")
   /// Presente apenas quando quantidadeEstimada é true.
   pesoTipicoGramas?: number;
+  /// RELATÓRIO 20260823_0004 — ACHADO CORRIGIDO (investigação 20260823_0003):
+  /// estes 4 campos vêm de `AlimentoCatalogo` (lidos de `alimentos_referencia`
+  /// desde a migration 20260802120000) mas até esta correção NUNCA eram
+  /// copiados pra cá nem pra resposta HTTP — a UI condicional de
+  /// líquido/quente/unidade/fatia em `ConfirmacaoPratoPage` (Flutter) nunca
+  /// conseguia renderizar, porque `categoriaConsumo` chegava sempre `null`
+  /// no cliente. Presentes sempre que o alimento casado tem essa
+  /// categorização no catálogo (não só quando quantidadeEstimada) — o
+  /// cliente decide sozinho quando usar (Flutter mantém a mesma regra de
+  /// hoje: só exibe a UI especializada quando quantidadeEstimada é true;
+  /// mudar ISSO é uma decisão de produto separada, fora do escopo deste
+  /// fix).
+  categoriaConsumo?: string;
+  unidadeMedidaPadrao?: string;
+  medidaPadraoNome?: string;
+  medidaPadraoQtd?: number;
 }
 
 /// Item que o Gemini identificou mas que o backend NÃO conseguiu calcular —
@@ -1190,6 +1206,14 @@ function calcularItem(params: {
       quantidadeEstimada: params.quantidadeEstimada,
       pesoTipicoGramas: params.medida.gramas,
     } : {}),
+    // RELATÓRIO 20260823_0004 — fix do achado 20260823_0003: propaga a
+    // categorização do alimento (lida do catálogo, `AlimentoCatalogo`) até
+    // aqui, que antes deste fix nunca acontecia — ver doc de
+    // `ItemPratoCalculado.categoriaConsumo`.
+    ...(params.alimento.categoriaConsumo ? { categoriaConsumo: params.alimento.categoriaConsumo } : {}),
+    ...(params.alimento.unidadeMedidaPadrao ? { unidadeMedidaPadrao: params.alimento.unidadeMedidaPadrao } : {}),
+    ...(params.alimento.medidaPadraoNome ? { medidaPadraoNome: params.alimento.medidaPadraoNome } : {}),
+    ...(params.alimento.medidaPadraoQtd !== undefined ? { medidaPadraoQtd: params.alimento.medidaPadraoQtd } : {}),
   };
 }
 
@@ -1322,7 +1346,17 @@ export async function resolverComBuscaSemantica(
         console.log(`[resolverComBuscaSemantica] Alimento resolvido: "${alimento.nomeTaco}"`);
 
         const medida = encontrarMedida(alimento, item.medida);
-        // encontrarMedida nunca retorna null agora (fallback usa peso típico)
+        // `encontrarMedida` só retorna null quando `item.medida` vier vazia
+        // (Gemini sempre reporta algum texto de medida, então isto é
+        // inalcançável na prática) — guarda aqui só pra bater com a
+        // assinatura real da função (achado ao rodar `deno check` de
+        // verdade nesta tarefa, RELATÓRIO 20260823_0004): sem isto o
+        // TypeScript recusa compilar `medida.medida` duas linhas abaixo,
+        // já que o tipo de retorno é `MedidaCaseiraCatalogo | null`.
+        if (!medida) {
+          console.log(`[resolverComBuscaSemantica] Sem medida buscável para "${item.nome}" (medida vazia)`);
+          return { resolvido: null, naoReconhecido: item };
+        }
 
         // Detectar se é medida estimada (contém "est." no nome)
         const quantidadeEstimada = medida.medida.includes('est.');
@@ -1405,6 +1439,25 @@ function bytesParaBase64(bytes: Uint8Array): string {
 // Chamada real ao Gemini (a única I/O de rede; substituída por fake no teste)
 // ─────────────────────────────────────────────────────────────────────────
 
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// RELATÓRIO 20260824_0001 — achado real em device (fundador, screenshots
+// em docs/bugs/): "Falha ao analisar a imagem" (502) e `TimeoutException`
+// de 30s no cliente ao fotografar um prato. Causa raiz confirmada nos
+// logs: o modelo CORE (`gemini-flash-latest`, usado por `pratoRefeicao` —
+// ver `NIVEL_POR_TIPO`) respondeu HTTP 503 "This model is currently
+// experiencing high demand" — o MESMO erro transitório que a curadoria em
+// massa do catálogo (RELATÓRIO 20260823_0004) bateu na véspera. Antes
+// desta correção, ZERO retry aqui: qualquer 429/5xx transitório do Gemini
+// virava 502 definitivo pro usuário na hora. Orçamento de retry CURTO de
+// propósito (2 tentativas extras, ~4.5s de backoff total) — ao contrário
+// dos scripts de carga em lote (que podem esperar minutos), esta é uma
+// requisição síncrona de usuário com timeout de 30s no cliente Flutter;
+// um backoff longo pioraria a lentidão em vez de resolvê-la.
+const MAX_TENTATIVAS_VISAO = 3;
+
 // Exportada só para o teste de regressão do bug de 22/jul (modelo no
 // endpoint + no texto do erro) — que stuba `fetch` global. Nenhum outro
 // chamador deveria usar isto fora do próprio handler.
@@ -1432,33 +1485,48 @@ export function criarChamadorGeminiReal(apiKey: string, modelo: string): Chamado
       },
     };
 
-    const resposta = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(corpo),
-    });
+    let ultimoErro: ErroHttp | null = null;
+    for (let tentativa = 1; tentativa <= MAX_TENTATIVAS_VISAO; tentativa++) {
+      const resposta = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(corpo),
+      });
 
-    if (!resposta.ok) {
+      if (resposta.ok) {
+        const json = (await resposta.json()) as {
+          candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+        };
+        const texto = json.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (typeof texto !== 'string' || texto.length === 0) {
+          // Sem texto = tratamos como ilegível/vazio nos parsers acima.
+          return '{}';
+        }
+        return texto;
+      }
+
       const detalhe = await resposta.text().catch(() => '');
       // Inclui o nome do modelo na mensagem: um 404 aqui quase sempre
       // significa "esse nome de modelo não existe mais para esta chave",
       // não um erro de rede — o log já diz de cara qual modelo falhou, sem
       // precisar ler o corpo da resposta pra descobrir.
-      throw new ErroHttp(
+      ultimoErro = new ErroHttp(
         502,
         `Gemini (modelo "${modelo}") respondeu ${resposta.status}: ${detalhe.slice(0, 300)}`,
       );
-    }
 
-    const json = (await resposta.json()) as {
-      candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
-    };
-    const texto = json.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (typeof texto !== 'string' || texto.length === 0) {
-      // Sem texto = tratamos como ilegível/vazio nos parsers acima.
-      return '{}';
+      const retentavel = resposta.status === 429 || resposta.status >= 500;
+      if (!retentavel || tentativa === MAX_TENTATIVAS_VISAO) {
+        throw ultimoErro;
+      }
+      const backoffMs = 1_500 * tentativa; // 1.5s, 3s
+      console.warn(
+        `criarChamadorGeminiReal: HTTP ${resposta.status} (tentativa ${tentativa}/${MAX_TENTATIVAS_VISAO}) — retentando em ${backoffMs}ms...`,
+      );
+      await delay(backoffMs);
     }
-    return texto;
+    // Inalcançável (o for sempre retorna ou lança), só pra satisfazer o TypeScript.
+    throw ultimoErro ?? new ErroHttp(502, 'Gemini generateContent falhou sem detalhe.');
   };
 }
 
@@ -1554,8 +1622,39 @@ interface LinhaAlimentoBruta {
   proteinas_g_100g: number | string;
   carboidratos_g_100g: number | string;
   gorduras_g_100g: number | string;
+  // RELATÓRIO 20260823_0004 — estas 4 colunas já eram lidas pela SELECT
+  // abaixo desde a migration 20260802120000 (o cálculo de fallback em
+  // `encontrarMedida` sempre dependeu delas), mas esta interface nunca
+  // tinha sido atualizada — achado ao rodar `deno check` de verdade
+  // (nunca tinha sido rodado nesta função desde aquela migration).
+  categoria_consumo: string | null;
+  unidade_medida_padrao: string | null;
+  medida_padrao_nome: string | null;
+  medida_padrao_qtd: number | string | null;
   alimentos_medidas_caseiras: Array<{ medida: string; gramas: number | string }> | null;
 }
+
+// RELATÓRIO 20260824_0001 — achado real em device (fundador): fotografar
+// um prato ficou lento/instável depois da curadoria em massa do catálogo
+// (RELATÓRIO 20260823_0004, 637 alimentos + 1.056 medidas caseiras vs. os
+// 270 esparsos de antes). Medido nesta tarefa: a leitura completa de
+// `alimentos_referencia` + `alimentos_medidas_caseiras` aninhadas leva
+// ~1,5s e ~310KB — e ANTES desta correção isso acontecia em TODA foto de
+// prato, sempre do zero, mesmo o catálogo mudando raramente (só quando um
+// admin edita pela tela `AdminAlimentos.tsx`).
+//
+// Cache em memória no ESCOPO DO MÓDULO (nível de isolate Deno) — sobrevive
+// entre invocações da função enquanto a instância ficar "quente" (mesmo
+// princípio de qualquer runtime serverless com reuso de instância).
+// Correto mesmo compartilhado entre usuários diferentes: o dado é público
+// do produto (RLS `using (true)`), a query não filtra por usuário — o
+// resultado é idêntico não importa de quem for o JWT usado pra buscar.
+// TTL de 5 minutos: equilíbrio entre "praticamente elimina o round-trip
+// pra 99% das fotos" e "uma edição no Admin demora no máximo 5min pra
+// valer numa foto nova" (aceitável pra dado de curadoria, que não muda a
+// cada segundo). Zerado automaticamente a cada cold start da função.
+const CATALOGO_CACHE_TTL_MS = 5 * 60 * 1000;
+let catalogoCacheEmMemoria: { dados: AlimentoCatalogo[]; expiraEm: number } | null = null;
 
 /// Lê `alimentos_referencia` (com suas `alimentos_medidas_caseiras`
 /// aninhadas via join do PostgREST) usando o JWT do PRÓPRIO usuário — não a
@@ -1570,6 +1669,11 @@ function criarCatalogoAlimentosReal(
 ): CatalogoAlimentosLike {
   return {
     async carregar() {
+      const agora = Date.now();
+      if (catalogoCacheEmMemoria && catalogoCacheEmMemoria.expiraEm > agora) {
+        return catalogoCacheEmMemoria.dados;
+      }
+
       const client = createClient(supabaseUrl, anonKey, {
         global: { headers: { Authorization: `Bearer ${jwt}` } },
       });
@@ -1582,7 +1686,7 @@ function criarCatalogoAlimentosReal(
         throw new ErroHttp(500, `Erro ao carregar alimentos_referencia: ${error.message}`);
       }
 
-      return ((data ?? []) as unknown as LinhaAlimentoBruta[]).map((linha) => ({
+      const catalogo = ((data ?? []) as unknown as LinhaAlimentoBruta[]).map((linha) => ({
         id: linha.id,
         nomeTaco: linha.nome_taco,
         aliases: linha.aliases ?? [],
@@ -1599,6 +1703,9 @@ function criarCatalogoAlimentosReal(
           gramas: Number(m.gramas),
         })),
       }));
+
+      catalogoCacheEmMemoria = { dados: catalogo, expiraEm: agora + CATALOGO_CACHE_TTL_MS };
+      return catalogo;
     },
   };
 }
@@ -2029,6 +2136,15 @@ async function processarPratoRefeicao(params: {
           quantidade_estimada: item.quantidadeEstimada,
           peso_tipico_gramas: item.pesoTipicoGramas,
         } : {}),
+        // RELATÓRIO 20260823_0004 — fix do achado 20260823_0003: antes deste
+        // fix, estes 4 campos nunca chegavam aqui (ver doc de
+        // `ItemPratoCalculado.categoriaConsumo`) — `ItemPratoExtraidoModel.
+        // fromJson` no Flutter já sabia ler `categoria_consumo`/etc., só
+        // nunca recebia.
+        ...(item.categoriaConsumo ? { categoria_consumo: item.categoriaConsumo } : {}),
+        ...(item.unidadeMedidaPadrao ? { unidade_medida_padrao: item.unidadeMedidaPadrao } : {}),
+        ...(item.medidaPadraoNome ? { medida_padrao_nome: item.medidaPadraoNome } : {}),
+        ...(item.medidaPadraoQtd !== undefined ? { medida_padrao_qtd: item.medidaPadraoQtd } : {}),
       })),
       itens_nao_reconhecidos: itensNaoReconhecidosFinais.map((item) => ({
         nome: item.nome,

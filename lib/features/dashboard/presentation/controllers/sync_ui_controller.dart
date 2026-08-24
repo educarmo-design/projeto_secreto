@@ -149,6 +149,17 @@ class SyncUiController extends ValueNotifier<SyncUiState> {
     return _executar(_healthSyncService.carregarHistoricoInicial);
   }
 
+  /// Modo de Diagnóstico Profundo (RELATÓRIO 20260813_0015) — mesmo
+  /// [_executar] (loading/sucesso/offline/erro) de
+  /// [forcarSincronizacaoAtleta]/[conectarWearablePelaPrimeiraVez], só que
+  /// aciona [HealthSyncService.executarDiagnosticoProfundo]: sincroniza os
+  /// 30 dias de verdade E imprime o relatório `[SYNC_DIAGNOSTICO]` ponto a
+  /// ponto no console enquanto isso — botão "GERAR LOG DIAGNÓSTICO
+  /// (30 DIAS)" da tela de histórico.
+  Future<DeltaSyncResult> gerarDiagnosticoProfundo() {
+    return _executar(_healthSyncService.executarDiagnosticoProfundo);
+  }
+
   /// Núcleo comum entre [forcarSincronizacaoAtleta] e
   /// [conectarWearablePelaPrimeiraVez] — as duas só diferem em qual método
   /// do [HealthSyncService] chamam; todo o resto (estado de loading,

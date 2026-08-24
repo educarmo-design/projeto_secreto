@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:atleta_gamificacao/features/dashboard/data/models/health_payload_model.dart';
 import 'package:atleta_gamificacao/features/nutrition/data/models/prato_refeicao_extracao_model.dart';
 import 'package:atleta_gamificacao/features/nutrition/data/repositories/coleta_diaria_repository.dart';
 import 'package:atleta_gamificacao/features/nutrition/presentation/controllers/confirmacao_prato_controller.dart';
@@ -338,6 +339,76 @@ void main() {
     expect(controller.value.itens, isEmpty);
     expect(controller.value.totalCalorias, 0.0);
   });
+
+  // RELATÓRIO 20260823 — `aoConfirmar` (editar CONTEÚDO de uma favorita já
+  // salva): confirmar() precisa desviar para a função injetada em vez do
+  // repositório padrão, sem perder a máquina de estado
+  // (salvando/erroSalvar) que já existia.
+  group('aoConfirmar (override do destino de confirmar)', () {
+    test('quando presente, confirmar chama aoConfirmar em vez do repositório', () async {
+      final fake = _FakeColetaDiariaRepository(resultado: const ColetaDiariaResult(success: true));
+      final chamadasOverride = <({Map<String, dynamic> payload, double? confianca})>[];
+      final controller = ConfirmacaoPratoController(
+        extracaoCom(),
+        repositorio: fake,
+        aoConfirmar: (payload, confianca) async {
+          chamadasOverride.add((payload: payload, confianca: confianca));
+          return const ColetaDiariaResult(success: true);
+        },
+      );
+
+      final sucesso = await controller.confirmar();
+
+      expect(sucesso, true);
+      expect(chamadasOverride, hasLength(1));
+      expect(fake.chamadas, isEmpty); // repositório padrão nunca chamado
+    });
+
+    test('aoConfirmar recebe o payloadRevisado atual, refletindo edições', () async {
+      Map<String, dynamic>? payloadRecebido;
+      final controller = ConfirmacaoPratoController(
+        extracaoCom(),
+        aoConfirmar: (payload, confianca) async {
+          payloadRecebido = payload;
+          return const ColetaDiariaResult(success: true);
+        },
+      );
+      controller.incrementar(0);
+
+      await controller.confirmar();
+
+      final itemPayload = (payloadRecebido!['itens'] as List).single as Map<String, dynamic>;
+      expect(itemPayload['quantidade'], 2.0);
+    });
+
+    test('falha de aoConfirmar expõe erroSalvar do mesmo jeito que o repositório padrão', () async {
+      final controller = ConfirmacaoPratoController(
+        extracaoCom(),
+        aoConfirmar: (payload, confianca) async => const ColetaDiariaResult(
+          success: false,
+          errorMessage: 'Não foi possível salvar as alterações agora. Tente novamente.',
+        ),
+      );
+
+      final sucesso = await controller.confirmar();
+
+      expect(sucesso, false);
+      expect(controller.value.salvando, false);
+      expect(
+        controller.value.erroSalvar,
+        'Não foi possível salvar as alterações agora. Tente novamente.',
+      );
+    });
+
+    test('sem aoConfirmar, comportamento padrão (gravarRefeicao) é preservado', () async {
+      final fake = _FakeColetaDiariaRepository(resultado: const ColetaDiariaResult(success: true));
+      final controller = ConfirmacaoPratoController(extracaoCom(), repositorio: fake);
+
+      await controller.confirmar();
+
+      expect(fake.chamadas, hasLength(1));
+    });
+  });
 }
 
 /// Fake em memória — nunca toca `Supabase.instance` (mesmo espírito do
@@ -360,4 +431,33 @@ class _FakeColetaDiariaRepository implements ColetaDiariaRepository {
     chamadas.add((payload: payloadRevisado, confianca: confianca));
     return resultado;
   }
+
+  // N16 (RELATÓRIO 20260819) — este teste nunca exercita hidratação;
+  // implementações mínimas só para satisfazer `implements
+  // ColetaDiariaRepository` (interface completa, não um mock parcial).
+  @override
+  Future<ColetaDiariaResult> gravarAgua({
+    required int mililitros,
+    DateTime? dataColeta,
+  }) =>
+      throw UnimplementedError();
+
+  @override
+  Future<int> buscarTotalAguaDoDia({DateTime? data}) => throw UnimplementedError();
+
+  @override
+  Future<List<HidratacaoDia>> buscarHistoricoAgua({int dias = 7}) =>
+      throw UnimplementedError();
+
+  // N15/N12 (RELATÓRIO 20260820) — mesma justificativa dos stubs acima.
+  @override
+  Future<ColetaDiariaResult> gravarLeituraAparelho({
+    required HealthPayloadModel payload,
+    required String atributo,
+    DateTime? dataColeta,
+  }) =>
+      throw UnimplementedError();
+
+  @override
+  Future<ConsumoDia> buscarConsumoHoje() => throw UnimplementedError();
 }

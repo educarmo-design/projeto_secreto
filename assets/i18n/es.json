@@ -166,6 +166,8 @@
     "camera_result_title": "Datos Extraídos",
     "camera_confirm_button": "Confirmar",
     "camera_retry_button": "Intentar de Nuevo",
+    "camera_save_success": "Lectura guardada con éxito",
+    "camera_save_error": "No se pudo guardar la lectura. Inténtalo de nuevo.",
     "health_permission_denied": "Permiso de salud denegado. Habilite el acceso en Configuración.",
     "health_connect_unavailable": "Health Connect no está instalado en este dispositivo",
     "health_connect_install_button": "Instalar Health Connect",
@@ -200,6 +202,8 @@
     "historico_telemetria_error": "Error al cargar el historial.",
     "historico_telemetria_debug_force_today": "FORZAR SYNC HOY",
     "historico_telemetria_debug_force_30_days": "FORZAR CARGA 30 DÍAS",
+    "historico_telemetria_debug_diagnostico": "GENERAR LOG DE DIAGNÓSTICO (30 DÍAS)",
+    "historico_telemetria_debug_diagnostico_result": "Diagnóstico generado — vea la consola de Flutter (prefijo [SYNC_DIAGNOSTICO]).",
     "historico_telemetria_debug_running": "Ejecutando...",
     "historico_telemetria_debug_result": "{{count}} día(s) grabado(s) — recargando lista del banco...",
 
@@ -214,6 +218,8 @@
     "historico_treinos_field_fc_media": "FC media",
     "historico_treinos_field_fc_minima": "FC mín.",
     "historico_treinos_field_fc_maxima": "FC máx.",
+    "historico_treinos_field_velocidade_media": "Vel. media",
+    "historico_treinos_field_velocidade_maxima": "Vel. máx.",
 
     "clinical_panel_tab": "Panel Clínico",
     "exam_folder_tab": "Carpeta Digital de Exámenes",
@@ -264,6 +270,16 @@
     "widget_micronutrientes_title": "Micronutrientes",
     "widget_micronutrientes_empty": "Registra tus comidas para monitorear tus micronutrientes",
 
+    "widget_consumo_meta_title": "Consumo × Meta",
+    "widget_consumo_meta_sem_meta": "Define tu meta de bienestar para seguir el consumo de hoy",
+    "widget_consumo_meta_carregando": "Cargando consumo de hoy...",
+    "widget_consumo_meta_calorias": "{{consumido}} / {{meta}} kcal",
+    "widget_consumo_meta_restante": "Faltan {{valor}} kcal",
+    "widget_consumo_meta_excedido": "{{valor}} kcal por encima de la meta",
+    "widget_consumo_meta_proteina": "Proteína",
+    "widget_consumo_meta_carbo": "Carbo",
+    "widget_consumo_meta_gordura": "Grasa",
+
     "reorder_title": "Gestionar Panel",
     "reorder_subtitle": "Arrastra por la agarradera para reordenar. Usa el interruptor para mostrar u ocultar cada bloque.",
 
@@ -274,7 +290,8 @@
     "card_foto_pressao_desc": "Captura de la pantalla de tu tensiómetro sin Bluetooth",
     "card_garmin_desc": "Minutos y distancia sincronizados de tu wearable",
     "card_streak_desc": "Racha diaria y puntuación de la liga actual",
-    "card_micronutrientes_desc": "Progreso de tus metas diarias de nutrientes"
+    "card_micronutrientes_desc": "Progreso de tus metas diarias de nutrientes",
+    "card_consumo_meta_desc": "Calorías y macros de hoy frente a tu meta"
   },
 
   "gamification": {
@@ -358,6 +375,7 @@
     "weight_test_item": "Probar Lectura de Peso",
     "sleep_test_item": "Probar Lectura de Sueño",
     "manual_food_search_item": "Búsqueda Manual de Alimentos",
+    "favoritas_item": "Mis Favoritas",
     "anamnese_item": "Anamnesis Nutricional",
     "meta_bem_estar_item": "Meta de Bienestar"
   },
@@ -377,10 +395,38 @@
     "sexo_biologico_label": "Sexo biológico",
     "sexo_biologico_masculino": "Masculino",
     "sexo_biologico_feminino": "Femenino",
+    "imc_valor": "IMC estimado: {{imc}} (basado en tu peso del {{data}})",
+    "imc_sem_peso": "Sincroniza tu peso desde tu wearable para ver el IMC estimado aquí.",
+    "imc_aguardando_altura": "Indica una altura válida para calcular el IMC.",
     "save_button": "Guardar",
     "save_success": "Guardado con éxito",
     "save_error": "Error al guardar. Inténtalo de nuevo.",
     "load_error": "Error al cargar tus datos. Inténtalo de nuevo."
+  },
+
+  "hidratacao": {
+    "button": "Hidratación",
+    "title": "Hidratación",
+    "card_desc": "Agua registrada hoy",
+    "card_empty": "Toca para registrar",
+    "subtitle": "Registra el agua que bebes durante el día — entra en tus análisis.",
+    "total_hoje": "Hoy: {{total}} ml",
+    "adicionar_copo_button": "+1 vaso ({{ml}} ml)",
+    "quantidade_customizada_label": "Otra cantidad (ml)",
+    "quantidade_customizada_hint": "Ej.: 350",
+    "adicionar_button": "Agregar",
+    "quantidade_validation_invalid": "Solo números",
+    "quantidade_validation_range": "La cantidad debe estar entre 1 y 5000 ml",
+    "historico_title": "Últimos 7 días",
+    "historico_vazio": "Sin registros en los últimos 7 días.",
+    "tamanho_copo_label": "Tamaño del vaso (ml)",
+    "tamanho_copo_hint": "Ej.: 200",
+    "tamanho_copo_validation_range": "El tamaño del vaso debe estar entre 50 y 1000 ml",
+    "salvar_tamanho_copo_button": "Guardar tamaño del vaso",
+    "registro_sucesso": "¡Registrado!",
+    "registro_erro": "Error al registrar. Inténtalo de nuevo.",
+    "load_error": "Error al cargar tus datos de hidratación.",
+    "retry_button": "Intentar de nuevo"
   },
 
   "nutricao": {
@@ -488,10 +534,63 @@
     "confirm_button": "Confirmar",
     "saving": "Guardando...",
     "save_success": "¡Comida guardada con éxito!",
+    "favorita_button": "Guardar como favorita",
+    "favorita_dialog_title": "Guardar como favorita",
+    "favorita_nome_label": "Nombre de la favorita",
+    "favorita_tipo_label": "Tipo de comida",
+    "favorita_save_button": "Guardar",
+    "favorita_save_success": "Favorita guardada con éxito",
+    "favorita_save_error": "No se pudo guardar la favorita. Inténtalo de nuevo.",
+    "editar_favorita_title": "Editar Favorita",
+    "salvar_alteracoes_button": "Guardar cambios",
+    "favorita_atualizada_sucesso": "¡Favorita actualizada con éxito!",
+    "tipo_refeicao_cafe_da_manha": "Desayuno",
+    "tipo_refeicao_almoco": "Almuerzo",
+    "tipo_refeicao_lanche": "Merienda",
+    "tipo_refeicao_jantar": "Cena",
     "motivo": {
       "alimento_nao_encontrado": "Alimento no encontrado en el catálogo",
       "medida_nao_encontrada": "Medida no registrada para este alimento"
     }
+  },
+
+  "favoritas": {
+    "title": "Mis Favoritas",
+    "filtro_todas": "Todas",
+    "empty_state": "Ninguna favorita guardada todavía. Toca + para crear una, o guarda una comida como favorita en la pantalla de confirmación.",
+    "load_error": "Error al cargar tus favoritas.",
+    "retry_button": "Intentar de nuevo",
+    "subtitulo": "{{tipo}} · {{calorias}} kcal · {{itens}} elemento(s)",
+    "criar_tooltip": "Crear nueva favorita",
+    "usar_dialog_title": "Usar favorita",
+    "usar_dialog_content": "¿Registrar \"{{nome}}\" ahora, con los mismos elementos y cantidades guardados?",
+    "usar_button": "Registrar",
+    "usar_sucesso": "Comida registrada desde la favorita",
+    "usar_erro": "No se pudo registrar desde la favorita.",
+    "editar_button": "Editar elementos",
+    "editar_payload_invalido": "No se pudo abrir esta favorita para editar.",
+    "trocar_tipo_button": "Cambiar tipo",
+    "trocar_tipo_dialog_title": "Cambiar tipo de comida",
+    "trocar_tipo_sucesso": "Tipo actualizado",
+    "trocar_tipo_erro": "No se pudo cambiar el tipo.",
+    "excluir_button": "Eliminar",
+    "excluir_dialog_title": "Eliminar favorita",
+    "excluir_dialog_content": "¿Eliminar \"{{nome}}\" de tus favoritas? Esto no borra comidas ya registradas con ella.",
+    "excluir_sucesso": "Favorita eliminada",
+    "excluir_erro": "No se pudo eliminar la favorita."
+  },
+
+  "criar_favorita": {
+    "title": "Crear Favorita",
+    "adicionar_item": "Añadir",
+    "itens_selecionados_title": "Elementos seleccionados ({{quantidade}})",
+    "nenhum_item_selecionado": "Ningún elemento todavía — busca un alimento arriba y toca para añadirlo.",
+    "item_subtitulo": "{{gramas}}g · {{calorias}} kcal",
+    "totais": "Total: {{calorias}} kcal",
+    "salvar_button": "Guardar favorita",
+    "salvar_dialog_title": "Nombre y tipo de la favorita",
+    "salvar_sucesso": "Favorita creada con éxito",
+    "salvar_erro": "No se pudo crear la favorita. Inténtalo de nuevo."
   },
 
   "intelligence": {

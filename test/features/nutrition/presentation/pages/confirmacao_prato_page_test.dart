@@ -1,11 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:mocktail/mocktail.dart';
+
 import 'package:atleta_gamificacao/core/i18n/i18n_manager.dart';
+import 'package:atleta_gamificacao/features/dashboard/data/models/health_payload_model.dart';
+import 'package:atleta_gamificacao/features/nutrition/data/models/favorita_model.dart';
 import 'package:atleta_gamificacao/features/nutrition/data/models/prato_refeicao_extracao_model.dart';
 import 'package:atleta_gamificacao/features/nutrition/data/repositories/coleta_diaria_repository.dart';
+import 'package:atleta_gamificacao/features/nutrition/data/repositories/favoritas_repository.dart';
 import 'package:atleta_gamificacao/features/nutrition/presentation/controllers/confirmacao_prato_controller.dart';
 import 'package:atleta_gamificacao/features/nutrition/presentation/pages/confirmacao_prato_page.dart';
+
+class _MockFavoritasRepository extends Mock implements FavoritasRepository {}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -59,8 +66,14 @@ void main() {
   testWidgets('mostra nome, medida, macros e confiança do item', (tester) async {
     await pumpPagina(tester);
 
+    // RELATÓRIO 20260821 — corrigido pra bater com a UI real: o nome
+    // IDENTIFICADO pelo Gemini ("bifinho") é o título (bare, sem prefixo
+    // "Identificado como:" — isso nunca existiu na implementação, só no
+    // texto antigo deste teste); o nome CASADO no catálogo aparece como
+    // subtítulo só quando os dois divergem (ver `original.nomeCasado !=
+    // original.nomeIdentificado` em ConfirmacaoPratoPage).
+    expect(find.text('bifinho'), findsOneWidget);
     expect(find.text('Carne bovina, patinho, cru'), findsOneWidget);
-    expect(find.text('Identificado como: bifinho'), findsOneWidget);
     expect(find.text('Confiança da leitura: 90%'), findsOneWidget);
     expect(find.text('1 filé'), findsOneWidget);
     expect(find.text('130 kcal · 22.0g prot · 0.0g carb · 4.0g gord'), findsOneWidget);
@@ -319,6 +332,184 @@ void main() {
     await tester.pump(const Duration(milliseconds: 1200));
     await tester.pumpAndSettle();
   });
+
+  // N13 (RELATÓRIO 20260821) — "marcar como favorita ao registrar".
+  group('salvar como favorita', () {
+    late _MockFavoritasRepository favoritasRepository;
+
+    setUpAll(() {
+      registerFallbackValue(TipoRefeicao.almoco);
+    });
+
+    setUp(() {
+      favoritasRepository = _MockFavoritasRepository();
+    });
+
+    Future<void> pumpComFavoritas(WidgetTester tester) async {
+      final extracao = PratoRefeicaoExtracaoModel(
+        itens: [item()],
+        itensNaoReconhecidos: const [],
+        possivelFotoDeTela: false,
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ConfirmacaoPratoPage(
+            extracao: extracao,
+            favoritasRepository: favoritasRepository,
+          ),
+        ),
+      );
+      await tester.pump();
+    }
+
+    testWidgets('botão de favoritar preenchido e nome válidos salva com o tipo escolhido', (tester) async {
+      when(() => favoritasRepository.salvar(
+            nome: any(named: 'nome'),
+            tipoRefeicao: any(named: 'tipoRefeicao'),
+            payloadJsonb: any(named: 'payloadJsonb'),
+          )).thenAnswer((_) async => const ColetaDiariaResult(success: true));
+
+      await pumpComFavoritas(tester);
+
+      await tester.tap(find.byIcon(Icons.star_outline));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byType(TextField), 'Meu prato favorito');
+      await tester.tap(find.widgetWithText(RadioListTile<TipoRefeicao>, 'Almoço'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, 'Salvar'));
+      await tester.pumpAndSettle();
+
+      verify(() => favoritasRepository.salvar(
+            nome: 'Meu prato favorito',
+            tipoRefeicao: TipoRefeicao.almoco,
+            payloadJsonb: any(named: 'payloadJsonb'),
+          )).called(1);
+      expect(find.text('Favorita salva com sucesso'), findsOneWidget);
+    });
+
+    testWidgets('sem nome preenchido, botão Salvar do diálogo fica desabilitado', (tester) async {
+      await pumpComFavoritas(tester);
+
+      await tester.tap(find.byIcon(Icons.star_outline));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Café da manhã'));
+      await tester.pumpAndSettle();
+
+      final botaoSalvar = tester.widget<FilledButton>(find.widgetWithText(FilledButton, 'Salvar'));
+      expect(botaoSalvar.onPressed, isNull);
+      verifyNever(() => favoritasRepository.salvar(
+            nome: any(named: 'nome'),
+            tipoRefeicao: any(named: 'tipoRefeicao'),
+            payloadJsonb: any(named: 'payloadJsonb'),
+          ));
+    });
+
+    testWidgets('cancelar o diálogo nunca chama o repositório', (tester) async {
+      await pumpComFavoritas(tester);
+
+      await tester.tap(find.byIcon(Icons.star_outline));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Cancelar'));
+      await tester.pumpAndSettle();
+
+      verifyNever(() => favoritasRepository.salvar(
+            nome: any(named: 'nome'),
+            tipoRefeicao: any(named: 'tipoRefeicao'),
+            payloadJsonb: any(named: 'payloadJsonb'),
+          ));
+    });
+  });
+
+  // RELATÓRIO 20260823 — 2º gap encontrado pelo fundador testando: editar
+  // o CONTEÚDO (itens/quantidades) de uma favorita já salva.
+  group('editar favorita (FavoritaEmEdicao)', () {
+    late _MockFavoritasRepository favoritasRepository;
+
+    setUpAll(() {
+      registerFallbackValue(TipoRefeicao.almoco);
+    });
+
+    setUp(() {
+      favoritasRepository = _MockFavoritasRepository();
+    });
+
+    Future<void> pumpEditando(WidgetTester tester) async {
+      final extracao = PratoRefeicaoExtracaoModel(
+        itens: [item()],
+        itensNaoReconhecidos: const [],
+        possivelFotoDeTela: false,
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ConfirmacaoPratoPage(
+            extracao: extracao,
+            favoritaEmEdicao: const FavoritaEmEdicao(id: 'fav-1'),
+            favoritasRepository: favoritasRepository,
+          ),
+        ),
+      );
+      await tester.pump();
+    }
+
+    testWidgets('título vira "Editar Favorita" e botão ⭐ some', (tester) async {
+      await pumpEditando(tester);
+
+      expect(find.text('Editar Favorita'), findsOneWidget);
+      expect(find.text('Confirmar Refeição'), findsNothing);
+      expect(find.byIcon(Icons.star_outline), findsNothing);
+    });
+
+    testWidgets('botão salvar diz "Salvar alterações" e chama atualizarPayload, não gravarRefeicao',
+        (tester) async {
+      when(() => favoritasRepository.atualizarPayload(any(), any()))
+          .thenAnswer((_) async => const ColetaDiariaResult(success: true));
+
+      await pumpEditando(tester);
+
+      expect(find.text('Salvar alterações'), findsOneWidget);
+      expect(find.text('Confirmar'), findsNothing);
+
+      await tester.tap(find.text('Salvar alterações'));
+      await tester.pump();
+      // Mesmo cuidado de `pumpEConfirmar` (grupo "confirmar refeição"
+      // acima): checar o SnackBar ANTES do `pumpAndSettle()` final, que
+      // resolve a transição do `pop` — depois dele o `ScaffoldMessenger`
+      // desta tela já não existe mais.
+      await tester.pump(const Duration(milliseconds: 1200));
+      expect(find.text('Favorita atualizada com sucesso!'), findsOneWidget);
+      await tester.pumpAndSettle();
+
+      verify(() => favoritasRepository.atualizarPayload('fav-1', any())).called(1);
+      verifyNever(() => favoritasRepository.salvar(
+            nome: any(named: 'nome'),
+            tipoRefeicao: any(named: 'tipoRefeicao'),
+            payloadJsonb: any(named: 'payloadJsonb'),
+          ));
+    });
+
+    testWidgets('falha ao atualizar mantém a tela e mostra o erro', (tester) async {
+      when(() => favoritasRepository.atualizarPayload(any(), any())).thenAnswer(
+        (_) async => const ColetaDiariaResult(
+          success: false,
+          errorMessage: 'Não foi possível salvar as alterações agora. Tente novamente.',
+        ),
+      );
+
+      await pumpEditando(tester);
+
+      await tester.tap(find.text('Salvar alterações'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('Não foi possível salvar as alterações agora. Tente novamente.'),
+        findsOneWidget,
+      );
+      expect(find.text('Salvar alterações'), findsOneWidget); // ainda na tela
+    });
+  });
 }
 
 /// Fake em memória — nunca toca `Supabase.instance`.
@@ -339,4 +530,33 @@ class _FakeColetaDiariaRepository implements ColetaDiariaRepository {
     chamadas.add((payload: payloadRevisado, confianca: confianca));
     return resultado;
   }
+
+  // N16 (RELATÓRIO 20260819) — este teste nunca exercita hidratação;
+  // implementações mínimas só para satisfazer `implements
+  // ColetaDiariaRepository` (interface completa, não um mock parcial).
+  @override
+  Future<ColetaDiariaResult> gravarAgua({
+    required int mililitros,
+    DateTime? dataColeta,
+  }) =>
+      throw UnimplementedError();
+
+  @override
+  Future<int> buscarTotalAguaDoDia({DateTime? data}) => throw UnimplementedError();
+
+  @override
+  Future<List<HidratacaoDia>> buscarHistoricoAgua({int dias = 7}) =>
+      throw UnimplementedError();
+
+  // N15/N12 (RELATÓRIO 20260820) — mesma justificativa dos stubs acima.
+  @override
+  Future<ColetaDiariaResult> gravarLeituraAparelho({
+    required HealthPayloadModel payload,
+    required String atributo,
+    DateTime? dataColeta,
+  }) =>
+      throw UnimplementedError();
+
+  @override
+  Future<ConsumoDia> buscarConsumoHoje() => throw UnimplementedError();
 }

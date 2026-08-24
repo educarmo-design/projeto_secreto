@@ -1,0 +1,297 @@
+# MÓDULO 6 – MÓDULO CLÍNICO
+
+**Versão:** 1.0
+
+**Status:** Em Desenvolvimento
+
+---
+
+# 1. Objetivo
+
+O Módulo Clínico é responsável por consolidar todas as informações clínicas do paciente, permitindo que o profissional de saúde realize avaliações, acompanhe a evolução, registre condutas e personalize o plano terapêutico.
+
+Este módulo atua como a principal interface clínica da plataforma e fornece informações para os demais motores, sem substituir a decisão do profissional.
+
+---
+
+# 2. Responsabilidades
+
+O módulo deverá:
+
+* Gerenciar a anamnese clínica.
+* Registrar histórico de saúde.
+* Gerenciar diagnósticos.
+* Gerenciar exames.
+* Gerenciar medicamentos.
+* Gerenciar alergias e intolerâncias.
+* Gerenciar objetivos terapêuticos.
+* Registrar evolução clínica.
+* Registrar condutas.
+* Gerenciar protocolos clínicos.
+* Disponibilizar informações aos demais módulos.
+
+---
+
+# 3. Cadastro Clínico
+
+## CL-001
+
+Registrar identificação completa do paciente.
+
+## CL-002
+
+Registrar profissional responsável.
+
+## CL-003
+
+Registrar data da consulta.
+
+## CL-004
+
+Registrar especialidade do profissional.
+
+---
+
+# 4. Anamnese
+
+O módulo deverá armazenar todas as versões da anamnese.
+
+Cada nova anamnese deverá gerar uma nova versão.
+
+Campos mínimos:
+
+* Dados pessoais
+* Histórico familiar
+* Histórico clínico
+* Doenças pré-existentes
+* Cirurgias
+* Internações
+* Alergias
+* Intolerâncias alimentares
+* Medicamentos
+* Suplementos
+* Consumo de álcool
+* Tabagismo
+* Atividade física
+* Sono
+* Estresse
+* Hidratação
+* Hábitos alimentares
+* Objetivos
+* Restrições alimentares
+* Preferências alimentares
+
+---
+
+# 5. Diagnósticos
+
+O sistema deverá permitir registrar:
+
+* Diagnóstico principal
+* Diagnósticos secundários
+* Data do diagnóstico
+* Profissional responsável
+* Status (ativo, resolvido, em acompanhamento)
+* Observações
+
+Os diagnósticos nunca deverão ser excluídos, apenas inativados ou versionados.
+
+---
+
+# 6. Condições Clínicas
+
+O módulo deverá permitir registrar condições que possam influenciar o acompanhamento, incluindo:
+
+* Diabetes
+* Hipertensão
+* Dislipidemia
+* Obesidade
+* Doença renal
+* Doença hepática
+* Hipotireoidismo
+* Hipertireoidismo
+* Doença cardiovascular
+* Gestação
+* Lactação
+* Menopausa
+* Pós-operatório bariátrico
+* Outras condições definidas pelo profissional
+
+**Decisão de Arquitetura (DA-CL-001):** a lista de condições deverá ser parametrizável e extensível.
+
+---
+
+# 7. Medicamentos
+
+Para cada medicamento registrar:
+
+* Nome
+* Princípio ativo
+* Dose
+* Frequência
+* Horário
+* Data de início
+* Data de término (quando aplicável)
+* Indicação clínica
+* Observações
+
+O sistema não deverá inferir interações medicamentosas nesta versão.
+
+---
+
+# 8. Suplementação
+
+Registrar:
+
+* Produto
+* Dose
+* Frequência
+* Objetivo
+* Data de início
+* Data de término
+* Observações
+
+---
+
+# 9. Exames Laboratoriais
+
+O módulo deverá permitir:
+
+* Upload do exame original.
+* Extração estruturada dos resultados (quando suportado).
+* Registro manual pelo profissional.
+* Histórico de exames.
+* Comparação temporal.
+* Associação do exame à consulta correspondente.
+
+---
+
+# 10. Avaliações Corporais
+
+Registrar:
+
+* Peso
+* Altura
+* IMC
+* Circunferências
+* Dobras cutâneas
+* Bioimpedância
+* DEXA
+* Massa magra
+* Massa gorda
+* Percentual de gordura
+* Massa óssea
+* Água corporal
+* Taxa metabólica fornecida pelo equipamento (quando disponível)
+
+Todos os registros deverão ser versionados.
+
+---
+
+# 11. Evolução Clínica
+
+Cada consulta deverá permitir registrar:
+
+* Evolução subjetiva.
+* Evolução objetiva.
+* Avaliação profissional.
+* Conduta adotada.
+* Plano de acompanhamento.
+* Metas para o próximo retorno.
+* Observações livres.
+
+---
+
+# 12. Objetivos Terapêuticos
+
+O sistema deverá permitir definir um ou mais objetivos ativos, como:
+
+* Emagrecimento
+* Hipertrofia
+* Manutenção do peso
+* Controle glicêmico
+* Redução da pressão arterial
+* Ganho de massa magra
+* Performance esportiva
+* Reeducação alimentar
+* Outros objetivos personalizados
+
+Cada objetivo deverá possuir:
+
+* Data de início.
+* Prioridade.
+* Status.
+* Data de encerramento.
+
+---
+
+# 13. Protocolos Clínicos
+
+O sistema deverá permitir associar protocolos clínicos ao paciente.
+
+Exemplos:
+
+* Protocolo de emagrecimento.
+* Protocolo para diabetes.
+* Protocolo esportivo.
+* Protocolo bariátrico.
+* Protocolo geriátrico.
+
+A plataforma deverá permitir protocolos personalizados.
+
+---
+
+# 14. Integração com Outros Módulos
+
+O Módulo Clínico fornece informações para:
+
+* Motor Metabólico.
+* Motor de Exceções.
+* Motor de Qualidade dos Dados.
+* Motor Adaptativo.
+* Planejamento Nutricional.
+
+Recebe informações de:
+
+* Banco Histórico.
+* Módulo de Exames.
+* Módulo de Dispositivos.
+* Aplicativo do Paciente.
+
+---
+
+# 15. Auditoria
+
+Toda alteração deverá registrar:
+
+* Profissional responsável.
+* Data e hora.
+* Campo alterado.
+* Valor anterior.
+* Novo valor.
+* Justificativa (quando aplicável).
+
+Nenhuma informação clínica deverá ser excluída permanentemente.
+
+---
+
+# 16. Critérios de Aceitação
+
+O módulo será considerado implementado quando:
+
+* Permitir cadastro e versionamento completo da anamnese.
+* Manter histórico de diagnósticos, condições clínicas, medicamentos e suplementos.
+* Gerenciar exames e avaliações corporais de forma longitudinal.
+* Registrar evolução clínica e condutas em cada consulta.
+* Integrar-se aos demais módulos sem duplicação de dados.
+* Garantir auditoria e rastreabilidade completas.
+
+---
+
+# 17. Requisitos para IA Implementadora
+
+* Implementar o Módulo Clínico como a **fonte oficial de informações clínicas** da plataforma.
+* Adotar um modelo orientado a eventos, onde cada consulta, atualização ou exame gere um evento versionado.
+* Nunca sobrescrever dados clínicos; sempre criar novas versões.
+* Permitir expansão futura para novas especialidades (nutrição, endocrinologia, cardiologia, medicina esportiva, geriatria, pediatria etc.) sem alterar a estrutura principal do módulo.
+* Separar claramente dados clínicos, dados operacionais e dados derivados por cálculos, garantindo consistência e rastreabilidade em toda a plataforma.

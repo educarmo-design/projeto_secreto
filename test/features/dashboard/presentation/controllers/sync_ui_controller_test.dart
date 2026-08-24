@@ -255,6 +255,50 @@ void main() {
     });
   });
 
+  group('gerarDiagnosticoProfundo (RELATÓRIO 20260813_0015)', () {
+    test('sucesso passa por carregando e termina em sucesso, acionando executarDiagnosticoProfundo', () async {
+      final agora = DateTime(2026, 8, 13, 8, 30);
+      when(() => healthSyncService.executarDiagnosticoProfundo()).thenAnswer(
+        (_) async => DeltaSyncResult(
+          outcome: DeltaSyncOutcome.sucesso,
+          sincronizadoEm: agora,
+        ),
+      );
+
+      final controller = criarController();
+      await Future<void>.delayed(Duration.zero);
+
+      final estados = <SyncUiStatus>[];
+      controller.addListener(() => estados.add(controller.value.status));
+
+      await controller.gerarDiagnosticoProfundo();
+
+      expect(estados.first, SyncUiStatus.carregando);
+      expect(estados.last, SyncUiStatus.sucesso);
+      verify(() => healthSyncService.executarDiagnosticoProfundo()).called(1);
+      verifyNever(() => healthSyncService.sincronizarDeltaDiario());
+      verifyNever(() => healthSyncService.carregarHistoricoInicial());
+    });
+
+    test('permissão negada expõe o motivo sem tocar na fila offline', () async {
+      when(() => healthSyncService.executarDiagnosticoProfundo()).thenAnswer(
+        (_) async => const DeltaSyncResult(
+          outcome: DeltaSyncOutcome.permissaoNegada,
+          errorMessage: 'Permissão de saúde negada.',
+        ),
+      );
+
+      final controller = criarController();
+      await Future<void>.delayed(Duration.zero);
+
+      final resultado = await controller.gerarDiagnosticoProfundo();
+
+      expect(controller.value.status, SyncUiStatus.falha);
+      expect(resultado.outcome, DeltaSyncOutcome.permissaoNegada);
+      expect(controller.value.pendentesNaFila, 0);
+    });
+  });
+
   test(
     'conectividade recuperada despacha a fila offline automaticamente e limpa o cache',
     () async {

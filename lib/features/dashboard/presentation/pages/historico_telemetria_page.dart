@@ -90,8 +90,9 @@ class _HistoricoTelemetriaPageState extends State<HistoricoTelemetriaPage> {
   }
 
   Future<void> _rodarDebug(
-    Future<DeltaSyncResult> Function() acao,
-  ) async {
+    Future<DeltaSyncResult> Function() acao, {
+    String? mensagemSucessoOverride,
+  }) async {
     if (_debugRodando) return;
     setState(() => _debugRodando = true);
 
@@ -101,10 +102,11 @@ class _HistoricoTelemetriaPageState extends State<HistoricoTelemetriaPage> {
     setState(() => _debugRodando = false);
 
     final mensagem = resultado.isSuccess
-        ? i18n.tr(
-            'dashboard.historico_telemetria_debug_result',
-            params: {'count': resultado.linhas.length.toString()},
-          )
+        ? (mensagemSucessoOverride ??
+            i18n.tr(
+              'dashboard.historico_telemetria_debug_result',
+              params: {'count': resultado.linhas.length.toString()},
+            ))
         : resultado.isOffline
             ? i18n.tr('dashboard.sync_offline_queued')
             : (resultado.errorMessage ?? i18n.tr('dashboard.health_sync_error'));
@@ -147,6 +149,12 @@ class _HistoricoTelemetriaPageState extends State<HistoricoTelemetriaPage> {
                     _rodarDebug(_syncUiController.forcarSincronizacaoAtleta),
                 onForcarCarga30Dias: () => _rodarDebug(
                   _syncUiController.conectarWearablePelaPrimeiraVez,
+                ),
+                onGerarDiagnostico: () => _rodarDebug(
+                  _syncUiController.gerarDiagnosticoProfundo,
+                  mensagemSucessoOverride: i18n.tr(
+                    'dashboard.historico_telemetria_debug_diagnostico_result',
+                  ),
                 ),
               ),
             ),
@@ -202,7 +210,7 @@ class _HistoricoTelemetriaPageState extends State<HistoricoTelemetriaPage> {
   }
 }
 
-/// Os 2 botões de debug pedidos pelo fundador — em destaque de propósito
+/// Os botões de debug pedidos pelo fundador — em destaque de propósito
 /// (cor de alerta, maiúsculas), pra deixar claro que não são o fluxo normal
 /// do app, são uma válvula de escape de teste.
 class _PainelDebug extends StatelessWidget {
@@ -210,43 +218,71 @@ class _PainelDebug extends StatelessWidget {
     required this.rodando,
     required this.onForcarSyncHoje,
     required this.onForcarCarga30Dias,
+    required this.onGerarDiagnostico,
   });
 
   final bool rodando;
   final VoidCallback onForcarSyncHoje;
   final VoidCallback onForcarCarga30Dias;
 
+  /// RELATÓRIO 20260813_0015 — Modo de Diagnóstico Profundo: dispara
+  /// [SyncUiController.gerarDiagnosticoProfundo], que sincroniza os 30 dias
+  /// de verdade E imprime o relatório `[SYNC_DIAGNOSTICO]` ponto a ponto no
+  /// console do Flutter.
+  final VoidCallback onGerarDiagnostico;
+
   @override
   Widget build(BuildContext context) {
-    return Row(
+    return Column(
       children: [
-        Expanded(
-          child: OutlinedButton(
-            onPressed: rodando ? null : onForcarSyncHoje,
-            style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.primaryOrange,
-              side: const BorderSide(color: AppColors.primaryOrange),
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton(
+                onPressed: rodando ? null : onForcarSyncHoje,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.primaryOrange,
+                  side: const BorderSide(color: AppColors.primaryOrange),
+                ),
+                child: Text(
+                  rodando
+                      ? i18n.tr('dashboard.historico_telemetria_debug_running')
+                      : i18n.tr('dashboard.historico_telemetria_debug_force_today'),
+                  textAlign: TextAlign.center,
+                ),
+              ),
             ),
-            child: Text(
-              rodando
-                  ? i18n.tr('dashboard.historico_telemetria_debug_running')
-                  : i18n.tr('dashboard.historico_telemetria_debug_force_today'),
-              textAlign: TextAlign.center,
+            const SizedBox(width: 8),
+            Expanded(
+              child: OutlinedButton(
+                onPressed: rodando ? null : onForcarCarga30Dias,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.primaryRed,
+                  side: const BorderSide(color: AppColors.primaryRed),
+                ),
+                child: Text(
+                  rodando
+                      ? i18n.tr('dashboard.historico_telemetria_debug_running')
+                      : i18n.tr('dashboard.historico_telemetria_debug_force_30_days'),
+                  textAlign: TextAlign.center,
+                ),
+              ),
             ),
-          ),
+          ],
         ),
-        const SizedBox(width: 8),
-        Expanded(
+        const SizedBox(height: 8),
+        SizedBox(
+          width: double.infinity,
           child: OutlinedButton(
-            onPressed: rodando ? null : onForcarCarga30Dias,
+            onPressed: rodando ? null : onGerarDiagnostico,
             style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.primaryRed,
-              side: const BorderSide(color: AppColors.primaryRed),
+              foregroundColor: AppColors.mutedText,
+              side: const BorderSide(color: AppColors.mutedText),
             ),
             child: Text(
               rodando
                   ? i18n.tr('dashboard.historico_telemetria_debug_running')
-                  : i18n.tr('dashboard.historico_telemetria_debug_force_30_days'),
+                  : i18n.tr('dashboard.historico_telemetria_debug_diagnostico'),
               textAlign: TextAlign.center,
             ),
           ),
@@ -266,6 +302,8 @@ class _LinhaTelemetria extends StatelessWidget {
 
   static const List<_CampoLabel> _campos = [
     _CampoLabel('Passos', _CampoTipo.passos),
+    // RELATÓRIO 20260819_0020, pedido do fundador.
+    _CampoLabel('Andares subidos', _CampoTipo.andaresSubidos),
     _CampoLabel('FC', _CampoTipo.frequenciaCardiaca),
     // FC Máxima/HRV/Água/IMC: RELATÓRIO 20260810_0005 — existiam desde a
     // tarefa anterior (metricas_saude_diarias.fc_maxima/agua_corporal/imc),
@@ -303,6 +341,8 @@ class _LinhaTelemetria extends StatelessWidget {
     switch (tipo) {
       case _CampoTipo.passos:
         return payload.passos?.toString();
+      case _CampoTipo.andaresSubidos:
+        return payload.andaresSubidos?.toString();
       case _CampoTipo.frequenciaCardiaca:
         return payload.frequenciaCardiaca?.toString();
       case _CampoTipo.fcMaxima:
@@ -392,6 +432,7 @@ class _LinhaTelemetria extends StatelessWidget {
 
 enum _CampoTipo {
   passos,
+  andaresSubidos,
   frequenciaCardiaca,
   fcMaxima,
   fcRepouso,

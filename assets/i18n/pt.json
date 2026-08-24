@@ -166,6 +166,8 @@
     "camera_result_title": "Dados Extraídos",
     "camera_confirm_button": "Confirmar",
     "camera_retry_button": "Tentar Novamente",
+    "camera_save_success": "Leitura salva com sucesso",
+    "camera_save_error": "Não foi possível salvar a leitura. Tente novamente.",
     "health_permission_denied": "Permissão de saúde negada. Habilite o acesso em Configurações.",
     "health_connect_unavailable": "Health Connect não está instalado neste dispositivo",
     "health_connect_install_button": "Instalar Health Connect",
@@ -200,6 +202,8 @@
     "historico_telemetria_error": "Erro ao carregar o histórico.",
     "historico_telemetria_debug_force_today": "FORÇAR SYNC HOJE",
     "historico_telemetria_debug_force_30_days": "FORÇAR CARGA 30 DIAS",
+    "historico_telemetria_debug_diagnostico": "GERAR LOG DIAGNÓSTICO (30 DIAS)",
+    "historico_telemetria_debug_diagnostico_result": "Diagnóstico gerado — veja o console do Flutter (prefixo [SYNC_DIAGNOSTICO]).",
     "historico_telemetria_debug_running": "Rodando...",
     "historico_telemetria_debug_result": "{{count}} dia(s) gravado(s) — recarregando lista do banco...",
 
@@ -214,6 +218,8 @@
     "historico_treinos_field_fc_media": "FC média",
     "historico_treinos_field_fc_minima": "FC mín.",
     "historico_treinos_field_fc_maxima": "FC máx.",
+    "historico_treinos_field_velocidade_media": "Vel. média",
+    "historico_treinos_field_velocidade_maxima": "Vel. máx.",
 
     "clinical_panel_tab": "Painel Clínico",
     "exam_folder_tab": "Pasta Digital de Exames",
@@ -264,6 +270,16 @@
     "widget_micronutrientes_title": "Micronutrientes",
     "widget_micronutrientes_empty": "Registre suas refeições para acompanhar seus micronutrientes",
 
+    "widget_consumo_meta_title": "Consumo × Meta",
+    "widget_consumo_meta_sem_meta": "Defina sua meta de bem-estar para acompanhar o consumo do dia",
+    "widget_consumo_meta_carregando": "Carregando consumo de hoje...",
+    "widget_consumo_meta_calorias": "{{consumido}} / {{meta}} kcal",
+    "widget_consumo_meta_restante": "Faltam {{valor}} kcal",
+    "widget_consumo_meta_excedido": "{{valor}} kcal acima da meta",
+    "widget_consumo_meta_proteina": "Proteína",
+    "widget_consumo_meta_carbo": "Carbo",
+    "widget_consumo_meta_gordura": "Gordura",
+
     "reorder_title": "Gerenciar Painel",
     "reorder_subtitle": "Arraste pela alça para reordenar. Use o interruptor para mostrar ou ocultar cada bloco.",
 
@@ -274,7 +290,8 @@
     "card_foto_pressao_desc": "Captura do visor do aparelho de pressão sem Bluetooth",
     "card_garmin_desc": "Minutos e distância sincronizados do wearable",
     "card_streak_desc": "Chama diária e pontuação da liga atual",
-    "card_micronutrientes_desc": "Progresso das metas diárias de nutrientes"
+    "card_micronutrientes_desc": "Progresso das metas diárias de nutrientes",
+    "card_consumo_meta_desc": "Calorias e macros de hoje contra sua meta"
   },
 
   "gamification": {
@@ -358,6 +375,7 @@
     "weight_test_item": "Testar Leitura de Peso",
     "sleep_test_item": "Testar Leitura de Sono",
     "manual_food_search_item": "Busca Manual de Alimentos",
+    "favoritas_item": "Minhas Favoritas",
     "anamnese_item": "Anamnese Nutricional",
     "meta_bem_estar_item": "Meta de Bem-Estar",
 
@@ -382,10 +400,38 @@
     "sexo_biologico_label": "Sexo biológico",
     "sexo_biologico_masculino": "Masculino",
     "sexo_biologico_feminino": "Feminino",
+    "imc_valor": "IMC estimado: {{imc}} (baseado no peso de {{data}})",
+    "imc_sem_peso": "Sincronize seu peso pelo wearable para ver o IMC estimado aqui.",
+    "imc_aguardando_altura": "Informe uma altura válida para calcular o IMC.",
     "save_button": "Salvar",
     "save_success": "Salvo com sucesso",
     "save_error": "Erro ao salvar. Tente novamente.",
     "load_error": "Erro ao carregar seus dados. Tente novamente."
+  },
+
+  "hidratacao": {
+    "button": "Hidratação",
+    "title": "Hidratação",
+    "card_desc": "Água registrada hoje",
+    "card_empty": "Toque para registrar",
+    "subtitle": "Registre a água que você bebe ao longo do dia — entra nas suas análises.",
+    "total_hoje": "Hoje: {{total}} ml",
+    "adicionar_copo_button": "+1 copo ({{ml}} ml)",
+    "quantidade_customizada_label": "Outra quantidade (ml)",
+    "quantidade_customizada_hint": "Ex.: 350",
+    "adicionar_button": "Adicionar",
+    "quantidade_validation_invalid": "Digite só números",
+    "quantidade_validation_range": "Quantidade deve estar entre 1 e 5000 ml",
+    "historico_title": "Últimos 7 dias",
+    "historico_vazio": "Nenhum registro nos últimos 7 dias.",
+    "tamanho_copo_label": "Tamanho do copo (ml)",
+    "tamanho_copo_hint": "Ex.: 200",
+    "tamanho_copo_validation_range": "Tamanho do copo deve estar entre 50 e 1000 ml",
+    "salvar_tamanho_copo_button": "Salvar tamanho do copo",
+    "registro_sucesso": "Registrado!",
+    "registro_erro": "Erro ao registrar. Tente novamente.",
+    "load_error": "Erro ao carregar seus dados de hidratação.",
+    "retry_button": "Tentar de novo"
   },
 
   "nutricao": {
@@ -497,10 +543,63 @@
     "confirm_button": "Confirmar",
     "saving": "Salvando...",
     "save_success": "Refeição salva com sucesso!",
+    "favorita_button": "Salvar como favorita",
+    "favorita_dialog_title": "Salvar como favorita",
+    "favorita_nome_label": "Nome da favorita",
+    "favorita_tipo_label": "Tipo de refeição",
+    "favorita_save_button": "Salvar",
+    "favorita_save_success": "Favorita salva com sucesso",
+    "favorita_save_error": "Não foi possível salvar a favorita. Tente novamente.",
+    "editar_favorita_title": "Editar Favorita",
+    "salvar_alteracoes_button": "Salvar alterações",
+    "favorita_atualizada_sucesso": "Favorita atualizada com sucesso!",
+    "tipo_refeicao_cafe_da_manha": "Café da manhã",
+    "tipo_refeicao_almoco": "Almoço",
+    "tipo_refeicao_lanche": "Lanche",
+    "tipo_refeicao_jantar": "Jantar",
     "motivo": {
       "alimento_nao_encontrado": "Alimento não encontrado no catálogo",
       "medida_nao_encontrada": "Medida não cadastrada para este alimento"
     }
+  },
+
+  "favoritas": {
+    "title": "Minhas Favoritas",
+    "filtro_todas": "Todas",
+    "empty_state": "Nenhuma favorita salva ainda. Toque em + para criar uma, ou salve uma refeição como favorita na tela de confirmação.",
+    "load_error": "Erro ao carregar suas favoritas.",
+    "retry_button": "Tentar de novo",
+    "subtitulo": "{{tipo}} · {{calorias}} kcal · {{itens}} item(ns)",
+    "criar_tooltip": "Criar nova favorita",
+    "usar_dialog_title": "Usar favorita",
+    "usar_dialog_content": "Registrar \"{{nome}}\" agora, com os mesmos itens e quantidades salvos?",
+    "usar_button": "Registrar",
+    "usar_sucesso": "Refeição registrada a partir da favorita",
+    "usar_erro": "Não foi possível registrar a partir da favorita.",
+    "editar_button": "Editar itens",
+    "editar_payload_invalido": "Não foi possível abrir esta favorita para edição.",
+    "trocar_tipo_button": "Trocar tipo",
+    "trocar_tipo_dialog_title": "Trocar tipo de refeição",
+    "trocar_tipo_sucesso": "Tipo atualizado",
+    "trocar_tipo_erro": "Não foi possível trocar o tipo.",
+    "excluir_button": "Excluir",
+    "excluir_dialog_title": "Excluir favorita",
+    "excluir_dialog_content": "Excluir \"{{nome}}\" das suas favoritas? Isso não apaga refeições já registradas com ela.",
+    "excluir_sucesso": "Favorita excluída",
+    "excluir_erro": "Não foi possível excluir a favorita."
+  },
+
+  "criar_favorita": {
+    "title": "Criar Favorita",
+    "adicionar_item": "Adicionar",
+    "itens_selecionados_title": "Itens selecionados ({{quantidade}})",
+    "nenhum_item_selecionado": "Nenhum item ainda — busque um alimento acima e toque para adicionar.",
+    "item_subtitulo": "{{gramas}}g · {{calorias}} kcal",
+    "totais": "Total: {{calorias}} kcal",
+    "salvar_button": "Salvar favorita",
+    "salvar_dialog_title": "Nome e tipo da favorita",
+    "salvar_sucesso": "Favorita criada com sucesso",
+    "salvar_erro": "Não foi possível criar a favorita. Tente novamente."
   },
 
   "intelligence": {

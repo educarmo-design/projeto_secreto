@@ -68,16 +68,47 @@ class _PerfilUsuarioPageState extends State<PerfilUsuarioPage> {
   /// "erro".
   SexoBiologico? _sexoBiologicoSelecionado;
 
+  /// RELATÓRIO 20260812_0011 — última leitura de peso (do wearable, nunca
+  /// digitada nesta tela) usada só pra calcular o IMC exibido ao lado da
+  /// altura. `null` = nenhum peso sincronizado ainda (não é erro).
+  PesoRecente? _pesoRecente;
+
   @override
   void initState() {
     super.initState();
+    // RELATÓRIO 20260812_0011 — "tela reativa": o IMC recalcula a cada
+    // dígito digitado em altura, não só depois de salvar. `setState(() {})`
+    // vazio de propósito — o valor em si é lido do controller no `build()`
+    // via [_imcCalculado], este listener só força o rebuild.
+    _alturaController.addListener(_onAlturaAlterada);
     _carregar();
   }
 
+  void _onAlturaAlterada() => setState(() {});
+
   @override
   void dispose() {
+    _alturaController.removeListener(_onAlturaAlterada);
     _alturaController.dispose();
     super.dispose();
+  }
+
+  /// IMC = peso (kg) / altura (m)². `null` com segurança total de tipos
+  /// sempre que faltar QUALQUER um dos dois insumos ou a altura digitada
+  /// não for um número válido ainda (nunca lança/`throw` por um campo
+  /// vazio/parcial enquanto o usuário digita) — RELATÓRIO 20260812_0011,
+  /// achado da auditoria: esta conversão simplesmente não existia em
+  /// lugar nenhum do app antes desta tarefa (o único IMC exibido era o
+  /// valor bruto pré-calculado no sync, em `historico_telemetria_page.dart`).
+  double? get _imcCalculado {
+    final pesoKg = _pesoRecente?.pesoKg;
+    if (pesoKg == null) return null;
+
+    final alturaCm = double.tryParse(_alturaController.text.trim().replaceAll(',', '.'));
+    if (alturaCm == null || alturaCm <= 0) return null;
+
+    final alturaM = alturaCm / 100; // cm -> m, a conversão que faltava.
+    return pesoKg / (alturaM * alturaM);
   }
 
   Future<void> _carregar() async {
@@ -86,6 +117,7 @@ class _PerfilUsuarioPageState extends State<PerfilUsuarioPage> {
       final alturaCm = await _repository.buscarAlturaCm();
       final dataNascimento = await _repository.buscarDataNascimento();
       final sexoBiologico = await _repository.buscarSexoBiologico();
+      final pesoRecente = await _repository.buscarUltimoPesoKg();
       if (!mounted) return;
       // toStringAsFixed(0): altura_cm é numeric(5,1) no banco, mas o
       // teclado numérico simples não precisa mostrar ".0" pro caso comum
@@ -99,6 +131,7 @@ class _PerfilUsuarioPageState extends State<PerfilUsuarioPage> {
       setState(() {
         _dataNascimentoSelecionada = dataNascimento;
         _sexoBiologicoSelecionado = sexoBiologico;
+        _pesoRecente = pesoRecente;
         _status = _CargaStatus.sucesso;
       });
     } catch (_) {
@@ -121,6 +154,26 @@ class _PerfilUsuarioPageState extends State<PerfilUsuarioPage> {
     );
     if (escolhida == null || !mounted) return;
     setState(() => _dataNascimentoSelecionada = escolhida);
+  }
+
+  Widget _buildImcAoVivo(BuildContext context) {
+    final imc = _imcCalculado;
+    final estilo = Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.mutedText);
+
+    if (_pesoRecente == null) {
+      return Text(i18n.tr('perfil_fisico.imc_sem_peso'), style: estilo);
+    }
+    if (imc == null) {
+      return Text(i18n.tr('perfil_fisico.imc_aguardando_altura'), style: estilo);
+    }
+
+    return Text(
+      i18n.tr('perfil_fisico.imc_valor', params: {
+        'imc': imc.toStringAsFixed(1),
+        'data': _formatarData(_pesoRecente!.dataReferencia),
+      }),
+      style: Theme.of(context).textTheme.bodyMedium,
+    );
   }
 
   /// dd/mm/aaaa — sem `intl`, só concatenação com zero à esquerda (mesmo
@@ -297,7 +350,13 @@ class _PerfilUsuarioPageState extends State<PerfilUsuarioPage> {
                   validator: _validarAltura,
                   enabled: !_salvando,
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 8),
+                // RELATÓRIO 20260812_0011 — IMC ao vivo: recalcula a cada
+                // dígito digitado em altura (ver o listener em `initState`),
+                // usando o último peso sincronizado pelo wearable. Regra 14:
+                // texto cru, sem card/gauge.
+                _buildImcAoVivo(context),
+                const SizedBox(height: 16),
                 // N03 (RELATÓRIO 20260811_0005) — não é um TextFormField:
                 // data de nascimento é sempre escolhida via showDatePicker
                 // (evita todo o parsing/máscara de texto livre). Regra 14:

@@ -22,6 +22,7 @@ import { AdminProfissionais } from './features/admin/components/AdminProfissiona
 import { AdminAtividadesFisicas } from './features/admin/components/AdminAtividadesFisicas';
 import { AdminAlergias } from './features/admin/components/AdminAlergias';
 import { AdminAlimentos } from './features/admin/components/AdminAlimentos';
+import { AdminRevisaoAlimentos, AdminRevisaoMedidasCaseiras } from './features/admin/components/AdminRevisaoCatalogo';
 import { AdminConfiguracoes } from './features/admin/components/AdminConfiguracoes';
 import { AdminVinculos } from './features/admin/components/AdminVinculos';
 import { AdminProblemasSaude } from './features/admin/components/AdminProblemasSaude';
@@ -191,6 +192,17 @@ export default function App() {
         <Route
           path="/admin/alimentos"
           element={profissional.isAdmin ? <AdminAlimentos /> : <Navigate to="/" replace />}
+        />
+        {/* RELATÓRIO 20260824_0001 — fila de revisão dedicada, alcançável
+            pelo widget de contagem em AdminOverview (achado do fundador: o
+            filtro dentro de AdminAlimentos ficava escondido demais). */}
+        <Route
+          path="/admin/revisao/alimentos"
+          element={profissional.isAdmin ? <AdminRevisaoAlimentos /> : <Navigate to="/" replace />}
+        />
+        <Route
+          path="/admin/revisao/medidas-caseiras"
+          element={profissional.isAdmin ? <AdminRevisaoMedidasCaseiras /> : <Navigate to="/" replace />}
         />
         <Route
           path="/admin/configuracoes"

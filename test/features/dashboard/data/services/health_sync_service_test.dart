@@ -1,4 +1,5 @@
 ﻿import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -7,6 +8,7 @@ import 'package:health/health.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'package:atleta_gamificacao/core/config/app_config.dart';
 import 'package:atleta_gamificacao/core/i18n/i18n_manager.dart';
 import 'package:atleta_gamificacao/features/dashboard/data/services/health_sync_service.dart';
 
@@ -633,6 +635,230 @@ void main() {
       expect(linha['passos'], 7000);
       expect(linha['distancia_metros'], 5100);
     });
+
+    test('RELATÓRIO 20260813_0018 — passos nativos do Health Connect (sem app dono, hash por instalação) têm MAIS passos, mas o wearable vence e a distância dele não é descartada', () async {
+      // Achado real (device `atleta1000@teste.com`, 2026-08-11): o próprio
+      // Health Connect registra passos contados pelo acelerômetro sob um
+      // identificador gerado por instalação — sem estar na lista exata de
+      // `_pedometrosNativos`, essa fonte entrava em prioridade ALTA (mesmo
+      // nível de um wearable de verdade) e podia vencer a Fonte Vencedora só
+      // por ter mais passos, derrubando em silêncio a distância real do
+      // Garmin (essa fonte nunca reporta DISTANCE_DELTA).
+      when(
+        () => health.getHealthDataFromTypes(
+          types: any(named: 'types'),
+          startTime: any(named: 'startTime'),
+          endTime: any(named: 'endTime'),
+        ),
+      ).thenAnswer(
+        (_) async => [
+          // Passos nativos do Health Connect: mais passos, mas é pedômetro
+          // nativo (hash de instalação) — despriorizado, e nunca tem distância.
+          _ponto(
+            type: HealthDataType.STEPS,
+            value: 9000,
+            dateFrom: hoje,
+            sourceName: 'com.android.healthconnect.phone.j2a624ede62c5300086a4c5d757082ec3',
+          ),
+          // Garmin: menos passos, mas prioridade alta — e é quem reporta distância.
+          _ponto(
+            type: HealthDataType.STEPS,
+            value: 7000,
+            dateFrom: hoje,
+            sourceName: 'com.garmin.android.apps.connectmobile',
+          ),
+          _ponto(
+            type: HealthDataType.DISTANCE_DELTA,
+            value: 5100,
+            dateFrom: hoje,
+            sourceName: 'com.garmin.android.apps.connectmobile',
+          ),
+        ],
+      );
+
+      final resultado = await service.sincronizarDeltaDiario();
+
+      final linha = resultado.linhas.single;
+      expect(linha['passos'], 7000);
+      expect(linha['distancia_metros'], 5100);
+    });
+    });
+
+    group('preenchimento defensivo de distância faltante (RELATÓRIO 20260812_0013 — investigação de "distância sumindo em dias aleatórios")', () {
+      /// A leitura combinada (todos os tipos de uma vez) só devolve
+      /// [tipos] contidos em [aceitos] — simula "o Health Connect devolveu
+      /// passos mas não distância nessa consulta ampla" sem precisar saber
+      /// a lista exata de ~20 tipos que `_tiposSuportados` pede.
+      void stubLeituraDupla({
+        required List<HealthDataPoint> respostaAmpla,
+        required List<HealthDataPoint> respostaEstreita,
+      }) {
+        when(
+          () => health.getHealthDataFromTypes(
+            types: any(named: 'types', that: predicate<List<HealthDataType>>((tipos) => tipos.length > 2)),
+            startTime: any(named: 'startTime'),
+            endTime: any(named: 'endTime'),
+          ),
+        ).thenAnswer((_) async => respostaAmpla);
+
+        when(
+          () => health.getHealthDataFromTypes(
+            types: any(named: 'types', that: predicate<List<HealthDataType>>(
+                (tipos) =>
+                    tipos.length == 2 &&
+                    tipos.contains(HealthDataType.DISTANCE_DELTA) &&
+                    tipos.contains(HealthDataType.DISTANCE_WALKING_RUNNING),
+              )),
+            startTime: any(named: 'startTime'),
+            endTime: any(named: 'endTime'),
+          ),
+        ).thenAnswer((_) async => respostaEstreita);
+      }
+
+      test('leitura ampla sem distância (só passos) + leitura estreita COM distância -> preenche', () async {
+        final hoje = DateTime(2026, 7, 8, 10);
+        stubLeituraDupla(
+          respostaAmpla: [
+            _ponto(
+              type: HealthDataType.STEPS,
+              value: 8000,
+              dateFrom: hoje,
+              sourceName: 'com.garmin.android.apps.connectmobile',
+            ),
+          ],
+          respostaEstreita: [
+            _ponto(
+              type: HealthDataType.DISTANCE_DELTA,
+              value: 6200,
+              dateFrom: hoje,
+              sourceName: 'com.garmin.android.apps.connectmobile',
+            ),
+          ],
+        );
+
+        final resultado = await service.sincronizarDeltaDiario();
+
+        final linha = resultado.linhas.single;
+        expect(linha['passos'], 8000);
+        expect(linha['distancia_metros'], 6200);
+      });
+
+      test('leitura estreita TAMBÉM sem distância -> dia fica sem distância, sem quebrar o sync', () async {
+        final hoje = DateTime(2026, 7, 8, 10);
+        stubLeituraDupla(
+          respostaAmpla: [
+            _ponto(
+              type: HealthDataType.STEPS,
+              value: 8000,
+              dateFrom: hoje,
+              sourceName: 'com.garmin.android.apps.connectmobile',
+            ),
+          ],
+          respostaEstreita: const [],
+        );
+
+        final resultado = await service.sincronizarDeltaDiario();
+
+        final linha = resultado.linhas.single;
+        expect(linha['passos'], 8000);
+        expect(linha.containsKey('distancia_metros'), isFalse);
+      });
+
+      test('distância já veio na leitura ampla -> NÃO dispara a leitura estreita (nem risco de somar em dobro)', () async {
+        final hoje = DateTime(2026, 7, 8, 10);
+        when(
+          () => health.getHealthDataFromTypes(
+            types: any(named: 'types'),
+            startTime: any(named: 'startTime'),
+            endTime: any(named: 'endTime'),
+          ),
+        ).thenAnswer(
+          (_) async => [
+            _ponto(
+              type: HealthDataType.STEPS,
+              value: 8000,
+              dateFrom: hoje,
+              sourceName: 'com.garmin.android.apps.connectmobile',
+            ),
+            _ponto(
+              type: HealthDataType.DISTANCE_DELTA,
+              value: 6200,
+              dateFrom: hoje,
+              sourceName: 'com.garmin.android.apps.connectmobile',
+            ),
+          ],
+        );
+
+        final resultado = await service.sincronizarDeltaDiario();
+
+        expect(resultado.linhas.single['distancia_metros'], 6200);
+        verify(
+          () => health.getHealthDataFromTypes(
+            types: any(named: 'types'),
+            startTime: any(named: 'startTime'),
+            endTime: any(named: 'endTime'),
+          ),
+        ).called(1);
+      });
+
+      test('sem passos nenhum no dia -> não tenta preencher distância (nada a completar)', () async {
+        final hoje = DateTime(2026, 7, 8, 10);
+        when(
+          () => health.getHealthDataFromTypes(
+            types: any(named: 'types'),
+            startTime: any(named: 'startTime'),
+            endTime: any(named: 'endTime'),
+          ),
+        ).thenAnswer(
+          (_) async => [
+            _ponto(type: HealthDataType.HEART_RATE, value: 70, dateFrom: hoje),
+          ],
+        );
+
+        final resultado = await service.sincronizarDeltaDiario();
+
+        verify(
+          () => health.getHealthDataFromTypes(
+            types: any(named: 'types'),
+            startTime: any(named: 'startTime'),
+            endTime: any(named: 'endTime'),
+          ),
+        ).called(1);
+        expect(resultado.linhas.single.containsKey('distancia_metros'), isFalse);
+      });
+
+      test('leitura estreita lança exceção -> best-effort, sync principal ainda sucede', () async {
+        final hoje = DateTime(2026, 7, 8, 10);
+        when(
+          () => health.getHealthDataFromTypes(
+            types: any(named: 'types', that: predicate<List<HealthDataType>>((tipos) => tipos.length > 2)),
+            startTime: any(named: 'startTime'),
+            endTime: any(named: 'endTime'),
+          ),
+        ).thenAnswer(
+          (_) async => [
+            _ponto(
+              type: HealthDataType.STEPS,
+              value: 8000,
+              dateFrom: hoje,
+              sourceName: 'com.garmin.android.apps.connectmobile',
+            ),
+          ],
+        );
+        when(
+          () => health.getHealthDataFromTypes(
+            types: any(named: 'types', that: predicate<List<HealthDataType>>((tipos) => tipos.length == 2)),
+            startTime: any(named: 'startTime'),
+            endTime: any(named: 'endTime'),
+          ),
+        ).thenThrow(Exception('timeout de rede'));
+
+        final resultado = await service.sincronizarDeltaDiario();
+
+        expect(resultado.outcome, DeltaSyncOutcome.sucesso);
+        expect(resultado.linhas.single['passos'], 8000);
+        expect(resultado.linhas.single.containsKey('distancia_metros'), isFalse);
+      });
     });
 
     test('mescla fc (mÃ©dia) e fc_repouso do mesmo dia em uma Ãºnica linha e sincroniza', () async {
@@ -1004,6 +1230,277 @@ void main() {
         contains('🩻 [RAIO-X] 0 registros brutos recebidos do health store.'),
       );
     });
+
+    test('RELATÓRIO 20260813_0014 — uma exceção na leitura (rede, parsing, plugin) não fica mais silenciosa: aparece no console', () async {
+      when(
+        () => health.getHealthDataFromTypes(
+          types: any(named: 'types'),
+          startTime: any(named: 'startTime'),
+          endTime: any(named: 'endTime'),
+        ),
+      ).thenThrow(Exception('falha simulada de leitura do health store'));
+
+      final resultado = await service.sincronizarDeltaDiario();
+
+      // Comportamento preservado: ainda vira "permissão negada" (best-effort,
+      // não derruba o app) — o que muda é só a observabilidade.
+      expect(resultado.outcome, DeltaSyncOutcome.permissaoNegada);
+      expect(
+        logsCapturados,
+        contains(predicate<String>(
+          (log) =>
+              log.contains('HealthSyncService: falha ao ler do health store') &&
+              log.contains('falha simulada de leitura do health store'),
+        )),
+      );
+    });
+  });
+
+  group('Proteção Extrema no Parsing (RELATÓRIO 20260813_0015, Parte 1)', () {
+    test('1 ponto com valor NaN (ex.: STEPS, que usa .round()) não derruba os demais pontos do lote', () async {
+      final hoje = DateTime(2026, 7, 8, 10);
+      final ontem = hoje.subtract(const Duration(days: 1));
+      // STEPS usa `.round()` na conversão pra payload — `double.nan.round()`
+      // lança `UnsupportedError`. Antes desta tarefa, isso propagava pro
+      // `.map().toList()` de `toPayloads()` e derrubava TODOS os payloads
+      // do lote inteiro, de QUALQUER dia — não só o de `hoje`.
+      when(
+        () => health.getHealthDataFromTypes(
+          types: any(named: 'types'),
+          startTime: any(named: 'startTime'),
+          endTime: any(named: 'endTime'),
+        ),
+      ).thenAnswer(
+        (_) async => [
+          _ponto(type: HealthDataType.STEPS, value: double.nan, dateFrom: hoje),
+          _ponto(type: HealthDataType.WEIGHT, value: 79, dateFrom: ontem),
+        ],
+      );
+
+      final resultado = await service.sincronizarDeltaDiario();
+
+      expect(resultado.outcome, DeltaSyncOutcome.sucesso);
+      final porData = {
+        for (final linha in resultado.linhas) linha['data_referencia']: linha,
+      };
+      // O dia com o ponto ruim fica de fora (não dá pra confiar num NaN),
+      // mas o dia bom não é afetado.
+      expect(porData.containsKey(_dataIso(hoje)), isFalse);
+      expect(porData[_dataIso(ontem)]!['peso_kg'], 79);
+    });
+
+    test('mistura de ponto ruim e bons no MESMO dia: o dia ainda é gravado com os campos bons', () async {
+      final hoje = DateTime(2026, 7, 8, 10);
+      when(
+        () => health.getHealthDataFromTypes(
+          types: any(named: 'types'),
+          startTime: any(named: 'startTime'),
+          endTime: any(named: 'endTime'),
+        ),
+      ).thenAnswer(
+        (_) async => [
+          _ponto(type: HealthDataType.STEPS, value: double.nan, dateFrom: hoje),
+          _ponto(type: HealthDataType.WEIGHT, value: 80, dateFrom: hoje),
+        ],
+      );
+
+      final resultado = await service.sincronizarDeltaDiario();
+
+      expect(resultado.outcome, DeltaSyncOutcome.sucesso);
+      final linha = resultado.linhas.single;
+      expect(linha['data_referencia'], _dataIso(hoje));
+      expect(linha['peso_kg'], 80);
+      expect(linha.containsKey('passos'), isFalse);
+    });
+  });
+
+  group('Modo de Diagnóstico Profundo (RELATÓRIO 20260813_0015, Parte 2)', () {
+    late DebugPrintCallback debugPrintOriginal;
+    late List<String> logsCapturados;
+
+    setUp(() {
+      debugPrintOriginal = debugPrint;
+      logsCapturados = [];
+      debugPrint = (String? message, {int? wrapWidth}) {
+        if (message != null) logsCapturados.add(message);
+      };
+    });
+
+    tearDown(() {
+      debugPrint = debugPrintOriginal;
+    });
+
+    bool logContem(String trecho) =>
+        logsCapturados.any((l) => l.contains(trecho));
+
+    test('desligado por padrão: sincronizarDeltaDiario/carregarHistoricoInicial NUNCA imprimem [SYNC_DIAGNOSTICO]', () async {
+      final hoje = DateTime(2026, 7, 8, 10);
+      when(
+        () => health.getHealthDataFromTypes(
+          types: any(named: 'types'),
+          startTime: any(named: 'startTime'),
+          endTime: any(named: 'endTime'),
+        ),
+      ).thenAnswer(
+        (_) async => [_ponto(type: HealthDataType.STEPS, value: 4000, dateFrom: hoje)],
+      );
+
+      await service.sincronizarDeltaDiario();
+      await service.carregarHistoricoInicial();
+
+      expect(logsCapturados.any((l) => l.contains('[SYNC_DIAGNOSTICO]')), isFalse);
+    });
+
+    test('executarDiagnosticoProfundo imprime os limites exatos startTime/endTime (endTime = agora, não meia-noite)', () async {
+      when(
+        () => health.getHealthDataFromTypes(
+          types: any(named: 'types'),
+          startTime: any(named: 'startTime'),
+          endTime: any(named: 'endTime'),
+        ),
+      ).thenAnswer((_) async => const []);
+
+      await service.executarDiagnosticoProfundo();
+
+      expect(
+        logsCapturados,
+        contains(predicate<String>(
+          (l) =>
+              l.contains('[SYNC_DIAGNOSTICO] Janela pedida ao pacote health') &&
+              l.contains('startTime=') &&
+              l.contains('endTime=') &&
+              l.contains('endTime = DateTime.now() exato'),
+        )),
+      );
+    });
+
+    test('imprime contagem por tipo/dia e o valor bruto + runtimeType de cada ponto', () async {
+      final hoje = DateTime(2026, 7, 8, 10);
+      when(
+        () => health.getHealthDataFromTypes(
+          types: any(named: 'types'),
+          startTime: any(named: 'startTime'),
+          endTime: any(named: 'endTime'),
+        ),
+      ).thenAnswer(
+        (_) async => [
+          _ponto(type: HealthDataType.WEIGHT, value: 80, dateFrom: hoje),
+          _ponto(
+            type: HealthDataType.BASAL_ENERGY_BURNED,
+            value: 1650,
+            dateFrom: hoje,
+          ),
+        ],
+      );
+
+      await service.executarDiagnosticoProfundo();
+
+      expect(logContem('WEIGHT: 1 ponto(s)'), isTrue);
+      expect(logContem('BASAL_ENERGY_BURNED: 1 ponto(s)'), isTrue);
+      expect(logContem('valor=80.0'), isTrue);
+      expect(logContem('tipoNativo=NumericHealthValue'), isTrue);
+    });
+
+    test('distância com pontos recebidos mas soma 0/null: imprime o dump bruto de diagnóstico daquele dia', () async {
+      final hoje = DateTime(2026, 7, 8, 10);
+      when(
+        () => health.getHealthDataFromTypes(
+          types: any(named: 'types'),
+          startTime: any(named: 'startTime'),
+          endTime: any(named: 'endTime'),
+        ),
+      ).thenAnswer(
+        (_) async => [
+          _ponto(type: HealthDataType.DISTANCE_DELTA, value: 0, dateFrom: hoje),
+        ],
+      );
+
+      await service.executarDiagnosticoProfundo();
+
+      expect(
+        logContem('⚠️ Dia ${_dataIso(hoje)} tem 1 ponto(s) de distância mas a soma deu 0.0'),
+        isTrue,
+      );
+      expect(logContem('⚠️ rawValue='), isTrue);
+    });
+
+    test('dia com distância normal (soma > 0) NÃO dispara o alerta de dump bruto', () async {
+      final hoje = DateTime(2026, 7, 8, 10);
+      when(
+        () => health.getHealthDataFromTypes(
+          types: any(named: 'types'),
+          startTime: any(named: 'startTime'),
+          endTime: any(named: 'endTime'),
+        ),
+      ).thenAnswer(
+        (_) async => [
+          _ponto(type: HealthDataType.DISTANCE_DELTA, value: 500, dateFrom: hoje),
+        ],
+      );
+
+      await service.executarDiagnosticoProfundo();
+
+      expect(logsCapturados.any((l) => l.contains('⚠️')), isFalse);
+    });
+
+    test('RELATÓRIO 20260813_0016 — HEART_RATE (leitura contínua) imprime só a contagem, NUNCA o detalhe ponto a ponto', () async {
+      // Achado real em device físico: um único dia pode ter 600-950
+      // leituras de HEART_RATE — imprimir detalhe de cada uma (como as
+      // outras métricas fazem) fazia o relatório inteiro de 30 dias levar
+      // mais de 33 MINUTOS pra imprimir (limitador de taxa do
+      // `debugPrint`), o que na prática parecia "não gerou nada".
+      final hoje = DateTime(2026, 7, 8, 10);
+      when(
+        () => health.getHealthDataFromTypes(
+          types: any(named: 'types'),
+          startTime: any(named: 'startTime'),
+          endTime: any(named: 'endTime'),
+        ),
+      ).thenAnswer(
+        (_) async => List.generate(
+          200,
+          (i) => _ponto(
+            type: HealthDataType.HEART_RATE,
+            value: 60 + i % 10,
+            dateFrom: hoje.add(Duration(minutes: i)),
+          ),
+        ),
+      );
+
+      await service.executarDiagnosticoProfundo();
+
+      expect(logContem('HEART_RATE: 200 ponto(s)'), isTrue);
+      expect(logsCapturados.any((l) => l.contains('tipoNativo=')), isFalse);
+    });
+
+    test('teto de segurança: um tipo de baixa frequência com volume anormalmente alto detalha só os primeiros 50 e resume o resto', () async {
+      final hoje = DateTime(2026, 7, 8, 10);
+      when(
+        () => health.getHealthDataFromTypes(
+          types: any(named: 'types'),
+          startTime: any(named: 'startTime'),
+          endTime: any(named: 'endTime'),
+        ),
+      ).thenAnswer(
+        (_) async => List.generate(
+          70,
+          (i) => _ponto(
+            type: HealthDataType.WEIGHT,
+            value: 80,
+            dateFrom: hoje.add(Duration(minutes: i)),
+          ),
+        ),
+      );
+
+      await service.executarDiagnosticoProfundo();
+
+      expect(logContem('WEIGHT: 70 ponto(s)'), isTrue);
+      expect(
+        logsCapturados.where((l) => l.contains('tipoNativo=')).length,
+        50,
+      );
+      expect(logContem('... e mais 20 ponto(s) omitido(s)'), isTrue);
+    });
   });
 
   group('leitura crua alinhada ao fuso local (RELATÓRIO 20260811)', () {
@@ -1325,6 +1822,72 @@ void main() {
       expect(resultado.linhas.single['calorias_basais'], 1650);
     });
 
+    test('RELATÓRIO 20260813_0019 — calorias_basais só do app da balança (Fitdays) no dia: fica de fora, nunca vira fallback', () async {
+      // Achado real (device atleta1000@teste.com): Fitdays só calcula
+      // BASAL_ENERGY_BURNED no instante exato de uma pesagem (mesmo
+      // timestamp do WEIGHT) — é uma estimativa pontual via fórmula, não
+      // medição contínua de wearable. Sem o Garmin reportando naquele dia,
+      // calorias_basais tem que ficar ausente, nunca preenchido com a
+      // estimativa da balança.
+      when(
+        () => health.getHealthDataFromTypes(
+          types: any(named: 'types'),
+          startTime: any(named: 'startTime'),
+          endTime: any(named: 'endTime'),
+        ),
+      ).thenAnswer(
+        (_) async => [
+          _ponto(
+            type: HealthDataType.WEIGHT,
+            value: 80.6,
+            dateFrom: hoje,
+            sourceName: 'cn.fitdays.fitdays',
+          ),
+          _ponto(
+            type: HealthDataType.BASAL_ENERGY_BURNED,
+            value: 1890,
+            dateFrom: hoje,
+            sourceName: 'cn.fitdays.fitdays',
+          ),
+        ],
+      );
+
+      final resultado = await service.sincronizarDeltaDiario();
+
+      final linha = resultado.linhas.single;
+      expect(linha['peso_kg'], 80.6); // peso em si continua vindo normalmente
+      expect(linha.containsKey('calorias_basais'), isFalse);
+    });
+
+    test('RELATÓRIO 20260813_0019 — Fitdays reporta MAIS calorias basais que o Garmin no mesmo dia: Garmin vence mesmo assim, nunca a balança', () async {
+      when(
+        () => health.getHealthDataFromTypes(
+          types: any(named: 'types'),
+          startTime: any(named: 'startTime'),
+          endTime: any(named: 'endTime'),
+        ),
+      ).thenAnswer(
+        (_) async => [
+          _ponto(
+            type: HealthDataType.BASAL_ENERGY_BURNED,
+            value: 1650,
+            dateFrom: hoje,
+            sourceName: 'com.garmin.android.apps.connectmobile',
+          ),
+          _ponto(
+            type: HealthDataType.BASAL_ENERGY_BURNED,
+            value: 1890, // maior que o Garmin — mesmo assim não pode vencer
+            dateFrom: hoje,
+            sourceName: 'cn.fitdays.fitdays',
+          ),
+        ],
+      );
+
+      final resultado = await service.sincronizarDeltaDiario();
+
+      expect(resultado.linhas.single['calorias_basais'], 1650);
+    });
+
     test('calorias_totais = ativas + basais quando as duas estão presentes', () async {
       when(
         () => health.getHealthDataFromTypes(
@@ -1381,6 +1944,254 @@ void main() {
       final resultado = await service.sincronizarDeltaDiario();
 
       expect(resultado.linhas.single.containsKey('calorias_totais'), isFalse);
+    });
+
+    test('RELATÓRIO 20260819_0020 — TOTAL_CALORIES_BURNED presente no dia: usa a leitura direta do wearable, ignora o cálculo ativas+basais', () async {
+      when(
+        () => health.getHealthDataFromTypes(
+          types: any(named: 'types'),
+          startTime: any(named: 'startTime'),
+          endTime: any(named: 'endTime'),
+        ),
+      ).thenAnswer(
+        (_) async => [
+          _ponto(
+            type: HealthDataType.TOTAL_CALORIES_BURNED,
+            value: 2239,
+            dateFrom: hoje,
+            sourceName: 'com.garmin.android.apps.connectmobile',
+          ),
+          // ativas+basais somariam só 480 — a leitura direta (2239) tem que
+          // vencer, nunca o fallback.
+          _ponto(type: HealthDataType.ACTIVE_ENERGY_BURNED, value: 480, dateFrom: hoje),
+        ],
+      );
+
+      final resultado = await service.sincronizarDeltaDiario();
+
+      expect(resultado.linhas.single['calorias_totais'], 2239);
+    });
+
+    test('RELATÓRIO 20260819_0020 — TOTAL_CALORIES_BURNED só do Fitdays no dia: fica de fora da leitura direta, cai pro fallback ativas+basais', () async {
+      when(
+        () => health.getHealthDataFromTypes(
+          types: any(named: 'types'),
+          startTime: any(named: 'startTime'),
+          endTime: any(named: 'endTime'),
+        ),
+      ).thenAnswer(
+        (_) async => [
+          _ponto(
+            type: HealthDataType.TOTAL_CALORIES_BURNED,
+            value: 1897,
+            dateFrom: hoje,
+            sourceName: 'cn.fitdays.fitdays',
+          ),
+          _ponto(type: HealthDataType.ACTIVE_ENERGY_BURNED, value: 480, dateFrom: hoje),
+        ],
+      );
+
+      final resultado = await service.sincronizarDeltaDiario();
+
+      expect(resultado.linhas.single['calorias_totais'], 480);
+    });
+
+    test('RELATÓRIO 20260819_0020 — TOTAL_CALORIES_BURNED ausente no dia (ex.: iOS, ou o wearable não publicou): fallback ativas+basais continua funcionando, comportamento preservado', () async {
+      when(
+        () => health.getHealthDataFromTypes(
+          types: any(named: 'types'),
+          startTime: any(named: 'startTime'),
+          endTime: any(named: 'endTime'),
+        ),
+      ).thenAnswer(
+        (_) async => [
+          _ponto(type: HealthDataType.ACTIVE_ENERGY_BURNED, value: 480, dateFrom: hoje),
+          _ponto(type: HealthDataType.BASAL_ENERGY_BURNED, value: 1650, dateFrom: hoje),
+        ],
+      );
+
+      final resultado = await service.sincronizarDeltaDiario();
+
+      expect(resultado.linhas.single['calorias_totais'], 2130);
+    });
+  });
+
+  group('Andares subidos (RELATÓRIO 20260819_0020, pedido do fundador)', () {
+    final hoje = DateTime(2026, 7, 8, 10);
+
+    test('FLIGHTS_CLIMBED: fica com a MAIOR fonte do dia, mesmo tratamento anti-double-counting de calorias_ativas', () async {
+      when(
+        () => health.getHealthDataFromTypes(
+          types: any(named: 'types'),
+          startTime: any(named: 'startTime'),
+          endTime: any(named: 'endTime'),
+        ),
+      ).thenAnswer(
+        (_) async => [
+          _ponto(
+            type: HealthDataType.FLIGHTS_CLIMBED,
+            value: 8,
+            dateFrom: hoje,
+            sourceName: 'com.garmin.android.apps.connectmobile',
+          ),
+          _ponto(
+            type: HealthDataType.FLIGHTS_CLIMBED,
+            value: 5,
+            dateFrom: hoje,
+            sourceName: 'com.google.android.apps.fitness',
+          ),
+        ],
+      );
+
+      final resultado = await service.sincronizarDeltaDiario();
+
+      expect(resultado.linhas.single['andares_subidos'], 8);
+    });
+
+    test('sem FLIGHTS_CLIMBED no dia: andares_subidos fica de fora, não é gravado como 0', () async {
+      when(
+        () => health.getHealthDataFromTypes(
+          types: any(named: 'types'),
+          startTime: any(named: 'startTime'),
+          endTime: any(named: 'endTime'),
+        ),
+      ).thenAnswer(
+        (_) async => [_ponto(type: HealthDataType.STEPS, value: 1000, dateFrom: hoje)],
+      );
+
+      final resultado = await service.sincronizarDeltaDiario();
+
+      expect(resultado.linhas.single.containsKey('andares_subidos'), isFalse);
+    });
+  });
+
+  // RELATÓRIO 20260820 — SOLUÇÃO DEFINITIVA pro bug real (device físico,
+  // atleta1000@teste.com, viagem Brasília→Lima): dado histórico é
+  // bucketizado pelo fuso REALMENTE ativo quando foi gravado (via um
+  // histórico de transições próprio do app), nunca pelo fuso atual do
+  // sistema — decisão do fundador ("é um produto, qualquer usuário que
+  // viajar vai passar por isso").
+  group('Histórico de fuso horário (RELATÓRIO 20260820)', () {
+    test('ponto bucketiza pelo fuso HISTÓRICO ativo no instante dele, não o fuso atual do sistema de testes', () async {
+      // 03:30 UTC de 08/jul: sob UTC-3 vira 00:30 do dia 08 (mesmo dia UTC);
+      // sob UTC-5 vira 22:30 do dia 07 (dia ANTERIOR) — a mesma instante
+      // absoluta cai em dias de calendário diferentes dependendo só do
+      // fuso usado, provando que a bucketização depende do histórico
+      // seedado abaixo, não do relógio da máquina rodando o teste.
+      final instante = DateTime.utc(2026, 7, 8, 3, 30);
+      final transicaoAntes = instante.subtract(const Duration(days: 30));
+
+      await secureStorage.write(
+        key: AppConfig.storageKeyTimezoneHistory,
+        value: jsonEncode([
+          {'t': transicaoAntes.millisecondsSinceEpoch, 'o': -180}, // UTC-3
+        ]),
+      );
+
+      when(
+        () => health.getHealthDataFromTypes(
+          types: any(named: 'types'),
+          startTime: any(named: 'startTime'),
+          endTime: any(named: 'endTime'),
+        ),
+      ).thenAnswer(
+        (_) async => [_ponto(type: HealthDataType.STEPS, value: 1000, dateFrom: instante)],
+      );
+
+      final resultado = await service.sincronizarDeltaDiario();
+
+      expect(resultado.linhas.single['data_referencia'], '2026-07-08');
+    });
+
+    test('mesmo instante, histórico com offset DIFERENTE (UTC-5) bucketiza no dia calendário anterior', () async {
+      final instante = DateTime.utc(2026, 7, 8, 3, 30);
+      final transicaoAntes = instante.subtract(const Duration(days: 30));
+
+      await secureStorage.write(
+        key: AppConfig.storageKeyTimezoneHistory,
+        value: jsonEncode([
+          {'t': transicaoAntes.millisecondsSinceEpoch, 'o': -300}, // UTC-5
+        ]),
+      );
+
+      when(
+        () => health.getHealthDataFromTypes(
+          types: any(named: 'types'),
+          startTime: any(named: 'startTime'),
+          endTime: any(named: 'endTime'),
+        ),
+      ).thenAnswer(
+        (_) async => [_ponto(type: HealthDataType.STEPS, value: 1000, dateFrom: instante)],
+      );
+
+      final resultado = await service.sincronizarDeltaDiario();
+
+      expect(resultado.linhas.single['data_referencia'], '2026-07-07');
+    });
+
+    test('sem histórico nenhum (primeira sincronização de um usuário novo): não quebra, cai pro comportamento de antes desta tarefa', () async {
+      when(
+        () => health.getHealthDataFromTypes(
+          types: any(named: 'types'),
+          startTime: any(named: 'startTime'),
+          endTime: any(named: 'endTime'),
+        ),
+      ).thenAnswer(
+        (_) async => [_ponto(type: HealthDataType.STEPS, value: 1000, dateFrom: DateTime(2026, 7, 8, 10))],
+      );
+
+      final resultado = await service.sincronizarDeltaDiario();
+
+      expect(resultado.outcome, DeltaSyncOutcome.sucesso);
+      expect(resultado.linhas.single['passos'], 1000);
+    });
+
+    test('após uma sincronização bem-sucedida, o histórico de fuso passa a existir no storage (primeira transição registrada)', () async {
+      when(
+        () => health.getHealthDataFromTypes(
+          types: any(named: 'types'),
+          startTime: any(named: 'startTime'),
+          endTime: any(named: 'endTime'),
+        ),
+      ).thenAnswer(
+        (_) async => [_ponto(type: HealthDataType.STEPS, value: 1000, dateFrom: DateTime(2026, 7, 8, 10))],
+      );
+
+      await service.sincronizarDeltaDiario();
+
+      final gravado = await secureStorage.read(key: AppConfig.storageKeyTimezoneHistory);
+      expect(gravado, isNotNull);
+      final decodificado = jsonDecode(gravado!) as List<dynamic>;
+      expect(decodificado, hasLength(1));
+    });
+
+    test('histórico já com o mesmo offset atual: não grava uma segunda transição (só transições de verdade)', () async {
+      final agora = DateTime.now();
+      await secureStorage.write(
+        key: AppConfig.storageKeyTimezoneHistory,
+        value: jsonEncode([
+          {
+            't': agora.subtract(const Duration(days: 1)).millisecondsSinceEpoch,
+            'o': agora.timeZoneOffset.inMinutes,
+          },
+        ]),
+      );
+
+      when(
+        () => health.getHealthDataFromTypes(
+          types: any(named: 'types'),
+          startTime: any(named: 'startTime'),
+          endTime: any(named: 'endTime'),
+        ),
+      ).thenAnswer(
+        (_) async => [_ponto(type: HealthDataType.STEPS, value: 1000, dateFrom: DateTime(2026, 7, 8, 10))],
+      );
+
+      await service.sincronizarDeltaDiario();
+
+      final gravado = await secureStorage.read(key: AppConfig.storageKeyTimezoneHistory);
+      final decodificado = jsonDecode(gravado!) as List<dynamic>;
+      expect(decodificado, hasLength(1)); // continua 1, não virou 2
     });
   });
 
@@ -1445,6 +2256,83 @@ void main() {
       expect(linhaGravada['fc_minima'], 150);
     });
 
+    test('RELATÓRIO 20260819_0020 — velocidade do treino: média/máxima só das leituras DENTRO do intervalo, mesmo tratamento de FC', () async {
+      final inicioTreino = DateTime(2026, 7, 8, 7, 0);
+      final fimTreino = DateTime(2026, 7, 8, 8, 0);
+      when(
+        () => health.getHealthDataFromTypes(
+          types: any(named: 'types'),
+          startTime: any(named: 'startTime'),
+          endTime: any(named: 'endTime'),
+        ),
+      ).thenAnswer(
+        (_) async => [
+          _pontoTreino(
+            tipo: HealthWorkoutActivityType.RUNNING,
+            dateFrom: inicioTreino,
+            dateTo: fimTreino,
+          ),
+          // ANTES do treino — não pode entrar na conta.
+          _ponto(
+            type: HealthDataType.SPEED,
+            value: 10,
+            dateFrom: inicioTreino.subtract(const Duration(minutes: 10)),
+          ),
+          // DENTRO do treino — média (2+4+3)/3=3.
+          _ponto(type: HealthDataType.SPEED, value: 2, dateFrom: inicioTreino),
+          _ponto(
+            type: HealthDataType.SPEED,
+            value: 4,
+            dateFrom: inicioTreino.add(const Duration(minutes: 30)),
+          ),
+          _ponto(type: HealthDataType.SPEED, value: 3, dateFrom: fimTreino),
+        ],
+      );
+
+      await service.sincronizarDeltaDiario();
+
+      final linhaGravada = verify(
+        () => treinosBuilder.upsert(
+          captureAny(),
+          onConflict: 'usuario_id,inicio_atividade',
+        ),
+      ).captured.single as Map<String, dynamic>;
+
+      expect(linhaGravada['velocidade_media_ms'], 3.0);
+      expect(linhaGravada['velocidade_maxima_ms'], 4.0);
+    });
+
+    test('sem SPEED nenhuma no intervalo do treino: gravado sem velocidade_media_ms/velocidade_maxima_ms (não zeradas)', () async {
+      final inicio = DateTime(2026, 7, 8, 7);
+      when(
+        () => health.getHealthDataFromTypes(
+          types: any(named: 'types'),
+          startTime: any(named: 'startTime'),
+          endTime: any(named: 'endTime'),
+        ),
+      ).thenAnswer(
+        (_) async => [
+          _pontoTreino(
+            tipo: HealthWorkoutActivityType.WALKING,
+            dateFrom: inicio,
+            dateTo: inicio.add(const Duration(minutes: 20)),
+          ),
+        ],
+      );
+
+      await service.sincronizarDeltaDiario();
+
+      final linhaGravada = verify(
+        () => treinosBuilder.upsert(
+          captureAny(),
+          onConflict: 'usuario_id,inicio_atividade',
+        ),
+      ).captured.single as Map<String, dynamic>;
+
+      expect(linhaGravada.containsKey('velocidade_media_ms'), isFalse);
+      expect(linhaGravada.containsKey('velocidade_maxima_ms'), isFalse);
+    });
+
     test('idempotência: upsert do treino usa onConflict (usuario_id, inicio_atividade)', () async {
       final inicio = DateTime(2026, 7, 8, 7);
       when(
@@ -1472,6 +2360,53 @@ void main() {
         ),
       ).called(1);
     });
+
+    // RELATÓRIO 20260820 — achado real: treino de força nunca aparecia na
+    // tela nem gravava no banco. Causa raiz não era um bug de código Dart
+    // (esta suíte usa mocks, não exercita a FK real de
+    // tipos_atividades_fisicas), e sim o dicionário no banco nunca ter sido
+    // semeado com nenhum código de força (STRENGTH_TRAINING/WEIGHTLIFTING
+    // são Android-only, FUNCTIONAL/TRADITIONAL_STRENGTH_TRAINING são
+    // iOS-only — nenhum é "Both", a seção que o seed original cobria).
+    // Corrigido via migration `20260820100000_tipos_atividades_treino_
+    // forca.sql`. Este teste trava a string exata que
+    // `WorkoutHealthValue.workoutActivityType.name` produz pro upsert —
+    // tem que bater com `nome_codigo` da migration, ou a FK real volta a
+    // rejeitar silenciosamente.
+    for (final tipo in [
+      HealthWorkoutActivityType.STRENGTH_TRAINING,
+      HealthWorkoutActivityType.WEIGHTLIFTING,
+    ]) {
+      test('treino de força (${tipo.name}) é processado com o código exato semeado no dicionário', () async {
+        final inicio = DateTime(2026, 7, 8, 7);
+        when(
+          () => health.getHealthDataFromTypes(
+            types: any(named: 'types'),
+            startTime: any(named: 'startTime'),
+            endTime: any(named: 'endTime'),
+          ),
+        ).thenAnswer(
+          (_) async => [
+            _pontoTreino(
+              tipo: tipo,
+              dateFrom: inicio,
+              dateTo: inicio.add(const Duration(minutes: 45)),
+            ),
+          ],
+        );
+
+        await service.sincronizarDeltaDiario();
+
+        final linhaGravada = verify(
+          () => treinosBuilder.upsert(
+            captureAny(),
+            onConflict: 'usuario_id,inicio_atividade',
+          ),
+        ).captured.single as Map<String, dynamic>;
+
+        expect(linhaGravada['tipo_atividade_codigo'], tipo.name);
+      });
+    }
 
     test('sem HEART_RATE nenhum no intervalo: treino é gravado sem fc_media/fc_maxima/fc_minima (não zerados)', () async {
       final inicio = DateTime(2026, 7, 8, 7);

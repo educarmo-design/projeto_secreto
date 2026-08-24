@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../../../../core/i18n/i18n_manager.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../gamification/models/gamification_models.dart';
+import '../../../nutricao/data/repositories/meta_bem_estar_repository.dart';
+import '../../../nutrition/data/repositories/coleta_diaria_repository.dart';
 import '../../data/models/widget_layout_model.dart';
 
 /// Resumo de uma atividade sincronizada de wearable (Garmin/Health Connect/
@@ -41,6 +43,17 @@ class DashboardCardData {
   final VoidCallback? onFotoBalanca;
   final VoidCallback? onFotoPressao;
 
+  /// N16 (RELATÓRIO 20260819) — `null` = ainda carregando (card mostra
+  /// estado vazio, nunca "0 ml" antes da primeira leitura real).
+  final int? totalAguaHojeMl;
+  final VoidCallback? onAbrirHidratacao;
+
+  /// N12 (RELATÓRIO 20260820) — `null` = ainda carregando OU usuário nunca
+  /// definiu meta nenhuma; [consumoHoje] `null` = ainda carregando (card
+  /// distingue os dois estados, ver [ConsumoMetaCard]).
+  final MetaResumo? metaAtiva;
+  final ConsumoDia? consumoHoje;
+
   const DashboardCardData({
     this.recomendacaoIaResumo,
     this.ultimaAtividadeGarmin,
@@ -51,6 +64,10 @@ class DashboardCardData {
     this.onFotoRotulo,
     this.onFotoBalanca,
     this.onFotoPressao,
+    this.totalAguaHojeMl,
+    this.onAbrirHidratacao,
+    this.metaAtiva,
+    this.consumoHoje,
   });
 }
 
@@ -103,6 +120,15 @@ class DashboardWidgetFactory {
 
       case DashboardWidgetId.micronutrientesStatus:
         return MicronutrientesStatusCard(status: data.statusMicronutrientes);
+
+      case DashboardWidgetId.hidratacao:
+        return HidratacaoCard(
+          totalHojeMl: data.totalAguaHojeMl,
+          onPressed: data.onAbrirHidratacao,
+        );
+
+      case DashboardWidgetId.consumoMeta:
+        return ConsumoMetaCard(meta: data.metaAtiva, consumo: data.consumoHoje);
     }
   }
 
@@ -127,6 +153,10 @@ class DashboardWidgetFactory {
         return 'dashboard.widget_streak_title';
       case DashboardWidgetId.micronutrientesStatus:
         return 'dashboard.widget_micronutrientes_title';
+      case DashboardWidgetId.hidratacao:
+        return 'hidratacao.title';
+      case DashboardWidgetId.consumoMeta:
+        return 'dashboard.widget_consumo_meta_title';
     }
   }
 
@@ -151,6 +181,10 @@ class DashboardWidgetFactory {
         return 'dashboard.card_streak_desc';
       case DashboardWidgetId.micronutrientesStatus:
         return 'dashboard.card_micronutrientes_desc';
+      case DashboardWidgetId.hidratacao:
+        return 'hidratacao.card_desc';
+      case DashboardWidgetId.consumoMeta:
+        return 'dashboard.card_consumo_meta_desc';
     }
   }
 }
@@ -517,6 +551,157 @@ class MicronutrientesStatusCard extends StatelessWidget {
                 ],
               ],
             ),
+    );
+  }
+}
+
+/// Card do 9º id (`hidratacao`, N16 — RELATÓRIO 20260819) — total de água já
+/// registrado hoje (via [ColetaDiariaRepository.buscarTotalAguaDoDia] em
+/// [MainNavigationPage]), com um botão que abre [RegistroHidratacaoPage]
+/// (mesmo padrão de [AparelhoClinicoCard]: o card só resume/navega, nunca
+/// registra inline).
+class HidratacaoCard extends StatelessWidget {
+  const HidratacaoCard({super.key, this.totalHojeMl, this.onPressed});
+
+  final int? totalHojeMl;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final total = totalHojeMl;
+    return _DashboardCardShell(
+      icon: Icons.local_drink_outlined,
+      titleKey: 'hidratacao.title',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            total == null
+                ? i18n.tr('hidratacao.card_empty')
+                : i18n.tr('hidratacao.total_hoje', params: {'total': total.toString()}),
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  color: AppColors.lightText,
+                  fontWeight: FontWeight.bold,
+                ),
+          ),
+          const SizedBox(height: 12),
+          OutlinedButton.icon(
+            onPressed: onPressed,
+            icon: const Icon(Icons.add, size: 18),
+            label: Text(i18n.tr('hidratacao.button')),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Card do 10º id (`consumo_meta`, N12 — RELATÓRIO 20260820) — calorias e
+/// macros já registrados hoje (via refeições confirmadas em
+/// `ConfirmacaoPratoPage`, somadas em
+/// [ColetaDiariaRepository.buscarConsumoHoje]) contra a meta EFETIVA
+/// (profissional ou self-service, [MetaBemEstarRepository.buscarMetaEfetivaAtual]).
+/// Só leitura/resumo — sem botão de ação, diferente dos demais cards desta
+/// fábrica: a tela de definir/editar meta já existe própria
+/// (`MetaBemEstarPage`), este card não duplica aquele fluxo.
+class ConsumoMetaCard extends StatelessWidget {
+  const ConsumoMetaCard({super.key, this.meta, this.consumo});
+
+  final MetaResumo? meta;
+  final ConsumoDia? consumo;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final mutedStyle = theme.textTheme.bodyMedium?.copyWith(color: AppColors.mutedText);
+
+    if (meta == null) {
+      return _DashboardCardShell(
+        icon: Icons.track_changes_outlined,
+        titleKey: 'dashboard.widget_consumo_meta_title',
+        child: Text(i18n.tr('dashboard.widget_consumo_meta_sem_meta'), style: mutedStyle),
+      );
+    }
+    if (consumo == null) {
+      return _DashboardCardShell(
+        icon: Icons.track_changes_outlined,
+        titleKey: 'dashboard.widget_consumo_meta_title',
+        child: Text(i18n.tr('dashboard.widget_consumo_meta_carregando'), style: mutedStyle),
+      );
+    }
+
+    final metaVal = meta!;
+    final consumoVal = consumo!;
+    final progresso = metaVal.caloriasAlvo > 0
+        ? (consumoVal.calorias / metaVal.caloriasAlvo).clamp(0.0, 1.0)
+        : 0.0;
+    final restante = metaVal.caloriasAlvo - consumoVal.calorias;
+
+    return _DashboardCardShell(
+      icon: Icons.track_changes_outlined,
+      titleKey: 'dashboard.widget_consumo_meta_title',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            i18n.tr(
+              'dashboard.widget_consumo_meta_calorias',
+              params: {
+                'consumido': consumoVal.calorias.round().toString(),
+                'meta': metaVal.caloriasAlvo.toString(),
+              },
+            ),
+            style: theme.textTheme.titleMedium
+                ?.copyWith(color: AppColors.lightText, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            restante >= 0
+                ? i18n.tr('dashboard.widget_consumo_meta_restante', params: {
+                    'valor': restante.round().toString(),
+                  })
+                : i18n.tr('dashboard.widget_consumo_meta_excedido', params: {
+                    'valor': (-restante).round().toString(),
+                  }),
+            style: mutedStyle,
+          ),
+          const SizedBox(height: 8),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: progresso,
+              minHeight: 6,
+              backgroundColor: AppColors.darkBg,
+              color: restante < 0 ? AppColors.error : AppColors.secondaryBlue,
+            ),
+          ),
+          if (metaVal.proteinaG != null ||
+              metaVal.carboG != null ||
+              metaVal.gorduraG != null) ...[
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 12,
+              children: [
+                if (metaVal.proteinaG != null)
+                  _MetricaCompacta(
+                    label: i18n.tr('dashboard.widget_consumo_meta_proteina'),
+                    valor: '${consumoVal.proteinasG.round()}/${metaVal.proteinaG}g',
+                  ),
+                if (metaVal.carboG != null)
+                  _MetricaCompacta(
+                    label: i18n.tr('dashboard.widget_consumo_meta_carbo'),
+                    valor: '${consumoVal.carboidratosG.round()}/${metaVal.carboG}g',
+                  ),
+                if (metaVal.gorduraG != null)
+                  _MetricaCompacta(
+                    label: i18n.tr('dashboard.widget_consumo_meta_gordura'),
+                    valor: '${consumoVal.gordurasG.round()}/${metaVal.gorduraG}g',
+                  ),
+              ],
+            ),
+          ],
+        ],
+      ),
     );
   }
 }

@@ -28,6 +28,10 @@ void main() {
     // devolve null sozinho).
     when(() => repository.buscarDataNascimento()).thenAnswer((_) async => null);
     when(() => repository.buscarSexoBiologico()).thenAnswer((_) async => null);
+    // RELATÓRIO 20260812_0011 — `_carregar` também busca o último peso
+    // sincronizado; default "nenhum peso ainda" pelo mesmo motivo dos
+    // stubs acima.
+    when(() => repository.buscarUltimoPesoKg()).thenAnswer((_) async => null);
   });
 
   Widget criarApp() {
@@ -256,6 +260,63 @@ void main() {
 
       verifyNever(() => repository.atualizarSexoBiologico(any()));
       expect(find.text('Salvo com sucesso'), findsOneWidget);
+    });
+  });
+
+  // RELATÓRIO 20260812_0011 — auditoria do bug "IMC não calcula".
+  group('IMC ao vivo', () {
+    testWidgets('sem peso sincronizado, mostra a dica pra sincronizar o wearable', (tester) async {
+      when(() => repository.buscarAlturaCm()).thenAnswer((_) async => 179.0);
+
+      await tester.pumpWidget(criarApp());
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('Sincronize seu peso pelo wearable para ver o IMC estimado aqui.'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('com peso sincronizado mas sem altura digitada, mostra a dica de altura', (tester) async {
+      when(() => repository.buscarAlturaCm()).thenAnswer((_) async => null);
+      when(() => repository.buscarUltimoPesoKg()).thenAnswer(
+        (_) async => PesoRecente(pesoKg: 80.6, dataReferencia: DateTime(2026, 8, 10)),
+      );
+
+      await tester.pumpWidget(criarApp());
+      await tester.pumpAndSettle();
+
+      expect(find.text('Informe uma altura válida para calcular o IMC.'), findsOneWidget);
+    });
+
+    testWidgets('com peso e altura, calcula e mostra o IMC (peso / altura_m²)', (tester) async {
+      when(() => repository.buscarAlturaCm()).thenAnswer((_) async => 178.0);
+      when(() => repository.buscarUltimoPesoKg()).thenAnswer(
+        (_) async => PesoRecente(pesoKg: 80.0, dataReferencia: DateTime(2026, 8, 10)),
+      );
+
+      await tester.pumpWidget(criarApp());
+      await tester.pumpAndSettle();
+
+      // 80 / 1.78² = 25.25...
+      expect(find.text('IMC estimado: 25.2 (baseado no peso de 10/08/2026)'), findsOneWidget);
+    });
+
+    testWidgets('é reativo: recalcula ao digitar uma nova altura, sem precisar salvar', (tester) async {
+      when(() => repository.buscarAlturaCm()).thenAnswer((_) async => null);
+      when(() => repository.buscarUltimoPesoKg()).thenAnswer(
+        (_) async => PesoRecente(pesoKg: 80.0, dataReferencia: DateTime(2026, 8, 10)),
+      );
+
+      await tester.pumpWidget(criarApp());
+      await tester.pumpAndSettle();
+
+      expect(find.text('Informe uma altura válida para calcular o IMC.'), findsOneWidget);
+
+      await tester.enterText(find.byType(TextFormField), '178');
+      await tester.pump();
+
+      expect(find.text('IMC estimado: 25.2 (baseado no peso de 10/08/2026)'), findsOneWidget);
     });
   });
 }

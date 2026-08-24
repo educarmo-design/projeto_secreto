@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 
@@ -148,10 +149,37 @@ class HealthSyncResult {
   /// `metricas_saude_diarias`. Points whose [HealthDataType] has no fixed
   /// column mapping (e.g. `WORKOUT`) yield an empty payload, filtered out
   /// here.
-  List<HealthPayloadModel> toPayloads() => points
-      .map((point) => point.toPayload())
-      .where((payload) => !payload.isEmpty)
-      .toList();
+  ///
+  /// RELATÓRIO 20260813_0015 (Parte 1 — Proteção Extrema no Parsing): era
+  /// `points.map((point) => point.toPayload()).where(...).toList()` — o
+  /// mesmo risco do `.map().toList()` de [HealthMetricPoint.
+  /// fromHealthDataPoint] (ver `_lerComPermissao`): `toPayload()` faz
+  /// `.round()` em cima de um `double` (ex.: calorias basais, passos) —
+  /// se o plugin nativo alguma vez devolver `NaN`/`Infinity` (valor
+  /// numericamente "válido" mas sem cast seguro pra inteiro), `.round()`
+  /// lança `UnsupportedError`, e ISSO propagava pro `.map()` inteiro:
+  /// um único ponto ruim jogava fora TODOS os payloads do lote, de
+  /// QUALQUER dia — exatamente o "distância zerada/ausente em vários dias"
+  /// relatado em device físico. Loop explícito com try/catch por ponto: um
+  /// ponto ruim é pulado e logado, os demais seguem normais.
+  List<HealthPayloadModel> toPayloads() {
+    final payloads = <HealthPayloadModel>[];
+    for (final point in points) {
+      try {
+        final payload = point.toPayload();
+        if (!payload.isEmpty) payloads.add(payload);
+      } catch (e, stackTrace) {
+        debugPrint(
+          '[SYNC_DIAGNOSTICO] Falha ao converter 1 ponto pra payload '
+          '(${point.type.name}, valor bruto ${point.value} '
+          '[${point.rawValue.runtimeType}], fonte "${point.sourceApp}") — '
+          'pulado, os demais pontos do lote continuam sendo processados: '
+          '$e\n$stackTrace',
+        );
+      }
+    }
+    return payloads;
+  }
 }
 
 /// One structured entry for the "Caixa Preta" (black box) of health
@@ -302,13 +330,35 @@ class HealthSyncService {
     HealthDataType.STEPS,
     HealthDataType.DISTANCE_WALKING_RUNNING,
     HealthDataType.DISTANCE_DELTA,
+    // RELATÓRIO 20260819_0020, pedido do fundador — andares subidos, métrica
+    // diária cumulativa (mesmo tratamento anti-double-counting de
+    // calorias_ativas: "maior fonte do dia", não a Hierarquia de Fontes de
+    // passos/distância — floors não precisa vir emparelhado com nenhuma
+    // outra métrica). Mapeia pra FloorsClimbedRecord do Health Connect.
+    HealthDataType.FLIGHTS_CLIMBED,
     HealthDataType.ACTIVE_ENERGY_BURNED,
     // Calorias granulares (RELATÓRIO 20260811_0002, decisão do fundador) —
     // metabolismo basal/repouso, sinal separado de ACTIVE_ENERGY_BURNED.
-    // calorias_totais é ativas+basais, computado em _mesclarPorDia — não é
-    // TOTAL_CALORIES_BURNED (esse tipo não tem implementação real no lado
-    // iOS do pacote `health`, ver RELATÓRIO 20260810_0007/spike).
     HealthDataType.BASAL_ENERGY_BURNED,
+    // RELATÓRIO 20260819_0020 — ACHADO REAL (stack trace capturada em
+    // device físico via logcat): o pacote `health` lê TotalCaloriesBurnedRecord
+    // por baixo dos panos ao processar HealthDataType.WORKOUT (pra calcular
+    // a energia queimada de cada sessão) — sem a permissão
+    // READ_TOTAL_CALORIES_BURNED no Manifest, essa leitura interna lançava
+    // SecurityException e derrubava a leitura do WORKOUT INTEIRO (é por
+    // isso que treino nunca aparecia na tela nem gravava no banco, não era
+    // um bug de parsing do lado Dart). Adicionar o tipo aqui, além de
+    // corrigir os treinos, destrava calorias totais como leitura direta do
+    // wearable (Garmin publica esse registro agregado continuamente,
+    // inclusive em dias sem pesagem/sem treino — diferente de
+    // BASAL_ENERGY_BURNED, que o Garmin nunca publica, ver RELATÓRIO
+    // 20260813_0019). Nota anterior (RELATÓRIO 20260810_0007/spike) dizia
+    // que TOTAL_CALORIES_BURNED "não tem implementação real no iOS do
+    // pacote health" — segue verdade lá (HealthSyncService._mesclarPorDia
+    // preserva o fallback ativas+basais quando a leitura direta vem
+    // ausente), mas nunca foi um problema no Android, onde este app roda de
+    // verdade hoje.
+    HealthDataType.TOTAL_CALORIES_BURNED,
     // RELATÓRIO 20260811 — sono por estágio granular, não mais um total
     // único. SLEEP_SESSION continua fora daqui (mesmo motivo do RELATÓRIO
     // 20260810: cobre bedtime->waketime inteiro, incluindo acordado —
@@ -351,6 +401,14 @@ class HealthSyncService {
     // HealthSyncService._processarTreinos), então o app já lida com isso
     // de graça, sem checagem especial.
     HealthDataType.WORKOUT_ROUTE,
+    // RELATÓRIO 20260819_0020, pedido do fundador — velocidade. Série
+    // contínua (mesmo perfil de HEART_RATE), por isso tratada igual à FC
+    // dentro de um treino em [_processarTreinos] (média/mínima/máxima
+    // filtradas pelo intervalo exato da sessão), não como métrica diária
+    // solta em metricas_saude_diarias — "velocidade do dia" sozinha não é
+    // um conceito com sentido de produto, velocidade de um treino é.
+    // Mapeia pra SpeedRecord do Health Connect.
+    HealthDataType.SPEED,
   ];
 
   List<HealthDataType> get _tiposSuportados =>
@@ -393,6 +451,21 @@ class HealthSyncService {
     await _configured;
     await _garantirPermissaoHistorico();
     return _lerEGravar(_tiposSuportados, dias: dias);
+  }
+
+  /// Modo de Diagnóstico Profundo (RELATÓRIO 20260813_0015, decisão do
+  /// fundador) — botão "GERAR LOG DIAGNÓSTICO (30 DIAS)" da tela de
+  /// histórico. Reaproveita o MESMO [_lerEGravar] de [carregarHistoricoInicial]
+  /// (mesma permissão de histórico, mesma janela de 30 dias, mesmo
+  /// merge+upsert real — este NÃO é um modo "só leitura", ele sincroniza de
+  /// verdade) só com `diagnosticoProfundo: true`, que liga o log verboso
+  /// ponto-a-ponto em [_logDiagnosticoProfundo] — desligado por padrão em
+  /// todo o resto do app (delta diário automático, carga inicial ao
+  /// conectar wearable) porque é verboso demais pra rodar toda vez.
+  Future<DeltaSyncResult> executarDiagnosticoProfundo({int dias = 30}) async {
+    await _configured;
+    await _garantirPermissaoHistorico();
+    return _lerEGravar(_tiposSuportados, dias: dias, diagnosticoProfundo: true);
   }
 
   /// Pede a permissão especial `READ_HEALTH_DATA_HISTORY` — separada das
@@ -501,6 +574,7 @@ class HealthSyncService {
   Future<HealthSyncResult> _lerComPermissao(
     List<HealthDataType> types, {
     required DateTime start,
+    bool diagnosticoProfundo = false,
   }) async {
     await _configured;
 
@@ -551,8 +625,32 @@ class HealthSyncService {
 
       _logRaioX(rawPoints);
 
-      final points =
-          rawPoints.map(HealthMetricPoint.fromHealthDataPoint).toList();
+      // RELATÓRIO 20260813_0015 (Parte 1 — Proteção Extrema no Parsing):
+      // era `rawPoints.map(HealthMetricPoint.fromHealthDataPoint).toList()`
+      // — um `.map().toList()` avalia TODO ponto de uma vez; se UM único
+      // ponto do lote lançasse (ex.: um cast numérico ruim vindo do
+      // plugin nativo), o `.toList()` inteiro lançava e NENHUM ponto do
+      // lote — de nenhum dia, de nenhum tipo — chegava a ser processado.
+      // Loop explícito com try/catch POR PONTO: um ponto ruim é pulado e
+      // logado, os demais (do mesmo dia ou de outros) continuam normais.
+      final points = <HealthMetricPoint>[];
+      for (final rawPoint in rawPoints) {
+        try {
+          points.add(HealthMetricPoint.fromHealthDataPoint(rawPoint));
+        } catch (e, stackTrace) {
+          debugPrint(
+            '[SYNC_DIAGNOSTICO] Falha ao converter 1 ponto bruto '
+            '(${rawPoint.type.name}, fonte "${rawPoint.sourceName}", '
+            'valor bruto ${rawPoint.value} [${rawPoint.value.runtimeType}]) — '
+            'pulado, os demais pontos do lote continuam sendo processados: '
+            '$e\n$stackTrace',
+          );
+        }
+      }
+
+      if (diagnosticoProfundo) {
+        _logDiagnosticoProfundo(points, start, now);
+      }
 
       // Checagem defensiva em primeiro plano: roda inline, como parte do
       // próprio sync, e nunca deixa uma falha de gravação (rede, RLS, sessão
@@ -560,7 +658,18 @@ class HealthSyncService {
       await _detectarEregistrarAnomalias(points);
 
       return HealthSyncResult(granted: true, points: points);
-    } catch (_) {
+    } catch (e, stackTrace) {
+      // RELATÓRIO 20260813_0014 — ACHADO: este catch engolia QUALQUER
+      // exceção (rede, parsing de um HealthDataPoint malformado, plugin
+      // nativo) sem nenhum rastro — nem `debugPrint`, nem o `e` original.
+      // O chamador ([_lerEGravar]) trata `granted: false` como "permissão
+      // negada" e aborta o lote inteiro (nenhuma coluna é gravada, nem
+      // passos/distância que não têm nada a ver com a causa real da
+      // falha) — um erro de rede pontual virava, pro fundador, "a
+      // sincronização parou", sem nenhum log pra investigar por quê. Não
+      // muda o comportamento (ainda devolve `denied`, best-effort igual
+      // antes) — só passa a expor o erro de verdade no console.
+      debugPrint('HealthSyncService: falha ao ler do health store: $e\n$stackTrace');
       return HealthSyncResult.denied(i18n.tr('dashboard.health_sync_error'));
     }
   }
@@ -601,86 +710,110 @@ class HealthSyncService {
 
     final anomalias = <EventoAnomaliaSaude>[];
 
+    // RELATÓRIO 20260813_0015 (Parte 1 — Proteção Extrema no Parsing):
+    // ACHADO REAL, não hipotético — `ponto.toPayload()` sem try/catch
+    // aqui era o terceiro (e mais grave) lugar com o mesmo risco de
+    // [HealthSyncResult.toPayloads()]: um único ponto com valor NaN/
+    // Infinity (ex.: STEPS, que usa `.round()`) lançava DENTRO de
+    // `_lerComPermissao` — ANTES do método sequer retornar — e o catch
+    // externo dele (RELATÓRIO 20260813_0014) tratava isso como "permissão
+    // negada", abortando o LOTE INTEIRO (todos os dias, todos os tipos:
+    // distância, calorias basais, peso, treinos — bate exatamente com o
+    // sintoma relatado em device físico). Confirmado escrevendo o teste
+    // antes da correção: um único ponto ruim derrubava até dias/campos
+    // completamente sem relação com ele. Try/catch por ponto: um ponto
+    // ruim é pulado e logado, a checagem de anomalia segue pros demais.
     for (final ponto in points) {
-      final payload = ponto.toPayload();
-      final origem = ponto.sourceApp.isEmpty ? 'wearable' : ponto.sourceApp;
+      try {
+        final payload = ponto.toPayload();
+        final origem = ponto.sourceApp.isEmpty ? 'wearable' : ponto.sourceApp;
 
-      // N17/N18: checa frequenciaCardiaca (leitura genérica/contínua), não
-      // mais fcRepouso — antes desta tarefa os dois eram o mesmo campo
-      // (HEART_RATE só existia como fcRepouso); agora que são sinais
-      // distintos, o pico que faz sentido pegar em primeiro plano é o da
-      // leitura contínua, não a métrica de repouso do Health Connect
-      // (calculada pelo próprio SO, tipicamente durante o sono — chega
-      // no máximo 1x/dia e já É esperada estar baixa, não é onde um pico
-      // fora de treino apareceria). Comportamento de detecção preservado:
-      // é a mesma fonte de dado (HEART_RATE) que já alimentava esta
-      // checagem antes, só o nome do campo/parametro que corrige.
-      final fc = payload.frequenciaCardiaca;
-      if (fc != null && (fc < _fcForaTreinoMin || fc > _fcForaTreinoMax)) {
-        final foraDoTreino = !emTreino(ponto);
-        if (foraDoTreino) {
+        // N17/N18: checa frequenciaCardiaca (leitura genérica/contínua),
+        // não mais fcRepouso — antes desta tarefa os dois eram o mesmo
+        // campo (HEART_RATE só existia como fcRepouso); agora que são
+        // sinais distintos, o pico que faz sentido pegar em primeiro
+        // plano é o da leitura contínua, não a métrica de repouso do
+        // Health Connect (calculada pelo próprio SO, tipicamente durante
+        // o sono — chega no máximo 1x/dia e já É esperada estar baixa,
+        // não é onde um pico fora de treino apareceria). Comportamento de
+        // detecção preservado: é a mesma fonte de dado (HEART_RATE) que
+        // já alimentava esta checagem antes, só o nome do campo/parametro
+        // que corrige.
+        final fc = payload.frequenciaCardiaca;
+        if (fc != null && (fc < _fcForaTreinoMin || fc > _fcForaTreinoMax)) {
+          final foraDoTreino = !emTreino(ponto);
+          if (foraDoTreino) {
+            anomalias.add(EventoAnomaliaSaude(
+              tipoAnomalia: 'frequencia_cardiaca_fora_faixa',
+              parametro: 'frequencia_cardiaca',
+              valorDetectado: fc,
+              valorLimiteMin: _fcForaTreinoMin,
+              valorLimiteMax: _fcForaTreinoMax,
+              emTreino: false,
+              severidade: (fc < _fcCriticoMin || fc > _fcCriticoMax)
+                  ? 'critico'
+                  : 'atencao',
+              origem: origem,
+              detectadoEm: ponto.dateTo,
+            ));
+          }
+        }
+
+        final glicose = payload.glicoseJejum;
+        if (glicose != null &&
+            (glicose < _glicoseMin || glicose > _glicoseMax)) {
           anomalias.add(EventoAnomaliaSaude(
-            tipoAnomalia: 'frequencia_cardiaca_fora_faixa',
-            parametro: 'frequencia_cardiaca',
-            valorDetectado: fc,
-            valorLimiteMin: _fcForaTreinoMin,
-            valorLimiteMax: _fcForaTreinoMax,
-            emTreino: false,
-            severidade: (fc < _fcCriticoMin || fc > _fcCriticoMax)
-                ? 'critico'
-                : 'atencao',
+            tipoAnomalia: 'glicose_critica',
+            parametro: 'glicose_jejum',
+            valorDetectado: glicose,
+            valorLimiteMin: _glicoseMin,
+            valorLimiteMax: _glicoseMax,
+            emTreino: emTreino(ponto),
+            severidade:
+                (glicose < _glicoseCriticoMin || glicose > _glicoseCriticoMax)
+                    ? 'critico'
+                    : 'atencao',
             origem: origem,
             detectadoEm: ponto.dateTo,
           ));
         }
-      }
 
-      final glicose = payload.glicoseJejum;
-      if (glicose != null &&
-          (glicose < _glicoseMin || glicose > _glicoseMax)) {
-        anomalias.add(EventoAnomaliaSaude(
-          tipoAnomalia: 'glicose_critica',
-          parametro: 'glicose_jejum',
-          valorDetectado: glicose,
-          valorLimiteMin: _glicoseMin,
-          valorLimiteMax: _glicoseMax,
-          emTreino: emTreino(ponto),
-          severidade:
-              (glicose < _glicoseCriticoMin || glicose > _glicoseCriticoMax)
-                  ? 'critico'
-                  : 'atencao',
-          origem: origem,
-          detectadoEm: ponto.dateTo,
-        ));
-      }
+        final sistolica = payload.pressaoSistolica;
+        if (sistolica != null && sistolica > _sistolicaMax) {
+          anomalias.add(EventoAnomaliaSaude(
+            tipoAnomalia: 'pressao_critica',
+            parametro: 'pressao_sistolica',
+            valorDetectado: sistolica,
+            valorLimiteMax: _sistolicaMax,
+            emTreino: emTreino(ponto),
+            severidade:
+                sistolica > _sistolicaCriticoMax ? 'critico' : 'atencao',
+            origem: origem,
+            detectadoEm: ponto.dateTo,
+          ));
+        }
 
-      final sistolica = payload.pressaoSistolica;
-      if (sistolica != null && sistolica > _sistolicaMax) {
-        anomalias.add(EventoAnomaliaSaude(
-          tipoAnomalia: 'pressao_critica',
-          parametro: 'pressao_sistolica',
-          valorDetectado: sistolica,
-          valorLimiteMax: _sistolicaMax,
-          emTreino: emTreino(ponto),
-          severidade: sistolica > _sistolicaCriticoMax ? 'critico' : 'atencao',
-          origem: origem,
-          detectadoEm: ponto.dateTo,
-        ));
-      }
-
-      final diastolica = payload.pressaoDiastolica;
-      if (diastolica != null && diastolica > _diastolicaMax) {
-        anomalias.add(EventoAnomaliaSaude(
-          tipoAnomalia: 'pressao_critica',
-          parametro: 'pressao_diastolica',
-          valorDetectado: diastolica,
-          valorLimiteMax: _diastolicaMax,
-          emTreino: emTreino(ponto),
-          severidade:
-              diastolica > _diastolicaCriticoMax ? 'critico' : 'atencao',
-          origem: origem,
-          detectadoEm: ponto.dateTo,
-        ));
+        final diastolica = payload.pressaoDiastolica;
+        if (diastolica != null && diastolica > _diastolicaMax) {
+          anomalias.add(EventoAnomaliaSaude(
+            tipoAnomalia: 'pressao_critica',
+            parametro: 'pressao_diastolica',
+            valorDetectado: diastolica,
+            valorLimiteMax: _diastolicaMax,
+            emTreino: emTreino(ponto),
+            severidade:
+                diastolica > _diastolicaCriticoMax ? 'critico' : 'atencao',
+            origem: origem,
+            detectadoEm: ponto.dateTo,
+          ));
+        }
+      } catch (e, stackTrace) {
+        debugPrint(
+          '[SYNC_DIAGNOSTICO] Falha ao checar anomalia de 1 ponto '
+          '(${ponto.type.name}, valor bruto ${ponto.value} '
+          '[${ponto.rawValue.runtimeType}]) — pulado, os demais pontos '
+          'continuam sendo checados: $e\n$stackTrace',
+        );
       }
     }
 
@@ -714,6 +847,136 @@ class HealthSyncService {
     );
   }
 
+  /// RELATÓRIO 20260820 — SOLUÇÃO DEFINITIVA (decisão do fundador: "é um
+  /// produto, qualquer usuário que viajar vai passar por isso, precisa de
+  /// solução no código, não workaround manual") pro bug real encontrado em
+  /// device físico (`atleta1000@teste.com`, viagem Brasília→Lima):
+  /// `DateTime.fromMillisecondsSinceEpoch` (usado pelo pacote `health` pra
+  /// construir `dateFrom`/`dateTo`) SEMPRE reinterpreta um instante
+  /// histórico pelo fuso ATUAL do aparelho no momento da conversão — nunca
+  /// o fuso de quando o dado foi realmente gravado. O Health Connect não
+  /// expõe esse dado pro pacote (confirmado lendo `HealthDataConverter.kt`
+  /// — nenhuma leitura de `zoneOffset` nativo do registro), então não tem
+  /// como recuperar o fuso original por fora do nosso próprio controle.
+  ///
+  /// Mecanismo da correção: o app passa a manter seu PRÓPRIO histórico de
+  /// fuso horário — uma lista de "a partir do instante T, o fuso passou a
+  /// ser O", só uma entrada por TROCA real (não uma por sincronização).
+  /// Ao bucketizar um ponto por dia, em vez de confiar na conversão
+  /// "local" automática do Dart (que sempre usa o fuso de AGORA), o app
+  /// pega o instante ABSOLUTO do ponto (`.toUtc()` — Dart preserva o
+  /// instante exato independente da flag local/UTC, só muda como
+  /// ano/mês/dia são exibidos) e consulta o PRÓPRIO histórico pra saber
+  /// qual fuso estava realmente ativo naquele instante específico — ver
+  /// [_offsetParaInstante]/[_dataOnly].
+  ///
+  /// Elimina a classe inteira do bug DAQUI PRA FRENTE, permanentemente,
+  /// pra qualquer usuário: uma vez que o histórico de fuso está sendo
+  /// rastreado desde antes de um ponto ser sincronizado, a bucketização
+  /// fica correta mesmo que o aparelho troque de fuso entre a gravação e a
+  /// sincronização. Limitação real e aceita: dado sincronizado ANTES desta
+  /// tarefa existir (não temos histórico de fuso de antes de hoje) segue
+  /// sem correção retroativa possível — mesmo caso do 13-17/08 do
+  /// fundador, já removido do banco.
+  static const String _chaveHistoricoFuso = AppConfig.storageKeyTimezoneHistory;
+
+  /// Teto de entradas guardadas (transições de fuso são raras — viajar de
+  /// fuso é um evento incomum mesmo pra um usuário que viaja muito; 200
+  /// entradas cobrem anos de uso real sem custo de armazenamento
+  /// perceptível). Poda as mais antigas primeiro se ultrapassar.
+  static const int _maxEntradasHistoricoFuso = 200;
+
+  Future<List<(int instanteMs, int offsetMinutos)>> _carregarHistoricoFuso() async {
+    try {
+      final bruto = await _secureStorage.read(key: _chaveHistoricoFuso);
+      if (bruto == null || bruto.isEmpty) return [];
+      final decodificado = jsonDecode(bruto) as List<dynamic>;
+      return decodificado
+          .cast<Map<String, dynamic>>()
+          .map((e) => (e['t'] as int, e['o'] as int))
+          .toList()
+        ..sort((a, b) => a.$1.compareTo(b.$1));
+    } catch (e) {
+      // Best-effort: histórico corrompido/ilegível nunca derruba o sync —
+      // trata como "sem histórico ainda" (mesmo fallback de primeira
+      // sincronização).
+      debugPrint('HealthSyncService: falha ao carregar histórico de fuso (best-effort): $e');
+      return [];
+    }
+  }
+
+  /// Roda uma vez no início de cada sincronização (ver [_lerEGravar]).
+  /// Só grava uma entrada nova quando o fuso ATUAL difere da última
+  /// registrada (ou é a primeiríssima sincronização) — é uma lista de
+  /// TRANSIÇÕES, não um log de toda sincronização. Devolve o histórico já
+  /// atualizado, pronto pra [_offsetParaInstante] usar na bucketização
+  /// desta mesma chamada.
+  Future<List<(int instanteMs, int offsetMinutos)>> _registrarFusoAtualSeMudou(
+    List<(int instanteMs, int offsetMinutos)> historico,
+  ) async {
+    final agora = DateTime.now();
+    final offsetAtual = agora.timeZoneOffset.inMinutes;
+
+    if (historico.isNotEmpty && historico.last.$2 == offsetAtual) {
+      return historico; // sem mudança — nada a gravar
+    }
+
+    if (historico.isNotEmpty) {
+      debugPrint(
+        '⚠️ HealthSyncService: fuso horário do aparelho mudou '
+        '(${_formatarOffset(historico.last.$2)} -> ${_formatarOffset(offsetAtual)}). '
+        'Histórico de fuso atualizado — pontos sincronizados a partir de '
+        'agora bucketizam corretamente por dia, mesmo os que foram '
+        'gravados sob o fuso anterior.',
+      );
+    }
+
+    final atualizado = [...historico, (agora.millisecondsSinceEpoch, offsetAtual)];
+    final podado = atualizado.length > _maxEntradasHistoricoFuso
+        ? atualizado.sublist(atualizado.length - _maxEntradasHistoricoFuso)
+        : atualizado;
+
+    try {
+      await _secureStorage.write(
+        key: _chaveHistoricoFuso,
+        value: jsonEncode(
+          podado.map((e) => {'t': e.$1, 'o': e.$2}).toList(),
+        ),
+      );
+    } catch (e) {
+      debugPrint('HealthSyncService: falha ao gravar histórico de fuso (best-effort): $e');
+    }
+
+    return podado;
+  }
+
+  /// Qual fuso (offset em minutos) estava ativo no instante [instanteMs]
+  /// (epoch, absoluto) — a última transição registrada ANTES ou NO
+  /// instante pedido. Sem nenhuma transição anterior a ele (dado mais
+  /// antigo que todo o histórico rastreado — a primeira Carga de 30 dias
+  /// de um usuário novo, tipicamente), cai pro fuso ATUAL como melhor
+  /// estimativa disponível — mesmo comportamento de antes desta tarefa,
+  /// não uma regressão; só deixa de ser o ÚNICO comportamento.
+  static int _offsetParaInstante(
+    int instanteMs,
+    List<(int instanteMs, int offsetMinutos)> historico,
+  ) {
+    (int, int)? candidata;
+    for (final transicao in historico) {
+      if (transicao.$1 > instanteMs) break; // ordenado ascendente — para na primeira futura
+      candidata = transicao;
+    }
+    return candidata?.$2 ?? DateTime.now().timeZoneOffset.inMinutes;
+  }
+
+  static String _formatarOffset(int minutos) {
+    final sinal = minutos >= 0 ? '+' : '-';
+    final absolutos = minutos.abs();
+    final horas = (absolutos ~/ 60).toString().padLeft(2, '0');
+    final min = (absolutos % 60).toString().padLeft(2, '0');
+    return 'UTC$sinal$horas:$min';
+  }
+
   /// Delta Diário (Onda 1.5): reads only what the health store produced
   /// since the last successful sync (falling back to the last 24h the very
   /// first time it runs), maps every point directly onto
@@ -743,6 +1006,7 @@ class HealthSyncService {
     List<HealthDataType> types, {
     int? dias,
     DateTime? start,
+    bool diagnosticoProfundo = false,
   }) async {
     await _configured;
 
@@ -753,6 +1017,13 @@ class HealthSyncService {
         errorMessage: i18n.tr('dashboard.health_sync_error'),
       );
     }
+
+    // RELATÓRIO 20260820 — carrega + (se preciso) atualiza o histórico de
+    // fuso ANTES de ler/bucketizar qualquer ponto desta sincronização (ver
+    // doc completa em [_registrarFusoAtualSeMudou]). Best-effort: uma
+    // falha aqui já é tratada dentro dos próprios métodos (nunca lança),
+    // então nunca derruba o sync principal.
+    final historicoFuso = await _registrarFusoAtualSeMudou(await _carregarHistoricoFuso());
 
     // CAUSA RAIZ do bug "passos/sono com fuso errado" (RELATÓRIO 20260811,
     // corrigindo a tentativa anterior do RELATÓRIO 20260810): a consulta
@@ -766,18 +1037,22 @@ class HealthSyncService {
     // (leitura crua) — mas alinhando a janela aqui, só no caminho de
     // sincronização/gravação (não em [_lerComPermissao] diretamente, para
     // não mudar a janela exata que os 3 métodos de leitura pontual pedem —
-    // ver doc de [_lerComPermissao]). `DateTime.fromMillisecondsSinceEpoch`
-    // (usado pelo pacote `health` para construir dateFrom/dateTo) já devolve
-    // horário local, então bucketizar por dia em Dart
+    // ver doc de [_lerComPermissao]). Bucketizar por dia em Dart
     // (`_dataOnly`/`_dataDoSonoLocal` em [_mesclarPorDia]) é correto por
-    // construção — o problema nunca esteve aí, só na fatia nativa em UTC.
+    // construção, DESDE que use o fuso certo pra cada ponto — ver
+    // [_offsetParaInstante] (RELATÓRIO 20260820) — o problema nunca esteve
+    // na fatia em si, só na fatia nativa em UTC.
     final agoraParaJanela = DateTime.now();
     final inicioBruto =
         start ?? agoraParaJanela.subtract(Duration(days: dias ?? 30));
     final inicioAlinhado =
         DateTime(inicioBruto.year, inicioBruto.month, inicioBruto.day);
 
-    final leitura = await _lerComPermissao(types, start: inicioAlinhado);
+    final leitura = await _lerComPermissao(
+      types,
+      start: inicioAlinhado,
+      diagnosticoProfundo: diagnosticoProfundo,
+    );
     if (!leitura.granted) {
       return DeltaSyncResult(
         outcome: DeltaSyncOutcome.permissaoNegada,
@@ -806,8 +1081,9 @@ class HealthSyncService {
       );
     }
 
-    final linhas = _mesclarPorDia(usuarioId, payloads);
+    final linhas = _mesclarPorDia(usuarioId, payloads, historicoFuso);
     await _aplicarInferenciasCruzadas(usuarioId, linhas);
+    await _preencherDistanciaFaltante(linhas, inicioAlinhado, historicoFuso);
     final envio = await _enviarLinhas(linhas);
 
     if (envio == DeltaSyncOutcome.sucesso) {
@@ -951,6 +1227,51 @@ class HealthSyncService {
     'com.apple.health', // app "Saúde" do iPhone (HealthKit, coprocessador M)
   };
 
+  /// RELATÓRIO 20260813_0018 — achado real, confirmado por device físico
+  /// (`atleta1000@teste.com`, `2026-08-11`): o próprio Health Connect
+  /// registra passos contados pelo acelerômetro do aparelho sob um
+  /// identificador gerado por instalação, no formato
+  /// `com.android.healthconnect.phone.<hash>` — não é nenhum app de
+  /// terceiros, é o equivalente ao pedômetro nativo do sistema (mesmo
+  /// papel de Google Fit/Samsung Health/Apple Health), só que sem
+  /// identificador fixo porque o hash muda por device/instalação. Como
+  /// `_pedometrosNativos` era lista exata, essa fonte entrava em
+  /// prioridade ALTA (mesmo nível de um wearable de verdade) e podia
+  /// vencer a Fonte Vencedora só por ter mais passos brutos num dia —
+  /// e como ela nunca reporta `DISTANCE_DELTA`/`DISTANCE_WALKING_RUNNING`,
+  /// a distância do dia inteiro era descartada em silêncio mesmo com o
+  /// Garmin tendo reportado distância real naquele mesmo dia. Prefixo
+  /// (não lista exata) porque o hash é por instalação — não dá pra
+  /// cadastrar nominalmente.
+  static const _prefixosPedometrosNativos = <String>{
+    'com.android.healthconnect.phone.',
+  };
+
+  /// RELATÓRIO 20260813_0019 — decisão do fundador, alinhada à
+  /// especificação: calorias (ativas/basais) precisam vir de um wearable de
+  /// verdade (Garmin ou equivalente), nunca de um app de balança/celular.
+  /// Achado real, confirmado por device físico: `cn.fitdays.fitdays` (app
+  /// da balança inteligente) só calcula/grava `BASAL_ENERGY_BURNED` no
+  /// INSTANTE exato de uma pesagem — mesmo timestamp do ponto de `WEIGHT`,
+  /// mesma fonte — porque é uma ESTIMATIVA pontual via fórmula (usa o peso
+  /// que acabou de medir), não uma medição contínua de metabolismo basal
+  /// como a de um wearable. Misturar isso no mesmo campo `calorias_basais`
+  /// do Garmin fazia a coluna só existir em dias de pesagem, mascarada de
+  /// dado do dia inteiro.
+  ///
+  /// Diferente da Hierarquia de Fontes de passos/distância (que aceita uma
+  /// fonte nativa como último recurso quando não há wearable naquele dia —
+  /// ver [_ehPedometroNativo]), calorias NUNCA caem para uma fonte
+  /// excluída: sem wearable reportando naquele dia, o campo fica `null`,
+  /// nunca preenchido com a estimativa de um app de balança/celular.
+  static const _fontesCaloriasExcluidas = <String>{
+    'cn.fitdays.fitdays', // balança inteligente — estimativa pontual no instante da pesagem, não medição contínua
+  };
+
+  static bool _ehFonteValidaParaCalorias(String identificadorFonte) =>
+      !_ehPedometroNativo(identificadorFonte) &&
+      !_fontesCaloriasExcluidas.contains(identificadorFonte);
+
   /// "Modo Raio-X" (RELATÓRIO 20260811_0002, diretriz do fundador — "até o
   /// último fio de cabelo"): imprime um resumo cru do que o health store
   /// devolveu, chamado logo depois de [Health.getHealthDataFromTypes] e
@@ -979,8 +1300,15 @@ class HealthSyncService {
     final tiposPorDiaEFonte = <String, Map<String, Set<String>>>{};
     final contagemPorDia = <String, int>{};
 
+    // RELATÓRIO 20260820 — só diagnóstico (debugPrint, nunca gravado no
+    // banco): usa o fuso ATUAL, não o histórico por ponto de
+    // [_offsetParaInstante]. Aceitável aqui — o agrupamento por dia deste
+    // log pode divergir do que realmente foi gravado numa sincronização
+    // com troca de fuso no meio, mas é só pra leitura humana, não afeta
+    // nenhum dado persistido.
+    final offsetDiagnostico = DateTime.now().timeZoneOffset.inMinutes;
     for (final ponto in rawPoints) {
-      final dia = _dataOnly(ponto.dateFrom);
+      final dia = _dataOnly(ponto.dateFrom, offsetDiagnostico);
       final fonte =
           ponto.sourceId.isNotEmpty ? ponto.sourceId : ponto.sourceName;
       final identificadorFonte = fonte.isEmpty ? '(fonte desconhecida)' : fonte;
@@ -1008,12 +1336,173 @@ class HealthSyncService {
     }
   }
 
+  /// RELATÓRIO 20260813_0016 — ACHADO REAL rodando em device físico: a
+  /// primeira versão desta função imprimia detalhe ponto a ponto de TODO
+  /// tipo, sem exceção. Um usuário real gerou 41.446 pontos brutos em 30
+  /// dias — só `HEART_RATE` (leitura contínua a cada 1-2min) respondeu por
+  /// 23.437 deles. `debugPrint` tem um limitador de taxa embutido (existe
+  /// pra não afogar o `adb logcat`/Android Runtime); nesse volume, o
+  /// relatório levou mais de 33 MINUTOS só pra imprimir 26 dos 30 dias, e
+  /// ainda não tinha terminado — na prática, "não aparece nada na tela"
+  /// (a saída real é só console, mas mesmo lá demorava tempo demais pra
+  /// alguém perceber). Tipos de leitura CONTÍNUA/alta-frequência
+  /// ([_tiposAltaFrequenciaResumidosNoDiagnostico]) agora só imprimem a
+  /// CONTAGEM por dia, nunca o detalhe ponto a ponto — nenhum deles é um
+  /// dos 4 sinais citados no pedido original (distância/calorias
+  /// basais/peso/treinos), então o detalhe nunca ajudou o diagnóstico,
+  /// só afogava as linhas que importam. Para os demais tipos (baixa
+  /// frequência — no máximo algumas dezenas de pontos/dia em qualquer
+  /// cenário real), o detalhe completo é mantido, com um teto de
+  /// segurança ([_maxPontosDetalhadosPorTipo]) contra qualquer tipo
+  /// futuro que surpreenda com volume alto sem estar nesta lista.
+  static const _tiposAltaFrequenciaResumidosNoDiagnostico = <HealthDataType>{
+    HealthDataType.HEART_RATE,
+    HealthDataType.HEART_RATE_VARIABILITY_SDNN,
+    HealthDataType.HEART_RATE_VARIABILITY_RMSSD,
+    HealthDataType.SLEEP_LIGHT,
+    HealthDataType.SLEEP_DEEP,
+    HealthDataType.SLEEP_REM,
+    HealthDataType.SLEEP_AWAKE,
+    HealthDataType.SLEEP_ASLEEP,
+  };
+
+  static const _maxPontosDetalhadosPorTipo = 50;
+
+  /// Modo de Diagnóstico Profundo (RELATÓRIO 20260813_0015, decisão do
+  /// fundador) — diferente do "Raio-X" (que roda em TODA sincronização e só
+  /// resume contagem por dia/fonte), este só roda sob demanda (botão
+  /// "GERAR LOG DIAGNÓSTICO (30 DIAS)" da tela de histórico, via
+  /// [executarDiagnosticoProfundo]) e vai fundo demais pra rodar sempre:
+  /// tipo NATIVO (`runtimeType`) e valor bruto de CADA ponto individual
+  /// (fora dos tipos de alta frequência, ver acima), não só contagem.
+  /// Existe porque o Raio-X e as duas auditorias anteriores (RELATÓRIOs
+  /// 20260812_0013/20260813_0014) não conseguiram reproduzir em código as
+  /// falhas relatadas em device físico (distância/calorias basais/peso/
+  /// treinos faltando em dias específicos) — o próximo passo só é possível
+  /// com o valor CRU que o pacote `health` devolveu na hora, direto do
+  /// aparelho real.
+  void _logDiagnosticoProfundo(
+    List<HealthMetricPoint> points,
+    DateTime start,
+    DateTime end,
+  ) {
+    debugPrint('[SYNC_DIAGNOSTICO] ============ INÍCIO DO RELATÓRIO ============');
+    // Restrição explícita da tarefa: `endTime` tem que ser o instante EXATO
+    // de agora, nunca truncado pra meia-noite anterior — já era assim antes
+    // desta tarefa (`_lerComPermissao` sempre usou `DateTime.now()` puro),
+    // este log só torna isso verificável olhando o console, sem precisar
+    // ler o código-fonte pra confirmar.
+    debugPrint(
+      '[SYNC_DIAGNOSTICO] Janela pedida ao pacote health: '
+      'startTime=${start.toIso8601String()} endTime=${end.toIso8601String()} '
+      '(endTime = DateTime.now() exato, nunca truncado à meia-noite).',
+    );
+    debugPrint(
+      '[SYNC_DIAGNOSTICO] Total de pontos brutos convertidos com sucesso: '
+      '${points.length}',
+    );
+
+    if (points.isEmpty) {
+      debugPrint(
+        '[SYNC_DIAGNOSTICO] Nenhum ponto na janela inteira — nada a detalhar.',
+      );
+      debugPrint('[SYNC_DIAGNOSTICO] ============= FIM DO RELATÓRIO =============');
+      return;
+    }
+
+    // RELATÓRIO 20260820 — mesma ressalva de [_logRaioX]: só diagnóstico,
+    // fuso atual (não o histórico por ponto), nunca afeta dado persistido.
+    final offsetDiagnostico = DateTime.now().timeZoneOffset.inMinutes;
+    final porDia = <String, List<HealthMetricPoint>>{};
+    for (final ponto in points) {
+      porDia.putIfAbsent(_dataOnly(ponto.dateFrom, offsetDiagnostico), () => []).add(ponto);
+    }
+
+    for (final dia in porDia.keys.toList()..sort()) {
+      final pontosDoDia = porDia[dia]!;
+      final porTipo = <HealthDataType, List<HealthMetricPoint>>{};
+      for (final ponto in pontosDoDia) {
+        porTipo.putIfAbsent(ponto.type, () => []).add(ponto);
+      }
+
+      debugPrint(
+        '[SYNC_DIAGNOSTICO] --- Dia $dia: ${pontosDoDia.length} ponto(s) '
+        'brutos, ${porTipo.length} tipo(s) diferente(s) ---',
+      );
+      for (final tipo in porTipo.keys) {
+        final pontosDoTipo = porTipo[tipo]!;
+        debugPrint(
+          '[SYNC_DIAGNOSTICO]   ${tipo.name}: ${pontosDoTipo.length} ponto(s)',
+        );
+
+        // RELATÓRIO 20260813_0016: tipos de leitura contínua (HEART_RATE e
+        // afins) nunca imprimem detalhe ponto a ponto — só a contagem
+        // acima. Ver doc da classe pra o achado real que motivou isso.
+        if (_tiposAltaFrequenciaResumidosNoDiagnostico.contains(tipo)) {
+          continue;
+        }
+
+        final pontosParaDetalhar =
+            pontosDoTipo.take(_maxPontosDetalhadosPorTipo);
+        for (final ponto in pontosParaDetalhar) {
+          debugPrint(
+            '[SYNC_DIAGNOSTICO]     valor=${ponto.value} '
+            'tipoNativo=${ponto.rawValue.runtimeType} unidade=${ponto.unit} '
+            'fonte=${ponto.sourceApp} de=${ponto.dateFrom.toIso8601String()} '
+            'até=${ponto.dateTo.toIso8601String()}',
+          );
+        }
+        final omitidos = pontosDoTipo.length - _maxPontosDetalhadosPorTipo;
+        if (omitidos > 0) {
+          debugPrint(
+            '[SYNC_DIAGNOSTICO]     ... e mais $omitidos ponto(s) '
+            'omitido(s) (teto de segurança — tipo com volume maior que o '
+            'esperado; contagem total já reportada acima).',
+          );
+        }
+      }
+
+      // Achado específico pedido pela tarefa: dia com pontos de distância
+      // recebidos mas soma 0/null — dump bruto completo desses pontos, pra
+      // diagnosticar se é falha de conversão/cast do nosso lado ou o
+      // Health Connect genuinamente devolvendo 0.
+      final pontosDistancia = pontosDoDia
+          .where((p) =>
+              p.type == HealthDataType.DISTANCE_DELTA ||
+              p.type == HealthDataType.DISTANCE_WALKING_RUNNING)
+          .toList();
+      if (pontosDistancia.isNotEmpty) {
+        final somaDistancia =
+            pontosDistancia.fold<double>(0, (soma, p) => soma + p.value);
+        if (somaDistancia <= 0) {
+          debugPrint(
+            '[SYNC_DIAGNOSTICO]   ⚠️ Dia $dia tem ${pontosDistancia.length} '
+            'ponto(s) de distância mas a soma deu $somaDistancia — dump '
+            'bruto completo:',
+          );
+          for (final p in pontosDistancia) {
+            debugPrint(
+              '[SYNC_DIAGNOSTICO]     ⚠️ rawValue=${p.rawValue} '
+              '(${p.rawValue.runtimeType}) value=${p.value} unidade=${p.unit} '
+              'fonte=${p.sourceApp}/${p.sourceId}',
+            );
+          }
+        }
+      }
+    }
+
+    debugPrint('[SYNC_DIAGNOSTICO] ============= FIM DO RELATÓRIO =============');
+  }
+
   static bool _ehPedometroNativo(String identificadorFonte) =>
-      _pedometrosNativos.contains(identificadorFonte);
+      _pedometrosNativos.contains(identificadorFonte) ||
+      _prefixosPedometrosNativos
+          .any((prefixo) => identificadorFonte.startsWith(prefixo));
 
   List<Map<String, dynamic>> _mesclarPorDia(
     String usuarioId,
     List<HealthPayloadModel> payloads,
+    List<(int instanteMs, int offsetMinutos)> historicoFuso,
   ) {
     final porDia = <String, Map<String, dynamic>>{};
     final somaFcPorDia = <String, double>{};
@@ -1025,6 +1514,18 @@ class HealthSyncService {
     // reportar metabolismo basal do mesmo dia (celular+relógio), então
     // maior fonte, nunca soma entre fontes.
     final caloriasBasaisPorDiaFonte = <String, Map<String, num>>{};
+    // RELATÓRIO 20260819_0020 — leitura direta de TOTAL_CALORIES_BURNED,
+    // mesmo tratamento anti-double-counting/exclusão de fonte de
+    // calorias_ativas/calorias_basais (nunca cai pra Fitdays/pedômetro
+    // nativo — ver _ehFonteValidaParaCalorias). Tem prioridade sobre o
+    // fallback ativas+basais somadas no Dart (ver bloco depois do loop).
+    final caloriasTotaisDiretasPorDiaFonte = <String, Map<String, num>>{};
+    // RELATÓRIO 20260819_0020, pedido do fundador — andares subidos.
+    // Mesmo padrão "maior fonte do dia" de calorias_ativas (sem a exclusão
+    // de _ehFonteValidaParaCalorias: FLIGHTS_CLIMBED não tem o mesmo
+    // problema de app-de-balança-mascarando-estimativa-pontual que motivou
+    // aquela lista — qualquer fonte que reporte é candidata).
+    final andaresSubidosPorDiaFonte = <String, Map<String, num>>{};
     // Hierarquia de Fontes (RELATÓRIO 20260810_0007, decisão do fundador):
     // passos e distância NÃO escolhem mais a "maior fonte" cada um por
     // conta própria (isso é o que produzia proporção passos/distância
@@ -1034,87 +1535,124 @@ class HealthSyncService {
     // ambos, ver _fonteVencedoraDoDia depois do loop principal.
     final agregadoPorDiaFonte = <String, Map<String, _AgregadoFonte>>{};
 
+    // RELATÓRIO 20260813_0015 (Parte 1 — Proteção Extrema no Parsing): o
+    // corpo inteiro do loop agora roda dentro de um try/catch por
+    // iteração. Antes, qualquer exceção aqui dentro (ex.: um cast
+    // inesperado num campo do payload) escapava do `for` e cancelava o
+    // processamento de TODOS os payloads restantes do lote inteiro
+    // (outros dias, outras métricas) — não só o ponto problemático.
     for (final payload in payloads) {
-      final ehSono = payload.sonoLeveMinutos != null ||
-          payload.sonoProfundoMinutos != null ||
-          payload.sonoRemMinutos != null ||
-          payload.sonoAcordadoMinutos != null;
-      final dataReferencia = ehSono
-          ? _dataDoSonoLocal(payload.dateFrom)
-          : _dataOnly(payload.dateFrom);
+      try {
+        // RELATÓRIO 20260820 — fuso REALMENTE ativo quando este ponto foi
+        // gravado, não o fuso atual do aparelho (ver doc de
+        // [_offsetParaInstante]/[_registrarFusoAtualSeMudou]).
+        final offsetDoPonto = _offsetParaInstante(
+          payload.dateFrom.millisecondsSinceEpoch,
+          historicoFuso,
+        );
+        final ehSono = payload.sonoLeveMinutos != null ||
+            payload.sonoProfundoMinutos != null ||
+            payload.sonoRemMinutos != null ||
+            payload.sonoAcordadoMinutos != null;
+        final dataReferencia = ehSono
+            ? _dataDoSonoLocal(payload.dateFrom, offsetDoPonto)
+            : _dataOnly(payload.dateFrom, offsetDoPonto);
 
-      final linha = porDia.putIfAbsent(
-        dataReferencia,
-        () => {
-          'usuario_id_anonimo': usuarioId,
-          'data_referencia': dataReferencia,
-          'origem': payload.source,
-        },
-      );
+        final linha = porDia.putIfAbsent(
+          dataReferencia,
+          () => {
+            'usuario_id_anonimo': usuarioId,
+            'data_referencia': dataReferencia,
+            'origem': payload.source,
+          },
+        );
 
-      void somar(String coluna, num? valor) {
-        if (valor == null) return;
-        linha[coluna] = ((linha[coluna] as num?) ?? 0) + valor;
-      }
-
-      void sobrescrever(String coluna, num? valor) {
-        if (valor == null) return;
-        linha[coluna] = valor;
-      }
-
-      if (payload.passos != null || payload.distanciaMetros != null) {
-        final porFonte =
-            agregadoPorDiaFonte.putIfAbsent(dataReferencia, () => {});
-        final agregado =
-            porFonte.putIfAbsent(payload.source, () => _AgregadoFonte());
-        if (payload.passos != null) {
-          agregado.passos = (agregado.passos ?? 0) + payload.passos!;
+        void somar(String coluna, num? valor) {
+          if (valor == null) return;
+          linha[coluna] = ((linha[coluna] as num?) ?? 0) + valor;
         }
-        if (payload.distanciaMetros != null) {
-          agregado.distanciaMetros =
-              (agregado.distanciaMetros ?? 0) + payload.distanciaMetros!;
-        }
-      }
-      if (payload.caloriasAtivas != null) {
-        final porFonte = caloriasPorDiaFonte.putIfAbsent(dataReferencia, () => {});
-        porFonte[payload.source] =
-            (porFonte[payload.source] ?? 0) + payload.caloriasAtivas!;
-      }
-      if (payload.caloriasBasais != null) {
-        final porFonte =
-            caloriasBasaisPorDiaFonte.putIfAbsent(dataReferencia, () => {});
-        porFonte[payload.source] =
-            (porFonte[payload.source] ?? 0) + payload.caloriasBasais!;
-      }
-      somar('sono_leve_minutos', payload.sonoLeveMinutos);
-      somar('sono_profundo_minutos', payload.sonoProfundoMinutos);
-      somar('sono_rem_minutos', payload.sonoRemMinutos);
-      somar('sono_acordado_minutos', payload.sonoAcordadoMinutos);
 
-      if (payload.frequenciaCardiaca != null) {
-        final valor = payload.frequenciaCardiaca!;
-        somaFcPorDia[dataReferencia] = (somaFcPorDia[dataReferencia] ?? 0) + valor;
-        contagemFcPorDia[dataReferencia] =
-            (contagemFcPorDia[dataReferencia] ?? 0) + 1;
-        // fc_maxima: SÓ o maior valor absoluto do dia — nenhuma lógica de
-        // limite/faixa/evento aqui (Parte 5/BL.1, ver doc de
-        // _detectarEregistrarAnomalias). É a mesma fonte de dado
-        // (HEART_RATE) que já alimenta a média, não uma leitura à parte.
-        maximaFcPorDia[dataReferencia] =
-            math.max(valor, maximaFcPorDia[dataReferencia] ?? valor);
+        void sobrescrever(String coluna, num? valor) {
+          if (valor == null) return;
+          linha[coluna] = valor;
+        }
+
+        if (payload.passos != null || payload.distanciaMetros != null) {
+          final porFonte =
+              agregadoPorDiaFonte.putIfAbsent(dataReferencia, () => {});
+          final agregado =
+              porFonte.putIfAbsent(payload.source, () => _AgregadoFonte());
+          if (payload.passos != null) {
+            agregado.passos = (agregado.passos ?? 0) + payload.passos!;
+          }
+          if (payload.distanciaMetros != null) {
+            agregado.distanciaMetros =
+                (agregado.distanciaMetros ?? 0) + payload.distanciaMetros!;
+          }
+        }
+        if (payload.caloriasAtivas != null &&
+            _ehFonteValidaParaCalorias(payload.source)) {
+          final porFonte = caloriasPorDiaFonte.putIfAbsent(dataReferencia, () => {});
+          porFonte[payload.source] =
+              (porFonte[payload.source] ?? 0) + payload.caloriasAtivas!;
+        }
+        if (payload.caloriasBasais != null &&
+            _ehFonteValidaParaCalorias(payload.source)) {
+          final porFonte =
+              caloriasBasaisPorDiaFonte.putIfAbsent(dataReferencia, () => {});
+          porFonte[payload.source] =
+              (porFonte[payload.source] ?? 0) + payload.caloriasBasais!;
+        }
+        if (payload.caloriasTotais != null &&
+            _ehFonteValidaParaCalorias(payload.source)) {
+          final porFonte = caloriasTotaisDiretasPorDiaFonte.putIfAbsent(
+              dataReferencia, () => {});
+          porFonte[payload.source] =
+              (porFonte[payload.source] ?? 0) + payload.caloriasTotais!;
+        }
+        if (payload.andaresSubidos != null) {
+          final porFonte =
+              andaresSubidosPorDiaFonte.putIfAbsent(dataReferencia, () => {});
+          porFonte[payload.source] =
+              (porFonte[payload.source] ?? 0) + payload.andaresSubidos!;
+        }
+        somar('sono_leve_minutos', payload.sonoLeveMinutos);
+        somar('sono_profundo_minutos', payload.sonoProfundoMinutos);
+        somar('sono_rem_minutos', payload.sonoRemMinutos);
+        somar('sono_acordado_minutos', payload.sonoAcordadoMinutos);
+
+        if (payload.frequenciaCardiaca != null) {
+          final valor = payload.frequenciaCardiaca!;
+          somaFcPorDia[dataReferencia] = (somaFcPorDia[dataReferencia] ?? 0) + valor;
+          contagemFcPorDia[dataReferencia] =
+              (contagemFcPorDia[dataReferencia] ?? 0) + 1;
+          // fc_maxima: SÓ o maior valor absoluto do dia — nenhuma lógica de
+          // limite/faixa/evento aqui (Parte 5/BL.1, ver doc de
+          // _detectarEregistrarAnomalias). É a mesma fonte de dado
+          // (HEART_RATE) que já alimenta a média, não uma leitura à parte.
+          maximaFcPorDia[dataReferencia] =
+              math.max(valor, maximaFcPorDia[dataReferencia] ?? valor);
+        }
+        sobrescrever('fc_repouso', payload.fcRepouso);
+        sobrescrever('hrv_medio', payload.hrvMedio);
+        sobrescrever('peso_kg', payload.pesoKg);
+        sobrescrever('massa_magra_kg', payload.massaMagraKg);
+        sobrescrever('percentual_gordura', payload.percentualGordura);
+        sobrescrever('agua_corporal', payload.aguaCorporalKg);
+        sobrescrever('imc', payload.imc);
+        sobrescrever('pressao_sistolica', payload.pressaoSistolica);
+        sobrescrever('pressao_diastolica', payload.pressaoDiastolica);
+        sobrescrever('glicose_jejum', payload.glicoseJejum);
+        sobrescrever('saturacao_oxigenio', payload.saturacaoOxigenio);
+        sobrescrever('temperatura_corporal', payload.temperaturaCorporal);
+      } catch (e, stackTrace) {
+        debugPrint(
+          '[SYNC_DIAGNOSTICO] Falha ao agregar 1 payload no dia '
+          '(origem "${payload.source}", de ${payload.dateFrom}) — pulado, '
+          'os demais payloads do lote continuam sendo processados: '
+          '$e\n$stackTrace',
+        );
       }
-      sobrescrever('fc_repouso', payload.fcRepouso);
-      sobrescrever('hrv_medio', payload.hrvMedio);
-      sobrescrever('peso_kg', payload.pesoKg);
-      sobrescrever('massa_magra_kg', payload.massaMagraKg);
-      sobrescrever('percentual_gordura', payload.percentualGordura);
-      sobrescrever('agua_corporal', payload.aguaCorporalKg);
-      sobrescrever('imc', payload.imc);
-      sobrescrever('pressao_sistolica', payload.pressaoSistolica);
-      sobrescrever('pressao_diastolica', payload.pressaoDiastolica);
-      sobrescrever('glicose_jejum', payload.glicoseJejum);
-      sobrescrever('saturacao_oxigenio', payload.saturacaoOxigenio);
-      sobrescrever('temperatura_corporal', payload.temperaturaCorporal);
     }
 
     void aplicarMaiorFonte(
@@ -1131,13 +1669,34 @@ class HealthSyncService {
 
     aplicarMaiorFonte(caloriasPorDiaFonte, 'calorias_ativas', arredondar: false);
     aplicarMaiorFonte(caloriasBasaisPorDiaFonte, 'calorias_basais', arredondar: false);
+    aplicarMaiorFonte(andaresSubidosPorDiaFonte, 'andares_subidos', arredondar: true);
 
-    // calorias_totais = ativas + basais — "melhor esforço" com o que
-    // estiver disponível naquele dia (soma tratando o ausente como 0), só
-    // quando pelo menos uma das duas existir. Não é um HealthDataType lido
-    // à parte (TOTAL_CALORIES_BURNED não tem implementação real no iOS do
-    // pacote `health` — RELATÓRIO 20260810_0007/spike).
-    for (final linha in porDia.values) {
+    // RELATÓRIO 20260819_0020: dia com leitura real de TOTAL_CALORIES_BURNED
+    // usa ela direto (maior fonte, mesmo tratamento acima) — é o dado mais
+    // fiel que existe (o próprio wearable soma ativa+basal com o algoritmo
+    // dele). Guardado num map à parte (não em `porDia` ainda) porque o
+    // fallback abaixo precisa saber, por dia, se já existe leitura direta
+    // antes de decidir se soma ativas+basais.
+    final diasComCaloriasTotaisDiretas = <String, num>{};
+    for (final entry in caloriasTotaisDiretasPorDiaFonte.entries) {
+      diasComCaloriasTotaisDiretas[entry.key] =
+          entry.value.values.reduce((a, b) => a > b ? a : b);
+    }
+
+    // calorias_totais: leitura direta de TOTAL_CALORIES_BURNED quando o
+    // wearable publicou naquele dia (ver achado acima); senão, fallback
+    // "melhor esforço" = ativas + basais (soma tratando o ausente como 0),
+    // só quando pelo menos uma das duas existir — mesmo comportamento de
+    // antes desta tarefa, preservado pros dias/plataforma (iOS) sem leitura
+    // direta.
+    for (final entry in porDia.entries) {
+      final dataReferencia = entry.key;
+      final linha = entry.value;
+      final direta = diasComCaloriasTotaisDiretas[dataReferencia];
+      if (direta != null) {
+        linha['calorias_totais'] = direta;
+        continue;
+      }
       final ativas = (linha['calorias_ativas'] as num?)?.toDouble();
       final basais = (linha['calorias_basais'] as num?)?.toDouble();
       if (ativas == null && basais == null) continue;
@@ -1222,6 +1781,11 @@ class HealthSyncService {
     // bpm), só filtrado pelo INTERVALO do treino, não do dia inteiro.
     final fcBruta =
         points.where((p) => p.type == HealthDataType.HEART_RATE).toList();
+    // RELATÓRIO 20260819_0020, pedido do fundador — velocidade (m/s), mesmo
+    // tratamento de fcBruta: série contínua filtrada pelo intervalo exato
+    // do treino, não uma métrica diária solta.
+    final velocidadeBruta =
+        points.where((p) => p.type == HealthDataType.SPEED).toList();
     final rotas =
         points.where((p) => p.type == HealthDataType.WORKOUT_ROUTE).toList();
 
@@ -1240,6 +1804,10 @@ class HealthSyncService {
         // do fundador. Sem lógica de anomalia/evento aqui (restrição F02,
         // RELATÓRIO 20260810_0004) — só min/média/máxima, valores absolutos.
         final fcDoTreino = fcBruta
+            .where((p) => dentroDoIntervalo(p, treino))
+            .map((p) => p.value)
+            .toList();
+        final velocidadeDoTreino = velocidadeBruta
             .where((p) => dentroDoIntervalo(p, treino))
             .map((p) => p.value)
             .toList();
@@ -1262,6 +1830,19 @@ class HealthSyncService {
                 (fcDoTreino.reduce((a, b) => a + b) / fcDoTreino.length).round(),
             'fc_maxima': fcDoTreino.reduce(math.max).round(),
             'fc_minima': fcDoTreino.reduce(math.min).round(),
+          },
+          // RELATÓRIO 20260819_0020, pedido do fundador — m/s (mesma
+          // unidade de HealthDataType.SPEED, ver HealthConstants.kt do
+          // pacote `health`).
+          if (velocidadeDoTreino.isNotEmpty) ...{
+            'velocidade_media_ms': double.parse(
+              (velocidadeDoTreino.reduce((a, b) => a + b) /
+                      velocidadeDoTreino.length)
+                  .toStringAsFixed(2),
+            ),
+            'velocidade_maxima_ms': double.parse(
+              velocidadeDoTreino.reduce(math.max).toStringAsFixed(2),
+            ),
           },
         };
 
@@ -1420,6 +2001,81 @@ class HealthSyncService {
     }
   }
 
+  /// RELATÓRIO 20260812_0013 — investigação de "distância sumindo em dias
+  /// aleatórios" (05/08, 11/08, 12/08... — sem padrão de dia da semana nem
+  /// de volume de passos). Auditoria completa (banco + código) não achou
+  /// NENHUM bug de bucketing/conversão/tipo — `distancia_metros` passa
+  /// pelo MESMO loop, MESMA função de bucketização por dia
+  /// (`_dataOnly`) e MESMA lógica de "maior fonte" que `passos`, que nunca
+  /// falha nesses dias. A consulta única e combinada (`getHealthDataFromTypes`
+  /// pedindo ~20 `HealthDataType`s de uma vez, incluindo `DISTANCE_DELTA`
+  /// — um tipo que pode gerar MUITOS registros pequenos por dia, mais
+  /// granular que passos) é o único lugar restante onde uma limitação de
+  /// paginação/truncamento da plataforma (Health Connect) ou do pacote
+  /// `health` poderia derrubar silenciosamente só o tipo mais numeroso, sem
+  /// lançar exceção nenhuma — não reproduzível lendo código (precisaria de
+  /// um device real), mas a mitigação abaixo é segura mesmo que essa
+  /// hipótese esteja errada: só PREENCHE dias que ficaram sem distância
+  /// apesar de terem passos, nunca sobrescreve um valor já resolvido pela
+  /// leitura combinada — zero risco de contar a mesma distância duas vezes.
+  ///
+  /// Best-effort, mesmo espírito de [_aplicarInferenciasCruzadas]/
+  /// [_detectarEregistrarAnomalias]: uma falha aqui (rede, permissão) nunca
+  /// derruba o sync principal, que já terminou com sucesso antes desta
+  /// chamada extra rodar.
+  Future<void> _preencherDistanciaFaltante(
+    List<Map<String, dynamic>> linhas,
+    DateTime inicioJanela,
+    List<(int instanteMs, int offsetMinutos)> historicoFuso,
+  ) async {
+    final linhasFaltantes = <String, Map<String, dynamic>>{
+      for (final linha in linhas)
+        if (linha['passos'] != null && linha['distancia_metros'] == null)
+          linha['data_referencia'] as String: linha,
+    };
+    if (linhasFaltantes.isEmpty) return;
+
+    try {
+      final leitura = await _lerComPermissao(
+        const [HealthDataType.DISTANCE_WALKING_RUNNING, HealthDataType.DISTANCE_DELTA],
+        start: inicioJanela,
+      );
+      if (!leitura.granted) return;
+
+      // Mesma agregação "maior fonte por dia" de _mesclarPorDia — só que
+      // isolada aqui, e só para os dias que já sabemos que faltam.
+      final somaPorDiaFonte = <String, Map<String, num>>{};
+      for (final ponto in leitura.points) {
+        final payload = ponto.toPayload();
+        final distancia = payload.distanciaMetros;
+        if (distancia == null) continue;
+
+        // RELATÓRIO 20260820 — mesmo fuso histórico do ponto, não o atual
+        // (ver [_mesclarPorDia] pro mesmo tratamento).
+        final offsetDoPonto = _offsetParaInstante(
+          payload.dateFrom.millisecondsSinceEpoch,
+          historicoFuso,
+        );
+        final dataReferencia = _dataOnly(payload.dateFrom, offsetDoPonto);
+        if (!linhasFaltantes.containsKey(dataReferencia)) continue;
+
+        final porFonte = somaPorDiaFonte.putIfAbsent(dataReferencia, () => {});
+        porFonte[payload.source] = (porFonte[payload.source] ?? 0) + distancia;
+      }
+
+      for (final entry in somaPorDiaFonte.entries) {
+        if (entry.value.isEmpty) continue;
+        final maiorFonte = entry.value.values.reduce((a, b) => a > b ? a : b);
+        linhasFaltantes[entry.key]!['distancia_metros'] = maiorFonte;
+      }
+    } catch (e) {
+      debugPrint(
+        'HealthSyncService: falha ao tentar preencher distância faltante '
+        '(best-effort, não afeta o resto do sync): $e',
+      );
+    }
+  }
+
   /// Busca `perfis_usuarios.altura_cm` e converte para metros.
   /// [_AlturaResultado.sucesso] distingue "consulta funcionou" (mesmo que
   /// sem altura cadastrada — cacheável pelo resto do lote, ver
@@ -1447,25 +2103,37 @@ class HealthSyncService {
     }
   }
 
-  static String _dataOnly(DateTime date) =>
-      date.toIso8601String().split('T').first;
+  /// RELATÓRIO 20260820 — bucketiza [instante] por dia calendário usando
+  /// [offsetMinutos] (o fuso REALMENTE ativo quando o ponto foi gravado,
+  /// resolvido via [_offsetParaInstante] antes de chamar isto), nunca o
+  /// fuso atual do sistema operacional. `.toUtc()` preserva o instante
+  /// absoluto exato (Dart guarda isso internamente independente da flag
+  /// local/UTC — só muda como ano/mês/dia/hora são exibidos); somar o
+  /// offset manualmente e ler os componentes do resultado é o mesmo
+  /// cálculo que um relógio de parede naquele fuso mostraria, sem
+  /// depender de `DateTime.toLocal()`/fuso do aparelho em nenhum momento.
+  static String _dataOnly(DateTime instante, int offsetMinutos) {
+    final l = instante.toUtc().add(Duration(minutes: offsetMinutos));
+    return '${l.year.toString().padLeft(4, '0')}-'
+        '${l.month.toString().padLeft(2, '0')}-'
+        '${l.day.toString().padLeft(2, '0')}';
+  }
 
-  /// Bucketiza um instante de estágio de sono na data (LOCAL) da manhã em
-  /// que a pessoa acordou, não no dia calendário em que o instante caiu.
-  /// Heurística deliberada (documentada, não chutada): sono que começa às
-  /// 15h ou depois pertence à noite que leva à manhã seguinte — cobre o
-  /// padrão comum (dormir à noite, acordar de manhã) sem precisar
-  /// reconstruir a SleepSessionRecord inteira a partir dos estágios
-  /// espalhados que o Health Connect devolve. Sono às 15h ou depois de
-  /// segunda conta para terça; sono entre meia-noite e 15h de terça (o
-  /// resto da mesma noite, já depois da virada) também conta para terça.
-  /// Limitação conhecida, registrada no RELATÓRIO: não modela cochilos à
-  /// tarde nem rotina de trabalho noturno — reavaliar se algum dia isso
-  /// virar um caso real.
-  static String _dataDoSonoLocal(DateTime instante) {
-    final data = instante.hour >= 15
-        ? instante.add(const Duration(days: 1))
-        : instante;
-    return _dataOnly(DateTime(data.year, data.month, data.day));
+  /// Bucketiza um instante de estágio de sono na data (LOCAL, sob
+  /// [offsetMinutos]) da manhã em que a pessoa acordou, não no dia
+  /// calendário em que o instante caiu. Heurística deliberada (documentada,
+  /// não chutada): sono que começa às 15h ou depois pertence à noite que
+  /// leva à manhã seguinte — cobre o padrão comum (dormir à noite, acordar
+  /// de manhã) sem precisar reconstruir a SleepSessionRecord inteira a
+  /// partir dos estágios espalhados que o Health Connect devolve. Sono às
+  /// 15h ou depois de segunda conta para terça; sono entre meia-noite e
+  /// 15h de terça (o resto da mesma noite, já depois da virada) também
+  /// conta para terça. Limitação conhecida, registrada no RELATÓRIO: não
+  /// modela cochilos à tarde nem rotina de trabalho noturno — reavaliar se
+  /// algum dia isso virar um caso real.
+  static String _dataDoSonoLocal(DateTime instante, int offsetMinutos) {
+    final l = instante.toUtc().add(Duration(minutes: offsetMinutos));
+    final data = l.hour >= 15 ? l.add(const Duration(days: 1)) : l;
+    return _dataOnly(data, 0); // `data` já está deslocada — offset extra 0
   }
 }

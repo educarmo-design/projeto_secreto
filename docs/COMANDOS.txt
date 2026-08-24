@@ -1,0 +1,21 @@
+COMANDOS
+
+PowerSHELL
+
+PAIR C:\Users\eduardosilva\AppData\Local\Android\Sdk\platform-tools\adb.exe pair 192.168.1.33:45877
+
+DOS
+
+FLUTTER DEVICES
+flutter pub upgrade --major-versions
+flutter analyze
+flutter run --dart-define-from-file=config_local.json
+
+ supabase secrets set GEMINI_MODEL_NAME=gemini-3.1-flash-lite
+
+
+sql
+
+UPDATE auth.users 
+SET encrypted_password = crypt('Atleta1000@', gen_salt('bf')) 
+WHERE email = 'atleta1000@teste.com';

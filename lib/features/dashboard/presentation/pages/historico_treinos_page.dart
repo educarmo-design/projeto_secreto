@@ -177,6 +177,19 @@ class _CardTreino extends StatelessWidget {
           i18n.tr('dashboard.historico_treinos_field_fc_maxima'),
           '${treino.fcMaxima} bpm',
         ),
+      // RELATÓRIO 20260819_0020, pedido do fundador — HealthDataType.SPEED
+      // vem em m/s (unidade nativa do Health Connect); convertido pra km/h
+      // só na exibição, mesmo padrão de distanciaMetros->km acima.
+      if (treino.velocidadeMediaMs != null)
+        MapEntry(
+          i18n.tr('dashboard.historico_treinos_field_velocidade_media'),
+          '${(treino.velocidadeMediaMs! * 3.6).toStringAsFixed(1)} km/h',
+        ),
+      if (treino.velocidadeMaximaMs != null)
+        MapEntry(
+          i18n.tr('dashboard.historico_treinos_field_velocidade_maxima'),
+          '${(treino.velocidadeMaximaMs! * 3.6).toStringAsFixed(1)} km/h',
+        ),
     ];
 
     return Padding(
