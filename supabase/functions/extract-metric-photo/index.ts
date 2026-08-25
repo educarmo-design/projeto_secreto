@@ -272,13 +272,35 @@ const TIPOS_IMPLEMENTADOS = new Set([
 // RELATÓRIO 20260824_0003 — texto/áudio do prato entram em LITE (não
 // CORE): interpretar uma frase já escrita/falada em itens de comida é uma
 // tarefa de linguagem simples, sem o raciocínio de cena visual (oclusão,
-// porção por tamanho aparente) que justificou CORE pra foto — mesma
-// lógica já usada pra OCR simples (glicosímetro/balança/pressão).
+// porção por tamanho aparente) que originalmente justificou CORE pra
+// foto — mesma lógica já usada pra OCR simples (glicosímetro/balança/
+// pressão).
+//
+// RELATÓRIO 20260825_0005 — foto do prato TAMBÉM migrou pra LITE. Achado
+// em investigação ao vivo (RELATÓRIO 20260825_0004, chamando o Gemini de
+// verdade): o CORE (`gemini-flash-latest`) tem disponibilidade instável
+// no free tier — variou de 200 OK em <2s até 503 "high demand" levando
+// 45-59s só pra devolver o ERRO, e uma vez levou a própria Edge Function
+// a ser matada pela Supabase por estourar o teto de execução da
+// plataforma (`WORKER_RESOURCE_LIMIT`, ~150s). O LITE
+// (`gemini-flash-lite-latest`), testado em paralelo com uma imagem real,
+// respondeu certo em <2s em TODAS as chamadas do dia, sem uma falha
+// sequer. Decisão do fundador: aceitar a troca de "mais raciocínio de
+// cena" por "disponibilidade confiável" — reconhecer os alimentos de um
+// prato não exige o mesmo nível de reasoning que o OCR de rótulo
+// nutricional (`TIPO_ROTULO`, que continua em CORE — não fez parte desta
+// decisão, dígitos de macro errados importam mais que "esqueceu uma
+// azeitona no prato"). Fixar numa versão mais antiga do Flash pra fugir
+// da fila foi investigado e descartado: a Google desativa versões
+// antigas (`gemini-2.5-flash`/`gemini-2.0-flash` já devolvem 404 "no
+// longer available"), então todo mundo no free tier acaba forçado pro
+// MESMO modelo "-latest" mais recente — não tem versão "menos
+// concorrida" pra escolher.
 const NIVEL_POR_TIPO: Record<string, NivelModelo> = {
   [TIPO_GLICOSIMETRO]: 'lite',
   [TIPO_BALANCA]: 'lite',
   [TIPO_PRESSAO_ARTERIAL]: 'lite',
-  [TIPO_PRATO_REFEICAO]: 'core',
+  [TIPO_PRATO_REFEICAO]: 'lite',
   [TIPO_ROTULO]: 'core',
   [TIPO_PRATO_REFEICAO_TEXTO]: 'lite',
   [TIPO_PRATO_REFEICAO_AUDIO]: 'lite',

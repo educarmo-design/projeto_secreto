@@ -370,8 +370,17 @@ Deno.test('resolverModeloParaTipo: OCR simples (glicosímetro/balança/pressão)
   assertEquals(resolverModeloParaTipo('pressaoArterial'), 'gemini-flash-lite-latest');
 });
 
-Deno.test('resolverModeloParaTipo: extração estruturada (prato/rótulo) usa o nível CORE', () => {
-  assertEquals(resolverModeloParaTipo('pratoRefeicao'), 'gemini-flash-latest');
+// RELATÓRIO 20260825_0005 — foto do prato migrou de CORE pra LITE (achado
+// em investigação ao vivo do RELATÓRIO 20260825_0004: CORE com
+// disponibilidade instável no free tier, LITE nunca falhou nem com
+// imagem real). Rótulo nutricional continua em CORE (OCR de macros
+// impressos — dígito errado importa mais do que "esqueceu uma azeitona
+// no prato").
+Deno.test('resolverModeloParaTipo: foto do prato usa o nível LITE (disponibilidade > raciocínio de cena)', () => {
+  assertEquals(resolverModeloParaTipo('pratoRefeicao'), 'gemini-flash-lite-latest');
+});
+
+Deno.test('resolverModeloParaTipo: rótulo nutricional (OCR estruturado) usa o nível CORE', () => {
   assertEquals(resolverModeloParaTipo('rotulo'), 'gemini-flash-latest');
 });
 
@@ -391,7 +400,9 @@ Deno.test('resolverModeloParaTipo: GEMINI_MODEL_LITE sobrescreve o padrão do n�
 Deno.test('resolverModeloParaTipo: GEMINI_MODEL_CORE sobrescreve o padrão do nível core', () => {
   Deno.env.set('GEMINI_MODEL_CORE', 'modelo-core-customizado');
   try {
-    assertEquals(resolverModeloParaTipo('pratoRefeicao'), 'modelo-core-customizado');
+    // 'rotulo' é o único tipo em CORE desde a migração de pratoRefeicao
+    // pra LITE (RELATÓRIO 20260825_0005).
+    assertEquals(resolverModeloParaTipo('rotulo'), 'modelo-core-customizado');
   } finally {
     Deno.env.delete('GEMINI_MODEL_CORE');
   }
