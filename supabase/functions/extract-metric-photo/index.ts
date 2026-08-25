@@ -1562,7 +1562,25 @@ class ErroCotaGemini extends ErroHttp {
 // endpoint + no texto do erro) — que stuba `fetch` global. Nenhum outro
 // chamador deveria usar isto fora do próprio handler (que usa
 // `criarChamadorGeminiComFallback`, abaixo).
-export function criarChamadorGeminiReal(apiKey: string, modelo: string): ChamadorGemini {
+/// RELATÓRIO 20260825_0003 — `maxTentativas`/`backoffBaseMs` configuráveis
+/// por chamada (default = comportamento de sempre, `MAX_TENTATIVAS_VISAO`/
+/// 1500ms — nenhum chamador existente quebra). `criarChamadorGeminiComFallback`
+/// usa isto pra dar orçamento de retry DIFERENTE ao modelo primário (que
+/// pode ter fallback pra cair) e ao modelo final (sem mais ninguém pra
+/// tentar depois).
+interface OpcoesRetryGemini {
+  maxTentativas?: number;
+  backoffBaseMs?: number;
+}
+
+export function criarChamadorGeminiReal(
+  apiKey: string,
+  modelo: string,
+  opcoes: OpcoesRetryGemini = {},
+): ChamadorGemini {
+  const maxTentativas = opcoes.maxTentativas ?? MAX_TENTATIVAS_VISAO;
+  const backoffBaseMs = opcoes.backoffBaseMs ?? 1_500;
+
   return async ({ base64, mimeType, systemPrompt, userText }) => {
     const url = `${GEMINI_ENDPOINT_BASE}/${modelo}:generateContent?key=${apiKey}`;
     const corpo = {
@@ -1589,7 +1607,7 @@ export function criarChamadorGeminiReal(apiKey: string, modelo: string): Chamado
     };
 
     let ultimoErro: ErroHttp | null = null;
-    for (let tentativa = 1; tentativa <= MAX_TENTATIVAS_VISAO; tentativa++) {
+    for (let tentativa = 1; tentativa <= maxTentativas; tentativa++) {
       const resposta = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1633,12 +1651,12 @@ export function criarChamadorGeminiReal(apiKey: string, modelo: string): Chamado
       // lançou acima, outros 4xx (404 de modelo errado etc.) são bug de
       // config, retry não resolve.
       const retentavel = resposta.status >= 500;
-      if (!retentavel || tentativa === MAX_TENTATIVAS_VISAO) {
+      if (!retentavel || tentativa === maxTentativas) {
         throw ultimoErro;
       }
-      const backoffMs = 1_500 * tentativa; // 1.5s, 3s
+      const backoffMs = backoffBaseMs * tentativa;
       console.warn(
-        `criarChamadorGeminiReal: HTTP ${resposta.status} (tentativa ${tentativa}/${MAX_TENTATIVAS_VISAO}) — retentando em ${backoffMs}ms...`,
+        `criarChamadorGeminiReal: HTTP ${resposta.status} (tentativa ${tentativa}/${maxTentativas}) — retentando em ${backoffMs}ms...`,
       );
       await delay(backoffMs);
     }
@@ -1647,32 +1665,61 @@ export function criarChamadorGeminiReal(apiKey: string, modelo: string): Chamado
   };
 }
 
-/// Encadeia um modelo PRIMÁRIO com um modelo de FALLBACK — quando o
-/// primário esgota a cota diária (`ErroCotaGemini`), tenta automaticamente
-/// o fallback em vez de falhar pro usuário. `modeloFallback: null` (tipos
-/// já no nível LITE, o mais barato) significa "sem degradação possível" —
-/// comporta-se como `criarChamadorGeminiReal` puro. Qualquer erro que NÃO
-/// seja cota (5xx esgotado, 4xx de config) propaga direto, sem tentar o
-/// fallback — só cota justifica trocar de modelo no meio da requisição.
+/// Encadeia um modelo PRIMÁRIO com um modelo de FALLBACK. `modeloFallback:
+/// null` (tipos já no nível LITE, o mais barato) significa "sem degradação
+/// possível" — comporta-se como `criarChamadorGeminiReal` puro, com o
+/// orçamento de retry inteiro (`MAX_TENTATIVAS_VISAO`) pro único modelo que
+/// existe.
+///
+/// RELATÓRIO 20260825_0003 — achado real em device (fundador testando o
+/// Registro de Refeição por foto): `TimeoutException` mesmo com o cliente
+/// já dando 45s de folga (RELATÓRIO 20260824_0001) e o servidor já
+/// retentando 5xx (RELATÓRIO 20260824_0001) — a raiz mais funda: o
+/// fallback de modelo (20260824_0002) só disparava em COTA (429), nunca em
+/// "5xx esgotado depois de retentar" — o modelo CORE (mais lento por
+/// natureza, é o único com raciocínio de cena visual) podia bater as 3
+/// tentativas inteiras contra o MESMO modelo sobrecarregado antes de
+/// desistir, e cada tentativa é uma chamada de visão inteira
+/// (potencialmente vários segundos) — 3 delas em sequência, mais o
+/// backoff entre elas, facilmente estoura qualquer timeout de cliente
+/// razoável. Pior: no free tier o CORE tem só 20 requisições/DIA
+/// (20260824_0002) — bater 3x nele por UMA foto do usuário queima 3x mais
+/// cota do que precisa.
+///
+/// Duas mudanças, mesmo espírito de "degradação graciosa" já usado pra
+/// busca semântica (`resolverComBuscaSemantica`):
+///   1. Quando existe fallback configurado, o primário ganha só 1
+///      tentativa (nunca retenta contra si mesmo) — qualquer falha dele
+///      (cota, 5xx, 4xx de config) já pula pro fallback na hora, mais
+///      rápido E gastando menos cota do modelo restrito. O orçamento de
+///      retry pesado (`MAX_TENTATIVAS_VISAO`) fica pro modelo que SOBROU —
+///      o fallback, sem mais ninguém pra tentar depois dele.
+///   2. Backoff reduzido pra 1s/2s (era 1.5s/3s) nas duas pernas — chamada
+///      síncrona de usuário esperando na tela, não o script de curadoria
+///      em lote que originalmente justificou 1.5s/3s.
 export function criarChamadorGeminiComFallback(
   apiKey: string,
   modeloPrimario: string,
   modeloFallback: string | null,
 ): ChamadorGemini {
-  const chamarPrimario = criarChamadorGeminiReal(apiKey, modeloPrimario);
+  const temFallback = modeloFallback !== null && modeloFallback !== modeloPrimario;
+  const chamarPrimario = criarChamadorGeminiReal(apiKey, modeloPrimario, {
+    maxTentativas: temFallback ? 1 : MAX_TENTATIVAS_VISAO,
+    backoffBaseMs: 1_000,
+  });
 
   return async (params) => {
     try {
       return await chamarPrimario(params);
     } catch (erro) {
-      const ehCota = erro instanceof ErroCotaGemini;
-      if (!ehCota || !modeloFallback || modeloFallback === modeloPrimario) {
+      if (!(erro instanceof ErroHttp) || !temFallback) {
         throw erro;
       }
+      const motivo = erro instanceof ErroCotaGemini ? 'cota esgotada' : `falha (HTTP ${erro.status})`;
       console.warn(
-        `criarChamadorGeminiComFallback: cota esgotada em "${modeloPrimario}" — tentando fallback "${modeloFallback}"...`,
+        `criarChamadorGeminiComFallback: ${motivo} em "${modeloPrimario}" — tentando fallback "${modeloFallback}"...`,
       );
-      const chamarFallback = criarChamadorGeminiReal(apiKey, modeloFallback);
+      const chamarFallback = criarChamadorGeminiReal(apiKey, modeloFallback!, { backoffBaseMs: 1_000 });
       return await chamarFallback(params);
     }
   };
@@ -1797,11 +1844,19 @@ interface LinhaAlimentoBruta {
 // Correto mesmo compartilhado entre usuários diferentes: o dado é público
 // do produto (RLS `using (true)`), a query não filtra por usuário — o
 // resultado é idêntico não importa de quem for o JWT usado pra buscar.
-// TTL de 5 minutos: equilíbrio entre "praticamente elimina o round-trip
-// pra 99% das fotos" e "uma edição no Admin demora no máximo 5min pra
-// valer numa foto nova" (aceitável pra dado de curadoria, que não muda a
-// cada segundo). Zerado automaticamente a cada cold start da função.
-const CATALOGO_CACHE_TTL_MS = 5 * 60 * 1000;
+// TTL de 30 minutos (RELATÓRIO 20260825_0003 — era 5min): achado real ao
+// investigar "texto/áudio lentos" — este cache é POR ISOLATE Deno, não
+// compartilhado entre instâncias; qualquer novo isolate (escala
+// horizontal, ou um cold start depois de ficar ocioso) paga o round-trip
+// inteiro de novo (~1,5s/~310KB) mesmo que outro isolate tenha acabado de
+// carregar o mesmo catálogo. Isso vale pros TRÊS métodos igualmente (o
+// catálogo é lido pra foto/texto/áudio, sempre) — 5min era curto demais
+// pra realmente "esquentar" o cache antes de expirar de novo em uso
+// normal (não-intenso). 30min equilibra melhor "praticamente elimina o
+// round-trip na prática" com "uma edição no Admin demora até 30min pra
+// valer" (aceitável — dado de curadoria, não muda a cada segundo).
+// Zerado automaticamente a cada cold start da função, como sempre.
+const CATALOGO_CACHE_TTL_MS = 30 * 60 * 1000;
 let catalogoCacheEmMemoria: { dados: AlimentoCatalogo[]; expiraEm: number } | null = null;
 
 /// Lê `alimentos_referencia` (com suas `alimentos_medidas_caseiras`

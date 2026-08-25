@@ -26,9 +26,13 @@ class RegistroRefeicaoIaService {
   final http.Client _httpClient;
 
   // Mesmo orçamento de `CameraCaptureController._uploadTimeout` (RELATÓRIO
-  // 20260824_0001/0002) — o servidor pode retentar/degradar de modelo em
-  // caso de cota, o cliente precisa de folga pra não desistir antes.
-  static const Duration _uploadTimeout = Duration(seconds: 45);
+  // 20260824_0001/0002/20260825_0003) — texto/áudio usam só o nível LITE
+  // (sem fallback de modelo: já é o mais barato, `NIVEL_POR_TIPO` em
+  // extract-metric-photo/index.ts), então o pior caso real de retry aqui é
+  // bem menor que o da foto (CORE); mesmo timeout mantido só por
+  // simplicidade — 60s nunca é um problema pro caminho comum, que termina
+  // em poucos segundos.
+  static const Duration _uploadTimeout = Duration(seconds: 60);
 
   /// Método 1 — texto livre digitado pelo usuário.
   Future<PratoRefeicaoExtracaoModel> interpretarTexto({

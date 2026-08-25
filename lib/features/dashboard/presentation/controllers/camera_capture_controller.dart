@@ -127,13 +127,19 @@ class CameraCaptureController extends ValueNotifier<CameraCaptureState> {
 
   // RELATÓRIO 20260824_0001 — achado real em device: fotografar um prato
   // batia `TimeoutException` aos 30s (screenshot em docs/bugs/) porque o
-  // servidor não tinha NENHUM retry num 503 transitório do Gemini (mesmo
-  // erro "high demand" batido pela curadoria em massa do catálogo,
-  // RELATÓRIO 20260823_0004) — o servidor agora retenta até 2x
-  // (~4,5s de backoff, ver `MAX_TENTATIVAS_VISAO` em
-  // extract-metric-photo/index.ts), então o cliente precisa de folga
-  // pra não desistir ANTES do servidor terminar de retentar.
-  static const Duration _uploadTimeout = Duration(seconds: 45);
+  // servidor não tinha NENHUM retry num 503 transitório do Gemini. 45s
+  // (bump original) ainda não era suficiente — achado real de novo em
+  // 20260825_0003: o modelo CORE (foto) podia bater as 3 tentativas
+  // inteiras contra SI MESMO (cada uma uma chamada de visão inteira, não
+  // instantânea) antes de sequer tentar o fallback pro LITE, e isso
+  // sozinho já podia se aproximar dos 45s. Agora o servidor troca de
+  // modelo na 1ª falha do CORE (não retenta contra si mesmo, já pula pro
+  // fallback) e o fallback (LITE, o "último recurso") é quem carrega o
+  // orçamento de retry cheio — mais rápido no caminho comum, mas o pior
+  // caso continua sendo "CORE falha uma vez + LITE esgota as 3
+  // tentativas" — 60s dá folga real pra esse pior caso sem fingir que ele
+  // não existe.
+  static const Duration _uploadTimeout = Duration(seconds: 60);
 
   /// Adendo v5.1 A.4: "a resolução de envio é função do `tipo_captura`".
   /// Comida é barata (~512px, economiza token) porque a IA só precisa

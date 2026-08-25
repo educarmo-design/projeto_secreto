@@ -1489,10 +1489,54 @@ Deno.test('criarChamadorGeminiComFallback: sem fallback configurado (null), cota
   }
 });
 
-Deno.test('criarChamadorGeminiComFallback: erro que NÃO é cota (5xx esgotado) nunca tenta o fallback', async () => {
-  let chamadas = 0;
-  const restaurar = stubFetch((() => {
-    chamadas++;
+// RELATÓRIO 20260825_0003 — substitui o teste antigo ("5xx esgotado nunca
+// tenta o fallback"): achado real em device (foto ainda dava
+// TimeoutException mesmo com os fixes de 20260824) mostrou que restringir
+// o fallback só a cota deixava o CORE bater as 3 tentativas inteiras
+// contra si mesmo (cada uma uma chamada de visão inteira) antes de
+// desistir — tempo demais, e cota demais no free tier (20/dia). Agora
+// QUALQUER falha do primário tenta o fallback, se configurado — e o
+// primário ganha só 1 tentativa quando existe fallback (não retenta
+// contra si mesmo, poupa cota e tempo).
+Deno.test('criarChamadorGeminiComFallback: 5xx esgotado no primário cai pro fallback com sucesso (mesmo espírito da cota)', async () => {
+  const modelosChamados: string[] = [];
+  const restaurar = stubFetch(((input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url.includes('/models/gemini-flash-latest:')) {
+      modelosChamados.push('gemini-flash-latest');
+      return Promise.resolve(new Response('{"error":{"code":503}}', { status: 503 }));
+    }
+    modelosChamados.push('gemini-flash-lite-latest');
+    return Promise.resolve(
+      new Response(
+        JSON.stringify({ candidates: [{ content: { parts: [{ text: '{"do_fallback":true}' }] } }] }),
+        { status: 200 },
+      ),
+    );
+  }) as typeof fetch);
+
+  try {
+    const chamar = criarChamadorGeminiComFallback('fake-key', 'gemini-flash-latest', 'gemini-flash-lite-latest');
+    const texto = await chamar({ base64: 'YQ==', mimeType: 'image/jpeg', systemPrompt: 'x', userText: 'y' });
+    assertEquals(texto, '{"do_fallback":true}');
+    // Só 1 chamada no primário (não retenta contra si mesmo quando existe
+    // fallback — poupa cota do modelo restrito) + 1 no fallback.
+    assertEquals(modelosChamados, ['gemini-flash-latest', 'gemini-flash-lite-latest']);
+  } finally {
+    restaurar();
+  }
+});
+
+Deno.test('criarChamadorGeminiComFallback: primário E fallback falham (5xx) -> propaga o erro do fallback', async () => {
+  let chamadasPrimario = 0;
+  let chamadasFallback = 0;
+  const restaurar = stubFetch(((input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url.includes('/models/gemini-flash-latest:')) {
+      chamadasPrimario++;
+      return Promise.resolve(new Response('{"error":{"code":503}}', { status: 503 }));
+    }
+    chamadasFallback++;
     return Promise.resolve(new Response('{"error":{"code":503}}', { status: 503 }));
   }) as typeof fetch);
 
@@ -1505,8 +1549,33 @@ Deno.test('criarChamadorGeminiComFallback: erro que NÃO é cota (5xx esgotado) 
       erro = e;
     }
     assertEquals((erro as ErroHttp).status, 502);
-    // MAX_TENTATIVAS_VISAO (3) chamadas no primário, ZERO no fallback —
-    // 503 esgotado não é cota, não troca de modelo.
+    assertEquals(chamadasPrimario, 1); // não retenta o primário — já tinha fallback
+    // Fallback é o "último recurso" — mantém o orçamento cheio de retry
+    // (MAX_TENTATIVAS_VISAO) já que não sobra mais ninguém pra tentar.
+    assertEquals(chamadasFallback, 3);
+  } finally {
+    restaurar();
+  }
+});
+
+Deno.test('criarChamadorGeminiComFallback: sem fallback (null), 5xx retenta o orçamento cheio (último recurso)', async () => {
+  let chamadas = 0;
+  const restaurar = stubFetch((() => {
+    chamadas++;
+    return Promise.resolve(new Response('{"error":{"code":503}}', { status: 503 }));
+  }) as typeof fetch);
+
+  try {
+    const chamar = criarChamadorGeminiComFallback('fake-key', 'gemini-flash-lite-latest', null);
+    let erro: unknown;
+    try {
+      await chamar({ base64: 'YQ==', mimeType: 'image/jpeg', systemPrompt: 'x', userText: 'y' });
+    } catch (e) {
+      erro = e;
+    }
+    assertEquals((erro as ErroHttp).status, 502);
+    // Sem fallback pra cair, o próprio primário é o "último recurso" —
+    // mantém o orçamento cheio de retry, não só 1 tentativa.
     assertEquals(chamadas, 3);
   } finally {
     restaurar();
