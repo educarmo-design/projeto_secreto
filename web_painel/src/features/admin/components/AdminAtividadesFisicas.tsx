@@ -2,12 +2,21 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { supabase } from '@/core/supabase';
 import { Toast, type ToastMessage } from '@/components/Toast';
 
+type Plataforma = 'ambas' | 'android' | 'ios';
+
 interface TipoAtividade {
   id: string;
   nomeCodigo: string;
   nomeExibicao: string;
   metEstimado: number | null;
+  plataforma: Plataforma;
 }
+
+const ROTULO_PLATAFORMA: Record<Plataforma, string> = {
+  ambas: 'Ambas',
+  android: 'Android',
+  ios: 'iOS',
+};
 
 type EstadoTela = 'carregando' | 'sucesso' | 'erro';
 
@@ -36,6 +45,16 @@ type EstadoTela = 'carregando' | 'sucesso' | 'erro';
  * (Metabolic Equivalent of Task) da modalidade, opcional (fica `null` até
  * o Admin cadastrar; não há fonte automática). Input do Motor N07 (futuro),
  * não usado por nenhum cálculo nesta tarefa.
+ *
+ * `plataforma` (RELATÓRIO 20260825_0003) — só documentação (a FK de
+ * `atividades_fisicas_treinos` usa `nome_codigo`, não esta coluna); mostra
+ * em qual seção do enum `HealthWorkoutActivityType` o código nasceu, pra
+ * ficar visível aqui quem é específico de uma plataforma. Catálogo
+ * completo (99 códigos, os 3 do enum inteiro) cadastrado nesta mesma
+ * tarefa — investigação encontrou 52 códigos faltando, cada um capaz de
+ * reproduzir o mesmo bug silencioso do treino de força (RELATÓRIO
+ * 20260820_0002: código nativo ausente do dicionário rejeita a FK, o
+ * `catch` best-effort da sincronização engole o erro sem rastro).
  */
 export function AdminAtividadesFisicas() {
   const [estado, setEstado] = useState<EstadoTela>('carregando');
@@ -59,7 +78,7 @@ export function AdminAtividadesFisicas() {
     setEstado('carregando');
     const { data, error } = await supabase
       .from('tipos_atividades_fisicas')
-      .select('id, nome_codigo, nome_exibicao, met_estimado')
+      .select('id, nome_codigo, nome_exibicao, met_estimado, plataforma')
       .order('nome_exibicao', { ascending: true });
 
     if (error) {
@@ -74,6 +93,7 @@ export function AdminAtividadesFisicas() {
         nomeCodigo: linha.nome_codigo,
         nomeExibicao: linha.nome_exibicao,
         metEstimado: linha.met_estimado,
+        plataforma: linha.plataforma,
       })),
     );
     setEstado('sucesso');
@@ -249,6 +269,7 @@ export function AdminAtividadesFisicas() {
               <tr>
                 <th className="px-4 py-3">Código</th>
                 <th className="px-4 py-3">Nome de exibição</th>
+                <th className="px-4 py-3">Plataforma</th>
                 <th className="px-4 py-3">MET estimado</th>
                 <th className="px-4 py-3" />
               </tr>
@@ -272,6 +293,17 @@ export function AdminAtividadesFisicas() {
                       ) : (
                         item.nomeExibicao
                       )}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-[10px] font-medium uppercase ${
+                          item.plataforma === 'ambas'
+                            ? 'bg-clinical-primary/15 text-clinical-primary'
+                            : 'bg-amber-500/15 text-amber-400'
+                        }`}
+                      >
+                        {ROTULO_PLATAFORMA[item.plataforma]}
+                      </span>
                     </td>
                     <td className="px-4 py-3 text-slate-300">
                       {editando ? (

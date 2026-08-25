@@ -188,6 +188,7 @@ function FilaRevisao({ tipo }: { tipo: 'alimentos' | 'medidas' }) {
                   key={item.id}
                   titulo={item.nomeTaco}
                   observacaoInicial={item.observacaoRevisao ?? ''}
+                  linkRevisao={`/admin/alimentos?id=${item.id}`}
                   onSalvar={(revisao, obs) => salvarAlimento(item, revisao, obs)}
                 />
               ))
@@ -197,6 +198,10 @@ function FilaRevisao({ tipo }: { tipo: 'alimentos' | 'medidas' }) {
                   titulo={`${item.medida} — ${item.gramas}`}
                   subtitulo={`Alimento: ${item.alimentoNome}`}
                   observacaoInicial={item.observacaoRevisao ?? ''}
+                  // Medida caseira nunca é revisada isolada do alimento
+                  // dono (pedido do fundador) — o deep link leva pro
+                  // mesmo alimento, com esta medida já aberta em edição.
+                  linkRevisao={`/admin/alimentos?id=${item.alimentoId}&medida=${item.id}`}
                   onSalvar={(revisao, obs) => salvarMedida(item, revisao, obs)}
                 />
               ))}
@@ -206,16 +211,30 @@ function FilaRevisao({ tipo }: { tipo: 'alimentos' | 'medidas' }) {
   );
 }
 
-/** Uma linha da fila — sempre começa marcada (só itens `revisao_necessaria=true` entram na fila), com observação visível e editável direto, e o toggle que a spec do fundador pediu: "nas duas telas é possível marcar ou desmarcar o item de revisão". */
+/**
+ * Uma linha da fila — sempre começa marcada (só itens
+ * `revisao_necessaria=true` entram na fila), com observação visível e
+ * editável direto, e o toggle que a spec do fundador pediu: "nas duas
+ * telas é possível marcar ou desmarcar o item de revisão".
+ *
+ * RELATÓRIO 20260825_0002 — `linkRevisao` é o botão "Revisar item →"
+ * pedido pelo fundador: some pra "tela de revisão do item" completa
+ * (`AdminAlimentos`, deep-linkada por `?id=`/`&medida=`) em vez de só o
+ * toggle rápido daqui. As duas formas de resolver convivem: quem só quer
+ * marcar/desmarcar não precisa sair da fila; quem precisa editar
+ * macros/categoria/gramas vai pro item.
+ */
 function FilaItem({
   titulo,
   subtitulo,
   observacaoInicial,
+  linkRevisao,
   onSalvar,
 }: {
   titulo: string;
   subtitulo?: string;
   observacaoInicial: string;
+  linkRevisao: string;
   onSalvar: (revisaoNecessaria: boolean, observacao: string) => Promise<void>;
 }) {
   const [revisaoNecessaria, setRevisaoNecessaria] = useState(true);
@@ -237,8 +256,15 @@ function FilaItem({
 
   return (
     <li className="rounded-2xl border border-amber-500/30 bg-amber-500/5 p-4">
-      <p className="text-sm font-medium text-slate-100">{titulo}</p>
-      {subtitulo && <p className="text-xs text-clinical-muted">{subtitulo}</p>}
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-sm font-medium text-slate-100">{titulo}</p>
+          {subtitulo && <p className="text-xs text-clinical-muted">{subtitulo}</p>}
+        </div>
+        <Link to={linkRevisao} className="shrink-0 text-xs text-clinical-primary hover:underline">
+          Revisar item →
+        </Link>
+      </div>
 
       <textarea
         disabled={salvando}

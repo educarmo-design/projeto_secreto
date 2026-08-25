@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { supabase } from '@/core/supabase';
 import { Toast, type ToastMessage } from '@/components/Toast';
 
@@ -93,8 +94,22 @@ const SELECT_PORCAO = 'id, medida, gramas, revisao_necessaria, observacao_revisa
  * seu próprio filtro de "precisa de revisão" — exatamente como pedido:
  * "dar manutenção nas telas de alimentos e medidas caseiras de forma
  * separadas".
+ *
+ * RELATÓRIO 20260825_0002 — vira também a "tela de revisão do item":
+ * `AdminRevisaoCatalogo` (a fila) ganhou um botão "Revisar item →" em
+ * cada linha, que deep-linka pra cá via `?id=<alimentoId>` (e
+ * `&medida=<medidaId>` quando o item da fila é uma medida caseira, não o
+ * alimento em si) — em vez de duplicar UI de detalhe/observação, a fila
+ * só aponta pra ESTA tela, que já mostra o alimento (com observação, se
+ * `revisao_necessaria`) E as medidas caseiras dele logo abaixo (pedido do
+ * fundador: "isso serve para medida caseira com alimento" — a medida
+ * nunca é revisada isolada do alimento dono).
  */
 export function AdminAlimentos() {
+  const [searchParams] = useSearchParams();
+  const idAlvo = searchParams.get('id');
+  const medidaAlvo = searchParams.get('medida');
+
   const [estado, setEstado] = useState<EstadoTela>('sucesso');
   const [busca, setBusca] = useState('');
   const [somenteRevisao, setSomenteRevisao] = useState(false);
@@ -110,7 +125,20 @@ export function AdminAlimentos() {
 
   useEffect(() => {
     void buscar('', false);
+    // Deep link vindo da fila de revisão: seleciona direto, sem depender
+    // do item estar entre os 50 primeiros da busca alfabética padrão.
+    if (idAlvo) void selecionarPorId(idAlvo);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  async function selecionarPorId(id: string) {
+    const { data, error } = await supabase.from('alimentos_referencia').select(SELECT_ALIMENTO).eq('id', id).single();
+    if (error || !data) {
+      setToast({ variant: 'error', text: `Não foi possível abrir o alimento: ${error?.message ?? 'não encontrado'}` });
+      return;
+    }
+    setSelecionado(alimentoDeLinha(data as Record<string, unknown>));
+  }
 
   async function buscar(termo: string, filtroRevisao: boolean) {
     setEstado('carregando');
@@ -295,7 +323,11 @@ export function AdminAlimentos() {
                 removendo={idsEmAcao.has(selecionado.id)}
                 onToast={setToast}
               />
-              <MedidasCaseirasPanel alimentoId={selecionado.id} onToast={setToast} />
+              <MedidasCaseirasPanel
+                alimentoId={selecionado.id}
+                onToast={setToast}
+                medidaInicialId={selecionado.id === idAlvo && medidaAlvo ? Number(medidaAlvo) : null}
+              />
             </div>
           )}
         </div>
@@ -659,9 +691,14 @@ function CampoMacro({
 function MedidasCaseirasPanel({
   alimentoId,
   onToast,
+  medidaInicialId,
 }: {
   alimentoId: string;
   onToast: (toast: ToastMessage) => void;
+  /** Deep link da fila de revisão (RELATÓRIO 20260825_0002) — abre esta
+   * medida já em edição assim que a lista carrega, pra observação aparecer
+   * sem precisar procurar/clicar "Editar" de novo. */
+  medidaInicialId?: number | null;
 }) {
   const [porcoes, setPorcoes] = useState<Porcao[]>([]);
   const [carregando, setCarregando] = useState(true);
@@ -691,7 +728,11 @@ function MedidasCaseirasPanel({
       setCarregando(false);
       return;
     }
-    setPorcoes((data ?? []).map((linha) => porcaoDeLinha(linha as Record<string, unknown>)));
+    const carregadas = (data ?? []).map((linha) => porcaoDeLinha(linha as Record<string, unknown>));
+    setPorcoes(carregadas);
+    if (medidaInicialId && carregadas.some((p) => p.id === medidaInicialId)) {
+      setIdEditando(medidaInicialId);
+    }
     setCarregando(false);
   }
 

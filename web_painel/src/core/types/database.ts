@@ -245,6 +245,8 @@ export interface Database {
           nome_codigo: string;
           nome_exibicao: string;
           met_estimado: number | null;
+          /** RELATÓRIO 20260825_0003 — 'ambas' | 'android' | 'ios': em qual seção do enum `HealthWorkoutActivityType` o código vive. Só documentação (a FK usa `nome_codigo`), pra nunca mais depender de conferir o enum inteiro na mão de novo. */
+          plataforma: 'ambas' | 'android' | 'ios';
         };
         Insert: Partial<Database['public']['Tables']['tipos_atividades_fisicas']['Row']> & {
           nome_codigo: string;
