@@ -11,6 +11,7 @@ import '../../../gamification/repositories/gamification_repository.dart';
 import '../../../intelligence/data/repositories/recommendations_repository.dart';
 import '../../../nutricao/data/repositories/meta_bem_estar_repository.dart';
 import '../../../nutrition/data/repositories/coleta_diaria_repository.dart';
+import '../../../nutrition/presentation/pages/escolher_metodo_refeicao_page.dart';
 import '../../../nutrition/presentation/pages/registro_hidratacao_page.dart';
 import '../../data/models/health_payload_model.dart';
 import '../../data/models/widget_layout_model.dart';
@@ -215,6 +216,23 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
         .then((_) => _carregarHidratacaoHoje());
   }
 
+  /// RELATÓRIO 20260824_0003 — Registro de Refeição, porta de entrada
+  /// única dos 4 métodos (botão novo na AppBar, ao lado do de
+  /// hidratação). Mesmo padrão de [_abrirHidratacao]: `Navigator.push`
+  /// simples; recarrega o card de consumo×meta ao voltar, já que
+  /// qualquer um dos 4 métodos pode ter registrado uma refeição.
+  void _abrirEscolherMetodoRefeicao() {
+    Navigator.of(context)
+        .push(
+          MaterialPageRoute(
+            builder: (_) => EscolherMetodoRefeicaoPage(
+              onFotoPrato: () => _capturarEExibir(TipoAparelho.pratoRefeicao),
+            ),
+          ),
+        )
+        .then((_) => _carregarConsumoMeta());
+  }
+
   Future<void> _capturarEExibir(TipoAparelho tipoAparelho) async {
     final extracted = await Navigator.of(context).push<HealthPayloadModel?>(
       MaterialPageRoute(
@@ -278,6 +296,7 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
       onAbrirHidratacao: _abrirHidratacao,
       metaAtiva: _metaAtiva,
       consumoHoje: _consumoHoje,
+      onAbrirRegistrarRefeicao: _abrirEscolherMetodoRefeicao,
     );
 
     return _AthleteShell(
@@ -290,6 +309,7 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
       onHistoricoPressed: _abrirHistorico,
       onHistoricoTreinosPressed: _abrirHistoricoTreinos,
       onHidratacaoPressed: _abrirHidratacao,
+      onRegistrarRefeicaoPressed: _abrirEscolherMetodoRefeicao,
     );
   }
 }
@@ -308,6 +328,7 @@ class _AthleteShell extends StatelessWidget {
     required this.onHistoricoPressed,
     required this.onHistoricoTreinosPressed,
     required this.onHidratacaoPressed,
+    required this.onRegistrarRefeicaoPressed,
   });
 
   final int currentIndex;
@@ -319,6 +340,7 @@ class _AthleteShell extends StatelessWidget {
   final VoidCallback onHistoricoPressed;
   final VoidCallback onHistoricoTreinosPressed;
   final VoidCallback onHidratacaoPressed;
+  final VoidCallback onRegistrarRefeicaoPressed;
 
   static const List<_TabSpec> _tabs = [
     _TabSpec(icon: Icons.dashboard_outlined, labelKey: 'dashboard.title'),
@@ -359,6 +381,15 @@ class _AthleteShell extends StatelessWidget {
                 icon: const Icon(Icons.local_drink_outlined),
                 tooltip: i18n.tr('hidratacao.button'),
                 onPressed: onHidratacaoPressed,
+              ),
+            // RELATÓRIO 20260824_0003 — "botão ao lado do copo" (pedido do
+            // fundador): porta de entrada dos 4 métodos de Registro de
+            // Refeição. Mesmo critério de visibilidade dos demais.
+            if (currentIndex == 0)
+              IconButton(
+                icon: const Icon(Icons.restaurant_menu),
+                tooltip: i18n.tr('escolher_metodo_refeicao.button'),
+                onPressed: onRegistrarRefeicaoPressed,
               ),
             // Botão discreto — só aparece na própria aba que ele customiza.
             if (currentIndex == 0)

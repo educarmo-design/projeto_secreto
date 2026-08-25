@@ -24,6 +24,11 @@
 	<string>Precisamos acessar seus dados de saúde — frequência cardíaca, sono, peso, composição corporal, calorias e atividades físicas (incluindo a rota/localização percorrida durante um treino, quando disponível) — para calcular seu acompanhamento nutricional e de bem-estar. Esses dados nunca são compartilhados com terceiros.</string>
 	<key>NSHealthUpdateUsageDescription</key>
 	<string>Este app não grava nenhum dado no app Saúde — só lê as informações que você já tem registradas para o seu acompanhamento.</string>
+	<!-- RELATÓRIO 20260824_0003 — Registro de Refeição, Método 2 (falar):
+	     mesmo princípio Zero Storage do Android — o áudio nunca é salvo,
+	     só processado em memória pra identificar os alimentos. -->
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Precisamos acessar o microfone para você registrar uma refeição falando o que comeu — o áudio nunca é salvo, só usado para identificar os alimentos.</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>

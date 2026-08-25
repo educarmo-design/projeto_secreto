@@ -54,6 +54,10 @@ class DashboardCardData {
   final MetaResumo? metaAtiva;
   final ConsumoDia? consumoHoje;
 
+  /// RELATÓRIO 20260824_0003 — abre `EscolherMetodoRefeicaoPage` (mesmo
+  /// destino do botão novo na AppBar, ao lado do de hidratação).
+  final VoidCallback? onAbrirRegistrarRefeicao;
+
   const DashboardCardData({
     this.recomendacaoIaResumo,
     this.ultimaAtividadeGarmin,
@@ -68,6 +72,7 @@ class DashboardCardData {
     this.onAbrirHidratacao,
     this.metaAtiva,
     this.consumoHoje,
+    this.onAbrirRegistrarRefeicao,
   });
 }
 
@@ -129,6 +134,9 @@ class DashboardWidgetFactory {
 
       case DashboardWidgetId.consumoMeta:
         return ConsumoMetaCard(meta: data.metaAtiva, consumo: data.consumoHoje);
+
+      case DashboardWidgetId.metodosRegistroRefeicao:
+        return MetodosRegistroRefeicaoCard(onPressed: data.onAbrirRegistrarRefeicao);
     }
   }
 
@@ -157,6 +165,8 @@ class DashboardWidgetFactory {
         return 'hidratacao.title';
       case DashboardWidgetId.consumoMeta:
         return 'dashboard.widget_consumo_meta_title';
+      case DashboardWidgetId.metodosRegistroRefeicao:
+        return 'escolher_metodo_refeicao.title';
     }
   }
 
@@ -185,6 +195,8 @@ class DashboardWidgetFactory {
         return 'hidratacao.card_desc';
       case DashboardWidgetId.consumoMeta:
         return 'dashboard.card_consumo_meta_desc';
+      case DashboardWidgetId.metodosRegistroRefeicao:
+        return 'escolher_metodo_refeicao.card_desc';
     }
   }
 }
@@ -702,6 +714,74 @@ class ConsumoMetaCard extends StatelessWidget {
           ],
         ],
       ),
+    );
+  }
+}
+
+/// Card do 11º id (`metodos_registro_refeicao`, RELATÓRIO 20260824_0003) —
+/// os 4 métodos do Registro de Refeição num atalho só, mesmo destino do
+/// botão novo na AppBar (`EscolherMetodoRefeicaoPage`). Este card não
+/// precisa saber QUAL dos 4 métodos o usuário vai escolher — só abre a
+/// tela de escolha, que já sabe rotear pra cada um.
+class MetodosRegistroRefeicaoCard extends StatelessWidget {
+  const MetodosRegistroRefeicaoCard({super.key, this.onPressed});
+
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return _DashboardCardShell(
+      icon: Icons.restaurant_menu,
+      titleKey: 'escolher_metodo_refeicao.title',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            i18n.tr('escolher_metodo_refeicao.card_desc'),
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.mutedText),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              _MetodoIcone(icon: Icons.edit_note, labelKey: 'escolher_metodo_refeicao.descrever'),
+              _MetodoIcone(icon: Icons.mic_none, labelKey: 'escolher_metodo_refeicao.falar'),
+              _MetodoIcone(icon: Icons.star_outline, labelKey: 'escolher_metodo_refeicao.favoritos'),
+              _MetodoIcone(icon: Icons.camera_alt_outlined, labelKey: 'escolher_metodo_refeicao.fotografar'),
+            ],
+          ),
+          const SizedBox(height: 12),
+          OutlinedButton(
+            onPressed: onPressed,
+            child: Text(i18n.tr('escolher_metodo_refeicao.abrir_button')),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Um ícone + rótulo pequeno dentro de [MetodosRegistroRefeicaoCard] —
+/// só ilustrativo (o toque real é no botão "Registrar refeição" abaixo,
+/// que abre `EscolherMetodoRefeicaoPage` com os 4 de verdade); evita
+/// duplicar a navegação dos 4 métodos dentro do card em si.
+class _MetodoIcone extends StatelessWidget {
+  const _MetodoIcone({required this.icon, required this.labelKey});
+
+  final IconData icon;
+  final String labelKey;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Icon(icon, size: 22, color: AppColors.mutedText),
+        const SizedBox(height: 4),
+        Text(
+          i18n.tr(labelKey),
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.mutedText, fontSize: 10),
+        ),
+      ],
     );
   }
 }

@@ -698,6 +698,16 @@ function reqComImagem(headers: Record<string, string>): Request {
   });
 }
 
+// RELATÓRIO 20260824_0003 — Método 1 (descritivo): o corpo é a descrição
+// digitada em UTF-8, não binário — diferente de `reqComImagem`.
+function reqComTexto(headers: Record<string, string>, texto: string): Request {
+  return new Request('http://localhost/extract-metric-photo', {
+    method: 'POST',
+    headers: { Authorization: 'Bearer x', ...headers },
+    body: new TextEncoder().encode(texto),
+  });
+}
+
 Deno.test('handler: OPTIONS responde CORS', async () => {
   const res = await createHandler()(
     new Request('http://localhost', { method: 'OPTIONS' }),
@@ -1156,6 +1166,99 @@ Deno.test('handler: Gemini nunca recebe/usa o catálogo — prompt não muda por
 
   assertEquals(res.status, 200);
   assertEquals(prompts, 1);
+});
+
+// ============================================================================
+// (d.2) Handler HTTP — Registro de Refeição por TEXTO e ÁUDIO (RELATÓRIO
+// 20260824_0003, Documento Mestre — 4 métodos de captura). Mesmo cálculo/
+// casamento de `pratoRefeicao` (não reduplicado) — só a entrada muda.
+// ============================================================================
+
+Deno.test('handler: prato por TEXTO reconhecido -> 200 com macros calculados pelo backend', async () => {
+  const res = await createHandler({
+    autenticador: AUTH_OK,
+    catalogoAlimentos: CATALOGO_FALSO,
+    chamarGemini: geminiRespondendo(
+      '{"itens":[{"nome":"arroz","medida":"colher de sopa","quantidade":2,"confianca":0.9}]}',
+    ),
+  })(reqComTexto({ 'X-Tipo-Aparelho': 'pratoRefeicaoTexto' }, 'arroz 2 colheres'));
+
+  assertEquals(res.status, 200);
+  const body = await res.json();
+  assertEquals(body.tipo_captura, 'pratoRefeicaoTexto');
+  assertEquals(body.itens.length, 1);
+  assertEquals(body.itens[0].nome, 'Arroz, branco, cozido');
+  assertEquals(body.itens[0].calorias, 64);
+});
+
+Deno.test('handler: prato por TEXTO com corpo vazio -> 400', async () => {
+  const res = await createHandler({ autenticador: AUTH_OK, catalogoAlimentos: CATALOGO_FALSO })(
+    reqComTexto({ 'X-Tipo-Aparelho': 'pratoRefeicaoTexto' }, '   '),
+  );
+  assertEquals(res.status, 400);
+});
+
+Deno.test('handler: prato por TEXTO nunca manda inlineData pro Gemini (sem imagem/áudio)', async () => {
+  let recebeuBase64 = false;
+  const res = await createHandler({
+    autenticador: AUTH_OK,
+    catalogoAlimentos: CATALOGO_FALSO,
+    chamarGemini: (params) => {
+      recebeuBase64 = params.base64 !== undefined;
+      assertStringIncludes(params.userText, 'arroz e feijão');
+      return Promise.resolve('{"itens":[]}');
+    },
+  })(reqComTexto({ 'X-Tipo-Aparelho': 'pratoRefeicaoTexto' }, 'arroz e feijão'));
+
+  assertEquals(res.status, 200);
+  assertEquals(recebeuBase64, false);
+});
+
+Deno.test('handler: prato por TEXTO usa o modelo LITE (nível de complexidade)', async () => {
+  let urlChamada = '';
+  const restaurar = stubFetch(((input: RequestInfo | URL) => {
+    urlChamada = String(input);
+    return Promise.resolve(
+      new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: '{"itens":[]}' }] } }] }), { status: 200 }),
+    );
+  }) as typeof fetch);
+
+  try {
+    Deno.env.set('GEMINI_API_KEY', 'fake-key');
+    const res = await createHandler({ autenticador: AUTH_OK, catalogoAlimentos: CATALOGO_FALSO })(
+      reqComTexto({ 'X-Tipo-Aparelho': 'pratoRefeicaoTexto' }, 'arroz'),
+    );
+    assertEquals(res.status, 200);
+    assertStringIncludes(urlChamada, 'gemini-flash-lite-latest:generateContent');
+  } finally {
+    Deno.env.delete('GEMINI_API_KEY');
+    restaurar();
+  }
+});
+
+Deno.test('handler: prato por ÁUDIO reconhecido -> 200, áudio manda inlineData (nunca gravado)', async () => {
+  let mimeRecebido: string | undefined;
+  const res = await createHandler({
+    autenticador: AUTH_OK,
+    catalogoAlimentos: CATALOGO_FALSO,
+    chamarGemini: (params) => {
+      mimeRecebido = params.mimeType;
+      return Promise.resolve(
+        '{"itens":[{"nome":"arroz","medida":"colher de sopa","quantidade":2,"confianca":0.9}]}',
+      );
+    },
+  })(reqComImagem({ 'X-Tipo-Aparelho': 'pratoRefeicaoAudio', 'X-Image-Mime': 'audio/mp4' }));
+
+  assertEquals(res.status, 200);
+  const body = await res.json();
+  assertEquals(body.tipo_captura, 'pratoRefeicaoAudio');
+  assertEquals(body.itens[0].calorias, 64);
+  assertEquals(mimeRecebido, 'audio/mp4');
+});
+
+Deno.test('resolverModeloParaTipo: registro de refeição por texto/áudio usa o nível LITE', () => {
+  assertEquals(resolverModeloParaTipo('pratoRefeicaoTexto'), 'gemini-flash-lite-latest');
+  assertEquals(resolverModeloParaTipo('pratoRefeicaoAudio'), 'gemini-flash-lite-latest');
 });
 
 // ============================================================================

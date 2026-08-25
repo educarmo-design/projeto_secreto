@@ -1,5 +1,12 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- RELATÓRIO 20260824_0003 — Registro de Refeição, Método 2 (falar):
+         `record` grava um clipe curto em memória (Zero Storage — nunca
+         persistido, ver GravarRefeicaoController) só pra mandar pro Gemini
+         interpretar os alimentos. Sem RECORD_AUDIO o pacote `record` nunca
+         consegue nem abrir o microfone. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+
     <!-- Health Connect: só as permissões dos HealthDataType que
          HealthSyncService.todosOsTipos realmente pede — nunca o catálogo
          inteiro do Health Connect, que o plugin `health` só usa como

@@ -32,7 +32,12 @@ enum DashboardWidgetId {
   // registrados via refeição) × meta ativa (profissional ou self-service).
   // Mesmo raciocínio de `hidratacao` acima: no fim da lista, nunca desloca
   // ordem já salva.
-  consumoMeta('consumo_meta');
+  consumoMeta('consumo_meta'),
+  // RELATÓRIO 20260824_0003 — os 4 métodos de Registro de Refeição
+  // (descrever/falar/favoritos/fotografar) num card só, atalho pro mesmo
+  // `EscolherMetodoRefeicaoPage` que o botão da AppBar abre. Mesmo
+  // raciocínio de `hidratacao`/`consumoMeta`: no fim da lista.
+  metodosRegistroRefeicao('metodos_registro_refeicao');
 
   const DashboardWidgetId(this.id);
 

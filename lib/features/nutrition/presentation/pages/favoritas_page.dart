@@ -6,6 +6,7 @@ import '../../data/models/favorita_model.dart';
 import '../../data/models/prato_refeicao_extracao_model.dart';
 import '../../data/repositories/coleta_diaria_repository.dart';
 import '../../data/repositories/favoritas_repository.dart';
+import '../controllers/confirmacao_prato_controller.dart';
 import 'confirmacao_prato_page.dart';
 import 'criar_favorita_page.dart';
 
@@ -58,7 +59,6 @@ class _FavoritasPageState extends State<FavoritasPage> {
   _CargaStatus _status = _CargaStatus.carregando;
   List<FavoritaModel> _favoritas = const [];
   TipoRefeicao? _filtro;
-  bool _processando = false;
 
   @override
   void initState() {
@@ -92,44 +92,38 @@ class _FavoritasPageState extends State<FavoritasPage> {
       );
   }
 
+  /// RELATÓRIO 20260824_0003 — mudou de "1 toque registra direto" pra
+  /// "abre a tela de revisão/edição antes de salvar", igual aos outros 3
+  /// métodos do Registro de Refeição (decisão do fundador: consistência
+  /// entre os 4 métodos > atalho rápido). Reaproveita a MESMA
+  /// `ConfirmacaoPratoPage` que a foto/texto/áudio usam — sem
+  /// `favoritaEmEdicao` desta vez (isso é só pra editar a favorita em si,
+  /// ver `_editar` acima), então "Confirmar" grava uma refeição NOVA
+  /// normalmente, com `payloadJsonb` da favorita como ponto de partida já
+  /// editável.
   Future<void> _usarFavorita(FavoritaModel favorita) async {
-    final confirmar = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(i18n.tr('favoritas.usar_dialog_title')),
-        content: Text(
-          i18n.tr('favoritas.usar_dialog_content', params: {'nome': favorita.nome}),
+    final PratoRefeicaoExtracaoModel extracao;
+    try {
+      extracao = PratoRefeicaoExtracaoModel.fromJson(favorita.payloadJsonb);
+    } catch (_) {
+      if (!mounted) return;
+      _mostrarSnack(i18n.tr('favoritas.editar_payload_invalido'), sucesso: false);
+      return;
+    }
+    if (!mounted) return;
+
+    final registrado = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => ConfirmacaoPratoPage(
+          extracao: extracao,
+          controller: ConfirmacaoPratoController(extracao, repositorio: _coletaDiariaRepository),
+          favoritasRepository: _favoritasRepository,
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: Text(i18n.tr('common.cancel')),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: Text(i18n.tr('favoritas.usar_button')),
-          ),
-        ],
       ),
     );
-    if (confirmar != true || !mounted) return;
-
-    setState(() => _processando = true);
-    final resultado = await _coletaDiariaRepository.gravarRefeicao(
-      payloadRevisado: favorita.payloadJsonb,
-      confianca: null,
-    );
     if (!mounted) return;
-    setState(() => _processando = false);
-
-    if (resultado.success) {
-      _mostrarSnack(i18n.tr('favoritas.usar_sucesso'), sucesso: true);
+    if (registrado == true) {
       Navigator.of(context).pop(true); // avisa quem abriu (ex.: Dashboard) pra recarregar
-    } else {
-      _mostrarSnack(
-        resultado.errorMessage ?? i18n.tr('favoritas.usar_erro'),
-        sucesso: false,
-      );
     }
   }
 
@@ -288,7 +282,6 @@ class _FavoritasPageState extends State<FavoritasPage> {
   }
 
   Widget _buildCorpo(BuildContext context) {
-    if (_processando) return const Center(child: CircularProgressIndicator());
     switch (_status) {
       case _CargaStatus.carregando:
         return const Center(child: CircularProgressIndicator());

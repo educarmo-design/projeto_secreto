@@ -143,9 +143,15 @@ void main() {
     verify(() => favoritasRepository.listar(tipoRefeicao: TipoRefeicao.jantar)).called(1);
   });
 
-  testWidgets('usar favorita confirma, grava via gravarRefeicao e volta true', (tester) async {
+  // RELATÓRIO 20260824_0003 — mudou de "1 toque registra direto" pra "abre
+  // a tela de revisão/edição antes de salvar" (consistência com os outros
+  // 3 métodos do Registro de Refeição). Usa `_favoritaEditavel()`, não
+  // `_favorita()`: agora o payload é reparseado como extração
+  // (`PratoRefeicaoExtracaoModel.fromJson`), então precisa do formato
+  // completo, não só o mínimo que a listagem exibe.
+  testWidgets('usar favorita abre ConfirmacaoPratoPage; confirmar grava e volta true', (tester) async {
     when(() => favoritasRepository.listar(tipoRefeicao: any(named: 'tipoRefeicao')))
-        .thenAnswer((_) async => [_favorita()]);
+        .thenAnswer((_) async => [_favoritaEditavel()]);
     when(() => coletaDiariaRepository.gravarRefeicao(
           payloadRevisado: any(named: 'payloadRevisado'),
           confianca: any(named: 'confianca'),
@@ -174,13 +180,23 @@ void main() {
 
     await tester.tap(find.text('Meu almoço'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Registrar'));
+
+    // Não registra mais direto — abre a tela de revisão primeiro.
+    expect(find.text('Confirmar Refeição'), findsOneWidget);
+    expect(find.text('arroz'), findsOneWidget); // nomeIdentificado do item, já editável aqui
+    verifyNever(() => coletaDiariaRepository.gravarRefeicao(
+          payloadRevisado: any(named: 'payloadRevisado'),
+          confianca: any(named: 'confianca'),
+        ));
+
+    await tester.tap(find.text('Confirmar'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 1200)); // mesmo delay de UX pós-sucesso
     await tester.pumpAndSettle();
 
-    final favorita = _favorita();
     verify(() => coletaDiariaRepository.gravarRefeicao(
-          payloadRevisado: favorita.payloadJsonb,
-          confianca: null,
+          payloadRevisado: any(named: 'payloadRevisado'),
+          confianca: 0.9,
         )).called(1);
     expect(resultado, isTrue);
   });

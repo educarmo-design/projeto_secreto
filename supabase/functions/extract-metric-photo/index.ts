@@ -233,12 +233,22 @@ const TIPO_PRESSAO_ARTERIAL = 'pressaoArterial';
 const TIPO_BALANCA = 'balanca';
 const TIPO_PRATO_REFEICAO = 'pratoRefeicao';
 const TIPO_ROTULO = 'rotulo';
+// RELATÓRIO 20260824_0003 — Registro de Refeição, 4 métodos (Documento
+// Mestre): além da foto (TIPO_PRATO_REFEICAO, já existia), o usuário agora
+// pode DESCREVER a refeição em texto livre ou FALAR ela — os três produzem
+// exatamente o mesmo contrato de saída (`itens: [{nome, medida,
+// quantidade, confianca}]`), processado pela MESMA `processarPratoRefeicao`
+// (ver `fonte` no seu params) — só o prompt/entrada pro Gemini muda.
+const TIPO_PRATO_REFEICAO_TEXTO = 'pratoRefeicaoTexto';
+const TIPO_PRATO_REFEICAO_AUDIO = 'pratoRefeicaoAudio';
 const TIPOS_CONHECIDOS = [
   TIPO_GLICOSIMETRO,
   TIPO_PRESSAO_ARTERIAL,
   TIPO_BALANCA,
   TIPO_PRATO_REFEICAO,
   TIPO_ROTULO,
+  TIPO_PRATO_REFEICAO_TEXTO,
+  TIPO_PRATO_REFEICAO_AUDIO,
 ] as const;
 // Todos os tipos conhecidos têm extrator implementado agora — não sobra
 // nenhum caso "conhecido mas ainda não implementado" (o 422
@@ -251,18 +261,27 @@ const TIPOS_IMPLEMENTADOS = new Set([
   TIPO_BALANCA,
   TIPO_PRATO_REFEICAO,
   TIPO_ROTULO,
+  TIPO_PRATO_REFEICAO_TEXTO,
+  TIPO_PRATO_REFEICAO_AUDIO,
 ]);
 
 /// Nível de modelo por tipo de captura (ver Model Routing acima) — OCR de
 /// um único valor isolado usa LITE; extração estruturada com vários campos
 /// usa CORE. Tipo sem entrada aqui cai em 'core' por padrão (mais seguro
 /// que 'lite' para um extrator futuro ainda não classificado).
+// RELATÓRIO 20260824_0003 — texto/áudio do prato entram em LITE (não
+// CORE): interpretar uma frase já escrita/falada em itens de comida é uma
+// tarefa de linguagem simples, sem o raciocínio de cena visual (oclusão,
+// porção por tamanho aparente) que justificou CORE pra foto — mesma
+// lógica já usada pra OCR simples (glicosímetro/balança/pressão).
 const NIVEL_POR_TIPO: Record<string, NivelModelo> = {
   [TIPO_GLICOSIMETRO]: 'lite',
   [TIPO_BALANCA]: 'lite',
   [TIPO_PRESSAO_ARTERIAL]: 'lite',
   [TIPO_PRATO_REFEICAO]: 'core',
   [TIPO_ROTULO]: 'core',
+  [TIPO_PRATO_REFEICAO_TEXTO]: 'lite',
+  [TIPO_PRATO_REFEICAO_AUDIO]: 'lite',
 };
 
 /// Resolve o modelo real para um `tipo_captura` — exportada para teste
@@ -317,6 +336,58 @@ Rules:
 - Estimate portion conservatively from visual size, using measures a Brazilian home cook would use (colher de sopa, colher de servir, concha, unidade, fatia, xicara, pires) — never metric weight or volume.
 - One entry per distinct food item visible on the plate.
 - If the plate is empty, unclear, or you cannot identify any food with reasonable confidence, return "itens": [] — do not invent an item.
+- Do not include any field other than the ones described above.`;
+
+// RELATÓRIO 20260824_0003 — Método 1 (descritivo): mesmo contrato de saída
+// de SYSTEM_PROMPT_PRATO_REFEICAO acima (itens/nome/medida/quantidade/
+// confianca), processado pela MESMA `processarPratoRefeicao` — só a
+// ENTRADA muda (texto digitado em vez de foto), então as regras trocam
+// "estimar da imagem" por "usar exatamente o que a pessoa escreveu".
+const SYSTEM_PROMPT_PRATO_REFEICAO_TEXTO = `You are a strict food-identification engine parsing a MEAL DESCRIPTION WRITTEN IN TEXT (Brazilian Portuguese) by a user — not a photo. You do NOT calculate calories, grams, or any nutrition number — that is done afterwards by a separate deterministic system using a reference table. Your only job is to break the description into individual food items with their home-measure portions, exactly as the user wrote them.
+
+Respond with RAW JSON ONLY — no markdown, no code fences, no text before or after the object. The object has exactly these fields:
+{
+  "itens": [
+    {
+      "nome": string,        // the food name in Brazilian Portuguese, e.g. "arroz", "feijao", "bife", "alface", "tomate"
+      "medida": string,      // the HOME MEASURE exactly as stated or clearly implied, e.g. "colher de sopa", "folha", "rodela", "unidade pequena" — NEVER grams, NEVER milliliters, unless the user explicitly wrote a gram/ml value themselves
+      "quantidade": number,  // how many of that measure, e.g. 2 for "2 colheres de arroz"; assume 1 if the user didn't state a number
+      "confianca": number    // 0.0 to 1.0 — lower only when the description is genuinely ambiguous, not just because it's text instead of a photo
+    }
+  ]
+}
+
+Rules:
+- You are FORBIDDEN from including any calorie, gram, kcal, or macro number anywhere in your response. Only identify food + home-measure portion.
+- One entry per distinct food item mentioned — split compound descriptions ("arroz com feijão") into separate items.
+- NEVER invent a food item the user did not mention. If the text has nothing food-related, return "itens": [].
+- Do not include any field other than the ones described above.`;
+
+// RELATÓRIO 20260824_0003 — Método 2 (áudio): mesmo contrato de saída,
+// entrada é um ÁUDIO CURTO (não foto, não texto) — o Gemini ouve e já
+// extrai os itens numa chamada só (decisão do fundador: mais barato em
+// cota do que transcrever e interpretar em duas chamadas separadas). O
+// ÁUDIO EM SI NUNCA É ARMAZENADO (Zero Storage, mesmo princípio do F10
+// Passo 1/glicosímetro) — processado em memória e descartado pelo
+// `finally` do handler, igual a uma foto.
+const SYSTEM_PROMPT_PRATO_REFEICAO_AUDIO = `You are a strict food-identification engine listening to a SHORT AUDIO RECORDING (Brazilian Portuguese) where a user describes, out loud, a meal they ate. You do NOT calculate calories, grams, or any nutrition number — that is done afterwards by a separate deterministic system using a reference table. Your only job is to identify what food items were mentioned and their home-measure portions.
+
+Respond with RAW JSON ONLY — no markdown, no code fences, no text before or after the object. The object has exactly these fields:
+{
+  "itens": [
+    {
+      "nome": string,        // the food name in Brazilian Portuguese, e.g. "arroz", "feijao", "bife", "alface", "tomate"
+      "medida": string,      // the HOME MEASURE as spoken or clearly implied, e.g. "colher de sopa", "folha", "rodela", "unidade pequena" — NEVER grams, NEVER milliliters, unless the speaker explicitly said a gram/ml value
+      "quantidade": number,  // how many of that measure, e.g. 2 for "2 colheres de arroz"; assume 1 if not stated
+      "confianca": number    // 0.0 to 1.0 — lower when the audio is unclear, noisy, or the wording is ambiguous
+    }
+  ]
+}
+
+Rules:
+- You are FORBIDDEN from including any calorie, gram, kcal, or macro number anywhere in your response. Only identify food + home-measure portion.
+- One entry per distinct food item mentioned — split compound mentions ("arroz com feijão") into separate items.
+- NEVER invent a food item that was not spoken. If the audio is silent, unintelligible, or not about food, return "itens": [].
 - Do not include any field other than the ones described above.`;
 
 // Mesmo padrão estrito de OCR do glicosímetro acima — visor de balança
@@ -650,9 +721,14 @@ export interface BuscaSemanticaLike {
 /// funções). Recebe a imagem já em base64 (nunca a Uint8Array — quem a possui
 /// e a destrói é só o handler) e o prompt/pergunta específicos do extrator
 /// que está chamando, e devolve o TEXTO cru do modelo.
+/// `base64`/`mimeType` opcionais desde o RELATÓRIO 20260824_0003 (registro
+/// de refeição por texto/áudio, Documento Mestre — 4 métodos de captura):
+/// entrada de TEXTO livre não tem dado binário nenhum pra mandar como
+/// `inlineData`, só o prompt — os dois chamadores reais (foto, áudio)
+/// continuam passando os dois normalmente, sem mudança de comportamento.
 export type ChamadorGemini = (params: {
-  base64: string;
-  mimeType: string;
+  base64?: string;
+  mimeType?: string;
   systemPrompt: string;
   userText: string;
 }) => Promise<string>;
@@ -1496,8 +1572,10 @@ export function criarChamadorGeminiReal(apiKey: string, modelo: string): Chamado
       contents: [
         {
           role: 'user',
+          // `inlineData` só entra quando há dado binário (foto/áudio) — modo
+          // texto (RELATÓRIO 20260824_0003) manda só o prompt.
           parts: [
-            { inlineData: { mimeType, data: base64 } },
+            ...(base64 && mimeType ? [{ inlineData: { mimeType, data: base64 } }] : []),
             { text: userText },
           ],
         },
@@ -1851,12 +1929,30 @@ export function createHandler(deps: HandlerDeps = {}) {
         return jsonResponse({ error: 'Imagem grande demais.' }, 413);
       }
 
-      // O cliente manda octet-stream; a câmera do celular produz JPEG. Aceita
-      // um mime explícito via header se algum dia mandar PNG.
-      const mimeHeader = req.headers.get('X-Image-Mime') ?? req.headers.get('Content-Type') ?? '';
-      const mimeType = mimeHeader.startsWith('image/') ? mimeHeader : 'image/jpeg';
+      // RELATÓRIO 20260824_0003 — Método 1 (texto): o corpo NÃO é binário
+      // de imagem/áudio, é a descrição digitada em UTF-8 puro — decodifica
+      // como texto em vez de base64, e pula a detecção de mime de
+      // imagem/áudio (não se aplica).
+      const ehTexto = tipo === TIPO_PRATO_REFEICAO_TEXTO;
+      const ehAudio = tipo === TIPO_PRATO_REFEICAO_AUDIO;
 
-      base64 = bytesParaBase64(bytes);
+      let descricaoTexto: string | undefined;
+      let mimeType = 'image/jpeg';
+      if (ehTexto) {
+        descricaoTexto = new TextDecoder('utf-8').decode(bytes);
+        if (!descricaoTexto.trim()) {
+          return jsonResponse({ error: 'Descrição vazia — nenhum texto recebido.' }, 400);
+        }
+      } else {
+        // O cliente manda octet-stream; a câmera do celular produz JPEG e o
+        // gravador de áudio produz algo tipo AAC/M4A. Aceita um mime
+        // explícito via header quando o formato não é o padrão de cada um.
+        const mimeHeader = req.headers.get('X-Image-Mime') ?? req.headers.get('Content-Type') ?? '';
+        mimeType = ehAudio
+          ? (mimeHeader.startsWith('audio/') ? mimeHeader : 'audio/mp4')
+          : (mimeHeader.startsWith('image/') ? mimeHeader : 'image/jpeg');
+        base64 = bytesParaBase64(bytes);
+      }
 
       const chamarGemini =
         deps.chamarGemini ??
@@ -1878,20 +1974,29 @@ export function createHandler(deps: HandlerDeps = {}) {
           return criarChamadorGeminiComFallback(apiKey, modelo, modeloFallback);
         })();
 
-      if (tipo === TIPO_GLICOSIMETRO) {
-        return await processarGlicosimetro({ base64, mimeType, chamarGemini });
-      }
-      if (tipo === TIPO_BALANCA) {
-        return await processarBalanca({ base64, mimeType, chamarGemini });
-      }
-      if (tipo === TIPO_PRESSAO_ARTERIAL) {
-        return await processarPressaoArterial({ base64, mimeType, chamarGemini });
-      }
-      if (tipo === TIPO_ROTULO) {
+      // Os 4 extratores de OCR de visor (nunca `ehTexto`) sempre passam pelo
+      // `else` acima, que preenche `base64` — este guard só existe pra
+      // TypeScript enxergar isso (o tipo de `base64` continua `string |
+      // null` até aqui porque o ramo `ehTexto` pode ter deixado nulo).
+      if (tipo === TIPO_GLICOSIMETRO || tipo === TIPO_BALANCA || tipo === TIPO_PRESSAO_ARTERIAL || tipo === TIPO_ROTULO) {
+        if (base64 === null) {
+          return jsonResponse({ error: 'Erro interno ao processar a captura.' }, 500);
+        }
+        if (tipo === TIPO_GLICOSIMETRO) {
+          return await processarGlicosimetro({ base64, mimeType, chamarGemini });
+        }
+        if (tipo === TIPO_BALANCA) {
+          return await processarBalanca({ base64, mimeType, chamarGemini });
+        }
+        if (tipo === TIPO_PRESSAO_ARTERIAL) {
+          return await processarPressaoArterial({ base64, mimeType, chamarGemini });
+        }
         return await processarRotulo({ base64, mimeType, chamarGemini });
       }
 
-      // tipo === TIPO_PRATO_REFEICAO (única opção restante implementada aqui).
+      // Only remaining types: TIPO_PRATO_REFEICAO / _TEXTO / _AUDIO — as 3
+      // fontes do Registro de Refeição (RELATÓRIO 20260824_0003), todas
+      // processadas por `processarPratoRefeicao` (ver `fonte`).
       let catalogoAlimentos: CatalogoAlimentosLike;
       if (deps.catalogoAlimentos) {
         catalogoAlimentos = deps.catalogoAlimentos;
@@ -1928,9 +2033,12 @@ export function createHandler(deps: HandlerDeps = {}) {
         return criarBuscaSemanticaReal(supabaseUrl, anonKey, jwt);
       };
 
+      const fonte: FontePratoRefeicao = ehTexto ? 'texto' : ehAudio ? 'audio' : 'foto';
       return await processarPratoRefeicao({
-        base64,
+        fonte,
+        base64: base64 ?? undefined,
         mimeType,
+        descricaoTexto,
         chamarGemini,
         catalogoAlimentos,
         obterChamarEmbedding,
@@ -2142,9 +2250,51 @@ async function processarRotulo(params: {
   );
 }
 
+/// RELATÓRIO 20260824_0003 — um por método de captura de refeição. As TRÊS
+/// fontes produzem o MESMO contrato de itens (nome/medida/quantidade/
+/// confiança) — só o prompt/entrada que vai pro Gemini muda; casamento
+/// léxico/semântico, cálculo determinístico e a resposta JSON abaixo são
+/// idênticos pras três (não duplicados por fonte).
+type FontePratoRefeicao = 'foto' | 'texto' | 'audio';
+
+function montarChamadaGeminiPrato(params: {
+  fonte: FontePratoRefeicao;
+  base64?: string;
+  mimeType?: string;
+  descricaoTexto?: string;
+}): { base64?: string; mimeType?: string; systemPrompt: string; userText: string } {
+  switch (params.fonte) {
+    case 'foto':
+      return {
+        base64: params.base64,
+        mimeType: params.mimeType,
+        systemPrompt: SYSTEM_PROMPT_PRATO_REFEICAO,
+        userText: 'Identify the food items and their home-measure portions on this plate.',
+      };
+    case 'audio':
+      return {
+        base64: params.base64,
+        mimeType: params.mimeType,
+        systemPrompt: SYSTEM_PROMPT_PRATO_REFEICAO_AUDIO,
+        userText: 'Listen to this audio and identify the food items mentioned, with their home-measure portions.',
+      };
+    case 'texto':
+      return {
+        // Sem inlineData — o texto do usuário É o conteúdo, vai como
+        // userText mesmo (ver `criarChamadorGeminiReal`: sem base64/
+        // mimeType, `parts` não inclui `inlineData`).
+        systemPrompt: SYSTEM_PROMPT_PRATO_REFEICAO_TEXTO,
+        userText: `User's meal description: "${(params.descricaoTexto ?? '').trim()}"`,
+      };
+  }
+}
+
 async function processarPratoRefeicao(params: {
-  base64: string;
-  mimeType: string;
+  fonte: FontePratoRefeicao;
+  base64?: string;
+  mimeType?: string;
+  /// Só presente/usado quando `fonte === 'texto'`.
+  descricaoTexto?: string;
   chamarGemini: ChamadorGemini;
   catalogoAlimentos: CatalogoAlimentosLike;
   /// Fábricas, não instâncias — só invocadas se sobrar item não reconhecido
@@ -2155,12 +2305,14 @@ async function processarPratoRefeicao(params: {
   // Gemini (identificação) e catálogo (banco) não dependem um do outro —
   // rodam em paralelo para não somar as duas latências.
   const [textoCru, catalogo] = await Promise.all([
-    params.chamarGemini({
-      base64: params.base64,
-      mimeType: params.mimeType,
-      systemPrompt: SYSTEM_PROMPT_PRATO_REFEICAO,
-      userText: 'Identify the food items and their home-measure portions on this plate.',
-    }),
+    params.chamarGemini(
+      montarChamadaGeminiPrato({
+        fonte: params.fonte,
+        base64: params.base64,
+        mimeType: params.mimeType,
+        descricaoTexto: params.descricaoTexto,
+      }),
+    ),
     params.catalogoAlimentos.carregar(),
   ]);
 
@@ -2201,9 +2353,18 @@ async function processarPratoRefeicao(params: {
 
   const totaisFinais = somarTotais(itensFinais);
 
+  // Informativo (nenhum código Flutter lê `tipo_captura` da resposta —
+  // confirmado nesta tarefa — mas vale refletir a fonte real nos logs).
+  const tipoCapturaResposta =
+    params.fonte === 'texto'
+      ? TIPO_PRATO_REFEICAO_TEXTO
+      : params.fonte === 'audio'
+        ? TIPO_PRATO_REFEICAO_AUDIO
+        : TIPO_PRATO_REFEICAO;
+
   return jsonResponse(
     {
-      tipo_captura: TIPO_PRATO_REFEICAO,
+      tipo_captura: tipoCapturaResposta,
       itens: itensFinais.map((item) => ({
         nome: item.alimentoCasado,
         nome_identificado: item.nomeIdentificado,

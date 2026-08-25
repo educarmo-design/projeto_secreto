@@ -429,6 +429,37 @@
     "retry_button": "Intentar de nuevo"
   },
 
+  "escolher_metodo_refeicao": {
+    "button": "Registrar comida",
+    "title": "Registrar Comida",
+    "card_desc": "Describe, habla, usa una favorita o fotografía.",
+    "abrir_button": "Registrar comida",
+    "descrever": "Describir",
+    "falar": "Hablar",
+    "favoritos": "Favoritas",
+    "fotografar": "Fotografiar"
+  },
+
+  "descrever_refeicao": {
+    "title": "Describir Comida",
+    "instrucao": "Escribe lo que comiste, con la cantidad de cada alimento.",
+    "hint": "Ej.: arroz 2 cucharadas, frijoles 50 gramos, una hoja de lechuga, dos rodajas de tomate y un bistec pequeño",
+    "interpretar_button": "Interpretar",
+    "interpretando": "Interpretando..."
+  },
+
+  "gravar_refeicao": {
+    "title": "Hablar Comida",
+    "instrucao": "Toca el micrófono y di lo que comiste, con la cantidad de cada alimento.",
+    "gravar_button": "Grabar",
+    "gravando": "Grabando...",
+    "parar_button": "Detener y enviar",
+    "interpretando": "Interpretando...",
+    "sem_permissao": "Necesitamos permiso del micrófono para grabar tu comida.",
+    "erro_gravacao": "No se pudo grabar el audio. Inténtalo de nuevo.",
+    "tentar_novamente": "Intentar de nuevo"
+  },
+
   "nutricao": {
     "anamnese_title": "Anamnesis Nutricional",
     "anamnese_subtitle": "Cuéntanos un poco sobre ti para personalizar tus recomendaciones. Completar de nuevo reemplaza esta versión por la más reciente.",

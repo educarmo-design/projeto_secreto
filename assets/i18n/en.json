@@ -429,6 +429,37 @@
     "retry_button": "Try again"
   },
 
+  "escolher_metodo_refeicao": {
+    "button": "Log meal",
+    "title": "Log Meal",
+    "card_desc": "Describe, speak, use a favorite, or take a photo.",
+    "abrir_button": "Log meal",
+    "descrever": "Describe",
+    "falar": "Speak",
+    "favoritos": "Favorites",
+    "fotografar": "Photo"
+  },
+
+  "descrever_refeicao": {
+    "title": "Describe Meal",
+    "instrucao": "Type what you ate, with the amount of each food item.",
+    "hint": "E.g.: rice 2 spoons, beans 50 grams, one lettuce leaf, two tomato slices and a small steak",
+    "interpretar_button": "Interpret",
+    "interpretando": "Interpreting..."
+  },
+
+  "gravar_refeicao": {
+    "title": "Speak Meal",
+    "instrucao": "Tap the microphone and say what you ate, with the amount of each food item.",
+    "gravar_button": "Record",
+    "gravando": "Recording...",
+    "parar_button": "Stop and send",
+    "interpretando": "Interpreting...",
+    "sem_permissao": "We need microphone permission to record your meal.",
+    "erro_gravacao": "Couldn't record the audio. Please try again.",
+    "tentar_novamente": "Try again"
+  },
+
   "nutricao": {
     "anamnese_title": "Nutrition Intake",
     "anamnese_subtitle": "Tell us a bit about yourself so we can personalize your recommendations. Filling this out again replaces this version with the latest one.",
