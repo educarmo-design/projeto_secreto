@@ -505,7 +505,14 @@ Deno.test('encontrarMedida: medida é escopada ao alimento (mesma "colher" pesa 
   const arroz = CATALOGO_TESTE[0];
   const feijao = CATALOGO_TESTE[1];
   assertEquals(encontrarMedida(arroz, 'colher de sopa')?.gramas, 25);
-  assertEquals(encontrarMedida(feijao, 'colher de sopa'), null); // feijão só tem "concha média"
+  // feijão não tem "colher de sopa" cadastrada — cai no fallback do F46
+  // ("FIX 31/jul": melhor usar a medida que o alimento TEM do que deixar
+  // cair em não reconhecido), mas o fallback continua escopado ao PRÓPRIO
+  // feijão (sua única medida, concha média = 80g) — nunca pega emprestado
+  // o peso da colher de sopa do arroz (25g).
+  const medidaFeijao = encontrarMedida(feijao, 'colher de sopa');
+  assertEquals(medidaFeijao?.medida, 'concha média');
+  assertEquals(medidaFeijao?.gramas, 80);
 });
 
 // ============================================================================
@@ -547,11 +554,26 @@ Deno.test('calcularPrato: alimento não encontrado vai para itensNaoReconhecidos
   assertEquals(r.totais.calorias, 0);
 });
 
-Deno.test('calcularPrato: medida não cadastrada para aquele alimento vai para itensNaoReconhecidos', () => {
+Deno.test('calcularPrato: medida não cadastrada mas o alimento tem outra -> resolve pelo fallback (F46), não vira não-reconhecido', () => {
   const r = calcularPrato(
     [itemExtraido({ nome: 'feijao', medida: 'xícara' })], // feijão só tem "concha média" no catálogo de teste
     CATALOGO_TESTE,
   );
+  // F46 ("FIX 31/jul", `encontrarMedida`): melhor usar a única medida
+  // cadastrada do alimento do que descartar o item inteiro — "xícara" cai
+  // no fallback pra "concha média" (a única medida do feijão), não vira
+  // itensNaoReconhecidos.
+  assertEquals(r.itensNaoReconhecidos.length, 0);
+  assertEquals(r.itens.length, 1);
+  // `medida` no item calculado é o texto ORIGINAL pedido ("xícara") — só
+  // o peso (`gramasEstimados`) reflete a medida real usada no fallback
+  // (concha média, a única cadastrada do feijão).
+  assertEquals(r.itens[0].medida, 'xícara');
+  assertEquals(r.itens[0].gramasEstimados, 160); // quantidade padrão de itemExtraido() é 2: 2 conchas médias = 160g
+});
+
+Deno.test('calcularPrato: medida vazia (único caso em que encontrarMedida ainda retorna null) vai para itensNaoReconhecidos', () => {
+  const r = calcularPrato([itemExtraido({ nome: 'feijao', medida: '' })], CATALOGO_TESTE);
   assertEquals(r.itens.length, 0);
   assertEquals(r.itensNaoReconhecidos[0].motivo, 'medida_nao_encontrada');
 });
@@ -630,7 +652,7 @@ Deno.test('resolverComBuscaSemantica: id devolvido pela RPC não existe mais no 
   assertEquals(r.aindaNaoReconhecidos.length, 1);
 });
 
-Deno.test('resolverComBuscaSemantica: match acha o alimento mas não a medida -> motivo vira medida_nao_encontrada', async () => {
+Deno.test('resolverComBuscaSemantica: match acha o alimento e a medida sem cadastro cai no fallback (F46), não fica não-reconhecido', async () => {
   const feijaoMatch: BuscaSemanticaLike = {
     buscar: () => Promise.resolve([{ id: 'feijao-id', similarity: 0.77 }]),
   };
@@ -640,9 +662,27 @@ Deno.test('resolverComBuscaSemantica: match acha o alimento mas não a medida ->
     chamadorEmbeddingFixo(),
     feijaoMatch,
   );
+  assertEquals(r.aindaNaoReconhecidos.length, 0);
+  assertEquals(r.resolvidos.length, 1);
+  assertEquals(r.resolvidos[0].alimentoCasado, 'Feijão, carioca, cozido');
+  // `medida` é o texto ORIGINAL pedido ("xícara") — só o peso reflete a
+  // medida real usada no fallback (concha média).
+  assertEquals(r.resolvidos[0].medida, 'xícara');
+  assertEquals(r.resolvidos[0].gramasEstimados, 160); // quantidade padrão de naoReconhecido() é 2: 2 conchas médias = 160g
+});
+
+Deno.test('resolverComBuscaSemantica: medida vazia (guard defensivo, exigido pelo TypeScript) -> aindaNaoReconhecidos', async () => {
+  const feijaoMatch: BuscaSemanticaLike = {
+    buscar: () => Promise.resolve([{ id: 'feijao-id', similarity: 0.77 }]),
+  };
+  const r = await resolverComBuscaSemantica(
+    [naoReconhecido({ nome: 'feijaozinho', medida: '' })],
+    CATALOGO_TESTE,
+    chamadorEmbeddingFixo(),
+    feijaoMatch,
+  );
   assertEquals(r.resolvidos.length, 0);
   assertEquals(r.aindaNaoReconhecidos.length, 1);
-  assertEquals(r.aindaNaoReconhecidos[0].motivo, 'medida_nao_encontrada');
 });
 
 Deno.test('resolverComBuscaSemantica: item com motivo medida_nao_encontrada nunca tenta busca semântica', async () => {
@@ -1085,12 +1125,14 @@ Deno.test('handler: casamento léxico falha mas busca semântica acha o alimento
   assertEquals(body.totais.calorias, 64);
 });
 
-Deno.test('handler: busca semântica acha o alimento mas a medida não existe pra ele — ainda vai para itens_nao_reconhecidos', async () => {
+Deno.test('handler: busca semântica acha o alimento e a medida sem cadastro cai no fallback (F46) — item entra normal, não em itens_nao_reconhecidos', async () => {
   const res = await createHandler({
     autenticador: AUTH_OK,
     catalogoAlimentos: CATALOGO_FALSO,
     chamarGemini: geminiRespondendo(
-      // "xícara" não está cadastrada nas medidas do feijão em CATALOGO_TESTE.
+      // "xícara" não está cadastrada nas medidas do feijão em CATALOGO_TESTE
+      // — cai no fallback pra "concha média" (F46, "FIX 31/jul"), a única
+      // medida cadastrada do feijão.
       '{"itens":[{"nome":"feijaozinho","medida":"xícara","quantidade":1,"confianca":0.7}],"possivel_foto_de_tela":false}',
     ),
     chamarEmbedding: chamarEmbeddingFalso(),
@@ -1099,9 +1141,13 @@ Deno.test('handler: busca semântica acha o alimento mas a medida não existe pr
 
   assertEquals(res.status, 200);
   const body = await res.json();
-  assertEquals(body.itens.length, 0);
-  assertEquals(body.itens_nao_reconhecidos.length, 1);
-  assertEquals(body.itens_nao_reconhecidos[0].motivo, 'medida_nao_encontrada');
+  assertEquals(body.itens_nao_reconhecidos.length, 0);
+  assertEquals(body.itens.length, 1);
+  assertEquals(body.itens[0].nome, 'Feijão, carioca, cozido');
+  // `medida` é o texto ORIGINAL pedido ("xícara") — só o peso reflete a
+  // medida real usada no fallback (concha média).
+  assertEquals(body.itens[0].medida, 'xícara');
+  assertEquals(body.itens[0].gramas_estimados, 80);
 });
 
 Deno.test('handler: tudo casa por alias — busca semântica nunca é chamada (caminho comum fica barato)', async () => {
