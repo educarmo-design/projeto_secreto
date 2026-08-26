@@ -161,7 +161,15 @@ class ConfirmacaoPratoController extends ValueNotifier<ConfirmacaoPratoState> {
             itensNaoReconhecidos: extracao.itensNaoReconhecidos,
             possivelFotoDeTela: extracao.possivelFotoDeTela,
           ),
-        );
+        ) {
+    // DIAGNÓSTICO 20260825_0007 (instrumentação temporária, ver relatório)
+    // — este controller NÃO é um widget (é um ValueNotifier puro), não tem
+    // `initState`/`build`; o construtor é o equivalente mais próximo pra
+    // saber se ele chegou a ser instanciado.
+    debugPrint(
+      'DEBUG ConfirmacaoPratoController: construído com ${extracao.itens.length} itens',
+    );
+  }
 
   final ColetaDiariaRepository _repositorio;
 

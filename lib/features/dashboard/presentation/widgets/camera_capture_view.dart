@@ -49,6 +49,14 @@ class _CameraCaptureViewState extends State<CameraCaptureView> {
       // hardware ao ser removida da árvore via dispose()).
       final prato = _controller.value.pratoExtraido;
       if (prato != null) {
+        // DIAGNÓSTICO 20260825_0007 (instrumentação temporária, ver
+        // relatório) — imediatamente antes do pushReplacement: se a tela
+        // "fecha sem erro" acontecer de novo, este log prova se o
+        // listener sequer chegou até aqui (e com quantos itens) antes de
+        // qualquer coisa dar errado na navegação em si.
+        debugPrint(
+          'DEBUG _onStateChanged: prato extraído com ${prato.itens.length} itens — chamando pushReplacement (mounted=$mounted)',
+        );
         Navigator.of(context).pushReplacement(
           MaterialPageRoute<void>(
             builder: (_) => ConfirmacaoPratoPage(extracao: prato),

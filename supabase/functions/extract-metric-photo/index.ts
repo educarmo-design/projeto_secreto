@@ -1939,7 +1939,15 @@ function criarCatalogoAlimentosReal(
 // Handler HTTP
 // ─────────────────────────────────────────────────────────────────────────
 export function createHandler(deps: HandlerDeps = {}) {
-  return async function handleRequest(req: Request): Promise<Response> {
+  // DIAGNÓSTICO 20260825_0007 (instrumentação temporária, ver relatório) —
+  // `handleRequest` (abaixo) é só um wrapper fino em volta da lógica real
+  // (renomeada para `processarRequest`, corpo 100% idêntico ao de antes,
+  // nenhuma linha de comportamento mudou) — existe só pra logar duração
+  // total + status HTTP + tamanho do corpo da resposta, sem importar qual
+  // dos MUITOS `return` internos foi o caminho tomado. `resposta.clone()`
+  // é necessário porque um `Response` só deixa o corpo ser lido uma vez —
+  // sem clonar, o corpo real devolvido ao cliente ficaria consumido aqui.
+  async function processarRequest(req: Request): Promise<Response> {
     if (req.method === 'OPTIONS') {
       return new Response('ok', { headers: CORS_HEADERS });
     }
@@ -2150,6 +2158,23 @@ export function createHandler(deps: HandlerDeps = {}) {
       bytes = null;
       base64 = null;
     }
+  }
+
+  return async function handleRequest(req: Request): Promise<Response> {
+    const inicioExecucao = Date.now();
+    const resposta = await processarRequest(req);
+    const duracaoMs = Date.now() - inicioExecucao;
+    let tamanhoCorpo = 'desconhecido';
+    try {
+      tamanhoCorpo = String((await resposta.clone().text()).length);
+    } catch {
+      // Best-effort — nunca deixa o log de diagnóstico derrubar a resposta
+      // real que já está pronta pra sair.
+    }
+    console.log(
+      `[extract-metric-photo] CONCLUSÃO: duracao=${duracaoMs}ms status=${resposta.status} tamanho_corpo=${tamanhoCorpo}bytes`,
+    );
+    return resposta;
   };
 }
 
@@ -2396,6 +2421,15 @@ async function processarPratoRefeicao(params: {
   const extracao = parseRespostaGeminiPrato(textoCru);
   // O CÁLCULO é inteiramente do backend — o Gemini nunca viu `catalogo`.
   const calculo = calcularPrato(extracao.itens, catalogo);
+  // DIAGNÓSTICO 20260825_0007 (instrumentação temporária, ver relatório) —
+  // marca a fronteira entre "casamento de medida" (dentro de calcularPrato,
+  // já logado item a item por `encontrarMedida`) e o que vem depois
+  // (busca semântica condicional + montagem da resposta) — se a execução
+  // parar de aparecer no log DEPOIS desta linha, o problema está em algo
+  // abaixo dela, não no casamento em si.
+  console.log(
+    `[processarPratoRefeicao] calcularPrato concluído: ${calculo.itens.length} itens casados, ${calculo.itensNaoReconhecidos.length} não reconhecidos`,
+  );
 
   // Segunda tentativa (Missão F45): só roda I/O extra (Gemini + banco) se
   // sobrou algo que o casamento léxico não achou — o caminho comum (tudo já

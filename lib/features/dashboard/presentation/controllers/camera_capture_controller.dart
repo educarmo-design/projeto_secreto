@@ -231,6 +231,16 @@ class CameraCaptureController extends ValueNotifier<CameraCaptureState> {
           )
           .timeout(_uploadTimeout);
 
+      // DIAGNÓSTICO 20260825_0007 (instrumentação temporária, ver
+      // relatório) — assim que a resposta chega, ANTES de qualquer
+      // jsonDecode/parsing: se o bug for algo que quebra durante o parsing
+      // (silenciosamente, por algum caminho ainda não coberto pelos
+      // `catch` abaixo), esta linha aparece no log mesmo assim — prova que
+      // a resposta chegou ao cliente, e com o quê.
+      debugPrint(
+        'DEBUG capturarEEnviar: resposta recebida — statusCode=${response.statusCode}, tamanho_corpo=${response.bodyBytes.length} bytes',
+      );
+
       if (response.statusCode != 200) {
         // >=500: falha do lado do servidor/Gemini — "servidor ocupado" é a
         // leitura correta. 4xx é outra categoria (requisição rejeitada por

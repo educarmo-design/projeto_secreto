@@ -72,6 +72,19 @@ class _ConfirmacaoPratoPageState extends State<ConfirmacaoPratoPage> {
       );
   late final bool _controllerEhProprio = widget.controller == null;
 
+  // DIAGNÓSTICO 20260825_0007 (instrumentação temporária, ver relatório) —
+  // esta tela não tinha `initState` nenhum antes; adicionado só pra provar
+  // se ela chega a ser CONSTRUÍDA de verdade (a State existir não significa
+  // que o widget entrou na árvore visível — `build` abaixo é quem confirma
+  // isso).
+  @override
+  void initState() {
+    super.initState();
+    debugPrint(
+      'DEBUG ConfirmacaoPratoPage.initState: ${widget.extracao.itens.length} itens recebidos',
+    );
+  }
+
   @override
   void dispose() {
     if (_controllerEhProprio) _controller.dispose();
@@ -139,6 +152,8 @@ class _ConfirmacaoPratoPageState extends State<ConfirmacaoPratoPage> {
 
   @override
   Widget build(BuildContext context) {
+    // DIAGNÓSTICO 20260825_0007 (instrumentação temporária, ver relatório).
+    debugPrint('DEBUG ConfirmacaoPratoPage.build: rodando');
     final editandoFavorita = widget.favoritaEmEdicao != null;
     return Scaffold(
       appBar: AppBar(
