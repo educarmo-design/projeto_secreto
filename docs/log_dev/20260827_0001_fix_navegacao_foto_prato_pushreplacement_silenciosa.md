@@ -110,3 +110,30 @@ abaixo). Remover depois de confirmado, numa limpeza futura.
    próprio `Navigator`/`push` (ainda mais fundo, possivelmente fora do
    nosso controle direto). Qualquer um dos dois cenários é uma pista nova
    real, não obtida antes.
+
+## Confirmação real no aparelho (mesmo dia)
+
+Fundador recompilou, testou, e trouxe o log pareado de novo — desta vez a
+sequência completa apareceu, pela primeira vez em toda a investigação:
+
+```
+DEBUG capturarEEnviar: resposta recebida — statusCode=200, tamanho_corpo=3229 bytes
+DEBUG _onStateChanged: prato extraído com 9 itens — chamando push (mounted=true)
+DEBUG _onStateChanged: builder de ConfirmacaoPratoPage executando
+DEBUG ConfirmacaoPratoPage.initState: 9 itens recebidos
+DEBUG ConfirmacaoPratoPage.build: rodando
+DEBUG ConfirmacaoPratoController: construído com 9 itens
+```
+
+Lado do servidor: mesmo padrão saudável de sempre (11,9s, 9 itens casados,
+0 não reconhecidos, HTTP 200) — `execution_id` `9b0a7f69-...`.
+
+**Interpretação honesta**: isto confirma que a correção resolveu ESTA
+reprodução específica — é a primeira vez que o rastro completo apareceu.
+Como o bug sempre foi intermitente (nunca falhava 100% das vezes, nem no
+código antigo), um sucesso isolado não é prova estatística definitiva de
+que a causa desapareceu por completo, só evidência real e positiva.
+Combinado com o pedido do fundador de repetir o teste mais algumas vezes
+antes de dar como encerrado, os `debugPrint` de diagnóstico continuam
+ativos de propósito — remoção fica para uma tarefa de limpeza futura,
+só depois de mais confirmações.
