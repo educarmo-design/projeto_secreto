@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:camera/camera.dart';
@@ -16,9 +17,15 @@ import '../controllers/camera_capture_controller.dart';
 /// capture/upload/zero-storage pipeline exists in exactly one place. Pops
 /// with the extracted [HealthPayloadModel] on success, or `null` if the user
 /// backs out. Exceptions:
-/// - [TipoAparelho.pratoRefeicao] (F10 Passo 3): on success, this screen is
-///   replaced ([Navigator.pushReplacement]) by [ConfirmacaoPratoPage] —
-///   nothing about the capture itself pops back a [HealthPayloadModel].
+/// - [TipoAparelho.pratoRefeicao] (F10 Passo 3): on success, this screen
+///   **stays on the stack** (RELATÓRIO 20260827_0001 — was
+///   [Navigator.pushReplacement] before; a real device bug where the
+///   replacement route silently never built, no exception anywhere, made
+///   `push` the safer choice: any future failure now leaves this screen
+///   visible instead of vanishing) and pushes [ConfirmacaoPratoPage] on top.
+///   Confirming there pops both screens; declining resets the camera so the
+///   user can try again, same pattern as [GravarRefeicaoPage]/
+///   [DescreverRefeicaoPage].
 /// - [TipoAparelho.rotulo] (F10 Passo 2): still shows its server-transcribed
 ///   JSON crude/in-place (see [_buildRawResult]) — no typed confirmation
 ///   screen yet.
@@ -42,26 +49,60 @@ class _CameraCaptureViewState extends State<CameraCaptureView> {
   }
 
   void _onStateChanged() {
+    // RELATÓRIO 20260827_0001 — achado real via log pareado (device +
+    // Edge Function, mesma execução, RELATÓRIO 20260825_0007): `mounted`
+    // já foi confirmado `true` no instante exato desta chamada (log do
+    // device mostrou "chamando pushReplacement (mounted=true)"), então
+    // essa checagem aqui é HIGIENE (mesmo padrão dos outros 2 fluxos de
+    // IA, `gravar_refeicao_page.dart`) — não é a correção presumida da
+    // causa raiz, que continua sem ser 100% confirmada (o log mostrou que
+    // `pushReplacement` foi chamado mas a tela de destino nunca chegou a
+    // rodar `initState` — nenhuma exceção visível). Ainda assim, mounted
+    // pode legitimamente virar `false` ENTRE duas notificações do mesmo
+    // listener (ex.: usuário navegou pra trás enquanto media estava
+    // processando `rótulo`/glicosímetro), e não tinha proteção nenhuma
+    // pra isso antes.
+    if (!mounted) return;
     if (_controller.value.isSuccess) {
-      // F10 Passo 3: prato de comida tem tela de confirmação típada de
-      // verdade agora — troca esta tela de câmera pela Tela de Confirmação
-      // (pushReplacement, não push: a câmera já cumpriu seu papel e libera o
-      // hardware ao ser removida da árvore via dispose()).
       final prato = _controller.value.pratoExtraido;
       if (prato != null) {
-        // DIAGNÓSTICO 20260825_0007 (instrumentação temporária, ver
-        // relatório) — imediatamente antes do pushReplacement: se a tela
-        // "fecha sem erro" acontecer de novo, este log prova se o
-        // listener sequer chegou até aqui (e com quantos itens) antes de
-        // qualquer coisa dar errado na navegação em si.
         debugPrint(
-          'DEBUG _onStateChanged: prato extraído com ${prato.itens.length} itens — chamando pushReplacement (mounted=$mounted)',
+          'DEBUG _onStateChanged: prato extraído com ${prato.itens.length} itens — chamando push (mounted=$mounted)',
         );
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute<void>(
-            builder: (_) => ConfirmacaoPratoPage(extracao: prato),
-          ),
-        );
+        // RELATÓRIO 20260827_0001 — trocado de `pushReplacement` pra
+        // `push`: mantém esta tela de câmera na pilha em vez de
+        // substituí-la imediatamente. Efeito: se a rota nova falhar em
+        // construir por qualquer motivo, esta tela continua visível (em
+        // vez de "sumir" deixando a anterior aparecer sozinha) — qualquer
+        // problema futuro fica mais visível, não menos. Também dá pra
+        // reagir ao retorno (`confirmado`), igual o padrão já usado em
+        // texto/áudio (`gravar_refeicao_page.dart`).
+        Navigator.of(context)
+            .push<bool>(
+              MaterialPageRoute<bool>(
+                builder: (context) {
+                  debugPrint(
+                    'DEBUG _onStateChanged: builder de ConfirmacaoPratoPage executando',
+                  );
+                  return ConfirmacaoPratoPage(extracao: prato);
+                },
+              ),
+            )
+            .then((confirmado) {
+          if (!mounted) return;
+          if (confirmado == true) {
+            Navigator.of(context).pop(_controller.value.extractedData);
+          } else {
+            // Usuário voltou de `ConfirmacaoPratoPage` sem confirmar (back
+            // gesture/botão) — mesmo padrão de `GravarRefeicaoPage`: não
+            // fecha esta tela sozinho, deixa tentar de novo. Reinicializa a
+            // câmera porque o estado atual ainda é `success` (sem isso, o
+            // usuário veria o spinner do `case success` do `_buildBody`
+            // parado pra sempre, sem jeito nenhum de tirar outra foto).
+            _controller.reset();
+            _controller.initializeCamera(tipoAparelho: widget.tipoAparelho);
+          }
+        });
         return;
       }
       // Rótulo nutricional (Adendo v5.1 §B) ainda não tem tela de
@@ -80,6 +121,27 @@ class _CameraCaptureViewState extends State<CameraCaptureView> {
       return;
     }
     setState(() {});
+  }
+
+  // RELATÓRIO 20260827_0001 — `onPressed: state.isBusy ? null : _capturar`
+  // (ver `_buildBody`) descartava o `Future<void>` retornado por
+  // `_capturar` (Dart aceita `Future<void> Function()` onde se espera
+  // `void Function()`, sem avisar) — qualquer exceção assíncrona que
+  // escapasse dela desapareceria sem rastro nenhum, sem passar por nenhum
+  // `catch`. `capturarEEnviar` já captura essencialmente tudo internamente
+  // (nunca relança), então isto é defesa em profundidade — não a causa
+  // raiz confirmada do bug (ver comentário em `_onStateChanged`) — mas
+  // fecha um buraco real que existia: `unawaited()` sozinho só silencia o
+  // lint, não adiciona tratamento nenhum; o `.catchError` abaixo é o que
+  // de fato garante que uma exceção não vira um "Future sem handler"
+  // silencioso.
+  void _iniciarCaptura() {
+    unawaited(
+      _capturar().catchError((Object erro, StackTrace stackTrace) {
+        debugPrint('CameraCaptureView: exceção não tratada em _capturar: $erro');
+        debugPrint(stackTrace.toString());
+      }),
+    );
   }
 
   Future<void> _capturar() async {
@@ -193,7 +255,7 @@ class _CameraCaptureViewState extends State<CameraCaptureView> {
               child: Padding(
                 padding: const EdgeInsets.only(bottom: 32),
                 child: FilledButton.icon(
-                  onPressed: state.isBusy ? null : _capturar,
+                  onPressed: state.isBusy ? null : _iniciarCaptura,
                   icon: const Icon(Icons.camera),
                   label: Text(i18n.tr('dashboard.camera_take_photo_button')),
                 ),
@@ -207,9 +269,12 @@ class _CameraCaptureViewState extends State<CameraCaptureView> {
         if (resultado != null) {
           return _buildRawResult(resultado);
         }
-        // Demais tipos: `_onStateChanged` já fez `Navigator.pop` antes deste
-        // frame renderizar de fato — este spinner só cobre o instante entre
-        // os dois.
+        // Glicosímetro/balança/pressão: `_onStateChanged` já fez
+        // `Navigator.pop` antes deste frame renderizar de fato — este
+        // spinner só cobre o instante entre os dois. Prato de comida
+        // (RELATÓRIO 20260827_0001: `push`, não mais `pop`/`pushReplacement`)
+        // também passa por aqui brevemente, mas fica coberto pela tela de
+        // confirmação empilhada por cima — nunca fica visível de verdade.
         return const Center(
           child: CircularProgressIndicator(color: Colors.white),
         );
