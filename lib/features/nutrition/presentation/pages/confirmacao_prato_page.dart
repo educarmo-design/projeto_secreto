@@ -248,7 +248,7 @@ class _ConfirmacaoPratoPageState extends State<ConfirmacaoPratoPage> {
             style: Theme.of(context).textTheme.titleMedium,
           ),
           for (final item in state.itensNaoReconhecidos)
-            _ItemNaoReconhecidoTile(item: item),
+            _ItemNaoReconhecidoTile(item: item, controller: _controller),
         ],
       ],
     );
@@ -331,12 +331,41 @@ class _ItemPratoTile extends StatefulWidget {
 }
 
 class _ItemPratoTileState extends State<_ItemPratoTile> {
+  // RELATÓRIO 20260830_0001 (N14, Regra 16 — anti-hardcode): valor inicial
+  // do campo de peso quando NEM o usuário editou antes NEM o servidor
+  // mandou um `pesoTipicoGramas` (alimento sem categoria/medida padrão
+  // nenhuma cadastrada) — é só o texto de largada de um campo que o
+  // usuário sempre edita antes de salvar, nunca um valor usado em cálculo
+  // sem confirmação (diferente do que `encontrarMedida` fazia antes do
+  // N27). Não fica valendo a pena mover pra tabela/config: não muda
+  // comportamento algum, é só "não deixar o campo em branco".
+  static const double _pesoInicialQuandoDesconhecidoGramas = 100;
+
+  // RELATÓRIO 20260830_0001 (N14, Regra 16): tamanhos rápidos oferecidos
+  // pra líquidos (botões da categoria 'liquido_frio'/'liquido_quente') —
+  // achados nesta auditoria como "faixa ainda embutida em código".
+  // DIFERENTES do que o N27 corrigiu: aqui o usuário ESCOLHE ativamente um
+  // tamanho visível (nunca é aplicado sem toque), então não é o mesmo tipo
+  // de risco de "arbitrar em silêncio" que motivou remover o fallback de
+  // `encontrarMedida`. Extraídos pra constantes nomeadas (uma fonte só,
+  // documentada) em vez de deixar espalhado; NÃO movidos para uma tabela
+  // no banco nesta tarefa — decisão registrada no relatório de dev-log
+  // (custo de uma migration+tela admin nova não se paga só por estes 5
+  // valores; reavaliar se a lista de tamanhos precisar crescer/mudar por
+  // alimento).
+  static const double _liquidoFrioPequenoMl = 200;
+  static const double _liquidoFrioMedioMl = 500;
+  static const double _liquidoFrioGrandeMl = 700;
+  static const double _liquidoQuenteCafeMl = 50;
+  static const double _liquidoQuenteChaMl = 200;
+
   String _formatarQuantidade(double quantidade) =>
       quantidade % 1 == 0 ? quantidade.toStringAsFixed(0) : quantidade.toStringAsFixed(1);
 
   void _mostrarDialogoEditarPeso(BuildContext context, ItemPratoEditavel item) {
     final controller = TextEditingController(
-      text: (item.pesoPersonalizadoGramas ?? item.original.pesoTipicoGramas ?? 100).toStringAsFixed(0),
+      text: (item.pesoPersonalizadoGramas ?? item.original.pesoTipicoGramas ?? _pesoInicialQuandoDesconhecidoGramas)
+          .toStringAsFixed(0),
     );
 
     showDialog(
@@ -369,7 +398,7 @@ class _ItemPratoTileState extends State<_ItemPratoTile> {
           ),
           FilledButton(
             onPressed: () {
-              final novoGramas = double.tryParse(controller.text) ?? 100;
+              final novoGramas = double.tryParse(controller.text) ?? _pesoInicialQuandoDesconhecidoGramas;
               widget.controller.editarPeso(item.chave, novoGramas);
               Navigator.of(context).pop();
             },
@@ -424,9 +453,9 @@ class _ItemPratoTileState extends State<_ItemPratoTile> {
             spacing: 8,
             runSpacing: 8,
             children: [
-              _botaoTamanho(context, item, 'Pequeno', 200),
-              _botaoTamanho(context, item, 'Médio', 500),
-              _botaoTamanho(context, item, 'Grande', 700),
+              _botaoTamanho(context, item, 'Pequeno', _liquidoFrioPequenoMl),
+              _botaoTamanho(context, item, 'Médio', _liquidoFrioMedioMl),
+              _botaoTamanho(context, item, 'Grande', _liquidoFrioGrandeMl),
               _botaoEditarCustomizado(context, item, 'ml'),
             ],
           ),
@@ -461,8 +490,8 @@ class _ItemPratoTileState extends State<_ItemPratoTile> {
             spacing: 8,
             runSpacing: 8,
             children: [
-              _botaoTamanho(context, item, 'Café (50ml)', 50),
-              _botaoTamanho(context, item, 'Chá (200ml)', 200),
+              _botaoTamanho(context, item, 'Café (50ml)', _liquidoQuenteCafeMl),
+              _botaoTamanho(context, item, 'Chá (200ml)', _liquidoQuenteChaMl),
               _botaoEditarCustomizado(context, item, 'ml'),
             ],
           ),
@@ -593,14 +622,14 @@ class _ItemPratoTileState extends State<_ItemPratoTile> {
   }
 
   /// Botão rápido de tamanho (para líquidos)
-  Widget _botaoTamanho(BuildContext context, ItemPratoEditavel item, String label, int qtd) {
-    final isCustomizado = item.pesoPersonalizadoGramas == qtd.toDouble();
+  Widget _botaoTamanho(BuildContext context, ItemPratoEditavel item, String label, double qtd) {
+    final isCustomizado = item.pesoPersonalizadoGramas == qtd;
     return FilledButton.tonal(
       style: FilledButton.styleFrom(
         backgroundColor: isCustomizado ? Colors.blue.shade200 : Colors.blue.shade100,
       ),
       onPressed: () {
-        widget.controller.editarPeso(item.chave, qtd.toDouble());
+        widget.controller.editarPeso(item.chave, qtd);
       },
       child: Text(
         label,
@@ -740,10 +769,98 @@ class _ItemPratoTileState extends State<_ItemPratoTile> {
   }
 }
 
+/// RELATÓRIO 20260830_0001 (N27, Regra 23 — "falhar visível, nunca
+/// arbitrar"): antes desta tarefa, um item não reconhecido era só
+/// informativo — a IA não sabia identificar OU calcular, e a tela apenas
+/// avisava sem dar nenhum jeito de resolver. Agora, quando o servidor já
+/// casou o ALIMENTO e só a medida não bateu ([item.alimentoCasado] não
+/// nulo), o item vira interativo: o usuário escolhe uma medida cadastrada
+/// de verdade ou digita o peso, e [ConfirmacaoPratoController.
+/// resolverComMedidaCadastrada]/[resolverComPesoManual] promove ele pra
+/// lista normal — sem bloquear o registro do resto do prato. Quando o
+/// alimento em si não foi achado ([item.alimentoCasado] nulo), continua só
+/// informativo (resolver exigiria busca manual de alimento, fora do escopo
+/// desta tarefa — ver RELATÓRIO 20260830_0001).
 class _ItemNaoReconhecidoTile extends StatelessWidget {
-  const _ItemNaoReconhecidoTile({required this.item});
+  const _ItemNaoReconhecidoTile({required this.item, required this.controller});
 
   final ItemPratoNaoReconhecidoModel item;
+  final ConfirmacaoPratoController controller;
+
+  bool get _podeResolverManualmente => item.alimentoCasado != null;
+
+  Future<void> _mostrarDialogoResolver(BuildContext context) async {
+    final medidas = item.medidasDisponiveis ?? const [];
+    final pesoController = TextEditingController();
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(i18n.tr('confirmacao_prato.resolver_item_title')),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                i18n.tr('confirmacao_prato.resolver_item_descricao', params: {
+                  'alimento': item.alimentoCasado ?? '',
+                  'medida': item.medida,
+                }),
+              ),
+              if (medidas.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Text(
+                  i18n.tr('confirmacao_prato.medidas_disponiveis'),
+                  style: Theme.of(context).textTheme.labelMedium,
+                ),
+                for (final medida in medidas)
+                  ListTile(
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    title: Text('${medida.medida} (${medida.gramas.toStringAsFixed(0)}g)'),
+                    onTap: () {
+                      controller.resolverComMedidaCadastrada(item, medida);
+                      Navigator.of(dialogContext).pop();
+                    },
+                  ),
+              ],
+              const SizedBox(height: 12),
+              Text(
+                i18n.tr('confirmacao_prato.ou_peso_manual'),
+                style: Theme.of(context).textTheme.labelMedium,
+              ),
+              const SizedBox(height: 4),
+              TextField(
+                controller: pesoController,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                decoration: InputDecoration(
+                  labelText: i18n.tr('confirmacao_prato.peso_gramas'),
+                  suffix: const Text('g'),
+                ),
+                autofocus: medidas.isEmpty,
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: Text(i18n.tr('common.cancel')),
+          ),
+          FilledButton(
+            onPressed: () {
+              final gramas = double.tryParse(pesoController.text);
+              if (gramas == null || gramas <= 0) return;
+              controller.resolverComPesoManual(item, gramas);
+              Navigator.of(dialogContext).pop();
+            },
+            child: Text(i18n.tr('confirmacao_prato.usar_peso_manual')),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -752,6 +869,12 @@ class _ItemNaoReconhecidoTile extends StatelessWidget {
       leading: const Icon(Icons.help_outline),
       title: Text('${item.nome} (${item.medida})'),
       subtitle: Text(i18n.tr('confirmacao_prato.motivo.${item.motivo}')),
+      trailing: _podeResolverManualmente
+          ? TextButton(
+              onPressed: () => _mostrarDialogoResolver(context),
+              child: Text(i18n.tr('confirmacao_prato.resolver_button')),
+            )
+          : null,
     );
   }
 }
@@ -767,14 +890,30 @@ class _TotaisBar extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       color: Theme.of(context).colorScheme.surfaceContainerHighest,
-      child: Text(
-        i18n.tr('confirmacao_prato.totais', params: {
-          'calorias': state.totalCalorias.toStringAsFixed(0),
-          'proteinas': state.totalProteinasG.toStringAsFixed(1),
-          'carboidratos': state.totalCarboidratosG.toStringAsFixed(1),
-          'gorduras': state.totalGordurasG.toStringAsFixed(1),
-        }),
-        style: Theme.of(context).textTheme.titleSmall,
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              i18n.tr('confirmacao_prato.totais', params: {
+                'calorias': state.totalCalorias.toStringAsFixed(0),
+                'proteinas': state.totalProteinasG.toStringAsFixed(1),
+                'carboidratos': state.totalCarboidratosG.toStringAsFixed(1),
+                'gorduras': state.totalGordurasG.toStringAsFixed(1),
+              }),
+              style: Theme.of(context).textTheme.titleSmall,
+            ),
+          ),
+          // RELATÓRIO 20260830_0001 (N27, ACEITE): o total precisa avisar
+          // visualmente quando inclui algum item estimado (peso
+          // digitado/escolhido manualmente ou categorizado) — nunca
+          // apresentar um número parcialmente inventado como se fosse
+          // 100% medição.
+          if (state.incluiEstimativa)
+            Tooltip(
+              message: i18n.tr('confirmacao_prato.total_inclui_estimativa'),
+              child: Icon(Icons.warning_amber_rounded, size: 18, color: Colors.amber.shade800),
+            ),
+        ],
       ),
     );
   }

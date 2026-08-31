@@ -588,6 +588,13 @@
     "tipo_refeicao_almoco": "Almoço",
     "tipo_refeicao_lanche": "Lanche",
     "tipo_refeicao_jantar": "Jantar",
+    "resolver_button": "Resolver",
+    "resolver_item_title": "Qual foi a medida?",
+    "resolver_item_descricao": "\"{{alimento}}\" não tem \"{{medida}}\" cadastrada. Escolha uma medida real ou informe o peso.",
+    "medidas_disponiveis": "Medidas cadastradas para este alimento:",
+    "ou_peso_manual": "Ou informe o peso direto:",
+    "usar_peso_manual": "Usar este peso",
+    "total_inclui_estimativa": "Este total inclui pelo menos um item com peso estimado, não medido",
     "motivo": {
       "alimento_nao_encontrado": "Alimento não encontrado no catálogo",
       "medida_nao_encontrada": "Medida não cadastrada para este alimento"

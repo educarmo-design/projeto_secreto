@@ -579,6 +579,13 @@
     "tipo_refeicao_almoco": "Lunch",
     "tipo_refeicao_lanche": "Snack",
     "tipo_refeicao_jantar": "Dinner",
+    "resolver_button": "Resolve",
+    "resolver_item_title": "Which measure was it?",
+    "resolver_item_descricao": "\"{{alimento}}\" doesn't have \"{{medida}}\" registered. Pick a real measure or enter the weight.",
+    "medidas_disponiveis": "Measures registered for this food:",
+    "ou_peso_manual": "Or enter the weight directly:",
+    "usar_peso_manual": "Use this weight",
+    "total_inclui_estimativa": "This total includes at least one item with an estimated (not measured) weight",
     "motivo": {
       "alimento_nao_encontrado": "Food not found in the catalog",
       "medida_nao_encontrada": "No home measure registered for this food"

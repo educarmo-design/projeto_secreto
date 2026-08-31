@@ -118,8 +118,15 @@ class ConfirmacaoPratoState {
     return itens.map((item) => item.original.confianca).reduce((a, b) => a < b ? a : b);
   }
 
+  /// True quando algum item confirmado carrega uma estimativa (peso
+  /// digitado/escolhido manualmente ou categorizado, nunca uma pesagem
+  /// real) — RELATÓRIO 20260830_0001 (N27): o total da refeição precisa
+  /// avisar visualmente quando ele inclui números que não são medição.
+  bool get incluiEstimativa => itens.any((item) => item.original.quantidadeEstimada ?? false);
+
   ConfirmacaoPratoState copyWith({
     List<ItemPratoEditavel>? itens,
+    List<ItemPratoNaoReconhecidoModel>? itensNaoReconhecidos,
     bool? salvando,
     String? erroSalvar,
     bool limparErroSalvar = false,
@@ -127,7 +134,7 @@ class ConfirmacaoPratoState {
   }) {
     return ConfirmacaoPratoState(
       itens: itens ?? this.itens,
-      itensNaoReconhecidos: itensNaoReconhecidos,
+      itensNaoReconhecidos: itensNaoReconhecidos ?? this.itensNaoReconhecidos,
       possivelFotoDeTela: possivelFotoDeTela,
       salvando: salvando ?? this.salvando,
       erroSalvar: limparErroSalvar ? null : (erroSalvar ?? this.erroSalvar),
@@ -172,6 +179,12 @@ class ConfirmacaoPratoController extends ValueNotifier<ConfirmacaoPratoState> {
   }
 
   final ColetaDiariaRepository _repositorio;
+
+  /// Próxima [ItemPratoEditavel.chave] livre — os itens iniciais usam
+  /// `0..extracao.itens.length-1`; itens resolvidos manualmente (ver
+  /// [resolverComMedidaCadastrada]/[resolverComPesoManual]) continuam a
+  /// partir daí, nunca colidindo com uma chave existente.
+  late int _proximaChave = value.itens.length;
 
   /// Sobrescreve o destino de [confirmar] — por padrão grava uma refeição
   /// nova em `coleta_diaria` via [ColetaDiariaRepository.gravarRefeicao].
@@ -221,6 +234,70 @@ class ConfirmacaoPratoController extends ValueNotifier<ConfirmacaoPratoState> {
         if (item.chave != chave) return item;
         return item.comPesoPersonalizado(novoGramas);
       }).toList(),
+    );
+  }
+
+  /// RELATÓRIO 20260830_0001 (N27, Regra 23 — "falhar visível, nunca
+  /// arbitrar"): promove um item de [ConfirmacaoPratoState.itensNaoReconhecidos]
+  /// (`motivo: 'medida_nao_encontrada'`, alimento já casado pelo servidor)
+  /// para a lista editável, usando uma das [ItemPratoNaoReconhecidoModel.
+  /// medidasDisponiveis] — a resolução é sempre uma escolha explícita do
+  /// usuário, nunca um chute do app. Marcado como estimativa (mesmo padrão
+  /// amber já usado pelos outros itens estimados) porque é o usuário
+  /// confirmando manualmente, não uma pesagem real. Não bloqueia o resto do
+  /// prato: os outros itens continuam normalmente em [itens].
+  void resolverComMedidaCadastrada(
+    ItemPratoNaoReconhecidoModel item,
+    MedidaCaseiraModel medidaEscolhida,
+  ) =>
+      _promoverItemResolvido(item, gramas: medidaEscolhida.gramas, medidaTexto: medidaEscolhida.medida);
+
+  /// Mesma ideia de [resolverComMedidaCadastrada], mas para quando nenhuma
+  /// medida cadastrada serve (ou o alimento não tem nenhuma) e o usuário
+  /// digita o peso direto em gramas.
+  void resolverComPesoManual(ItemPratoNaoReconhecidoModel item, double gramas) {
+    if (gramas <= 0) return; // Mesma validação de editarPeso: peso deve ser positivo.
+    _promoverItemResolvido(item, gramas: gramas, medidaTexto: '${gramas.toStringAsFixed(0)}g');
+  }
+
+  void _promoverItemResolvido(
+    ItemPratoNaoReconhecidoModel item, {
+    required double gramas,
+    required String medidaTexto,
+  }) {
+    final caloriasKcal100g = item.caloriasKcal100g ?? 0;
+    final proteinasG100g = item.proteinasG100g ?? 0;
+    final carboidratosG100g = item.carboidratosG100g ?? 0;
+    final gordurasG100g = item.gordurasG100g ?? 0;
+
+    final modelo = ItemPratoExtraidoModel(
+      nomeCasado: item.alimentoCasado ?? item.nome,
+      nomeIdentificado: item.nome,
+      medida: medidaTexto,
+      quantidadeOriginal: 1,
+      gramasEstimados: gramas,
+      calorias: caloriasKcal100g / 100 * gramas,
+      proteinasG: proteinasG100g / 100 * gramas,
+      carboidratosG: carboidratosG100g / 100 * gramas,
+      gordurasG: gordurasG100g / 100 * gramas,
+      // `ItemPratoNaoReconhecidoModel` não carrega confiança (o wire nunca
+      // mandou — nada calculado pra ter confiança de cálculo, só de
+      // identificação, e essa não sobrevive à resolução manual). 1.0: o
+      // PESO agora é uma escolha explícita do usuário, não um chute da IA
+      // — não faz sentido este item derrubar `confiancaMinima` da refeição.
+      confianca: 1.0,
+      quantidadeEstimada: true,
+      pesoTipicoGramas: gramas.round(),
+    );
+
+    value = value.copyWith(
+      itens: [
+        ...value.itens,
+        ItemPratoEditavel(chave: _proximaChave++, original: modelo, quantidadeAtual: 1),
+      ],
+      // Identidade de objeto basta pra achar o item certo: a lista nunca é
+      // reconstruída com cópias — vem direto da extração original.
+      itensNaoReconhecidos: value.itensNaoReconhecidos.where((i) => i != item).toList(),
     );
   }
 

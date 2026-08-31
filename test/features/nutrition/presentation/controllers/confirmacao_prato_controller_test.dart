@@ -409,6 +409,107 @@ void main() {
       expect(fake.chamadas, hasLength(1));
     });
   });
+
+  // RELATÓRIO 20260830_0001 (N27, Regra 23 — "falhar visível, nunca
+  // arbitrar"): o servidor não arbitra mais uma medida quando não casa —
+  // devolve o item não resolvido, com o alimento já casado (macros +
+  // medidas cadastradas) no contrato. Estes testes cobrem a resolução
+  // MANUAL, feita pelo usuário na tela — nunca automática.
+  group('resolverComMedidaCadastrada / resolverComPesoManual (N27)', () {
+    const naoReconhecido = ItemPratoNaoReconhecidoModel(
+      nome: 'feijaozinho',
+      medida: 'xícara',
+      motivo: 'medida_nao_encontrada',
+      alimentoCasado: 'Feijão, carioca, cozido',
+      caloriasKcal100g: 76,
+      proteinasG100g: 4.8,
+      carboidratosG100g: 13.6,
+      gordurasG100g: 0.5,
+      medidasDisponiveis: [MedidaCaseiraModel(medida: 'concha média', gramas: 80)],
+    );
+
+    test('resolverComMedidaCadastrada promove o item pra itens, com os macros calculados', () {
+      final controller = ConfirmacaoPratoController(
+        extracaoCom(itens: const [], itensNaoReconhecidos: [naoReconhecido]),
+      );
+
+      controller.resolverComMedidaCadastrada(naoReconhecido, naoReconhecido.medidasDisponiveis!.single);
+
+      expect(controller.value.itensNaoReconhecidos, isEmpty);
+      expect(controller.value.itens, hasLength(1));
+      final resolvido = controller.value.itens.single;
+      expect(resolvido.original.nomeCasado, 'Feijão, carioca, cozido');
+      expect(resolvido.original.medida, 'concha média');
+      expect(resolvido.gramasEstimados, 80.0);
+      expect(resolvido.calorias, closeTo(60.8, 0.001)); // 76/100 * 80
+      expect(resolvido.original.quantidadeEstimada, true);
+      expect(controller.value.incluiEstimativa, true);
+    });
+
+    test('resolverComPesoManual promove o item pra itens usando o peso digitado', () {
+      final controller = ConfirmacaoPratoController(
+        extracaoCom(itens: const [], itensNaoReconhecidos: [naoReconhecido]),
+      );
+
+      controller.resolverComPesoManual(naoReconhecido, 150);
+
+      expect(controller.value.itensNaoReconhecidos, isEmpty);
+      final resolvido = controller.value.itens.single;
+      expect(resolvido.gramasEstimados, 150.0);
+      expect(resolvido.calorias, closeTo(114.0, 0.001)); // 76/100 * 150
+    });
+
+    test('resolverComPesoManual com peso <= 0 é ignorado (mesma validação de editarPeso)', () {
+      final controller = ConfirmacaoPratoController(
+        extracaoCom(itens: const [], itensNaoReconhecidos: [naoReconhecido]),
+      );
+
+      controller.resolverComPesoManual(naoReconhecido, 0);
+      controller.resolverComPesoManual(naoReconhecido, -10);
+
+      expect(controller.value.itens, isEmpty);
+      expect(controller.value.itensNaoReconhecidos, hasLength(1));
+    });
+
+    test('resolver um item não reconhecido não afeta os itens já confirmados nem outros não reconhecidos', () {
+      const outroNaoReconhecido = ItemPratoNaoReconhecidoModel(
+        nome: 'sushi',
+        medida: 'peça',
+        motivo: 'alimento_nao_encontrado',
+      );
+      final controller = ConfirmacaoPratoController(
+        extracaoCom(
+          itens: [item(nomeCasado: 'Arroz', calorias: 100)],
+          itensNaoReconhecidos: [naoReconhecido, outroNaoReconhecido],
+        ),
+      );
+
+      controller.resolverComPesoManual(naoReconhecido, 80);
+
+      expect(controller.value.itens, hasLength(2)); // Arroz + o recém-resolvido
+      expect(controller.value.itens.first.original.nomeCasado, 'Arroz');
+      expect(controller.value.itens.first.calorias, 100.0); // intocado
+      // O item SEM alimento casado continua não resolvido — resolver esse
+      // caso exigiria busca manual de alimento, fora do escopo desta tarefa.
+      expect(controller.value.itensNaoReconhecidos, [outroNaoReconhecido]);
+    });
+
+    test('confirmar depois de resolver manualmente grava o item resolvido junto', () async {
+      final fake = _FakeColetaDiariaRepository(resultado: const ColetaDiariaResult(success: true));
+      final controller = ConfirmacaoPratoController(
+        extracaoCom(itens: const [], itensNaoReconhecidos: [naoReconhecido]),
+        repositorio: fake,
+      );
+
+      controller.resolverComPesoManual(naoReconhecido, 80);
+      final sucesso = await controller.confirmar();
+
+      expect(sucesso, true);
+      final itensGravados = fake.chamadas.single.payload['itens'] as List;
+      expect(itensGravados, hasLength(1));
+      expect((itensGravados.single as Map)['nome'], 'Feijão, carioca, cozido');
+    });
+  });
 }
 
 /// Fake em memória — nunca toca `Supabase.instance` (mesmo espírito do

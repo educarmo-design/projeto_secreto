@@ -97,11 +97,30 @@ class ItemPratoExtraidoModel {
   }
 }
 
+/// Uma medida caseira cadastrada para um alimento (espelha
+/// `MedidaCaseiraCatalogo` do servidor) — usada só dentro de
+/// [ItemPratoNaoReconhecidoModel.medidasDisponiveis], para o usuário
+/// escolher uma medida real em vez do app arbitrar uma.
+@immutable
+class MedidaCaseiraModel {
+  final String medida;
+  final double gramas;
+
+  const MedidaCaseiraModel({required this.medida, required this.gramas});
+
+  factory MedidaCaseiraModel.fromJson(Map<String, dynamic> json) {
+    return MedidaCaseiraModel(
+      medida: _requireString(json, 'medida'),
+      gramas: _requireNum(json, 'gramas').toDouble(),
+    );
+  }
+}
+
 /// Um item que o Gemini identificou na foto mas que o backend NÃO
 /// conseguiu calcular — fora do catálogo (mesmo após busca semântica) ou
 /// sem medida caseira cadastrada. Espelha `ItemPratoNaoReconhecido` do lado
-/// servidor; o wire só manda nome/medida/motivo (não quantidade/confiança
-/// — sem número calculado, não há o que exibir além disso).
+/// servidor. Nunca é arbitrado (RELATÓRIO 20260830_0001, N27/Regra 23) —
+/// fica visível para o usuário resolver manualmente.
 @immutable
 class ItemPratoNaoReconhecidoModel {
   final String nome;
@@ -111,17 +130,47 @@ class ItemPratoNaoReconhecidoModel {
   /// `confirmacao_prato.motivo.*` no i18n para o texto exibido.
   final String motivo;
 
+  /// Presentes só quando `motivo == 'medida_nao_encontrada'` — o alimento
+  /// JÁ foi casado no servidor (só a medida que não bateu), então o
+  /// contrato manda o suficiente pra tela resolver manualmente SEM um novo
+  /// round-trip: o nome canônico casado, os macros por 100g, e as medidas
+  /// que este alimento específico tem cadastradas. Ausentes quando
+  /// `motivo == 'alimento_nao_encontrado'` (não há alimento casado nenhum
+  /// para descrever — resolver esse caso exigiria busca manual de
+  /// alimento, fora do escopo desta tarefa).
+  final String? alimentoCasado;
+  final double? caloriasKcal100g;
+  final double? proteinasG100g;
+  final double? carboidratosG100g;
+  final double? gordurasG100g;
+  final List<MedidaCaseiraModel>? medidasDisponiveis;
+
   const ItemPratoNaoReconhecidoModel({
     required this.nome,
     required this.medida,
     required this.motivo,
+    this.alimentoCasado,
+    this.caloriasKcal100g,
+    this.proteinasG100g,
+    this.carboidratosG100g,
+    this.gordurasG100g,
+    this.medidasDisponiveis,
   });
 
   factory ItemPratoNaoReconhecidoModel.fromJson(Map<String, dynamic> json) {
+    final medidasBrutas = json['medidas_disponiveis'];
     return ItemPratoNaoReconhecidoModel(
       nome: _requireString(json, 'nome'),
       medida: _requireString(json, 'medida'),
       motivo: _requireString(json, 'motivo'),
+      alimentoCasado: json['alimento_casado'] as String?,
+      caloriasKcal100g: (json['calorias_kcal_100g'] as num?)?.toDouble(),
+      proteinasG100g: (json['proteinas_g_100g'] as num?)?.toDouble(),
+      carboidratosG100g: (json['carboidratos_g_100g'] as num?)?.toDouble(),
+      gordurasG100g: (json['gorduras_g_100g'] as num?)?.toDouble(),
+      medidasDisponiveis: medidasBrutas is List
+          ? medidasBrutas.map((m) => MedidaCaseiraModel.fromJson(_requireMap(m))).toList()
+          : null,
     );
   }
 }
