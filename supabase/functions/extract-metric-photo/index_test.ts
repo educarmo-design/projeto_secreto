@@ -546,14 +546,17 @@ Deno.test('encontrarMedida: medida é escopada ao alimento (mesma "colher" pesa 
   const arroz = CATALOGO_TESTE[0];
   const feijao = CATALOGO_TESTE[1];
   assertEquals(encontrarMedida(arroz, 'colher de sopa')?.gramas, 25);
-  // feijão não tem "colher de sopa" cadastrada — cai no fallback do F46
-  // ("FIX 31/jul": melhor usar a medida que o alimento TEM do que deixar
-  // cair em não reconhecido), mas o fallback continua escopado ao PRÓPRIO
-  // feijão (sua única medida, concha média = 80g) — nunca pega emprestado
-  // o peso da colher de sopa do arroz (25g).
-  const medidaFeijao = encontrarMedida(feijao, 'colher de sopa');
-  assertEquals(medidaFeijao?.medida, 'concha média');
-  assertEquals(medidaFeijao?.gramas, 80);
+  // RELATÓRIO 20260830_0001 (N27, Regra 23 — "falhar visível, nunca
+  // arbitrar"): feijão não tem "colher de sopa" cadastrada. Até esta
+  // correção (F46, "FIX 31/jul") a função caía no fallback pra "primeira
+  // medida disponível" (concha média) — teste ANTIGO validava esse chute
+  // como comportamento correto (o próprio anti-padrão que a Regra 24
+  // descreve: teste documentando bug em vez de behavior correto).
+  // Comportamento correto: nunca pega emprestado o peso da colher de sopa
+  // do arroz (25g), e nem arbitra a única medida que o feijão TEM — devolve
+  // null, deixando quem chama (`calcularPrato`) marcar o item como não
+  // resolvido.
+  assertEquals(encontrarMedida(feijao, 'colher de sopa'), null);
 });
 
 // ============================================================================
@@ -637,25 +640,40 @@ Deno.test('calcularPrato: alimento não encontrado vai para itensNaoReconhecidos
   assertEquals(r.totais.calorias, 0);
 });
 
-Deno.test('calcularPrato: medida não cadastrada mas o alimento tem outra -> resolve pelo fallback (F46), não vira não-reconhecido', () => {
+Deno.test('calcularPrato: medida não cadastrada -> item fica não resolvido, carregando o alimento já casado (N27, Regra 23)', () => {
   const r = calcularPrato(
     [itemExtraido({ nome: 'feijao', medida: 'xícara' })], // feijão só tem "concha média" no catálogo de teste
     CATALOGO_TESTE,
   );
-  // F46 ("FIX 31/jul", `encontrarMedida`): melhor usar a única medida
-  // cadastrada do alimento do que descartar o item inteiro — "xícara" cai
-  // no fallback pra "concha média" (a única medida do feijão), não vira
-  // itensNaoReconhecidos.
-  assertEquals(r.itensNaoReconhecidos.length, 0);
-  assertEquals(r.itens.length, 1);
-  // `medida` no item calculado é o texto ORIGINAL pedido ("xícara") — só
-  // o peso (`gramasEstimados`) reflete a medida real usada no fallback
-  // (concha média, a única cadastrada do feijão).
-  assertEquals(r.itens[0].medida, 'xícara');
-  assertEquals(r.itens[0].gramasEstimados, 160); // quantidade padrão de itemExtraido() é 2: 2 conchas médias = 160g
+  // RELATÓRIO 20260830_0001 (N27): "xícara" não bate com a única medida
+  // cadastrada do feijão ("concha média"). Antes desta correção (F46,
+  // "FIX 31/jul") o item caía no fallback e virava um item CALCULADO com
+  // um peso que o usuário nunca confirmou — teste antigo validava esse
+  // comportamento como certo. Comportamento correto: fica NÃO RESOLVIDO,
+  // sem inventar peso nenhum.
+  assertEquals(r.itens.length, 0);
+  assertEquals(r.itensNaoReconhecidos.length, 1);
+  const naoReconhecido = r.itensNaoReconhecidos[0];
+  assertEquals(naoReconhecido.motivo, 'medida_nao_encontrada');
+  // Preserva o texto ORIGINAL pedido (para exibição) — nunca troca por
+  // uma medida que o usuário não pediu.
+  assertEquals(naoReconhecido.medida, 'xícara');
+  // O ALIMENTO já foi casado (só a medida que faltou) — o contrato carrega
+  // macros + as medidas que o feijão REALMENTE tem, para o Flutter
+  // oferecer escolha manual sem um novo round-trip ao servidor.
+  assertEquals(naoReconhecido.alimentoCasado, 'Feijão, carioca, cozido');
+  assertEquals(naoReconhecido.caloriasKcal100g, 76);
+  assertEquals(naoReconhecido.medidasDisponiveis?.length, 1);
+  assertEquals(naoReconhecido.medidasDisponiveis?.[0].medida, 'concha média');
+  assertEquals(naoReconhecido.medidasDisponiveis?.[0].gramas, 80);
+  // Item não resolvido não contamina o total da refeição.
+  assertEquals(r.totais.calorias, 0);
 });
 
-Deno.test('calcularPrato: medida vazia (único caso em que encontrarMedida ainda retorna null) vai para itensNaoReconhecidos', () => {
+Deno.test('calcularPrato: medida vazia vai para itensNaoReconhecidos', () => {
+  // Nota (RELATÓRIO 20260830_0001, N27): esta já não é a única forma de
+  // `encontrarMedida` devolver null (ver teste acima) — qualquer medida
+  // que não case, vazia ou não, agora vira item não resolvido.
   const r = calcularPrato([itemExtraido({ nome: 'feijao', medida: '' })], CATALOGO_TESTE);
   assertEquals(r.itens.length, 0);
   assertEquals(r.itensNaoReconhecidos[0].motivo, 'medida_nao_encontrada');
@@ -766,7 +784,7 @@ Deno.test('resolverComBuscaSemantica: id devolvido pela RPC não existe mais no 
   assertEquals(r.aindaNaoReconhecidos.length, 1);
 });
 
-Deno.test('resolverComBuscaSemantica: match acha o alimento e a medida sem cadastro cai no fallback (F46), não fica não-reconhecido', async () => {
+Deno.test('resolverComBuscaSemantica: match acha o alimento mas a medida não casa -> fica não resolvido, não arbitra (N27)', async () => {
   const feijaoMatch: BuscaSemanticaLike = {
     buscar: () => Promise.resolve([{ id: 'feijao-id', similarity: 0.77 }]),
   };
@@ -776,16 +794,26 @@ Deno.test('resolverComBuscaSemantica: match acha o alimento e a medida sem cadas
     chamadorEmbeddingFixo(),
     feijaoMatch,
   );
-  assertEquals(r.aindaNaoReconhecidos.length, 0);
-  assertEquals(r.resolvidos.length, 1);
-  assertEquals(r.resolvidos[0].alimentoCasado, 'Feijão, carioca, cozido');
-  // `medida` é o texto ORIGINAL pedido ("xícara") — só o peso reflete a
-  // medida real usada no fallback (concha média).
-  assertEquals(r.resolvidos[0].medida, 'xícara');
-  assertEquals(r.resolvidos[0].gramasEstimados, 160); // quantidade padrão de naoReconhecido() é 2: 2 conchas médias = 160g
+  // RELATÓRIO 20260830_0001 (N27): antes desta correção (F46, "FIX
+  // 31/jul") a busca semântica achava o feijão e a falta de "xícara"
+  // cadastrada caía no fallback, virando um item CALCULADO. Comportamento
+  // correto: fica não resolvido — o alimento FOI achado (por isso o
+  // `motivo` muda de 'alimento_nao_encontrado', como o item entrou, para
+  // 'medida_nao_encontrada'), carregando o contexto pra resolução manual.
+  assertEquals(r.resolvidos.length, 0);
+  assertEquals(r.aindaNaoReconhecidos.length, 1);
+  const naoReconhecido2 = r.aindaNaoReconhecidos[0];
+  assertEquals(naoReconhecido2.motivo, 'medida_nao_encontrada');
+  assertEquals(naoReconhecido2.medida, 'xícara');
+  assertEquals(naoReconhecido2.alimentoCasado, 'Feijão, carioca, cozido');
+  assertEquals(naoReconhecido2.medidasDisponiveis?.length, 1);
+  assertEquals(naoReconhecido2.medidasDisponiveis?.[0].medida, 'concha média');
 });
 
-Deno.test('resolverComBuscaSemantica: medida vazia (guard defensivo, exigido pelo TypeScript) -> aindaNaoReconhecidos', async () => {
+Deno.test('resolverComBuscaSemantica: medida vazia -> fica não resolvido, com o alimento já casado no contexto', async () => {
+  // Nota (RELATÓRIO 20260830_0001, N27): medida vazia já não é o único
+  // jeito de cair aqui (ver teste acima) — continua coberta porque
+  // `encontrarMedida` também recusa medida vazia antes de tentar casar.
   const feijaoMatch: BuscaSemanticaLike = {
     buscar: () => Promise.resolve([{ id: 'feijao-id', similarity: 0.77 }]),
   };
@@ -797,6 +825,8 @@ Deno.test('resolverComBuscaSemantica: medida vazia (guard defensivo, exigido pel
   );
   assertEquals(r.resolvidos.length, 0);
   assertEquals(r.aindaNaoReconhecidos.length, 1);
+  assertEquals(r.aindaNaoReconhecidos[0].motivo, 'medida_nao_encontrada');
+  assertEquals(r.aindaNaoReconhecidos[0].alimentoCasado, 'Feijão, carioca, cozido');
 });
 
 Deno.test('resolverComBuscaSemantica: item com motivo medida_nao_encontrada nunca tenta busca semântica', async () => {
@@ -1239,14 +1269,16 @@ Deno.test('handler: casamento léxico falha mas busca semântica acha o alimento
   assertEquals(body.totais.calorias, 64);
 });
 
-Deno.test('handler: busca semântica acha o alimento e a medida sem cadastro cai no fallback (F46) — item entra normal, não em itens_nao_reconhecidos', async () => {
+Deno.test('handler: busca semântica acha o alimento mas a medida não casa -> fica em itens_nao_reconhecidos, não entra calculado (N27)', async () => {
   const res = await createHandler({
     autenticador: AUTH_OK,
     catalogoAlimentos: CATALOGO_FALSO,
     chamarGemini: geminiRespondendo(
-      // "xícara" não está cadastrada nas medidas do feijão em CATALOGO_TESTE
-      // — cai no fallback pra "concha média" (F46, "FIX 31/jul"), a única
-      // medida cadastrada do feijão.
+      // "xícara" não está cadastrada nas medidas do feijão em CATALOGO_TESTE.
+      // RELATÓRIO 20260830_0001 (N27, Regra 23): antes desta correção
+      // (F46, "FIX 31/jul") isso caía no fallback pra "concha média" e o
+      // item entrava calculado, como se o usuário tivesse confirmado
+      // aquele peso. Agora fica não resolvido, visível pro usuário.
       '{"itens":[{"nome":"feijaozinho","medida":"xícara","quantidade":1,"confianca":0.7}],"possivel_foto_de_tela":false}',
     ),
     chamarEmbedding: chamarEmbeddingFalso(),
@@ -1255,13 +1287,20 @@ Deno.test('handler: busca semântica acha o alimento e a medida sem cadastro cai
 
   assertEquals(res.status, 200);
   const body = await res.json();
-  assertEquals(body.itens_nao_reconhecidos.length, 0);
-  assertEquals(body.itens.length, 1);
-  assertEquals(body.itens[0].nome, 'Feijão, carioca, cozido');
-  // `medida` é o texto ORIGINAL pedido ("xícara") — só o peso reflete a
-  // medida real usada no fallback (concha média).
-  assertEquals(body.itens[0].medida, 'xícara');
-  assertEquals(body.itens[0].gramas_estimados, 80);
+  assertEquals(body.itens.length, 0);
+  assertEquals(body.itens_nao_reconhecidos.length, 1);
+  const naoReconhecido = body.itens_nao_reconhecidos[0];
+  assertEquals(naoReconhecido.motivo, 'medida_nao_encontrada');
+  // Texto ORIGINAL pedido, preservado para exibição.
+  assertEquals(naoReconhecido.medida, 'xícara');
+  // O alimento JÁ foi achado (busca semântica) — contrato leva o
+  // suficiente pro Flutter resolver manualmente sem novo round-trip.
+  assertEquals(naoReconhecido.alimento_casado, 'Feijão, carioca, cozido');
+  assertEquals(naoReconhecido.medidas_disponiveis?.length, 1);
+  assertEquals(naoReconhecido.medidas_disponiveis?.[0].medida, 'concha média');
+  assertEquals(naoReconhecido.medidas_disponiveis?.[0].gramas, 80);
+  // Item não resolvido não contamina o total da refeição.
+  assertEquals(body.totais.calorias, 0);
 });
 
 Deno.test('handler: tudo casa por alias — busca semântica nunca é chamada (caminho comum fica barato)', async () => {

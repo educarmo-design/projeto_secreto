@@ -180,6 +180,58 @@ void main() {
     );
   });
 
+  // RELATÓRIO 20260830_0001 (N27, Regra 23): quando `motivo ==
+  // 'medida_nao_encontrada'`, o servidor já casou o alimento e manda macros
+  // + as medidas cadastradas — o suficiente pro Flutter resolver
+  // manualmente sem um novo round-trip (ver ItemPratoNaoReconhecidoModel).
+  test('item não reconhecido com motivo medida_nao_encontrada parseia alimento_casado, macros e medidas_disponiveis', () {
+    final modelo = PratoRefeicaoExtracaoModel.fromJson(
+      respostaCompleta(
+        itens: [],
+        itensNaoReconhecidos: [
+          {
+            'nome': 'feijaozinho',
+            'medida': 'xícara',
+            'motivo': 'medida_nao_encontrada',
+            'alimento_casado': 'Feijão, carioca, cozido',
+            'calorias_kcal_100g': 76,
+            'proteinas_g_100g': 4.8,
+            'carboidratos_g_100g': 13.6,
+            'gorduras_g_100g': 0.5,
+            'medidas_disponiveis': [
+              {'medida': 'concha média', 'gramas': 80},
+            ],
+          },
+        ],
+      ),
+    );
+
+    final naoReconhecido = modelo.itensNaoReconhecidos.single;
+    expect(naoReconhecido.alimentoCasado, 'Feijão, carioca, cozido');
+    expect(naoReconhecido.caloriasKcal100g, 76.0);
+    expect(naoReconhecido.proteinasG100g, 4.8);
+    expect(naoReconhecido.carboidratosG100g, 13.6);
+    expect(naoReconhecido.gordurasG100g, 0.5);
+    expect(naoReconhecido.medidasDisponiveis, hasLength(1));
+    expect(naoReconhecido.medidasDisponiveis!.single.medida, 'concha média');
+    expect(naoReconhecido.medidasDisponiveis!.single.gramas, 80.0);
+  });
+
+  test('item não reconhecido com motivo alimento_nao_encontrado não tem os campos de N27', () {
+    final modelo = PratoRefeicaoExtracaoModel.fromJson(
+      respostaCompleta(
+        itens: [],
+        itensNaoReconhecidos: [
+          {'nome': 'sushi', 'medida': 'peça', 'motivo': 'alimento_nao_encontrado'},
+        ],
+      ),
+    );
+
+    final naoReconhecido = modelo.itensNaoReconhecidos.single;
+    expect(naoReconhecido.alimentoCasado, isNull);
+    expect(naoReconhecido.medidasDisponiveis, isNull);
+  });
+
   test('item não reconhecido sem "motivo" lança FormatException', () {
     final json = respostaCompleta(
       itens: [],

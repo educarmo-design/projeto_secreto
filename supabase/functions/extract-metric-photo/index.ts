@@ -735,12 +735,33 @@ export interface ItemPratoCalculado {
 /// manual; aqui só registramos o motivo). Carrega `quantidade`/`confianca`
 /// (não só nome/medida) porque `resolverComBuscaSemantica` precisa deles
 /// para completar a regra de três se achar um casamento semântico depois.
+///
+/// RELATÓRIO 20260830_0001 (N27, Regra 23 — "falhar visível, nunca
+/// arbitrar"): quando `motivo === 'medida_nao_encontrada'`, o ALIMENTO já
+/// foi casado (é só a medida que não bateu) — os campos abaixo carregam o
+/// suficiente do catálogo (macros por 100g + as medidas que o alimento TEM
+/// cadastradas) para o Flutter resolver manualmente sem um novo round-trip
+/// ao servidor: o usuário escolhe uma das `medidasDisponiveis` ou digita um
+/// peso em gramas, e a tela calcula localmente pela mesma regra de três do
+/// servidor. Ausentes quando `motivo === 'alimento_nao_encontrado'` (não
+/// há alimento casado nenhum para descrever).
 export interface ItemPratoNaoReconhecido {
   nome: string;
   medida: string;
   quantidade: number;
   confianca: number;
   motivo: 'alimento_nao_encontrado' | 'medida_nao_encontrada';
+  /// Nome canônico do `alimentos_referencia` já casado — só presente
+  /// quando `motivo === 'medida_nao_encontrada'`.
+  alimentoCasado?: string;
+  caloriasKcal100g?: number;
+  proteinasG100g?: number;
+  carboidratosG100g?: number;
+  gordurasG100g?: number;
+  /// As medidas caseiras que ESTE alimento tem cadastradas (pode ser uma
+  /// lista vazia — alimento sem nenhuma medida cadastrada) — a UI oferece
+  /// como opções de escolha; se nenhuma servir, o usuário digita gramas.
+  medidasDisponiveis?: MedidaCaseiraCatalogo[];
 }
 
 export interface CalculoPrato {
@@ -1255,9 +1276,18 @@ export function encontrarAlimento(
 /// nunca uma tabela de conversão global) — EXCETO unidades brutas (acima),
 /// que são universais e nunca passam por essa tabela.
 ///
-/// FIX (31/jul): Adiciona normalização flexível (remove plurais, variações)
-/// e fallback para primeira medida se nenhuma corresponder — melhor usar algo
-/// que deixar o alimento cair em "não reconhecido".
+/// RELATÓRIO 20260830_0001 (N27, Regra 23 — "falhar visível, nunca
+/// arbitrar"): até esta correção, quando nem o match exato nem o de
+/// substring casavam, a função "chutava" um peso — primeiro a primeira
+/// medida cadastrada do alimento (F46, "FIX 31/jul"), depois um peso
+/// genérico de 100g ou o peso padrão da categoria — e devolvia um número
+/// como se fosse um cálculo real, sem avisar ninguém. O resumo da refeição
+/// declarava sucesso total (Parte 2.7 do Mestre v8.0) mesmo quando o valor
+/// tinha sido inventado. Essas duas camadas foram REMOVIDAS: sem match
+/// exato/substring, a função volta a devolver `null` — quem chama
+/// (`calcularPrato`/`resolverComBuscaSemantica`) marca o item como
+/// `motivo: 'medida_nao_encontrada'` e o usuário resolve manualmente na
+/// tela de confirmação (Flutter), sem bloquear o resto do prato.
 export function encontrarMedida(
   alimento: AlimentoCatalogo,
   medidaBuscada: string,
@@ -1314,35 +1344,16 @@ export function encontrarMedida(
     return substring.original;
   }
 
-  // 3. Fallback: usar primeira medida disponível (F46 fallback degradado)
-  if (alimento.medidas.length > 0) {
-    const fallback = alimento.medidas[0];
-    console.log(
-      `[encontrarMedida] Fallback (medida não encontrada): "${medidaBuscada}" -> "${fallback.medida}" (primeira disponível)`,
-    );
-    return fallback;
-  }
-
-  // 4. Fallback final: usar categoria e peso padrão do alimento (agora vem do DB)
-  // se nenhuma medida caseira está cadastrada.
-  //
-  // Se categoria_consumo é nulo → alimento ainda pendente de categorização.
-  // Fallback seguro: assumir 100g (peso_livre). UI mostrará campo livre para edição.
-  if (!alimento.categoriaConsumo || !alimento.medidaPadraoQtd) {
-    console.log(
-      `[encontrarMedida] Fallback genérico (categoria nula): "${medidaBuscada}" -> "100g (est.)" para "${alimento.nomeTaco}"`,
-    );
-    return { medida: '100g (est.)', gramas: 100 };
-  }
-
-  // Categoria conhecida — usar peso/volume padrão da categoria
-  const qtdPadrao = alimento.medidaPadraoQtd;
-  const unidade = alimento.unidadeMedidaPadrao || 'g';
-
+  // Sem match exato nem substring: Regra 23 — nunca arbitrar. As camadas de
+  // fallback que existiam aqui ("primeira medida disponível", depois um
+  // peso genérico de 100g ou o peso padrão da categoria) foram removidas
+  // nesta tarefa (N27) — inventavam um número sem avisar. `null` é o
+  // resultado honesto: quem chama decide como marcar o item como não
+  // resolvido.
   console.log(
-    `[encontrarMedida] Fallback categorizado: "${medidaBuscada}" -> "${qtdPadrao}${unidade} (${alimento.categoriaConsumo})" para "${alimento.nomeTaco}"`,
+    `[encontrarMedida] Sem match para "${medidaBuscada}" em "${alimento.nomeTaco}" (${alimento.medidas.length} medida(s) cadastrada(s)) — devolvendo null, não arbitrando (N27/Regra 23)`,
   );
-  return { medida: `${qtdPadrao}${unidade} (est.)`, gramas: qtdPadrao };
+  return null;
 }
 
 function arredondar(valor: number, casas: number): number {
@@ -1448,6 +1459,15 @@ export function calcularPrato(
         quantidade: item.quantidade,
         confianca: item.confianca,
         motivo: 'medida_nao_encontrada',
+        // N27: o alimento JÁ foi casado — carrega macros + as medidas que
+        // ele realmente tem cadastradas, para o Flutter resolver sem novo
+        // round-trip (ver doc de `ItemPratoNaoReconhecido`).
+        alimentoCasado: alimento.nomeTaco,
+        caloriasKcal100g: alimento.caloriasKcal100g,
+        proteinasG100g: alimento.proteinasG100g,
+        carboidratosG100g: alimento.carboidratosG100g,
+        gordurasG100g: alimento.gordurasG100g,
+        medidasDisponiveis: alimento.medidas,
       });
       continue;
     }
@@ -1524,16 +1544,35 @@ export async function resolverComBuscaSemantica(
         console.log(`[resolverComBuscaSemantica] Alimento resolvido: "${alimento.nomeTaco}"`);
 
         const medida = encontrarMedida(alimento, item.medida);
-        // `encontrarMedida` só retorna null quando `item.medida` vier vazia
-        // (Gemini sempre reporta algum texto de medida, então isto é
-        // inalcançável na prática) — guarda aqui só pra bater com a
-        // assinatura real da função (achado ao rodar `deno check` de
-        // verdade nesta tarefa, RELATÓRIO 20260823_0004): sem isto o
-        // TypeScript recusa compilar `medida.medida` duas linhas abaixo,
-        // já que o tipo de retorno é `MedidaCaseiraCatalogo | null`.
+        // RELATÓRIO 20260830_0001 (N27) — ATUALIZAÇÃO do comentário antigo:
+        // antes da remoção do fallback em camadas de `encontrarMedida`,
+        // este `null` só acontecia com `item.medida` vazia (guarda exigida
+        // pelo TypeScript, achado em 20260823_0004). Agora `encontrarMedida`
+        // TAMBÉM devolve `null` quando a medida buscada simplesmente não
+        // casa com nenhuma das cadastradas para ESTE alimento — caminho
+        // real, não mais só teórico. Nos dois casos o alimento JÁ foi
+        // achado pela busca semântica; por isso o item devolvido troca de
+        // `motivo` (era 'alimento_nao_encontrado' no item original, agora
+        // é 'medida_nao_encontrada') e ganha os mesmos campos de contexto
+        // que `calcularPrato` adiciona (macros + medidas do alimento) para
+        // o Flutter resolver manualmente.
         if (!medida) {
-          console.log(`[resolverComBuscaSemantica] Sem medida buscável para "${item.nome}" (medida vazia)`);
-          return { resolvido: null, naoReconhecido: item };
+          console.log(
+            `[resolverComBuscaSemantica] Alimento achado ("${alimento.nomeTaco}") mas medida não casou: "${item.medida}" — item fica não resolvido (N27, não arbitra)`,
+          );
+          return {
+            resolvido: null,
+            naoReconhecido: {
+              ...item,
+              motivo: 'medida_nao_encontrada',
+              alimentoCasado: alimento.nomeTaco,
+              caloriasKcal100g: alimento.caloriasKcal100g,
+              proteinasG100g: alimento.proteinasG100g,
+              carboidratosG100g: alimento.carboidratosG100g,
+              gordurasG100g: alimento.gordurasG100g,
+              medidasDisponiveis: alimento.medidas,
+            },
+          };
         }
 
         // Detectar se é medida estimada (contém "est." no nome)
@@ -2584,6 +2623,17 @@ async function processarPratoRefeicao(params: {
         nome: item.nome,
         medida: item.medida,
         motivo: item.motivo,
+        // N27 — presentes só quando motivo === 'medida_nao_encontrada' (o
+        // alimento já foi casado, só falta a medida): dão ao Flutter o
+        // suficiente para resolver manualmente sem novo round-trip.
+        ...(item.alimentoCasado ? { alimento_casado: item.alimentoCasado } : {}),
+        ...(item.caloriasKcal100g !== undefined ? { calorias_kcal_100g: item.caloriasKcal100g } : {}),
+        ...(item.proteinasG100g !== undefined ? { proteinas_g_100g: item.proteinasG100g } : {}),
+        ...(item.carboidratosG100g !== undefined ? { carboidratos_g_100g: item.carboidratosG100g } : {}),
+        ...(item.gordurasG100g !== undefined ? { gorduras_g_100g: item.gordurasG100g } : {}),
+        ...(item.medidasDisponiveis ? {
+          medidas_disponiveis: item.medidasDisponiveis.map((m) => ({ medida: m.medida, gramas: m.gramas })),
+        } : {}),
       })),
       totais: {
         calorias: totaisFinais.calorias,

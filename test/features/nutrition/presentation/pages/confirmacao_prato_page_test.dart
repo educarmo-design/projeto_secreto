@@ -510,6 +510,110 @@ void main() {
       expect(find.text('Salvar alterações'), findsOneWidget); // ainda na tela
     });
   });
+
+  // RELATÓRIO 20260830_0001 (N27, Regra 23 — "falhar visível, nunca
+  // arbitrar" + ACEITE): item não resolvido com o alimento já casado fica
+  // interativo — o usuário escolhe a medida real ou digita o peso, sem
+  // bloquear o resto do prato; o total avisa quando inclui estimativa.
+  group('resolver item não reconhecido manualmente (N27)', () {
+    const itemComAlimentoCasado = ItemPratoNaoReconhecidoModel(
+      nome: 'feijaozinho',
+      medida: 'xícara',
+      motivo: 'medida_nao_encontrada',
+      alimentoCasado: 'Feijão, carioca, cozido',
+      caloriasKcal100g: 76,
+      proteinasG100g: 4.8,
+      carboidratosG100g: 13.6,
+      gordurasG100g: 0.5,
+      medidasDisponiveis: [MedidaCaseiraModel(medida: 'concha média', gramas: 80)],
+    );
+
+    testWidgets('item sem alimento casado (alimento_nao_encontrado) não mostra botão Resolver',
+        (tester) async {
+      await pumpPagina(
+        tester,
+        itensNaoReconhecidos: const [
+          ItemPratoNaoReconhecidoModel(nome: 'sushi', medida: 'peça', motivo: 'alimento_nao_encontrado'),
+        ],
+      );
+
+      expect(find.text('Resolver'), findsNothing);
+    });
+
+    testWidgets('item com alimento casado mostra botão Resolver', (tester) async {
+      await pumpPagina(tester, itens: [], itensNaoReconhecidos: [itemComAlimentoCasado]);
+
+      expect(find.text('Resolver'), findsOneWidget);
+    });
+
+    testWidgets('escolher uma medida cadastrada promove o item pra lista e some de "Não reconhecidos"',
+        (tester) async {
+      await pumpPagina(tester, itens: [], itensNaoReconhecidos: [itemComAlimentoCasado]);
+
+      await tester.tap(find.text('Resolver'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('concha média (80g)'), findsOneWidget);
+      await tester.tap(find.text('concha média (80g)'));
+      await tester.pumpAndSettle();
+
+      // Item resolvido: some da seção "Não reconhecidos", aparece na lista
+      // normal, e o total reflete os macros calculados (76/100 * 80 = 60.8
+      // -> exibido sem casas decimais nas calorias: 61 kcal).
+      expect(find.text('Não reconhecidos'), findsNothing);
+      expect(find.text('feijaozinho'), findsOneWidget);
+      expect(find.textContaining('Total:'), findsOneWidget);
+      final totalWidget = tester.widget<Text>(find.textContaining('Total:'));
+      expect(totalWidget.data, contains('61 kcal'));
+    });
+
+    testWidgets('digitar um peso manual promove o item usando o peso digitado', (tester) async {
+      await pumpPagina(tester, itens: [], itensNaoReconhecidos: [itemComAlimentoCasado]);
+
+      await tester.tap(find.text('Resolver'));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byType(TextField), '150');
+      await tester.tap(find.text('Usar este peso'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Não reconhecidos'), findsNothing);
+      final totalWidget = tester.widget<Text>(find.textContaining('Total:'));
+      expect(totalWidget.data, contains('114')); // 76/100 * 150 = 114
+    });
+
+    testWidgets('resolver um item não bloqueia confirmar o resto do prato', (tester) async {
+      await pumpPagina(
+        tester,
+        itens: [item(nomeCasado: 'Arroz', calorias: 100)],
+        itensNaoReconhecidos: [itemComAlimentoCasado],
+      );
+
+      // Nem precisa resolver: o item não reconhecido nunca bloqueou o
+      // Confirmar (só a lista `itens` vazia bloqueia) — mas o cenário do
+      // ACEITE é justamente registrar o prato inteiro COM o item resolvido.
+      await tester.tap(find.text('Resolver'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('concha média (80g)'));
+      await tester.pumpAndSettle();
+
+      final botao = tester.widget<FilledButton>(find.widgetWithText(FilledButton, 'Confirmar'));
+      expect(botao.onPressed, isNotNull);
+    });
+
+    testWidgets('total mostra marca de estimativa depois de resolver manualmente', (tester) async {
+      await pumpPagina(tester, itens: [], itensNaoReconhecidos: [itemComAlimentoCasado]);
+
+      expect(find.byIcon(Icons.warning_amber_rounded), findsNothing); // nada estimado ainda
+
+      await tester.tap(find.text('Resolver'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('concha média (80g)'));
+      await tester.pumpAndSettle();
+
+      expect(find.byIcon(Icons.warning_amber_rounded), findsOneWidget);
+    });
+  });
 }
 
 /// Fake em memória — nunca toca `Supabase.instance`.
