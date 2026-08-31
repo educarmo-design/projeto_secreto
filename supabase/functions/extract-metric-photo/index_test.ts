@@ -14,7 +14,7 @@
 //   (c) o handler HTTP completo, com autenticador/Gemini/catálogo falsos —
 //       rede (fetch), GEMINI_API_KEY e banco nunca são tocados.
 
-import { assertEquals, assertAlmostEquals, assertStringIncludes } from '@std/assert';
+import { assertEquals, assertAlmostEquals, assertNotEquals, assertStringIncludes } from '@std/assert';
 import {
   avaliarLeitura,
   avaliarLeituraBalanca,
@@ -454,6 +454,36 @@ Deno.test('parseRespostaGeminiPrato: quantidade absurda é grampeada (teto de sa
   assertEquals(r.itens[0].quantidade, 20);
 });
 
+// RELATÓRIO 20260831_0001 — ACHADO durante a investigação do bug de escala:
+// o teto de sanidade de quantidade (20) é certo pra CONTAGEM de medida
+// caseira, mas o mesmo campo `quantidade` também carrega o valor em
+// GRAMAS/MILILITROS quando o usuário escreve o peso explicitamente
+// ("300 gramas de arroz" -> medida="gramas", quantidade=300, confirmado
+// chamando o Gemini de verdade). Aplicar o teto de 20 igual pros dois
+// casos capava "300 gramas" pra "20 gramas" silenciosamente — a causa
+// raiz real do bug de escala reportado, mais fundamental que o
+// `encontrarMedida` (ver testes de "unidade bruta" abaixo).
+Deno.test('parseRespostaGeminiPrato: unidade bruta (gramas/ml) usa um teto de sanidade bem maior, não 20', () => {
+  const r = parseRespostaGeminiPrato(
+    '{"itens":[{"nome":"arroz","medida":"gramas","quantidade":300,"confianca":0.9}]}',
+  );
+  assertEquals(r.itens[0].quantidade, 300); // preservado, não capado pra 20
+});
+
+Deno.test('parseRespostaGeminiPrato: unidade bruta também tem teto de sanidade (contra número absurdo/alucinado)', () => {
+  const r = parseRespostaGeminiPrato(
+    '{"itens":[{"nome":"arroz","medida":"gramas","quantidade":999999,"confianca":0.9}]}',
+  );
+  assertEquals(r.itens[0].quantidade, 5000); // QUANTIDADE_MAXIMA_UNIDADE_BRUTA_GRAMAS_OU_ML
+});
+
+Deno.test('parseRespostaGeminiPrato: medida caseira comum continua com o teto de 20, mesmo perto do valor de unidade bruta', () => {
+  const r = parseRespostaGeminiPrato(
+    '{"itens":[{"nome":"arroz","medida":"colher de sopa","quantidade":300,"confianca":0.9}]}',
+  );
+  assertEquals(r.itens[0].quantidade, 20); // "300 colheres de sopa" continua absurdo, teto original preservado
+});
+
 Deno.test('parseRespostaGeminiPrato: nunca inclui campo de calorias/gramas do Gemini (A.2)', () => {
   // Mesmo que o modelo desobedeça e mande "calorias" no item, o parser só lê
   // nome/medida/quantidade/confianca — o campo extra é ignorado, nunca usado.
@@ -527,6 +557,48 @@ Deno.test('encontrarMedida: medida é escopada ao alimento (mesma "colher" pesa 
 });
 
 // ============================================================================
+// (b.1) encontrarMedida — unidades BRUTAS (RELATÓRIO 20260831_0001)
+//
+// Causa raiz do bug relatado ("300 gramas de sorvete" dava calorias muito
+// maiores que o esperado): confirmado chamando o Gemini de verdade que
+// "300 gramas de X" sempre volta medida="gramas"/quantidade=300 — e NENHUM
+// alimento do catálogo real tem uma medida caseira chamada "grama"
+// cadastrada, então isso sempre caía num fallback (primeira medida
+// disponível ou peso genérico), multiplicando um peso-por-unidade ERRADO
+// pela quantidade 300. Unidade bruta agora é resolvida ANTES de qualquer
+// tentativa de casar por nome contra a tabela de medidas caseiras.
+// ============================================================================
+Deno.test('encontrarMedida: unidade bruta "gramas"/"g" resolve 1g por unidade, mesmo sem estar cadastrada no alimento', () => {
+  const arroz = CATALOGO_TESTE[0]; // só tem "colher de sopa"/"escumadeira" — nunca "grama"
+  assertEquals(encontrarMedida(arroz, 'gramas'), { medida: 'gramas', gramas: 1 });
+  assertEquals(encontrarMedida(arroz, 'g'), { medida: 'g', gramas: 1 });
+  assertEquals(encontrarMedida(arroz, 'Gramas'), { medida: 'Gramas', gramas: 1 }); // normalização de caixa não afeta o resultado
+});
+
+Deno.test('encontrarMedida: unidade bruta "kg"/"quilo"/"quilograma" resolve 1000g por unidade', () => {
+  const arroz = CATALOGO_TESTE[0];
+  assertEquals(encontrarMedida(arroz, 'kg')?.gramas, 1000);
+  assertEquals(encontrarMedida(arroz, 'quilo')?.gramas, 1000);
+  assertEquals(encontrarMedida(arroz, 'quilograma')?.gramas, 1000);
+});
+
+Deno.test('encontrarMedida: unidade bruta "ml"/"litro" resolve 1g/1000g por unidade (mesma convenção de líquidos)', () => {
+  const arroz = CATALOGO_TESTE[0];
+  assertEquals(encontrarMedida(arroz, 'ml')?.gramas, 1);
+  assertEquals(encontrarMedida(arroz, 'litro')?.gramas, 1000);
+});
+
+Deno.test('encontrarMedida: unidade bruta nunca cai no fallback de medida caseira (preserva o texto original)', () => {
+  const arroz = CATALOGO_TESTE[0];
+  // O texto ORIGINAL pedido é preservado em `medida` (não vira "colher de
+  // sopa" nem qualquer medida do catálogo) — só o `gramas` é a taxa de
+  // conversão universal.
+  const resultado = encontrarMedida(arroz, 'gramas');
+  assertEquals(resultado?.medida, 'gramas');
+  assertNotEquals(resultado?.medida, 'colher de sopa');
+});
+
+// ============================================================================
 // (b) calcularPrato — o ÚNICO lugar que produz um número nutricional (A.2)
 // ============================================================================
 function itemExtraido(over: Partial<ExtracaoItemPrato> = {}): ExtracaoItemPrato {
@@ -593,6 +665,37 @@ Deno.test('calcularPrato: prato sem itens dá totais zerados (não é erro)', ()
   const r = calcularPrato([], CATALOGO_TESTE);
   assertEquals(r.itens.length, 0);
   assertEquals(r.totais.calorias, 0);
+});
+
+// RELATÓRIO 20260831_0001 — ACEITE literal do bug reportado: "300 gramas de
+// X" retorna os macros matematicamente exatos (3 * macros_por_100g), regra
+// de três aplicada uma única vez.
+Deno.test('calcularPrato: "300 gramas de arroz" dá exatamente 3x os macros por 100g (ACEITE do bug de escala)', () => {
+  const r = calcularPrato(
+    [{ nome: 'arroz', medida: 'gramas', quantidade: 300, confianca: 0.95 }],
+    CATALOGO_TESTE,
+  );
+  assertEquals(r.itensNaoReconhecidos.length, 0);
+  assertEquals(r.itens.length, 1);
+  const item = r.itens[0];
+  assertEquals(item.gramasEstimados, 300);
+  // Arroz de teste: 128 kcal/100g, 2.5g prot/100g, 28.1g carb/100g, 0.2g gord/100g.
+  assertEquals(item.calorias, 384); // 128 * 3
+  assertAlmostEquals(item.proteinasG, 7.5, 0.001); // 2.5 * 3
+  assertAlmostEquals(item.carboidratosG, 84.3, 0.001); // 28.1 * 3
+  assertAlmostEquals(item.gordurasG, 0.6, 0.001); // 0.2 * 3
+  // Não é uma estimativa categorizada — é a conversão exata de um número
+  // que o próprio usuário informou.
+  assertEquals(item.quantidadeEstimada, undefined);
+});
+
+Deno.test('calcularPrato: unidade bruta em kg também aplica a regra de três uma única vez', () => {
+  const r = calcularPrato(
+    [{ nome: 'feijao', medida: 'kg', quantidade: 0.3, confianca: 0.9 }], // 0.3kg = 300g
+    CATALOGO_TESTE,
+  );
+  assertEquals(r.itens[0].gramasEstimados, 300);
+  assertEquals(r.itens[0].calorias, 228); // feijão de teste: 76 kcal/100g * 300g = 228
 });
 
 // ============================================================================
@@ -1246,6 +1349,29 @@ Deno.test('handler: prato por TEXTO reconhecido -> 200 com macros calculados pel
   assertEquals(body.itens.length, 1);
   assertEquals(body.itens[0].nome, 'Arroz, branco, cozido');
   assertEquals(body.itens[0].calorias, 64);
+});
+
+// RELATÓRIO 20260831_0001 — reproduz o formato REAL que o Gemini devolve
+// pra "300 gramas de X" (confirmado chamando a API de verdade nesta
+// investigação: `medida: "gramas"`, `quantidade: 300`) através do pipeline
+// HTTP completo, não só das funções puras — garante que o bug não
+// reaparece em nenhuma camada entre o parsing e a resposta.
+Deno.test('handler: "300 gramas de arroz" (unidade bruta) dá exatamente 3x os macros por 100g, não um múltiplo arbitrário', async () => {
+  const res = await createHandler({
+    autenticador: AUTH_OK,
+    catalogoAlimentos: CATALOGO_FALSO,
+    chamarGemini: geminiRespondendo(
+      '{"itens":[{"nome":"arroz","medida":"gramas","quantidade":300,"confianca":1.0}]}',
+    ),
+  })(reqComTexto({ 'X-Tipo-Aparelho': 'pratoRefeicaoTexto' }, '300 gramas de arroz'));
+
+  assertEquals(res.status, 200);
+  const body = await res.json();
+  assertEquals(body.itens_nao_reconhecidos.length, 0);
+  assertEquals(body.itens.length, 1);
+  assertEquals(body.itens[0].gramas_estimados, 300);
+  assertEquals(body.itens[0].calorias, 384); // 128 kcal/100g * 300g, nunca 128*3*algo
+  assertEquals(body.totais.calorias, 384);
 });
 
 Deno.test('handler: prato por TEXTO com corpo vazio -> 400', async () => {

@@ -85,8 +85,54 @@ const GLICOSE_MAX_MG_DL = 600;
 // Tetos de sanidade para o extrator de prato (não são regra clínica — só
 // evitam que uma resposta absurda do modelo (ex.: "50 colheres de sopa")
 // vire um cálculo grotesco). Item sem quantidade utilizável assume 1.
+//
+// RELATÓRIO 20260831_0001 — ACHADO durante a correção do bug de escala do
+// registro descritivo: este teto de 20 é certo pra CONTAGEM de medida
+// caseira ("20 colheres de sopa" já é absurdo), mas `quantidade` também é
+// o campo usado pra UNIDADE BRUTA (peso/volume SI — "300 gramas", "quantidade":
+// 300) quando o usuário escreve o peso explicitamente (ver
+// `FATORES_UNIDADE_BRUTA` abaixo). Aplicar o MESMO teto de 20 nos dois
+// casos capava silenciosamente "300 gramas" pra "20 gramas" — o próprio
+// vazamento matemático relatado (a quantidade que o usuário disse nunca
+// chegava inteira no cálculo). `parseRespostaGeminiPrato` agora usa este
+// teto só para medida caseira; unidade bruta usa
+// `QUANTIDADE_MAXIMA_UNIDADE_BRUTA_GRAMAS_OU_ML`, bem mais alto (grama e
+// mililitro são a MENOR unidade que existe — um teto de 20 não faz
+// sentido nenhum pra eles).
 const QUANTIDADE_MAXIMA_ITEM_PRATO = 20;
+// 5kg/5L por item — generoso o bastante pra qualquer prato real (mesmo um
+// "1kg de churrasco" family-size), ainda protege contra um número
+// absurdo/alucinado (ex.: "999999 gramas").
+const QUANTIDADE_MAXIMA_UNIDADE_BRUTA_GRAMAS_OU_ML = 5000;
 const MAX_ITENS_PRATO = 15;
+
+/// Unidades BRUTAS de peso/volume (SI) que o usuário pode escrever
+/// explicitamente no registro descritivo/áudio ("300 gramas de arroz",
+/// "200ml de suco") — os prompts `SYSTEM_PROMPT_PRATO_REFEICAO_TEXTO`/
+/// `_AUDIO` permitem ao Gemini devolver isso em `medida` só quando o
+/// usuário disse o peso/volume explicitamente (confirmado chamando o
+/// Gemini de verdade nesta investigação: "300 gramas de X" sempre volta
+/// `medida: "gramas"`, `quantidade: 300`). Diferente de uma medida caseira
+/// (que É específica de um alimento — "concha" de feijão ≠ "concha" de
+/// arroz), uma unidade bruta é universal: 300 gramas são 300 gramas pra
+/// QUALQUER alimento, nunca deveria passar pela tabela de medidas caseiras
+/// por alimento. Usado tanto por `parseRespostaGeminiPrato` (escolher o
+/// teto de sanidade certo) quanto por `encontrarMedida` (resolver a
+/// conversão em si) — fonte única, nunca duplicada entre os dois.
+/// Valor = gramas por UNIDADE da medida (mesma convenção de
+/// `MedidaCaseiraCatalogo.gramas`) — quem multiplica pela quantidade é
+/// sempre `calcularItem`, nunca aqui.
+const FATORES_UNIDADE_BRUTA: Record<string, number> = {
+  grama: 1,
+  g: 1,
+  quilograma: 1000,
+  quilo: 1000,
+  kg: 1000,
+  mililitro: 1,
+  ml: 1,
+  litro: 1000,
+  l: 1000,
+};
 
 // Faixa fisiologicamente plausível de peso corporal adulto em kg. Mesmo
 // espírito de GLICOSE_MIN_MG_DL/MAX — um "705" lido por engano em vez de
@@ -1112,12 +1158,22 @@ export function parseRespostaGeminiPrato(textoCru: string): ExtracaoPrato {
     // disse.
     if (!nome || !medida) continue;
 
+    // RELATÓRIO 20260831_0001 — teto de sanidade diferente pra unidade
+    // bruta (peso/volume SI, ver `FATORES_UNIDADE_BRUTA`): 20 é certo pra
+    // CONTAGEM de medida caseira ("20 colheres de sopa"), mas errado pra
+    // grama/mililitro — aplicar o mesmo teto capava "300 gramas" pra "20
+    // gramas" silenciosamente, o próprio bug de escala relatado.
+    const medidaEhUnidadeBruta = FATORES_UNIDADE_BRUTA[normalizarMedida(medida)] !== undefined;
+    const tetoQuantidade = medidaEhUnidadeBruta
+      ? QUANTIDADE_MAXIMA_UNIDADE_BRUTA_GRAMAS_OU_ML
+      : QUANTIDADE_MAXIMA_ITEM_PRATO;
+
     const quantidadeBruta = item['quantidade'];
     const quantidade =
       typeof quantidadeBruta === 'number' &&
       Number.isFinite(quantidadeBruta) &&
       quantidadeBruta > 0
-        ? Math.min(quantidadeBruta, QUANTIDADE_MAXIMA_ITEM_PRATO)
+        ? Math.min(quantidadeBruta, tetoQuantidade)
         : 1; // ausência de quantidade não derruba o item: assume 1x a medida citada.
 
     itens.push({ nome, medida, quantidade, confianca: normalizarConfianca(item['confianca']) });
@@ -1196,7 +1252,8 @@ export function encontrarAlimento(
 /// Mesma estratégia de `encontrarAlimento`, escopada às medidas cadastradas
 /// PARA aquele alimento específico (a mesma "colher de sopa" pesa diferente
 /// para arroz e para feijão — por isso a busca é sempre `alimento.medidas`,
-/// nunca uma tabela de conversão global).
+/// nunca uma tabela de conversão global) — EXCETO unidades brutas (acima),
+/// que são universais e nunca passam por essa tabela.
 ///
 /// FIX (31/jul): Adiciona normalização flexível (remove plurais, variações)
 /// e fallback para primeira medida se nenhuma corresponder — melhor usar algo
@@ -1209,6 +1266,26 @@ export function encontrarMedida(
   if (!alvo) {
     // Sem medida buscada: return null (caller decide o fallback)
     return null;
+  }
+
+  // RELATÓRIO 20260831_0001 — CAUSA RAIZ do "cálculo ~3x maior que o
+  // esperado" no registro descritivo: "300 gramas de X" chega aqui como
+  // medida="gramas"/quantidade=300, e nenhum alimento do catálogo tem uma
+  // medida caseira literalmente chamada "grama" cadastrada — então isto
+  // SEMPRE caía num dos fallbacks abaixo (primeira medida disponível ou
+  // peso genérico), que multiplicam um peso-por-unidade ERRADO (de uma
+  // medida caseira qualquer) pela quantidade 300, inflando o resultado por
+  // um fator arbitrário (não um "3x" fixo — depende de qual medida o
+  // alimento tem cadastrada; medido nesta investigação como 25x-120x em
+  // casos reais, sempre errado). Checado ANTES de qualquer match por nome
+  // — "grama" nunca deveria, por acidente, casar como substring de uma
+  // medida caseira registrada.
+  const fatorBruto = FATORES_UNIDADE_BRUTA[alvo];
+  if (fatorBruto !== undefined) {
+    console.log(
+      `[encontrarMedida] Unidade bruta: "${medidaBuscada}" -> ${fatorBruto}g/unidade (sem tabela de medida caseira, universal)`,
+    );
+    return { medida: medidaBuscada, gramas: fatorBruto };
   }
 
   // Otimização: pré-computar normalização uma vez, não para cada comparação
