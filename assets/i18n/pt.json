@@ -597,7 +597,8 @@
     "total_inclui_estimativa": "Este total inclui pelo menos um item com peso estimado, não medido",
     "motivo": {
       "alimento_nao_encontrado": "Alimento não encontrado no catálogo",
-      "medida_nao_encontrada": "Medida não cadastrada para este alimento"
+      "medida_nao_encontrada": "Medida não cadastrada para este alimento",
+      "quantidade_nao_informada": "Quantidade não identificada — confirme quanto foi consumido"
     }
   },
 

@@ -692,6 +692,26 @@ class _ItemPratoTileState extends State<_ItemPratoTile> {
                           original.nomeCasado,
                           style: Theme.of(context).textTheme.bodySmall,
                         ),
+                      // RELATÓRIO 20260901_0002 (achado do teste físico) —
+                      // a unidade já aparecia junto da quantidade lá embaixo
+                      // (perto dos botões -/+), mas só ali; badge extra logo
+                      // abaixo do nome deixa a unidade visível de cara, sem
+                      // precisar achar a linha dos botões — widget estático,
+                      // não escuta nada, não adiciona rebuild novo (Regra 21).
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            original.medida,
+                            style: Theme.of(context).textTheme.labelSmall,
+                          ),
+                        ),
+                      ),
                     ],
                   ),
                 ),

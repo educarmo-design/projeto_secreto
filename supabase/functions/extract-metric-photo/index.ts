@@ -745,12 +745,20 @@ export interface ItemPratoCalculado {
 /// peso em gramas, e a tela calcula localmente pela mesma regra de três do
 /// servidor. Ausentes quando `motivo === 'alimento_nao_encontrado'` (não
 /// há alimento casado nenhum para descrever).
+///
+/// RELATÓRIO 20260901_0002 — `motivo === 'quantidade_nao_informada'`
+/// (achado do teste físico, "café com leite"): o alimento E a medida
+/// casaram normalmente, mas o Gemini devolveu uma quantidade inválida
+/// (0/negativa/NaN, presente mas sem valor usável — ver
+/// `parseRespostaGeminiPrato`) em vez de simplesmente omitir o campo.
+/// Carrega os mesmos campos de enriquecimento de `medida_nao_encontrada`
+/// (o alimento e a medida já são conhecidos, só falta o "quantos").
 export interface ItemPratoNaoReconhecido {
   nome: string;
   medida: string;
   quantidade: number;
   confianca: number;
-  motivo: 'alimento_nao_encontrado' | 'medida_nao_encontrada';
+  motivo: 'alimento_nao_encontrado' | 'medida_nao_encontrada' | 'quantidade_nao_informada';
   /// Nome canônico do `alimentos_referencia` já casado — só presente
   /// quando `motivo === 'medida_nao_encontrada'`.
   alimentoCasado?: string;
@@ -1189,13 +1197,29 @@ export function parseRespostaGeminiPrato(textoCru: string): ExtracaoPrato {
       ? QUANTIDADE_MAXIMA_UNIDADE_BRUTA_GRAMAS_OU_ML
       : QUANTIDADE_MAXIMA_ITEM_PRATO;
 
+    // RELATÓRIO 20260901_0002 (achado do teste físico do fundador, "café
+    // com leite") — Regra 23: campo AUSENTE (o modelo simplesmente não
+    // reportou um número) é diferente de campo PRESENTE mas inválido (0,
+    // negativo, NaN — o modelo tentou responder e não conseguiu decidir
+    // uma quantidade). O código antigo tratava os dois casos do mesmo
+    // jeito ("assume 1"), o que arbitra silenciosamente um consumo que
+    // ninguém mediu quando o modelo devolve `"quantidade": 0` de propósito
+    // (visto em fotos de itens sem contagem clara, ex.: café com leite
+    // "cheio até onde?"). Só o caso AUSENTE assume 1 (comportamento já
+    // documentado); presente-mas-inválido vira `0` — sentinela que
+    // `calcularPrato`/`resolverComBuscaSemantica` tratam como item NÃO
+    // RESOLVIDO (nunca chega a calcular), em vez de finalizado como se
+    // fosse uma medição real.
     const quantidadeBruta = item['quantidade'];
-    const quantidade =
-      typeof quantidadeBruta === 'number' &&
-      Number.isFinite(quantidadeBruta) &&
-      quantidadeBruta > 0
-        ? Math.min(quantidadeBruta, tetoQuantidade)
-        : 1; // ausência de quantidade não derruba o item: assume 1x a medida citada.
+    const quantidadeAusente = quantidadeBruta === undefined || quantidadeBruta === null;
+    const quantidadeValida =
+      typeof quantidadeBruta === 'number' && Number.isFinite(quantidadeBruta) && quantidadeBruta > 0;
+
+    const quantidade = quantidadeAusente
+      ? 1 // ausência de quantidade não derruba o item: assume 1x a medida citada.
+      : quantidadeValida
+        ? Math.min(quantidadeBruta as number, tetoQuantidade)
+        : 0; // presente mas inválida (0/negativa/NaN) — nunca arbitrar, ver acima.
 
     itens.push({ nome, medida, quantidade, confianca: normalizarConfianca(item['confianca']) });
   }
@@ -1451,6 +1475,31 @@ export function calcularPrato(
       continue;
     }
 
+    // RELATÓRIO 20260901_0002 (achado "café com leite", Regra 23): o
+    // alimento já foi casado, mas `parseRespostaGeminiPrato` marcou a
+    // quantidade como `0` — sentinela de "o modelo respondeu, mas não com
+    // um número usável" (0/negativa/NaN), diferente de "campo ausente"
+    // (que já virou 1 lá atrás). Checado ANTES do casamento de medida:
+    // mesmo que a medida bata perfeitamente, calcular com quantidade 0
+    // daria "0 kcal" — parece uma medição real de zero consumo, não um
+    // aviso de dado faltando. Melhor nunca chegar a calcular.
+    if (item.quantidade <= 0) {
+      itensNaoReconhecidos.push({
+        nome: item.nome,
+        medida: item.medida,
+        quantidade: item.quantidade,
+        confianca: item.confianca,
+        motivo: 'quantidade_nao_informada',
+        alimentoCasado: alimento.nomeTaco,
+        caloriasKcal100g: alimento.caloriasKcal100g,
+        proteinasG100g: alimento.proteinasG100g,
+        carboidratosG100g: alimento.carboidratosG100g,
+        gordurasG100g: alimento.gordurasG100g,
+        medidasDisponiveis: alimento.medidas,
+      });
+      continue;
+    }
+
     const medida = encontrarMedida(alimento, item.medida);
     if (!medida) {
       itensNaoReconhecidos.push({
@@ -1542,6 +1591,32 @@ export async function resolverComBuscaSemantica(
         }
 
         console.log(`[resolverComBuscaSemantica] Alimento resolvido: "${alimento.nomeTaco}"`);
+
+        // RELATÓRIO 20260901_0002 (Regra 23) — mesma checagem de
+        // `calcularPrato`: estes itens chegaram aqui com
+        // `motivo: 'alimento_nao_encontrado'` (o primeiro passo nunca
+        // chegou a checar quantidade pra eles, porque o alimento não
+        // tinha sido achado ainda). Achado o alimento agora, a mesma
+        // regra vale — quantidade 0/negativa/NaN nunca deve virar um
+        // cálculo, mesmo que a medida bata perfeitamente.
+        if (item.quantidade <= 0) {
+          console.log(
+            `[resolverComBuscaSemantica] Alimento achado ("${alimento.nomeTaco}") mas quantidade inválida (${item.quantidade}) — item fica não resolvido (Regra 23, não arbitra)`,
+          );
+          return {
+            resolvido: null,
+            naoReconhecido: {
+              ...item,
+              motivo: 'quantidade_nao_informada',
+              alimentoCasado: alimento.nomeTaco,
+              caloriasKcal100g: alimento.caloriasKcal100g,
+              proteinasG100g: alimento.proteinasG100g,
+              carboidratosG100g: alimento.carboidratosG100g,
+              gordurasG100g: alimento.gordurasG100g,
+              medidasDisponiveis: alimento.medidas,
+            },
+          };
+        }
 
         const medida = encontrarMedida(alimento, item.medida);
         // RELATÓRIO 20260830_0001 (N27) — ATUALIZAÇÃO do comentário antigo:
@@ -2623,9 +2698,10 @@ async function processarPratoRefeicao(params: {
         nome: item.nome,
         medida: item.medida,
         motivo: item.motivo,
-        // N27 — presentes só quando motivo === 'medida_nao_encontrada' (o
-        // alimento já foi casado, só falta a medida): dão ao Flutter o
-        // suficiente para resolver manualmente sem novo round-trip.
+        // N27/RELATÓRIO 20260901_0002 — presentes quando o alimento já foi
+        // casado (motivo 'medida_nao_encontrada' ou 'quantidade_nao_informada'
+        // — nos dois casos só falta um detalhe, não o alimento inteiro): dão
+        // ao Flutter o suficiente para resolver manualmente sem novo round-trip.
         ...(item.alimentoCasado ? { alimento_casado: item.alimentoCasado } : {}),
         ...(item.caloriasKcal100g !== undefined ? { calorias_kcal_100g: item.caloriasKcal100g } : {}),
         ...(item.proteinasG100g !== undefined ? { proteinas_g_100g: item.proteinasG100g } : {}),

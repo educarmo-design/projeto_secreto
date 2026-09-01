@@ -440,11 +440,38 @@ Deno.test('parseRespostaGeminiPrato: item sem nome ou sem medida é descartado',
   assertEquals(r.itens.length, 0);
 });
 
-Deno.test('parseRespostaGeminiPrato: quantidade ausente/inválida assume 1', () => {
+Deno.test('parseRespostaGeminiPrato: quantidade ausente assume 1 (campo simplesmente não veio)', () => {
   const r = parseRespostaGeminiPrato(
     '{"itens":[{"nome":"ovo","medida":"unidade","confianca":0.9}]}',
   );
   assertEquals(r.itens[0].quantidade, 1);
+});
+
+// RELATÓRIO 20260901_0002 (achado do teste físico, "café com leite" — Regra
+// 23): campo AUSENTE (acima) é diferente de campo PRESENTE mas inválido —
+// o modelo respondeu e não conseguiu decidir uma quantidade (0), ou
+// respondeu um valor sem sentido (negativo/NaN). O comportamento ANTIGO
+// tratava os dois casos como "assume 1", arbitrando silenciosamente um
+// consumo que ninguém mediu. Agora vira `0` — sentinela que
+// `calcularPrato`/`resolverComBuscaSemantica` tratam como item NÃO
+// RESOLVIDO (ver testes abaixo), nunca como "1x calculado".
+Deno.test('parseRespostaGeminiPrato: quantidade presente mas 0 NÃO assume 1 — vira sentinela de "não informada"', () => {
+  const r = parseRespostaGeminiPrato(
+    '{"itens":[{"nome":"cafe com leite","medida":"xicara","quantidade":0,"confianca":0.8}]}',
+  );
+  assertEquals(r.itens[0].quantidade, 0);
+});
+
+Deno.test('parseRespostaGeminiPrato: quantidade negativa/NaN também vira a sentinela (nunca um valor inventado)', () => {
+  const negativa = parseRespostaGeminiPrato(
+    '{"itens":[{"nome":"cafe com leite","medida":"xicara","quantidade":-1,"confianca":0.8}]}',
+  );
+  assertEquals(negativa.itens[0].quantidade, 0);
+
+  const naoNumerica = parseRespostaGeminiPrato(
+    '{"itens":[{"nome":"cafe com leite","medida":"xicara","quantidade":"muito","confianca":0.8}]}',
+  );
+  assertEquals(naoNumerica.itens[0].quantidade, 0);
 });
 
 Deno.test('parseRespostaGeminiPrato: quantidade absurda é grampeada (teto de sanidade)', () => {
@@ -679,6 +706,39 @@ Deno.test('calcularPrato: medida vazia vai para itensNaoReconhecidos', () => {
   assertEquals(r.itensNaoReconhecidos[0].motivo, 'medida_nao_encontrada');
 });
 
+// RELATÓRIO 20260901_0002 (achado do teste físico, "café com leite") —
+// alimento E medida casam normalmente, mas a quantidade veio inválida
+// (0/negativa) — item não pode virar um cálculo de "0 kcal" (pareceria
+// medição real), tem que ficar não resolvido, com o alimento já
+// enriquecido pra resolução manual (mesmo padrão do N27).
+Deno.test('calcularPrato: quantidade 0 (presente mas inválida) fica não resolvida, mesmo com alimento e medida OK', () => {
+  const r = calcularPrato(
+    [itemExtraido({ nome: 'arroz', medida: 'colher de sopa', quantidade: 0 })],
+    CATALOGO_TESTE,
+  );
+  assertEquals(r.itens.length, 0);
+  assertEquals(r.itensNaoReconhecidos.length, 1);
+  const naoReconhecido = r.itensNaoReconhecidos[0];
+  assertEquals(naoReconhecido.motivo, 'quantidade_nao_informada');
+  assertEquals(naoReconhecido.alimentoCasado, 'Arroz, branco, cozido');
+  assertEquals(naoReconhecido.caloriasKcal100g, 128);
+  assertEquals(naoReconhecido.medidasDisponiveis?.length, 2);
+  // Item não resolvido não contamina o total — nunca "0 kcal" como se
+  // fosse uma medição real.
+  assertEquals(r.totais.calorias, 0);
+});
+
+Deno.test('calcularPrato: quantidade inválida é checada ANTES do casamento de medida (nem tenta casar)', () => {
+  // "xícara" não existe nas medidas do arroz — se a checagem de medida
+  // rodasse primeiro, o motivo seria medida_nao_encontrada; a quantidade
+  // inválida deve vencer, porque é o problema mais fundamental do item.
+  const r = calcularPrato(
+    [itemExtraido({ nome: 'arroz', medida: 'xícara', quantidade: -5 })],
+    CATALOGO_TESTE,
+  );
+  assertEquals(r.itensNaoReconhecidos[0].motivo, 'quantidade_nao_informada');
+});
+
 Deno.test('calcularPrato: prato sem itens dá totais zerados (não é erro)', () => {
   const r = calcularPrato([], CATALOGO_TESTE);
   assertEquals(r.itens.length, 0);
@@ -846,6 +906,26 @@ Deno.test('resolverComBuscaSemantica: item com motivo medida_nao_encontrada nunc
   assertEquals(chamou, false);
   assertEquals(r.aindaNaoReconhecidos.length, 1);
   assertEquals(r.aindaNaoReconhecidos[0].motivo, 'medida_nao_encontrada');
+});
+
+// RELATÓRIO 20260901_0002 — mesma checagem de quantidade inválida, agora no
+// caminho da busca semântica (alimento só é achado DEPOIS do primeiro
+// passo, então a checagem de `calcularPrato` nunca rodou pra este item).
+Deno.test('resolverComBuscaSemantica: alimento achado mas quantidade inválida -> não resolvido, não calcula', async () => {
+  const arrozMatch: BuscaSemanticaLike = {
+    buscar: () => Promise.resolve([{ id: 'arroz-id', similarity: 0.81 }]),
+  };
+  const r = await resolverComBuscaSemantica(
+    [naoReconhecido({ nome: 'arrozinho', medida: 'colher de sopa', quantidade: 0 })],
+    CATALOGO_TESTE,
+    chamadorEmbeddingFixo(),
+    arrozMatch,
+  );
+  assertEquals(r.resolvidos.length, 0);
+  assertEquals(r.aindaNaoReconhecidos.length, 1);
+  const naoReconhecidoResultado = r.aindaNaoReconhecidos[0];
+  assertEquals(naoReconhecidoResultado.motivo, 'quantidade_nao_informada');
+  assertEquals(naoReconhecidoResultado.alimentoCasado, 'Arroz, branco, cozido');
 });
 
 // ============================================================================
@@ -1203,6 +1283,37 @@ Deno.test('handler: prato com múltiplos itens soma totais corretamente', async 
   const body = await res.json();
   assertEquals(body.itens.length, 2);
   assertEquals(body.totais.calorias, 64 + 61);
+});
+
+// RELATÓRIO 20260901_0002 — reproduz o achado do teste físico ("foto de
+// café com leite retorna quantidade 0") pelo pipeline HTTP completo: o
+// Gemini identificou alimento E medida, mas não conseguiu decidir "quantas
+// xícaras" — item precisa travar pra resolução manual, nunca virar "0 kcal"
+// silenciosamente, e não pode impedir o resto do prato de ser registrado.
+Deno.test('handler: foto com quantidade 0 (ex. "café com leite") trava o item pra resolução manual, resto do prato segue normal', async () => {
+  const res = await createHandler({
+    autenticador: AUTH_OK,
+    catalogoAlimentos: CATALOGO_FALSO,
+    chamarGemini: geminiRespondendo(
+      '{"itens":[' +
+        '{"nome":"arroz","medida":"colher de sopa","quantidade":2,"confianca":0.9},' +
+        '{"nome":"feijao","medida":"concha média","quantidade":0,"confianca":0.6}' +
+        '],"possivel_foto_de_tela":false}',
+    ),
+  })(reqComImagem({ 'X-Tipo-Aparelho': 'pratoRefeicao' }));
+
+  assertEquals(res.status, 200);
+  const body = await res.json();
+  // Arroz (quantidade válida) segue normal.
+  assertEquals(body.itens.length, 1);
+  assertEquals(body.itens[0].nome, 'Arroz, branco, cozido');
+  assertEquals(body.totais.calorias, 64); // só o arroz — feijão não contamina
+  // Feijão (quantidade 0) fica não resolvido, enriquecido pra resolução manual.
+  assertEquals(body.itens_nao_reconhecidos.length, 1);
+  const naoReconhecido = body.itens_nao_reconhecidos[0];
+  assertEquals(naoReconhecido.motivo, 'quantidade_nao_informada');
+  assertEquals(naoReconhecido.alimento_casado, 'Feijão, carioca, cozido');
+  assertEquals(naoReconhecido.medidas_disponiveis?.length, 1);
 });
 
 // Busca semântica falsa: injetável tanto para "nenhum match" (fica em

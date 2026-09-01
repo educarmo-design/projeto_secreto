@@ -77,6 +77,9 @@ void main() {
     expect(find.text('Confiança da leitura: 90%'), findsOneWidget);
     expect(find.text('1 filé'), findsOneWidget);
     expect(find.text('130 kcal · 22.0g prot · 0.0g carb · 4.0g gord'), findsOneWidget);
+    // RELATÓRIO 20260901_0002 (achado do teste físico) — badge da unidade
+    // logo abaixo do nome, além da menção já existente junto da quantidade.
+    expect(find.text('filé'), findsOneWidget);
   });
 
   testWidgets('não mostra "identificado como" quando o nome casado é igual ao identificado',
@@ -89,25 +92,35 @@ void main() {
     expect(find.textContaining('Identificado como'), findsNothing);
   });
 
-  testWidgets('tocar em [+] dobra a quantidade e os macros exibidos, sem rede', (tester) async {
+  testWidgets('tocar em [+] avança 0,5 por toque; 2 toques dobram a quantidade e os macros', (tester) async {
     await pumpPagina(tester);
 
+    // RELATÓRIO 20260901_0002 (achado do teste físico do fundador): passo
+    // passou de 1 pra 0,5 — 1 toque já é visível...
     await tester.tap(find.byIcon(Icons.add_circle_outline));
     await tester.pump();
+    expect(find.text('1.5 filé'), findsOneWidget);
 
+    // ...e 2 toques reproduzem o "dobra" que este teste sempre verificou.
+    await tester.tap(find.byIcon(Icons.add_circle_outline));
+    await tester.pump();
     expect(find.text('2 filé'), findsOneWidget);
     expect(find.text('260 kcal · 44.0g prot · 0.0g carb · 8.0g gord'), findsOneWidget);
     expect(find.text('Total: 260 kcal · 44.0g prot · 0.0g carb · 8.0g gord'), findsOneWidget);
   });
 
-  testWidgets('tocar em [-] nunca reduz a quantidade abaixo de 1', (tester) async {
+  testWidgets('tocar em [-] nunca reduz a quantidade abaixo de 0,5', (tester) async {
     await pumpPagina(tester);
 
     await tester.tap(find.byIcon(Icons.remove_circle_outline));
     await tester.pump();
+    expect(find.text('0.5 filé'), findsOneWidget);
+    expect(find.text('65 kcal · 11.0g prot · 0.0g carb · 2.0g gord'), findsOneWidget);
 
-    expect(find.text('1 filé'), findsOneWidget);
-    expect(find.text('130 kcal · 22.0g prot · 0.0g carb · 4.0g gord'), findsOneWidget);
+    // Um segundo toque não desce mais — 0,5 é o piso (RELATÓRIO 20260901_0002).
+    await tester.tap(find.byIcon(Icons.remove_circle_outline));
+    await tester.pump();
+    expect(find.text('0.5 filé'), findsOneWidget);
   });
 
   testWidgets('remover um item tira ele da lista e atualiza o total', (tester) async {

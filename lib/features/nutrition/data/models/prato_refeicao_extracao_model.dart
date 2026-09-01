@@ -126,18 +126,21 @@ class ItemPratoNaoReconhecidoModel {
   final String nome;
   final String medida;
 
-  /// `'alimento_nao_encontrado'` ou `'medida_nao_encontrada'` — ver
-  /// `confirmacao_prato.motivo.*` no i18n para o texto exibido.
+  /// `'alimento_nao_encontrado'`, `'medida_nao_encontrada'` ou
+  /// `'quantidade_nao_informada'` (RELATÓRIO 20260901_0002 — a IA
+  /// respondeu, mas com uma quantidade inválida/0, ex.: foto de "café com
+  /// leite" sem contagem clara) — ver `confirmacao_prato.motivo.*` no
+  /// i18n para o texto exibido.
   final String motivo;
 
-  /// Presentes só quando `motivo == 'medida_nao_encontrada'` — o alimento
-  /// JÁ foi casado no servidor (só a medida que não bateu), então o
-  /// contrato manda o suficiente pra tela resolver manualmente SEM um novo
-  /// round-trip: o nome canônico casado, os macros por 100g, e as medidas
-  /// que este alimento específico tem cadastradas. Ausentes quando
-  /// `motivo == 'alimento_nao_encontrado'` (não há alimento casado nenhum
-  /// para descrever — resolver esse caso exigiria busca manual de
-  /// alimento, fora do escopo desta tarefa).
+  /// Presentes quando o alimento JÁ foi casado no servidor — `motivo ==
+  /// 'medida_nao_encontrada'` (só a medida não bateu) ou `'quantidade_nao_informada'`
+  /// (só a quantidade veio inválida) — então o contrato manda o suficiente
+  /// pra tela resolver manualmente SEM um novo round-trip: o nome canônico
+  /// casado, os macros por 100g, e as medidas que este alimento específico
+  /// tem cadastradas. Ausentes quando `motivo == 'alimento_nao_encontrado'`
+  /// (não há alimento casado nenhum para descrever — resolver esse caso
+  /// exigiria busca manual de alimento, fora do escopo desta tarefa).
   final String? alimentoCasado;
   final double? caloriasKcal100g;
   final double? proteinasG100g;

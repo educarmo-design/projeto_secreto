@@ -588,7 +588,8 @@
     "total_inclui_estimativa": "This total includes at least one item with an estimated (not measured) weight",
     "motivo": {
       "alimento_nao_encontrado": "Food not found in the catalog",
-      "medida_nao_encontrada": "No home measure registered for this food"
+      "medida_nao_encontrada": "No home measure registered for this food",
+      "quantidade_nao_informada": "Quantity not identified — confirm how much was consumed"
     }
   },
 

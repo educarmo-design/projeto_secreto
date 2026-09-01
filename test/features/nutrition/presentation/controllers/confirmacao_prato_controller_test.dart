@@ -57,6 +57,9 @@ void main() {
   test('incrementar dobra quantidade e macros proporcionalmente (regra de três)', () {
     final controller = ConfirmacaoPratoController(extracaoCom());
 
+    // RELATÓRIO 20260901_0002: passo passou de 1 pra 0,5 (achado do teste
+    // físico) — 2 toques equivalem ao "dobra" que este teste sempre testou.
+    controller.incrementar(0);
     controller.incrementar(0);
 
     final itemEditavel = controller.value.itens.single;
@@ -74,6 +77,9 @@ void main() {
       extracaoCom(itens: [item(quantidadeOriginal: 2, calorias: 260, proteinasG: 44)]),
     );
 
+    // RELATÓRIO 20260901_0002: passo 0,5 — 2 toques pra reduzir 1 unidade
+    // inteira, mesmo "reduz pela metade" que este teste sempre testou.
+    controller.decrementar(0);
     controller.decrementar(0);
 
     final itemEditavel = controller.value.itens.single;
@@ -82,14 +88,32 @@ void main() {
     expect(itemEditavel.proteinasG, 22.0);
   });
 
-  test('decrementar nunca reduz a quantidade abaixo de 1', () {
+  // RELATÓRIO 20260901_0002 (achado do teste físico do fundador): passo de
+  // incremento/decremento passou de 1 unidade inteira pra 0,5 — o Gemini já
+  // reporta frações reais ("meia fatia") e o usuário edita frações depois
+  // de confirmar (ex.: sobrou meio copo). O piso também desceu de 1 pra 0,5
+  // (zerar de vez é a ação explícita de remover, não decrementar demais).
+  test('decrementar nunca reduz a quantidade abaixo de 0,5', () {
     final controller = ConfirmacaoPratoController(extracaoCom());
 
     controller.decrementar(0);
     controller.decrementar(0);
     controller.decrementar(0);
 
-    expect(controller.value.itens.single.quantidadeAtual, 1.0);
+    expect(controller.value.itens.single.quantidadeAtual, 0.5);
+  });
+
+  test('incrementar/decrementar avançam de 0,5 em 0,5', () {
+    final controller = ConfirmacaoPratoController(extracaoCom());
+
+    controller.incrementar(0);
+    expect(controller.value.itens.single.quantidadeAtual, 1.5);
+
+    controller.incrementar(0);
+    expect(controller.value.itens.single.quantidadeAtual, 2.0);
+
+    controller.decrementar(0);
+    expect(controller.value.itens.single.quantidadeAtual, 1.5);
   });
 
   test('ajustar um item não afeta os demais', () {
@@ -100,9 +124,9 @@ void main() {
       ]),
     );
 
-    controller.incrementar(0);
+    controller.incrementar(0); // passo 0,5 (RELATÓRIO 20260901_0002): 1 -> 1,5x
 
-    expect(controller.value.itens[0].calorias, 200.0);
+    expect(controller.value.itens[0].calorias, 150.0);
     expect(controller.value.itens[1].calorias, 80.0);
   });
 
@@ -133,7 +157,7 @@ void main() {
     controller.incrementar(1); // ainda deve achar Feijão pela chave 1
 
     expect(controller.value.itens.single.original.nomeCasado, 'Feijão');
-    expect(controller.value.itens.single.quantidadeAtual, 2.0);
+    expect(controller.value.itens.single.quantidadeAtual, 1.5); // passo 0,5 (RELATÓRIO 20260901_0002)
   });
 
   test('itensNaoReconhecidos e possivelFotoDeTela são preservados no estado', () {
@@ -158,6 +182,7 @@ void main() {
   test('payloadRevisado reflete as quantidades já editadas, não as originais', () {
     final controller = ConfirmacaoPratoController(extracaoCom());
     controller.incrementar(0);
+    controller.incrementar(0); // passo 0,5 (RELATÓRIO 20260901_0002): 2 toques = dobra
 
     final payload = controller.payloadRevisado();
 
@@ -229,7 +254,10 @@ void main() {
   test('confirmar com sucesso grava via repositório e retorna true', () async {
     final fake = _FakeColetaDiariaRepository(resultado: const ColetaDiariaResult(success: true));
     final controller = ConfirmacaoPratoController(extracaoCom(), repositorio: fake);
-    controller.incrementar(0); // garante que o payload gravado reflete a edição
+    // garante que o payload gravado reflete a edição — 2 toques porque o
+    // passo é 0,5 (RELATÓRIO 20260901_0002).
+    controller.incrementar(0);
+    controller.incrementar(0);
 
     final sucesso = await controller.confirmar();
 
@@ -374,6 +402,7 @@ void main() {
         },
       );
       controller.incrementar(0);
+      controller.incrementar(0); // passo 0,5 (RELATÓRIO 20260901_0002): 2 toques = dobra
 
       await controller.confirmar();
 
