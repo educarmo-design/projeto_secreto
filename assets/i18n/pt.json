@@ -155,13 +155,17 @@
     "camera_unavailable": "Câmera não disponível neste dispositivo",
     "camera_permission_denied": "Permissão da câmera negada. Habilite o acesso à câmera nas configurações do sistema.",
     "camera_error": "Não foi possível acessar a câmera",
-    "camera_upload_error": "Servidor ocupado ou falha na leitura. Tente novamente.",
+    "camera_upload_error": "Servidor ocupado. Tente novamente em instantes.",
+    "camera_server_error": "Erro no servidor. Tente novamente.",
+    "camera_timeout_error": "Tempo esgotado aguardando o servidor. Tente novamente.",
+    "camera_network_error": "Falha de conexão. Verifique sua internet e tente novamente.",
     "camera_client_error": "Não foi possível enviar essa foto. Tente novamente.",
     "camera_parse_error": "Resposta inesperada do servidor. Tente novamente.",
     "camera_no_data_extracted_error": "Não conseguimos identificar nada legível nessa foto. Tente novamente com mais luz e foco.",
     "camera_unexpected_error": "Ocorreu um erro inesperado. Tente novamente.",
     "camera_capturing": "Capturando foto...",
     "camera_uploading": "Analisando com IA...",
+    "camera_uploading_demora": "Ainda analisando, pode levar um pouco mais...",
     "camera_take_photo_button": "Tirar Foto",
     "camera_result_title": "Dados Extraídos",
     "camera_confirm_button": "Confirmar",
@@ -450,7 +454,8 @@
     "instrucao": "Digite o que você comeu, com a quantidade de cada alimento.",
     "hint": "Ex.: arroz 2 colheres, feijão 50 gramas, uma folha de alface, duas rodelas de tomate e um bife pequeno",
     "interpretar_button": "Interpretar",
-    "interpretando": "Interpretando..."
+    "interpretando": "Interpretando...",
+    "interpretando_demora": "Ainda analisando, pode levar um pouco mais..."
   },
 
   "gravar_refeicao": {
@@ -460,6 +465,7 @@
     "gravando": "Gravando...",
     "parar_button": "Parar e enviar",
     "interpretando": "Interpretando...",
+    "interpretando_demora": "Ainda analisando, pode levar um pouco mais...",
     "sem_permissao": "Precisamos da permissão do microfone para gravar sua refeição.",
     "erro_gravacao": "Não foi possível gravar o áudio. Tente novamente.",
     "tentar_novamente": "Tentar de novo"
@@ -597,7 +603,8 @@
     "total_inclui_estimativa": "Este total inclui pelo menos um item com peso estimado, não medido",
     "motivo": {
       "alimento_nao_encontrado": "Alimento não encontrado no catálogo",
-      "medida_nao_encontrada": "Medida não cadastrada para este alimento"
+      "medida_nao_encontrada": "Medida não cadastrada para este alimento",
+      "quantidade_nao_informada": "Quantidade não identificada — confirme quanto foi consumido"
     }
   },
 

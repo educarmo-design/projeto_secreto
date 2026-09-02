@@ -197,12 +197,19 @@ class ConfirmacaoPratoController extends ValueNotifier<ConfirmacaoPratoState> {
     double? confiancaMinima,
   )? aoConfirmar;
 
-  /// Incremento de 1 unidade — mesma granularidade que o Gemini reporta
-  /// (medida caseira inteira: "1 escumadeira" -> "2 escumadeiras"). O botão
-  /// [-] nunca reduz abaixo de 1: zerar um item é a ação explícita de
+  /// RELATÓRIO 20260901_0002 (achado do teste físico do fundador) —
+  /// incremento de MEIA unidade (era 1 inteira): o Gemini já reporta
+  /// frações reais ("meia fatia", "1/2 xícara"), e o usuário edita frações
+  /// depois de confirmar também (ex.: sobrou meio copo). Passo de 1 inteiro
+  /// não deixava chegar em 1,5/2,5 pelos botões, só digitando o peso manual
+  /// — displays já tratavam fração (`_formatarQuantidade`), só o passo
+  /// nunca tinha sido ajustado. 0,5 é exatamente representável em ponto
+  /// flutuante binário (2⁻¹) — somar/subtrair repetidamente nunca acumula
+  /// erro de arredondamento (diferente de um passo como 0,1). O botão [-]
+  /// nunca reduz abaixo de 0,5: zerar um item é a ação explícita de
   /// remover ([remover]), não um efeito colateral de decrementar demais.
-  static const double _quantidadeMinima = 1;
-  static const double _passo = 1;
+  static const double _quantidadeMinima = 0.5;
+  static const double _passo = 0.5;
 
   void incrementar(int chave) => _ajustarQuantidade(chave, _passo);
 

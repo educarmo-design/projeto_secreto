@@ -63,9 +63,35 @@ class _GravarRefeicaoPageState extends State<GravarRefeicaoPage> {
   // regressivo, só um corte automático.
   static const Duration _duracaoMaxima = Duration(seconds: 90);
 
+  // RELATÓRIO 20260902_0001 (mitigação de latência, Regra 4) — mesmo
+  // padrão de `CameraCaptureView`/`DescreverRefeicaoPage`: depois de 15s
+  // esperando o servidor (estado `enviando`), troca o texto por um aviso
+  // de demora, sem interromper o spinner.
+  static const Duration _esperaParaAvisoDemora = Duration(seconds: 15);
+  Timer? _timerAvisoDemora;
+  bool _mostrarAvisoDemora = false;
+
+  /// Liga o timer ao ENTRAR em `enviando`. Chamar só uma vez por envio.
+  void _iniciarAvisoDemora() {
+    _mostrarAvisoDemora = false;
+    _timerAvisoDemora = Timer(_esperaParaAvisoDemora, () {
+      if (!mounted) return;
+      setState(() => _mostrarAvisoDemora = true);
+    });
+  }
+
+  /// Desliga o timer ao SAIR de `enviando` (sucesso, erro, ou reset pro
+  /// idle) — nunca deixa o aviso vazar pra um próximo envio.
+  void _pararAvisoDemora() {
+    _timerAvisoDemora?.cancel();
+    _timerAvisoDemora = null;
+    _mostrarAvisoDemora = false;
+  }
+
   @override
   void dispose() {
     _limiteDuracao?.cancel();
+    _timerAvisoDemora?.cancel();
     if (_controllerEhProprio) _controller.dispose();
     if (_recorderEhProprio) _recorder.dispose();
     super.dispose();
@@ -120,6 +146,7 @@ class _GravarRefeicaoPageState extends State<GravarRefeicaoPage> {
     }
 
     setState(() => _estado = _EstadoGravacao.enviando);
+    _iniciarAvisoDemora();
 
     List<int> bytes;
     try {
@@ -149,12 +176,14 @@ class _GravarRefeicaoPageState extends State<GravarRefeicaoPage> {
     if (!mounted) return;
     final resultado = _controller.value;
     if (resultado.status != RegistroRefeicaoIaStatus.sucesso) {
+      _pararAvisoDemora();
       setState(() {
         _estado = _EstadoGravacao.erro;
         _erroMensagem = resultado.errorMessage;
       });
       return;
     }
+    _pararAvisoDemora();
 
     final confirmado = await Navigator.of(context).push<bool>(
       MaterialPageRoute(builder: (_) => ConfirmacaoPratoPage(extracao: resultado.extracao!)),
@@ -206,9 +235,21 @@ class _GravarRefeicaoPageState extends State<GravarRefeicaoPage> {
         return Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            // `const` — nunca reconstruído quando só o texto abaixo troca
+            // (Regra 4).
             const CircularProgressIndicator(),
             const SizedBox(height: 12),
-            Text(i18n.tr('gravar_refeicao.interpretando')),
+            // RELATÓRIO 20260902_0001 — crossfade curto pro aviso de
+            // demora (15s), nunca troca de uma vez ("sem piscar").
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 300),
+              child: Text(
+                _mostrarAvisoDemora
+                    ? i18n.tr('gravar_refeicao.interpretando_demora')
+                    : i18n.tr('gravar_refeicao.interpretando'),
+                key: ValueKey(_mostrarAvisoDemora),
+              ),
+            ),
           ],
         );
       case _EstadoGravacao.erro:

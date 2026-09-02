@@ -31,6 +31,11 @@ const MODELO_EMBEDDING = Deno.env.get('EMBEDDING_MODEL_NAME') || 'gemini-embeddi
 const GEMINI_EMBED_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${MODELO_EMBEDDING}:embedContent`;
 const DIMENSOES_EMBEDDING = 768;
 
+// RELATÓRIO 20260902_0001 — mesma mitigação de latência aplicada em
+// extract-metric-photo/index.ts (`TIMEOUT_EMBEDDING_MS`): embedding de um
+// termo de busca curto é um payload leve, 15s já é generoso.
+const TIMEOUT_EMBEDDING_MS = 15_000;
+
 /** `Number(env) || fallback` trataria um valor configurado como "0" como ausente — helper explícito em vez disso. */
 function envFloat(nome: string, valorPadrao: number): number {
   const bruto = Deno.env.get(nome);
@@ -111,25 +116,39 @@ export type ChamadorEmbedding = (texto: string) => Promise<number[]>;
 /// index_test.ts exercita todo o handler sem tocar a rede nem precisar de
 /// GEMINI_API_KEY (mesma filosofia do `chamarGemini` falso de
 /// extract-metric-photo/index.ts).
-export function criarChamadorEmbeddingReal(apiKey: string): ChamadorEmbedding {
+export function criarChamadorEmbeddingReal(apiKey: string, timeoutMs = TIMEOUT_EMBEDDING_MS): ChamadorEmbedding {
   return async (texto: string) => {
-    const resposta = await fetch(`${GEMINI_EMBED_ENDPOINT}?key=${apiKey}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      // BUG CORRIGIDO (N20): faltava `taskType`/`outputDimensionality` — a
-      // função rodava, não dava erro nenhum, só devolvia busca ruim em
-      // silêncio (o par assimétrico documentado no cabeçalho deste arquivo e
-      // em match_alimentos nunca saía de verdade na requisição real; só o
-      // teste que já cobria isso — index_test.ts — é que provava a
-      // ausência). Mesmo corpo de requisição já usado (correto) em
-      // extract-metric-photo/index.ts.
-      body: JSON.stringify({
-        model: `models/${MODELO_EMBEDDING}`,
-        content: { parts: [{ text: texto }] },
-        taskType: 'RETRIEVAL_QUERY',
-        outputDimensionality: DIMENSOES_EMBEDDING,
-      }),
-    });
+    const abortController = new AbortController();
+    const timeoutId = setTimeout(() => abortController.abort(), timeoutMs);
+
+    let resposta: Response;
+    try {
+      resposta = await fetch(`${GEMINI_EMBED_ENDPOINT}?key=${apiKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        // BUG CORRIGIDO (N20): faltava `taskType`/`outputDimensionality` — a
+        // função rodava, não dava erro nenhum, só devolvia busca ruim em
+        // silêncio (o par assimétrico documentado no cabeçalho deste arquivo e
+        // em match_alimentos nunca saía de verdade na requisição real; só o
+        // teste que já cobria isso — index_test.ts — é que provava a
+        // ausência). Mesmo corpo de requisição já usado (correto) em
+        // extract-metric-photo/index.ts.
+        body: JSON.stringify({
+          model: `models/${MODELO_EMBEDDING}`,
+          content: { parts: [{ text: texto }] },
+          taskType: 'RETRIEVAL_QUERY',
+          outputDimensionality: DIMENSOES_EMBEDDING,
+        }),
+        signal: abortController.signal,
+      });
+    } catch (erro) {
+      if (erro instanceof DOMException && erro.name === 'AbortError') {
+        throw new ErroHttp(504, `Gemini embedContent não respondeu em ${timeoutMs}ms.`);
+      }
+      throw erro;
+    } finally {
+      clearTimeout(timeoutId);
+    }
 
     if (!resposta.ok) {
       const corpoErro = await resposta.text();

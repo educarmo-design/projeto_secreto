@@ -135,11 +135,25 @@ class CameraCaptureController extends ValueNotifier<CameraCaptureState> {
   // sozinho já podia se aproximar dos 45s. Agora o servidor troca de
   // modelo na 1ª falha do CORE (não retenta contra si mesmo, já pula pro
   // fallback) e o fallback (LITE, o "último recurso") é quem carrega o
-  // orçamento de retry cheio — mais rápido no caminho comum, mas o pior
-  // caso continua sendo "CORE falha uma vez + LITE esgota as 3
-  // tentativas" — 60s dá folga real pra esse pior caso sem fingir que ele
-  // não existe.
-  static const Duration _uploadTimeout = Duration(seconds: 60);
+  // orçamento de retry cheio.
+  //
+  // RELATÓRIO 20260901_0003 — 60s ainda não tinha folga suficiente: medi a
+  // API do Gemini de verdade hoje (modelo LITE, `gemini-flash-lite-latest`,
+  // mesmo usado por prato/glicosímetro/balança/pressão), 3 chamadas
+  // seguidas com uma imagem TRIVIAL (1x1 pixel, então a variação não é
+  // sobre "imagem grande") — 2181ms, 1719ms, **42998ms**. Uma foto de
+  // comida real, maior e mais complexa, só piora essa cauda. Com
+  // `MAX_TENTATIVAS_VISAO=3` do lado do servidor, é plausível uma ÚNICA
+  // tentativa (nem precisa de retry — a resposta de 43s foi um 200 de
+  // sucesso) já se aproximar ou passar de 60s, fazendo o cliente desistir
+  // (`TimeoutException`) enquanto o servidor ainda ia responder com
+  // sucesso. Isto é variação real da API do Gemini (dependência externa,
+  // não um bug nosso) — a mitigação possível é dar mais folga, não
+  // eliminar a variação. 90s cobre uma tentativa lenta isolada com margem;
+  // não é infinito (uma tela "carregando" pra sempre também é uma falha de
+  // UX), mas para de confundir "o Gemini está sendo lento hoje" com "o
+  // aparelho não tem 45s de paciência".
+  static const Duration _uploadTimeout = Duration(seconds: 90);
 
   /// Adendo v5.1 A.4: "a resolução de envio é função do `tipo_captura`".
   /// Comida é barata (~512px, economiza token) porque a IA só precisa
@@ -242,20 +256,33 @@ class CameraCaptureController extends ValueNotifier<CameraCaptureState> {
       );
 
       if (response.statusCode != 200) {
-        // >=500: falha do lado do servidor/Gemini — "servidor ocupado" é a
-        // leitura correta. 4xx é outra categoria (requisição rejeitada por
-        // algo que o cliente enviou — imagem grande demais, tipo de
-        // aparelho desconhecido, sessão expirada, leitura ilegível do
-        // glicosímetro, etc.) e NUNCA deveria aparecer como "servidor
-        // ocupado": mostra o texto que o próprio backend já devolve (em
-        // "message" ou "error", ver _extrairMensagemErroBackend), que já é
-        // específico e seguro de exibir (nunca inclui a foto nem dado do
-        // usuário).
+        // RELATÓRIO 20260901_0003 (achado do teste físico — "Servidor
+        // Ocupado" fantasma, Regra 15/22): o código antigo mostrava
+        // "servidor ocupado" pra QUALQUER status >= 500, mesmo quando o
+        // próprio backend já mandava uma mensagem real e específica no
+        // corpo (`extract-metric-photo` devolve `{"error": "Falha ao
+        // analisar a imagem."}` num 502 do Gemini, por exemplo) — o
+        // cliente jogava essa mensagem honesta fora e mentia "ocupado" no
+        // lugar. Agora a mensagem do backend (`_extrairMensagemErroBackend`)
+        // tem prioridade em QUALQUER status, não só 4xx. "Servidor ocupado"
+        // só aparece sem mensagem do backend E status genuinamente 503/504
+        // (indisponibilidade real de infraestrutura) — `extract-metric-photo`
+        // hoje nunca emite esses dois status pelo próprio código (só
+        // 500/502/429), então isto fica reservado pra falha de plataforma
+        // acima da função (ex.: gateway do Supabase sobrecarregado).
+        // Outro 5xx sem mensagem (ex.: 500 cru) vira "erro no servidor" —
+        // real, mas não finge saber a causa.
         final erroBackend = _extrairMensagemErroBackend(response.body);
+        final ehServidorGenuinamenteOcupado =
+            response.statusCode == 503 || response.statusCode == 504;
+        final mensagemAmigavel = erroBackend ??
+            (ehServidorGenuinamenteOcupado
+                ? i18n.tr('dashboard.camera_upload_error')
+                : response.statusCode >= 500
+                    ? i18n.tr('dashboard.camera_server_error')
+                    : i18n.tr('dashboard.camera_client_error'));
         value = _estadoDeErro(
-          mensagemAmigavel: response.statusCode >= 500
-              ? i18n.tr('dashboard.camera_upload_error')
-              : (erroBackend ?? i18n.tr('dashboard.camera_client_error')),
+          mensagemAmigavel: mensagemAmigavel,
           detalheTecnico:
               'HTTP ${response.statusCode} em $endpoint — corpo: ${response.body}',
         );
@@ -321,15 +348,26 @@ class CameraCaptureController extends ValueNotifier<CameraCaptureState> {
         stackTrace: stackTrace,
       );
     } on TimeoutException catch (e, stackTrace) {
+      // RELATÓRIO 20260901_0003 — o cliente desistiu de esperar
+      // (`_uploadTimeout`), o que não é a mesma coisa que "o servidor está
+      // ocupado": pode ser o servidor genuinamente lento (medido ao vivo
+      // nesta investigação: o modelo LITE variou de ~2s a 43s numa foto
+      // TRIVIAL, só variação normal da API do Gemini) ou a rede do
+      // aparelho. "Tempo esgotado" é a leitura honesta — não afirma qual
+      // lado causou.
       value = _estadoDeErro(
-        mensagemAmigavel: i18n.tr('dashboard.camera_upload_error'),
+        mensagemAmigavel: i18n.tr('dashboard.camera_timeout_error'),
         detalheTecnico: e.toString(),
         excecao: e,
         stackTrace: stackTrace,
       );
     } on http.ClientException catch (e, stackTrace) {
+      // RELATÓRIO 20260901_0003 — `http.ClientException` é uma falha de
+      // CONEXÃO (DNS, sem internet, conexão recusada) — o pedido nem
+      // chegou a sair do aparelho. Nunca é "servidor ocupado" (o servidor
+      // não teve chance de estar ocupado ou não com nada que não recebeu).
       value = _estadoDeErro(
-        mensagemAmigavel: i18n.tr('dashboard.camera_upload_error'),
+        mensagemAmigavel: i18n.tr('dashboard.camera_network_error'),
         detalheTecnico: e.toString(),
         excecao: e,
         stackTrace: stackTrace,

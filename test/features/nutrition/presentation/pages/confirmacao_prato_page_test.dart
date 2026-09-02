@@ -26,23 +26,28 @@ void main() {
     String nomeIdentificado = 'bifinho',
     String medida = 'filé',
     double quantidadeOriginal = 1,
+    double? gramasEstimados,
     double calorias = 130,
     double proteinasG = 22,
     double carboidratosG = 0,
     double gordurasG = 4,
     double confianca = 0.9,
+    String? unidadeMedidaPadrao,
+    String? categoriaConsumo,
   }) {
     return ItemPratoExtraidoModel(
       nomeCasado: nomeCasado,
       nomeIdentificado: nomeIdentificado,
       medida: medida,
       quantidadeOriginal: quantidadeOriginal,
-      gramasEstimados: 100 * quantidadeOriginal,
+      gramasEstimados: gramasEstimados ?? 100 * quantidadeOriginal,
       calorias: calorias,
       proteinasG: proteinasG,
       carboidratosG: carboidratosG,
       gordurasG: gordurasG,
       confianca: confianca,
+      unidadeMedidaPadrao: unidadeMedidaPadrao,
+      categoriaConsumo: categoriaConsumo,
     );
   }
 
@@ -77,6 +82,51 @@ void main() {
     expect(find.text('Confiança da leitura: 90%'), findsOneWidget);
     expect(find.text('1 filé'), findsOneWidget);
     expect(find.text('130 kcal · 22.0g prot · 0.0g carb · 4.0g gord'), findsOneWidget);
+    // RELATÓRIO 20260901_0003 (achado do teste físico) — badge mostra a
+    // grandeza BASE (peso calculado + g/ml), não o nome da medida caseira
+    // ("filé" continua aparecendo, mas só na linha de baixo, junto da
+    // quantidade — "1 filé", já coberto no assert acima).
+    expect(find.text('100g'), findsOneWidget);
+  });
+
+  // RELATÓRIO 20260901_0003 — badge do card sempre mostra g/ml, nunca o
+  // nome da medida caseira (achado do teste físico: o nome não dizia nada
+  // sobre o peso real).
+  group('badge de unidade base (g/ml) no card', () {
+    testWidgets('alimento sólido (sem categoria líquida) mostra o peso em "g"', (tester) async {
+      await pumpPagina(tester, itens: [item(gramasEstimados: 250)]);
+
+      expect(find.text('250g'), findsOneWidget);
+    });
+
+    testWidgets('unidadeMedidaPadrao "ml" mostra o peso em "ml"', (tester) async {
+      await pumpPagina(
+        tester,
+        itens: [item(gramasEstimados: 200, unidadeMedidaPadrao: 'ml')],
+      );
+
+      expect(find.text('200ml'), findsOneWidget);
+    });
+
+    testWidgets('categoriaConsumo líquido (sem unidadeMedidaPadrao) também mostra "ml"', (tester) async {
+      await pumpPagina(
+        tester,
+        itens: [item(gramasEstimados: 150, categoriaConsumo: 'liquido_frio')],
+      );
+
+      expect(find.text('150ml'), findsOneWidget);
+    });
+
+    testWidgets('badge acompanha o peso quando a quantidade muda (+)', (tester) async {
+      await pumpPagina(tester, itens: [item(gramasEstimados: 100)]);
+      expect(find.text('100g'), findsOneWidget);
+
+      await tester.tap(find.byIcon(Icons.add_circle_outline));
+      await tester.pump();
+
+      // passo 0,5 (RELATÓRIO 20260901_0002): 1 -> 1,5x => 150g
+      expect(find.text('150g'), findsOneWidget);
+    });
   });
 
   testWidgets('não mostra "identificado como" quando o nome casado é igual ao identificado',
@@ -89,25 +139,35 @@ void main() {
     expect(find.textContaining('Identificado como'), findsNothing);
   });
 
-  testWidgets('tocar em [+] dobra a quantidade e os macros exibidos, sem rede', (tester) async {
+  testWidgets('tocar em [+] avança 0,5 por toque; 2 toques dobram a quantidade e os macros', (tester) async {
     await pumpPagina(tester);
 
+    // RELATÓRIO 20260901_0002 (achado do teste físico do fundador): passo
+    // passou de 1 pra 0,5 — 1 toque já é visível...
     await tester.tap(find.byIcon(Icons.add_circle_outline));
     await tester.pump();
+    expect(find.text('1.5 filé'), findsOneWidget);
 
+    // ...e 2 toques reproduzem o "dobra" que este teste sempre verificou.
+    await tester.tap(find.byIcon(Icons.add_circle_outline));
+    await tester.pump();
     expect(find.text('2 filé'), findsOneWidget);
     expect(find.text('260 kcal · 44.0g prot · 0.0g carb · 8.0g gord'), findsOneWidget);
     expect(find.text('Total: 260 kcal · 44.0g prot · 0.0g carb · 8.0g gord'), findsOneWidget);
   });
 
-  testWidgets('tocar em [-] nunca reduz a quantidade abaixo de 1', (tester) async {
+  testWidgets('tocar em [-] nunca reduz a quantidade abaixo de 0,5', (tester) async {
     await pumpPagina(tester);
 
     await tester.tap(find.byIcon(Icons.remove_circle_outline));
     await tester.pump();
+    expect(find.text('0.5 filé'), findsOneWidget);
+    expect(find.text('65 kcal · 11.0g prot · 0.0g carb · 2.0g gord'), findsOneWidget);
 
-    expect(find.text('1 filé'), findsOneWidget);
-    expect(find.text('130 kcal · 22.0g prot · 0.0g carb · 4.0g gord'), findsOneWidget);
+    // Um segundo toque não desce mais — 0,5 é o piso (RELATÓRIO 20260901_0002).
+    await tester.tap(find.byIcon(Icons.remove_circle_outline));
+    await tester.pump();
+    expect(find.text('0.5 filé'), findsOneWidget);
   });
 
   testWidgets('remover um item tira ele da lista e atualiza o total', (tester) async {

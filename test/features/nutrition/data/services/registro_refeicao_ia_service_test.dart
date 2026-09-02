@@ -39,7 +39,10 @@ void main() {
       expect(requisicaoCapturada!.body, 'arroz 2 colheres');
     });
 
-    test('500 vira RegistroRefeicaoIaException com mensagem de servidor ocupado', () async {
+    // RELATÓRIO 20260901_0003 (achado do teste físico — "Servidor Ocupado"
+    // fantasma): 502 sem mensagem do backend NÃO é mais "servidor ocupado"
+    // — só 503/504 genuínos usam esse texto. Ver testes abaixo.
+    test('502 sem mensagem do backend vira "erro no servidor", nunca "servidor ocupado"', () async {
       final client = MockClient((req) async => http.Response('{}', 502));
       final service = RegistroRefeicaoIaService(httpClient: client);
 
@@ -49,7 +52,96 @@ void main() {
           isA<RegistroRefeicaoIaException>().having(
             (e) => e.mensagemAmigavel,
             'mensagemAmigavel',
-            'Servidor ocupado. Tente novamente.',
+            'Erro no servidor. Tente novamente.',
+          ),
+        ),
+      );
+    });
+
+    test('502 COM mensagem do backend usa a mensagem real (nunca joga fora)', () async {
+      final client = MockClient(
+        (req) async => http.Response(jsonEncode({'error': 'Falha ao analisar a imagem.'}), 502),
+      );
+      final service = RegistroRefeicaoIaService(httpClient: client);
+
+      await expectLater(
+        service.interpretarTexto(descricao: 'x', endpoint: endpoint),
+        throwsA(
+          isA<RegistroRefeicaoIaException>().having(
+            (e) => e.mensagemAmigavel,
+            'mensagemAmigavel',
+            'Falha ao analisar a imagem.',
+          ),
+        ),
+      );
+    });
+
+    test('503/504 sem mensagem do backend são o único caso genuíno de "servidor ocupado"', () async {
+      final client503 = MockClient((req) async => http.Response('{}', 503));
+      final service503 = RegistroRefeicaoIaService(httpClient: client503);
+      await expectLater(
+        service503.interpretarTexto(descricao: 'x', endpoint: endpoint),
+        throwsA(
+          isA<RegistroRefeicaoIaException>().having(
+            (e) => e.mensagemAmigavel,
+            'mensagemAmigavel',
+            'Servidor ocupado. Tente novamente em instantes.',
+          ),
+        ),
+      );
+
+      final client504 = MockClient((req) async => http.Response('{}', 504));
+      final service504 = RegistroRefeicaoIaService(httpClient: client504);
+      await expectLater(
+        service504.interpretarTexto(descricao: 'x', endpoint: endpoint),
+        throwsA(
+          isA<RegistroRefeicaoIaException>().having(
+            (e) => e.mensagemAmigavel,
+            'mensagemAmigavel',
+            'Servidor ocupado. Tente novamente em instantes.',
+          ),
+        ),
+      );
+    });
+
+    test('timeout do cliente nunca vira "servidor ocupado" — mensagem de tempo esgotado', () async {
+      final client = MockClient((req) async {
+        // Nunca resolve dentro do timeout curto injetado abaixo — força o
+        // `.timeout()` do serviço a disparar de verdade (não é um mock
+        // instantâneo nem um teste de 90s reais).
+        await Future<void>.delayed(const Duration(seconds: 2));
+        return http.Response(jsonEncode(_respostaValida), 200);
+      });
+      final service = RegistroRefeicaoIaService(
+        httpClient: client,
+        uploadTimeout: const Duration(milliseconds: 50),
+      );
+
+      await expectLater(
+        service.interpretarTexto(descricao: 'x', endpoint: endpoint),
+        throwsA(
+          isA<RegistroRefeicaoIaException>().having(
+            (e) => e.mensagemAmigavel,
+            'mensagemAmigavel',
+            'Tempo esgotado aguardando o servidor. Tente novamente.',
+          ),
+        ),
+      );
+    });
+
+    test('falha de conexão (ClientException) nunca vira "servidor ocupado" — mensagem de rede', () async {
+      final client = MockClient((req) async {
+        throw http.ClientException('Connection refused');
+      });
+      final service = RegistroRefeicaoIaService(httpClient: client);
+
+      await expectLater(
+        service.interpretarTexto(descricao: 'x', endpoint: endpoint),
+        throwsA(
+          isA<RegistroRefeicaoIaException>().having(
+            (e) => e.mensagemAmigavel,
+            'mensagemAmigavel',
+            'Falha de conexão. Verifique sua internet e tente novamente.',
           ),
         ),
       );

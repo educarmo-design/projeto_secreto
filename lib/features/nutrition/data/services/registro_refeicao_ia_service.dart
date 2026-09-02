@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
@@ -21,18 +22,22 @@ class RegistroRefeicaoIaException implements Exception {
 }
 
 class RegistroRefeicaoIaService {
-  RegistroRefeicaoIaService({http.Client? httpClient}) : _httpClient = httpClient ?? http.Client();
+  /// [uploadTimeout] é injetável só pra teste (simular timeout sem esperar
+  /// os 90s reais) — em produção sempre usa o padrão abaixo.
+  RegistroRefeicaoIaService({http.Client? httpClient, Duration? uploadTimeout})
+      : _httpClient = httpClient ?? http.Client(),
+        _uploadTimeout = uploadTimeout ?? _uploadTimeoutPadrao;
 
   final http.Client _httpClient;
+  final Duration _uploadTimeout;
 
-  // Mesmo orçamento de `CameraCaptureController._uploadTimeout` (RELATÓRIO
-  // 20260824_0001/0002/20260825_0003) — texto/áudio usam só o nível LITE
-  // (sem fallback de modelo: já é o mais barato, `NIVEL_POR_TIPO` em
-  // extract-metric-photo/index.ts), então o pior caso real de retry aqui é
-  // bem menor que o da foto (CORE); mesmo timeout mantido só por
-  // simplicidade — 60s nunca é um problema pro caminho comum, que termina
-  // em poucos segundos.
-  static const Duration _uploadTimeout = Duration(seconds: 60);
+  // RELATÓRIO 20260901_0003 — mesmo orçamento de
+  // `CameraCaptureController._uploadTimeout` (60s→90s): texto/áudio usam
+  // só o nível LITE, o MESMO modelo (`gemini-flash-lite-latest`) medido ao
+  // vivo nesta investigação com variação real de ~2s a 43s numa chamada
+  // TRIVIAL — a mesma folga vale aqui, mesmo sem fallback de modelo (já é
+  // o nível mais barato, `NIVEL_POR_TIPO` em extract-metric-photo/index.ts).
+  static const Duration _uploadTimeoutPadrao = Duration(seconds: 90);
 
   /// Método 1 — texto livre digitado pelo usuário.
   Future<PratoRefeicaoExtracaoModel> interpretarTexto({
@@ -79,15 +84,44 @@ class RegistroRefeicaoIaService {
     required Map<String, String> headers,
     required List<int> body,
   }) async {
-    final response = await _httpClient.post(endpoint, headers: headers, body: body).timeout(_uploadTimeout);
+    final http.Response response;
+    try {
+      response = await _httpClient.post(endpoint, headers: headers, body: body).timeout(_uploadTimeout);
+    } on TimeoutException catch (e) {
+      // RELATÓRIO 20260901_0003 (mesmo achado de `CameraCaptureController`)
+      // — o cliente desistiu de esperar, o que não é "servidor ocupado":
+      // pode ser o Gemini genuinamente lento (medido ao vivo: LITE variou
+      // de ~2s a 43s numa imagem trivial) ou a rede do aparelho.
+      throw RegistroRefeicaoIaException(
+        mensagemAmigavel: 'Tempo esgotado aguardando o servidor. Tente novamente.',
+        detalheTecnico: 'TimeoutException aguardando $endpoint: $e',
+      );
+    } on http.ClientException catch (e) {
+      // Falha de CONEXÃO (DNS, sem internet, conexão recusada) — o pedido
+      // nem chegou a sair do aparelho, nunca é "servidor ocupado".
+      throw RegistroRefeicaoIaException(
+        mensagemAmigavel: 'Falha de conexão. Verifique sua internet e tente novamente.',
+        detalheTecnico: e.toString(),
+      );
+    }
 
     if (response.statusCode != 200) {
-      // Mesmo critério de `CameraCaptureController`: >=500 é "servidor
-      // ocupado", 4xx é o texto que o próprio backend já devolve.
+      // RELATÓRIO 20260901_0003 — a mensagem do backend (quando existe)
+      // tem prioridade em QUALQUER status, não só 4xx: `extract-metric-photo`
+      // já manda `{"error": "Falha ao analisar a imagem."}` num 502 real,
+      // por exemplo, e o código antigo jogava isso fora pra mostrar
+      // "servidor ocupado" sempre que via >=500. "Servidor ocupado" agora
+      // só aparece sem mensagem do backend E status genuinamente 503/504.
+      final erroBackend = _extrairMensagemErroBackend(response.body);
+      final ehServidorGenuinamenteOcupado =
+          response.statusCode == 503 || response.statusCode == 504;
       throw RegistroRefeicaoIaException(
-        mensagemAmigavel: response.statusCode >= 500
-            ? 'Servidor ocupado. Tente novamente.'
-            : (_extrairMensagemErroBackend(response.body) ?? 'Não foi possível interpretar a refeição.'),
+        mensagemAmigavel: erroBackend ??
+            (ehServidorGenuinamenteOcupado
+                ? 'Servidor ocupado. Tente novamente em instantes.'
+                : response.statusCode >= 500
+                    ? 'Erro no servidor. Tente novamente.'
+                    : 'Não foi possível interpretar a refeição.'),
         detalheTecnico: 'HTTP ${response.statusCode} em $endpoint — corpo: ${response.body}',
       );
     }

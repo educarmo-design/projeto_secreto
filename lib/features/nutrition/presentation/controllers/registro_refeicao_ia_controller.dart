@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
 
 import '../../../../core/config/app_config.dart';
 import '../../data/models/prato_refeicao_extracao_model.dart';
@@ -74,7 +75,17 @@ class RegistroRefeicaoIaController extends ValueNotifier<RegistroRefeicaoIaState
     } on RegistroRefeicaoIaException catch (e) {
       value = _erro(mensagemAmigavel: e.mensagemAmigavel, detalheTecnico: e.detalheTecnico);
     } on TimeoutException catch (e) {
-      value = _erro(mensagemAmigavel: 'Servidor ocupado. Tente novamente.', detalheTecnico: e.toString());
+      // RELATÓRIO 20260901_0003 — fallback defensivo: `RegistroRefeicaoIaService._chamar`
+      // já captura e traduz isto antes de chegar aqui (ver
+      // `RegistroRefeicaoIaException`); mantido só pro caso de um
+      // `TimeoutException` vindo de outro ponto de `acao()` no futuro.
+      // Nunca "servidor ocupado" — timeout é uma leitura honesta, não
+      // afirma qual lado causou.
+      value = _erro(mensagemAmigavel: 'Tempo esgotado aguardando o servidor. Tente novamente.', detalheTecnico: e.toString());
+    } on http.ClientException catch (e) {
+      // Mesmo espírito do fallback acima — falha de conexão nunca é
+      // "servidor ocupado".
+      value = _erro(mensagemAmigavel: 'Falha de conexão. Verifique sua internet e tente novamente.', detalheTecnico: e.toString());
     } on FormatException catch (e) {
       value = _erro(
         mensagemAmigavel: 'Não foi possível interpretar a resposta do servidor.',

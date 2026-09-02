@@ -155,13 +155,17 @@
     "camera_unavailable": "Camera not available on this device",
     "camera_permission_denied": "Camera permission denied. Enable camera access in system settings.",
     "camera_error": "Couldn't access the camera",
-    "camera_upload_error": "Server busy or couldn't read the photo. Please try again.",
+    "camera_upload_error": "Server busy. Please try again shortly.",
+    "camera_server_error": "Server error. Please try again.",
+    "camera_timeout_error": "Timed out waiting for the server. Please try again.",
+    "camera_network_error": "Connection failed. Check your internet and try again.",
     "camera_client_error": "Couldn't send this photo. Please try again.",
     "camera_parse_error": "Unexpected server response. Please try again.",
     "camera_no_data_extracted_error": "We couldn't identify anything readable in this photo. Try again with more light and focus.",
     "camera_unexpected_error": "An unexpected error occurred. Please try again.",
     "camera_capturing": "Capturing photo...",
     "camera_uploading": "Analyzing with AI...",
+    "camera_uploading_demora": "Still analyzing, this may take a bit longer...",
     "camera_take_photo_button": "Take Photo",
     "camera_result_title": "Extracted Data",
     "camera_confirm_button": "Confirm",
@@ -445,7 +449,8 @@
     "instrucao": "Type what you ate, with the amount of each food item.",
     "hint": "E.g.: rice 2 spoons, beans 50 grams, one lettuce leaf, two tomato slices and a small steak",
     "interpretar_button": "Interpret",
-    "interpretando": "Interpreting..."
+    "interpretando": "Interpreting...",
+    "interpretando_demora": "Still analyzing, this may take a bit longer..."
   },
 
   "gravar_refeicao": {
@@ -455,6 +460,7 @@
     "gravando": "Recording...",
     "parar_button": "Stop and send",
     "interpretando": "Interpreting...",
+    "interpretando_demora": "Still analyzing, this may take a bit longer...",
     "sem_permissao": "We need microphone permission to record your meal.",
     "erro_gravacao": "Couldn't record the audio. Please try again.",
     "tentar_novamente": "Try again"
@@ -588,7 +594,8 @@
     "total_inclui_estimativa": "This total includes at least one item with an estimated (not measured) weight",
     "motivo": {
       "alimento_nao_encontrado": "Food not found in the catalog",
-      "medida_nao_encontrada": "No home measure registered for this food"
+      "medida_nao_encontrada": "No home measure registered for this food",
+      "quantidade_nao_informada": "Quantity not identified — confirm how much was consumed"
     }
   },
 

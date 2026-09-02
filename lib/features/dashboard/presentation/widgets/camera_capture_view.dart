@@ -41,11 +41,39 @@ class CameraCaptureView extends StatefulWidget {
 class _CameraCaptureViewState extends State<CameraCaptureView> {
   final CameraCaptureController _controller = CameraCaptureController();
 
+  // RELATÓRIO 20260902_0001 (mitigação de latência, Regra 4) — depois de
+  // 15s esperando a resposta do servidor (medição real em 20260901_0003:
+  // o Gemini variou de ~2s a 43s+ na mesma chamada), troca a mensagem do
+  // spinner por um aviso de que ainda está tentando — sem trocar o
+  // spinner em si nem reiniciar a animação, só o texto embaixo dele.
+  static const Duration _esperaParaAvisoDemora = Duration(seconds: 15);
+  Timer? _timerAvisoDemora;
+  bool _mostrarAvisoDemora = false;
+
   @override
   void initState() {
     super.initState();
     _controller.addListener(_onStateChanged);
     _controller.initializeCamera(tipoAparelho: widget.tipoAparelho);
+  }
+
+  /// Chamado a cada notificação do controller — liga o timer só na
+  /// transição PRA `uploading` (o `value =` de `capturarEEnviar` acontece
+  /// uma única vez ao entrar em upload, então isto nunca reinicia o timer
+  /// repetidamente enquanto espera) e desliga assim que sai desse estado
+  /// (sucesso, erro, ou uma nova captura começando do zero).
+  void _gerenciarTimerAvisoDemora() {
+    final emUpload = _controller.value.status == CameraCaptureStatus.uploading;
+    if (emUpload) {
+      _timerAvisoDemora ??= Timer(_esperaParaAvisoDemora, () {
+        if (!mounted) return;
+        setState(() => _mostrarAvisoDemora = true);
+      });
+    } else {
+      _timerAvisoDemora?.cancel();
+      _timerAvisoDemora = null;
+      _mostrarAvisoDemora = false;
+    }
   }
 
   void _onStateChanged() {
@@ -63,6 +91,7 @@ class _CameraCaptureViewState extends State<CameraCaptureView> {
     // processando `rótulo`/glicosímetro), e não tinha proteção nenhuma
     // pra isso antes.
     if (!mounted) return;
+    _gerenciarTimerAvisoDemora();
     if (_controller.value.isSuccess) {
       final prato = _controller.value.pratoExtraido;
       if (prato != null) {
@@ -158,6 +187,7 @@ class _CameraCaptureViewState extends State<CameraCaptureView> {
 
   @override
   void dispose() {
+    _timerAvisoDemora?.cancel();
     _controller.removeListener(_onStateChanged);
     _controller.dispose();
     super.dispose();
@@ -194,6 +224,19 @@ class _CameraCaptureViewState extends State<CameraCaptureView> {
       case TipoAparelho.balanca:
         return 'dashboard.camera_option';
     }
+  }
+
+  /// RELATÓRIO 20260902_0001 — texto do overlay de espera: `capturing`
+  /// nunca troca (é quase instantâneo, o obturador não passa de 15s);
+  /// `uploading` troca pro aviso de demora só depois do timer disparar
+  /// (`_mostrarAvisoDemora`), nunca antes.
+  String _textoDoOverlay(CameraCaptureState state) {
+    if (state.status == CameraCaptureStatus.capturing) {
+      return i18n.tr('dashboard.camera_capturing');
+    }
+    return _mostrarAvisoDemora
+        ? i18n.tr('dashboard.camera_uploading_demora')
+        : i18n.tr('dashboard.camera_uploading');
   }
 
   Widget _buildBody(CameraCaptureState state) {
@@ -238,13 +281,24 @@ class _CameraCaptureViewState extends State<CameraCaptureView> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
+                      // `const` — nunca reconstruído quando só o texto
+                      // abaixo troca; a animação do spinner não interrompe
+                      // nem reinicia (Regra 4).
                       const CircularProgressIndicator(color: Colors.white),
                       const SizedBox(height: 16),
-                      Text(
-                        state.status == CameraCaptureStatus.capturing
-                            ? i18n.tr('dashboard.camera_capturing')
-                            : i18n.tr('dashboard.camera_uploading'),
-                        style: const TextStyle(color: Colors.white),
+                      // RELATÓRIO 20260902_0001 — `AnimatedSwitcher` faz a
+                      // troca pro aviso de demora (15s) com um crossfade
+                      // curto em vez de substituir o texto de uma vez
+                      // ("sem piscar", Regra 4). `capturing` nunca aciona
+                      // isto (upload é o único estado que arma o timer).
+                      AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 300),
+                        child: Text(
+                          _textoDoOverlay(state),
+                          key: ValueKey(_textoDoOverlay(state)),
+                          style: const TextStyle(color: Colors.white),
+                          textAlign: TextAlign.center,
+                        ),
                       ),
                     ],
                   ),
