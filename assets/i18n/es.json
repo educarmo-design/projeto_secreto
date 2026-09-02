@@ -165,6 +165,7 @@
     "camera_unexpected_error": "Ocurrió un error inesperado. Inténtalo de nuevo.",
     "camera_capturing": "Capturando foto...",
     "camera_uploading": "Analizando con IA...",
+    "camera_uploading_demora": "Todavía analizando, puede tardar un poco más...",
     "camera_take_photo_button": "Tomar Foto",
     "camera_result_title": "Datos Extraídos",
     "camera_confirm_button": "Confirmar",
@@ -448,7 +449,8 @@
     "instrucao": "Escribe lo que comiste, con la cantidad de cada alimento.",
     "hint": "Ej.: arroz 2 cucharadas, frijoles 50 gramos, una hoja de lechuga, dos rodajas de tomate y un bistec pequeño",
     "interpretar_button": "Interpretar",
-    "interpretando": "Interpretando..."
+    "interpretando": "Interpretando...",
+    "interpretando_demora": "Todavía analizando, puede tardar un poco más..."
   },
 
   "gravar_refeicao": {
@@ -458,6 +460,7 @@
     "gravando": "Grabando...",
     "parar_button": "Detener y enviar",
     "interpretando": "Interpretando...",
+    "interpretando_demora": "Todavía analizando, puede tardar un poco más...",
     "sem_permissao": "Necesitamos permiso del micrófono para grabar tu comida.",
     "erro_gravacao": "No se pudo grabar el audio. Inténtalo de nuevo.",
     "tentar_novamente": "Intentar de nuevo"

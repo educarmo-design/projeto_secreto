@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -38,8 +40,42 @@ class _DescreverRefeicaoPageState extends State<DescreverRefeicaoPage> {
   late final bool _controllerEhProprio = widget.controller == null;
   final TextEditingController _campoDescricao = TextEditingController();
 
+  // RELATÓRIO 20260902_0001 (mitigação de latência, Regra 4) — mesmo
+  // padrão de `CameraCaptureView`: depois de 15s esperando o servidor,
+  // troca o texto de "Interpretando..." por um aviso de demora, sem
+  // interromper o spinner do botão.
+  static const Duration _esperaParaAvisoDemora = Duration(seconds: 15);
+  Timer? _timerAvisoDemora;
+  bool _mostrarAvisoDemora = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller.addListener(_gerenciarTimerAvisoDemora);
+  }
+
+  /// Liga o timer só na transição PRA "processando" (nunca reinicia
+  /// enquanto já está esperando) e desliga assim que sai desse estado
+  /// (sucesso, erro, ou uma nova tentativa do zero).
+  void _gerenciarTimerAvisoDemora() {
+    if (!mounted) return;
+    final processando = _controller.value.isProcessando;
+    if (processando) {
+      _timerAvisoDemora ??= Timer(_esperaParaAvisoDemora, () {
+        if (!mounted) return;
+        setState(() => _mostrarAvisoDemora = true);
+      });
+    } else {
+      _timerAvisoDemora?.cancel();
+      _timerAvisoDemora = null;
+      setState(() => _mostrarAvisoDemora = false);
+    }
+  }
+
   @override
   void dispose() {
+    _timerAvisoDemora?.cancel();
+    _controller.removeListener(_gerenciarTimerAvisoDemora);
     if (_controllerEhProprio) _controller.dispose();
     _campoDescricao.dispose();
     super.dispose();
@@ -114,13 +150,26 @@ class _DescreverRefeicaoPageState extends State<DescreverRefeicaoPage> {
                         ? Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
+                              // `const` — nunca reconstruído quando só o
+                              // texto ao lado troca (Regra 4).
                               const SizedBox(
                                 width: 16,
                                 height: 16,
                                 child: CircularProgressIndicator(strokeWidth: 2),
                               ),
                               const SizedBox(width: 12),
-                              Text(i18n.tr('descrever_refeicao.interpretando')),
+                              // RELATÓRIO 20260902_0001 — crossfade curto
+                              // pro aviso de demora (15s), nunca troca de
+                              // uma vez ("sem piscar").
+                              AnimatedSwitcher(
+                                duration: const Duration(milliseconds: 300),
+                                child: Text(
+                                  _mostrarAvisoDemora
+                                      ? i18n.tr('descrever_refeicao.interpretando_demora')
+                                      : i18n.tr('descrever_refeicao.interpretando'),
+                                  key: ValueKey(_mostrarAvisoDemora),
+                                ),
+                              ),
                             ],
                           )
                         : Text(i18n.tr('descrever_refeicao.interpretar_button')),

@@ -234,6 +234,15 @@ function resolverModelo(nivel: NivelModelo): string {
 // 'gemini-embedding-001' só para ambiente local sem a secret configurada.
 const MODELO_EMBEDDING = Deno.env.get('EMBEDDING_MODEL_NAME') || 'gemini-embedding-001';
 const GEMINI_EMBED_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${MODELO_EMBEDDING}:embedContent`;
+
+// RELATÓRIO 20260902_0001 — mesma mitigação de `criarChamadorEmbeddingReal`
+// abaixo do timeout do Gemini de visão, mas com um valor MENOR: embedding
+// de um texto curto (nome de alimento) é um payload muito mais leve que
+// uma imagem inteira, então não precisa da mesma folga de 22,5s — 15s já é
+// generoso, e falhar mais rápido aqui importa porque `resolverComBuscaSemantica`
+// chama isto por item não reconhecido (em paralelo, mas cada um pagando o
+// próprio timeout se travar).
+const TIMEOUT_EMBEDDING_MS = 15_000;
 const DIMENSOES_EMBEDDING = 768;
 
 /** `Number(env) || fallback` trataria "0" configurado como ausente — helper explícito em vez disso. */
@@ -1761,6 +1770,18 @@ function delay(ms: number): Promise<void> {
 //      uso em `deps.chamarGemini` no handler.
 const MAX_TENTATIVAS_VISAO = 3;
 
+// RELATÓRIO 20260902_0001 — mitigação de latência (Bloco de Performance):
+// medição ao vivo (RELATÓRIO 20260901_0003) confirmou o Gemini variando de
+// ~2s a 43s+ na MESMA chamada, mesmo dia, mesmo modelo LITE — e o `fetch`
+// pro Gemini não tinha NENHUM timeout próprio, então uma tentativa lenta
+// podia consumir o orçamento inteiro sozinha (até o teto de execução da
+// própria plataforma serverless, ~150s) antes de sequer tentar de novo.
+// 22,5s (meio-termo da faixa 20-25s pedida) por TENTATIVA — não por
+// chamada inteira: com `MAX_TENTATIVAS_VISAO=3`, o pior caso passa a ser
+// previsível (~3 × 22,5s + backoff, nunca mais "uma tentativa trava e
+// come tudo"). Tratado como retryable, mesmo caminho de um 5xx.
+const TIMEOUT_POR_TENTATIVA_GEMINI_MS = 22_500;
+
 /// Sinaliza pro caller (fallback de modelo) que a falha foi por COTA
 /// (429/RESOURCE_EXHAUSTED) — nunca por instabilidade transitória. A
 /// distinção importa: cota (geralmente "PerDay" no plano gratuito) não se
@@ -1784,6 +1805,8 @@ class ErroCotaGemini extends ErroHttp {
 interface OpcoesRetryGemini {
   maxTentativas?: number;
   backoffBaseMs?: number;
+  /// Testável — produção sempre usa `TIMEOUT_POR_TENTATIVA_GEMINI_MS`.
+  timeoutPorTentativaMs?: number;
 }
 
 export function criarChamadorGeminiReal(
@@ -1793,6 +1816,7 @@ export function criarChamadorGeminiReal(
 ): ChamadorGemini {
   const maxTentativas = opcoes.maxTentativas ?? MAX_TENTATIVAS_VISAO;
   const backoffBaseMs = opcoes.backoffBaseMs ?? 1_500;
+  const timeoutPorTentativaMs = opcoes.timeoutPorTentativaMs ?? TIMEOUT_POR_TENTATIVA_GEMINI_MS;
 
   return async ({ base64, mimeType, systemPrompt, userText }) => {
     const url = `${GEMINI_ENDPOINT_BASE}/${modelo}:generateContent?key=${apiKey}`;
@@ -1821,11 +1845,45 @@ export function criarChamadorGeminiReal(
 
     let ultimoErro: ErroHttp | null = null;
     for (let tentativa = 1; tentativa <= maxTentativas; tentativa++) {
-      const resposta = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(corpo),
-      });
+      // RELATÓRIO 20260902_0001 — `AbortController` por TENTATIVA (não um
+      // só pra chamada inteira): cada volta do loop cria e descarta o seu
+      // próprio, então uma tentativa que já terminou (com sucesso ou erro
+      // HTTP normal) nunca deixa um timer pendente pra próxima. `finally`
+      // sempre limpa o timer — inclusive no caminho de sucesso (`return`
+      // dentro do try) — nunca vaza um `setTimeout` agendado (Regra 21).
+      const abortController = new AbortController();
+      const timeoutId = setTimeout(() => abortController.abort(), timeoutPorTentativaMs);
+
+      let resposta: Response;
+      try {
+        resposta = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(corpo),
+          signal: abortController.signal,
+        });
+      } catch (erro) {
+        // `AbortError` é o único caso que ESTE código dispara (via
+        // `abortController.abort()` acima) — qualquer outro erro de rede
+        // (DNS, TLS, conexão recusada) propaga direto, não é o que esta
+        // mitigação mira.
+        if (erro instanceof DOMException && erro.name === 'AbortError') {
+          ultimoErro = new ErroHttp(
+            504,
+            `Gemini (modelo "${modelo}") não respondeu em ${timeoutPorTentativaMs}ms (tentativa ${tentativa}/${maxTentativas}).`,
+          );
+          if (tentativa === maxTentativas) throw ultimoErro;
+          const backoffMs = backoffBaseMs * tentativa;
+          console.warn(
+            `criarChamadorGeminiReal: timeout de ${timeoutPorTentativaMs}ms na tentativa ${tentativa}/${maxTentativas} — abortada, retentando em ${backoffMs}ms...`,
+          );
+          await delay(backoffMs);
+          continue;
+        }
+        throw erro;
+      } finally {
+        clearTimeout(timeoutId);
+      }
 
       if (resposta.ok) {
         const json = (await resposta.json()) as {
@@ -1953,17 +2011,31 @@ function normalizarL2(values: number[]): number[] {
   return values.map((v) => v / norma);
 }
 
-export function criarChamadorEmbeddingReal(apiKey: string): ChamadorEmbedding {
+export function criarChamadorEmbeddingReal(apiKey: string, timeoutMs = TIMEOUT_EMBEDDING_MS): ChamadorEmbedding {
   return async (texto: string) => {
-    const resposta = await fetch(`${GEMINI_EMBED_ENDPOINT}?key=${apiKey}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        content: { parts: [{ text: texto }] },
-        taskType: 'RETRIEVAL_QUERY',
-        outputDimensionality: DIMENSOES_EMBEDDING,
-      }),
-    });
+    const abortController = new AbortController();
+    const timeoutId = setTimeout(() => abortController.abort(), timeoutMs);
+
+    let resposta: Response;
+    try {
+      resposta = await fetch(`${GEMINI_EMBED_ENDPOINT}?key=${apiKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          content: { parts: [{ text: texto }] },
+          taskType: 'RETRIEVAL_QUERY',
+          outputDimensionality: DIMENSOES_EMBEDDING,
+        }),
+        signal: abortController.signal,
+      });
+    } catch (erro) {
+      if (erro instanceof DOMException && erro.name === 'AbortError') {
+        throw new ErroHttp(504, `Gemini embedContent não respondeu em ${timeoutMs}ms.`);
+      }
+      throw erro;
+    } finally {
+      clearTimeout(timeoutId);
+    }
 
     if (!resposta.ok) {
       const corpoErro = await resposta.text();
@@ -2330,12 +2402,21 @@ export function createHandler(deps: HandlerDeps = {}) {
         // enganoso pra uma cota diária — não é uma falha que alguns
         // segundos resolvem.
         console.error('extract-metric-photo:', erro.message);
+        // RELATÓRIO 20260902_0001 — 504 é o status real agora quando TODAS
+        // as tentativas abortam por timeout (`TIMEOUT_POR_TENTATIVA_GEMINI_MS`
+        // em `criarChamadorGeminiReal`); mensagem própria, honesta sobre a
+        // causa (nunca "erro interno" genérico pra um caso que sabemos
+        // exatamente o que foi). O cliente Flutter (RELATÓRIO 20260901_0003)
+        // já trata 504 como "servidor ocupado" — agora esse rótulo fica
+        // correto de verdade, não mais um fantasma.
         const mensagem =
           erro.status === 429
             ? 'Limite diário de análises por IA atingido. Tente novamente amanhã, ou digite a refeição manualmente.'
             : erro.status === 502
               ? 'Falha ao analisar a imagem.'
-              : 'Erro interno.';
+              : erro.status === 504
+                ? 'O Gemini demorou demais para responder. Tente novamente.'
+                : 'Erro interno.';
         return jsonResponse({ error: mensagem }, erro.status);
       }
       console.error('extract-metric-photo (inesperado):', mensagemDeErro(erro));

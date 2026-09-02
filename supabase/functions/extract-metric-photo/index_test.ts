@@ -22,6 +22,7 @@ import {
   avaliarLeituraRotulo,
   calcularPrato,
   createHandler,
+  criarChamadorEmbeddingReal,
   criarChamadorGeminiComFallback,
   criarChamadorGeminiReal,
   encontrarAlimento,
@@ -1611,6 +1612,27 @@ function stubFetch(handler: typeof fetch): () => void {
   };
 }
 
+// RELATÓRIO 20260902_0001 (mitigação de latência) — stub que nunca resolve
+// sozinho, só reage ao `AbortSignal` que o próprio código de produção
+// manda (`signal: abortController.signal`) — mesmo comportamento do
+// `fetch` real quando abortado (rejeita com `DOMException` "AbortError").
+// Simula fielmente "o Gemini não respondeu a tempo": o teste injeta um
+// `timeoutPorTentativaMs` de poucos milissegundos (via `opcoes`), então o
+// próprio `setTimeout` do código de produção dispara o abort sozinho,
+// rápido — nenhum teste espera os 22,5s reais.
+function stubFetchQueSoResolveComAbort(): { handler: typeof fetch; chamadas: { signal?: AbortSignal }[] } {
+  const chamadas: { signal?: AbortSignal }[] = [];
+  const handler = ((_input: RequestInfo | URL, init?: RequestInit) => {
+    chamadas.push({ signal: init?.signal ?? undefined });
+    return new Promise<Response>((_resolve, reject) => {
+      init?.signal?.addEventListener('abort', () => {
+        reject(new DOMException('The operation was aborted.', 'AbortError'));
+      });
+    });
+  }) as typeof fetch;
+  return { handler, chamadas };
+}
+
 Deno.test('criarChamadorGeminiReal: usa o modelo recebido por parâmetro na URL (nunca hardcoded)', async () => {
   let urlChamada = '';
   const restaurar = stubFetch(((input: RequestInfo | URL) => {
@@ -1718,6 +1740,86 @@ Deno.test('criarChamadorGeminiReal: 429 (cota) falha na 1ª tentativa, sem retry
     assertStringIncludes((erro as Error).message, '429');
     assertEquals((erro as ErroHttp).status, 429);
     assertEquals(chamadas, 1); // nenhum retry — cota não se resolve em segundos
+  } finally {
+    restaurar();
+  }
+});
+
+// RELATÓRIO 20260902_0001 — mitigação de latência: timeout por TENTATIVA
+// (`AbortController`), não mais um `fetch` sem limite próprio nenhum. Ver
+// achado real em 20260901_0003 (Gemini variando de ~2s a 43s+ na mesma
+// chamada, mesmo dia).
+Deno.test('criarChamadorGeminiReal: timeout por tentativa aborta e retenta, sucede na 2ª', async () => {
+  const { handler, chamadas } = stubFetchQueSoResolveComAbort();
+  let vezes = 0;
+  const restaurar = stubFetch(((input: RequestInfo | URL, init?: RequestInit) => {
+    vezes++;
+    if (vezes === 1) return handler(input, init); // 1ª tentativa: trava até abortar
+    return Promise.resolve(
+      new Response(
+        JSON.stringify({ candidates: [{ content: { parts: [{ text: '{"ok":true}' }] } }] }),
+        { status: 200 },
+      ),
+    );
+  }) as typeof fetch);
+
+  try {
+    const chamar = criarChamadorGeminiReal('fake-key', 'gemini-flash-latest', {
+      timeoutPorTentativaMs: 5, // não espera os 22,5s reais — só prova o mecanismo
+      backoffBaseMs: 1, // idem pro backoff entre tentativas
+    });
+    const texto = await chamar({ base64: 'YQ==', mimeType: 'image/jpeg', systemPrompt: 'x', userText: 'y' });
+    assertEquals(texto, '{"ok":true}');
+    assertEquals(vezes, 2); // 1ª abortou, 2ª sucedeu
+    assertEquals(chamadas.length, 1); // só a 1ª passou pelo stub que trava
+  } finally {
+    restaurar();
+  }
+});
+
+Deno.test('criarChamadorGeminiReal: timeout em TODAS as tentativas vira ErroHttp 504 (não 502)', async () => {
+  const { handler } = stubFetchQueSoResolveComAbort();
+  const restaurar = stubFetch(handler);
+
+  try {
+    const chamar = criarChamadorGeminiReal('fake-key', 'gemini-flash-latest', {
+      maxTentativas: 2, // não precisa das 3 reais pra provar o comportamento
+      timeoutPorTentativaMs: 5,
+      backoffBaseMs: 1,
+    });
+    let erro: unknown;
+    try {
+      await chamar({ base64: 'YQ==', mimeType: 'image/jpeg', systemPrompt: 'x', userText: 'y' });
+    } catch (e) {
+      erro = e;
+    }
+    assertEquals(erro instanceof ErroHttp, true);
+    // 504 (Gateway Timeout), não 502 — o cliente Flutter (RELATÓRIO
+    // 20260901_0003) só trata 503/504 como "servidor ocupado"; um timeout
+    // de verdade precisa desse status pra não virar "erro no servidor"
+    // genérico.
+    assertEquals((erro as ErroHttp).status, 504);
+    assertStringIncludes((erro as Error).message, 'não respondeu em 5ms');
+  } finally {
+    restaurar();
+  }
+});
+
+Deno.test('criarChamadorEmbeddingReal: timeout vira ErroHttp 504 (não trava esperando pra sempre)', async () => {
+  const { handler } = stubFetchQueSoResolveComAbort();
+  const restaurar = stubFetch(handler);
+
+  try {
+    const chamar = criarChamadorEmbeddingReal('fake-key', 5); // timeoutMs=5, não os 15s reais
+    let erro: unknown;
+    try {
+      await chamar('arroz');
+    } catch (e) {
+      erro = e;
+    }
+    assertEquals(erro instanceof ErroHttp, true);
+    assertEquals((erro as ErroHttp).status, 504);
+    assertStringIncludes((erro as Error).message, 'não respondeu em 5ms');
   } finally {
     restaurar();
   }

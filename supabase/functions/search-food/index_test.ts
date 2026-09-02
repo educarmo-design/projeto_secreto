@@ -349,3 +349,32 @@ Deno.test('criarChamadorEmbeddingReal: dimensão diferente de 768 na resposta vi
     restaurar();
   }
 });
+
+// RELATÓRIO 20260902_0001 — mitigação de latência: `criarChamadorEmbeddingReal`
+// ganhou `AbortController` (mesmo padrão de `criarChamadorGeminiReal` em
+// extract-metric-photo/index.ts) — sem timeout próprio, um `fetch` travado
+// aguentava indefinidamente. Stub reage só ao `AbortSignal`, mesmo
+// comportamento do `fetch` real quando abortado.
+Deno.test('criarChamadorEmbeddingReal: timeout vira ErroHttp 504 (não trava esperando pra sempre)', async () => {
+  const restaurar = stubFetch(((_input: RequestInfo | URL, init?: RequestInit) => {
+    return new Promise<Response>((_resolve, reject) => {
+      init?.signal?.addEventListener('abort', () => {
+        reject(new DOMException('The operation was aborted.', 'AbortError'));
+      });
+    });
+  }) as typeof fetch);
+
+  try {
+    const chamar = criarChamadorEmbeddingReal('fake-key', 5); // timeoutMs=5, não os 15s reais
+    let erro: unknown;
+    try {
+      await chamar('arroz');
+    } catch (e) {
+      erro = e;
+    }
+    assertExists(erro);
+    assertStringIncludes(String((erro as Error).message), 'não respondeu em 5ms');
+  } finally {
+    restaurar();
+  }
+});

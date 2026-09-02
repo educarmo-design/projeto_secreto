@@ -165,6 +165,7 @@
     "camera_unexpected_error": "An unexpected error occurred. Please try again.",
     "camera_capturing": "Capturing photo...",
     "camera_uploading": "Analyzing with AI...",
+    "camera_uploading_demora": "Still analyzing, this may take a bit longer...",
     "camera_take_photo_button": "Take Photo",
     "camera_result_title": "Extracted Data",
     "camera_confirm_button": "Confirm",
@@ -448,7 +449,8 @@
     "instrucao": "Type what you ate, with the amount of each food item.",
     "hint": "E.g.: rice 2 spoons, beans 50 grams, one lettuce leaf, two tomato slices and a small steak",
     "interpretar_button": "Interpret",
-    "interpretando": "Interpreting..."
+    "interpretando": "Interpreting...",
+    "interpretando_demora": "Still analyzing, this may take a bit longer..."
   },
 
   "gravar_refeicao": {
@@ -458,6 +460,7 @@
     "gravando": "Recording...",
     "parar_button": "Stop and send",
     "interpretando": "Interpreting...",
+    "interpretando_demora": "Still analyzing, this may take a bit longer...",
     "sem_permissao": "We need microphone permission to record your meal.",
     "erro_gravacao": "Couldn't record the audio. Please try again.",
     "tentar_novamente": "Try again"
