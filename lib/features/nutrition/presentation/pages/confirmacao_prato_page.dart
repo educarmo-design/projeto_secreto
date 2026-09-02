@@ -362,6 +362,21 @@ class _ItemPratoTileState extends State<_ItemPratoTile> {
   String _formatarQuantidade(double quantidade) =>
       quantidade % 1 == 0 ? quantidade.toStringAsFixed(0) : quantidade.toStringAsFixed(1);
 
+  /// RELATÓRIO 20260901_0003 — grandeza BASE do peso calculado (nunca o
+  /// nome da medida caseira): `unidadeMedidaPadrao` já vem do catálogo
+  /// quando o alimento tem categoria definida (fonte mais direta); sem
+  /// isso, infere por `categoriaConsumo` (líquidos = ml); sem nenhum dos
+  /// dois (alimento ainda sem categorização, `peso_livre`), assume 'g' —
+  /// é o caso mais comum do catálogo (sólidos), e a TACO já reporta macros
+  /// por 100g pra tudo, então 'g' nunca fica tecnicamente errado.
+  String _unidadeBase(ItemPratoExtraidoModel original) {
+    if (original.unidadeMedidaPadrao == 'ml') return 'ml';
+    if (original.categoriaConsumo == 'liquido_frio' || original.categoriaConsumo == 'liquido_quente') {
+      return 'ml';
+    }
+    return 'g';
+  }
+
   void _mostrarDialogoEditarPeso(BuildContext context, ItemPratoEditavel item) {
     final controller = TextEditingController(
       text: (item.pesoPersonalizadoGramas ?? item.original.pesoTipicoGramas ?? _pesoInicialQuandoDesconhecidoGramas)
@@ -692,12 +707,16 @@ class _ItemPratoTileState extends State<_ItemPratoTile> {
                           original.nomeCasado,
                           style: Theme.of(context).textTheme.bodySmall,
                         ),
-                      // RELATÓRIO 20260901_0002 (achado do teste físico) —
-                      // a unidade já aparecia junto da quantidade lá embaixo
-                      // (perto dos botões -/+), mas só ali; badge extra logo
-                      // abaixo do nome deixa a unidade visível de cara, sem
-                      // precisar achar a linha dos botões — widget estático,
-                      // não escuta nada, não adiciona rebuild novo (Regra 21).
+                      // RELATÓRIO 20260901_0003 (achado do teste físico) —
+                      // o badge mostrava o NOME da medida caseira (ex.:
+                      // "colher de sopa", "xícara"), que não diz nada sobre
+                      // o peso real calculado. Trocado pra sempre mostrar a
+                      // grandeza BASE (g/ml) + o peso atual — o nome da
+                      // medida continua disponível na linha de baixo, perto
+                      // dos botões -/+ ("2 colher de sopa"), como contexto
+                      // de QUAL medida a IA leu; o badge responde "quanto
+                      // isso pesa de verdade". Widget estático, não escuta
+                      // nada, não adiciona rebuild novo (Regra 21).
                       Padding(
                         padding: const EdgeInsets.only(top: 2),
                         child: Container(
@@ -707,7 +726,7 @@ class _ItemPratoTileState extends State<_ItemPratoTile> {
                             borderRadius: BorderRadius.circular(4),
                           ),
                           child: Text(
-                            original.medida,
+                            '${item.gramasEstimados.toStringAsFixed(0)}${_unidadeBase(original)}',
                             style: Theme.of(context).textTheme.labelSmall,
                           ),
                         ),

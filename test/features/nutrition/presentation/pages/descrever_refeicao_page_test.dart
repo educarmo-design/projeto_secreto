@@ -104,7 +104,10 @@ void main() {
           endpoint: any(named: 'endpoint'),
           headers: any(named: 'headers'),
         )).thenThrow(const RegistroRefeicaoIaException(
-      mensagemAmigavel: 'Servidor ocupado. Tente novamente.',
+      // RELATÓRIO 20260901_0003 — string arbitrária só pra provar que a
+      // tela REPETE o que o controller manda; qual mensagem é escolhida
+      // por status/exceção é testado em registro_refeicao_ia_service_test.dart.
+      mensagemAmigavel: 'Erro no servidor. Tente novamente.',
       detalheTecnico: 'HTTP 502',
     ));
 
@@ -114,7 +117,7 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
 
-    expect(find.text('Servidor ocupado. Tente novamente.'), findsOneWidget);
+    expect(find.text('Erro no servidor. Tente novamente.'), findsOneWidget);
     expect(find.text('Confirmar Refeição'), findsNothing);
   });
 }

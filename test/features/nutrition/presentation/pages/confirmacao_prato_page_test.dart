@@ -26,23 +26,28 @@ void main() {
     String nomeIdentificado = 'bifinho',
     String medida = 'filé',
     double quantidadeOriginal = 1,
+    double? gramasEstimados,
     double calorias = 130,
     double proteinasG = 22,
     double carboidratosG = 0,
     double gordurasG = 4,
     double confianca = 0.9,
+    String? unidadeMedidaPadrao,
+    String? categoriaConsumo,
   }) {
     return ItemPratoExtraidoModel(
       nomeCasado: nomeCasado,
       nomeIdentificado: nomeIdentificado,
       medida: medida,
       quantidadeOriginal: quantidadeOriginal,
-      gramasEstimados: 100 * quantidadeOriginal,
+      gramasEstimados: gramasEstimados ?? 100 * quantidadeOriginal,
       calorias: calorias,
       proteinasG: proteinasG,
       carboidratosG: carboidratosG,
       gordurasG: gordurasG,
       confianca: confianca,
+      unidadeMedidaPadrao: unidadeMedidaPadrao,
+      categoriaConsumo: categoriaConsumo,
     );
   }
 
@@ -77,9 +82,51 @@ void main() {
     expect(find.text('Confiança da leitura: 90%'), findsOneWidget);
     expect(find.text('1 filé'), findsOneWidget);
     expect(find.text('130 kcal · 22.0g prot · 0.0g carb · 4.0g gord'), findsOneWidget);
-    // RELATÓRIO 20260901_0002 (achado do teste físico) — badge da unidade
-    // logo abaixo do nome, além da menção já existente junto da quantidade.
-    expect(find.text('filé'), findsOneWidget);
+    // RELATÓRIO 20260901_0003 (achado do teste físico) — badge mostra a
+    // grandeza BASE (peso calculado + g/ml), não o nome da medida caseira
+    // ("filé" continua aparecendo, mas só na linha de baixo, junto da
+    // quantidade — "1 filé", já coberto no assert acima).
+    expect(find.text('100g'), findsOneWidget);
+  });
+
+  // RELATÓRIO 20260901_0003 — badge do card sempre mostra g/ml, nunca o
+  // nome da medida caseira (achado do teste físico: o nome não dizia nada
+  // sobre o peso real).
+  group('badge de unidade base (g/ml) no card', () {
+    testWidgets('alimento sólido (sem categoria líquida) mostra o peso em "g"', (tester) async {
+      await pumpPagina(tester, itens: [item(gramasEstimados: 250)]);
+
+      expect(find.text('250g'), findsOneWidget);
+    });
+
+    testWidgets('unidadeMedidaPadrao "ml" mostra o peso em "ml"', (tester) async {
+      await pumpPagina(
+        tester,
+        itens: [item(gramasEstimados: 200, unidadeMedidaPadrao: 'ml')],
+      );
+
+      expect(find.text('200ml'), findsOneWidget);
+    });
+
+    testWidgets('categoriaConsumo líquido (sem unidadeMedidaPadrao) também mostra "ml"', (tester) async {
+      await pumpPagina(
+        tester,
+        itens: [item(gramasEstimados: 150, categoriaConsumo: 'liquido_frio')],
+      );
+
+      expect(find.text('150ml'), findsOneWidget);
+    });
+
+    testWidgets('badge acompanha o peso quando a quantidade muda (+)', (tester) async {
+      await pumpPagina(tester, itens: [item(gramasEstimados: 100)]);
+      expect(find.text('100g'), findsOneWidget);
+
+      await tester.tap(find.byIcon(Icons.add_circle_outline));
+      await tester.pump();
+
+      // passo 0,5 (RELATÓRIO 20260901_0002): 1 -> 1,5x => 150g
+      expect(find.text('150g'), findsOneWidget);
+    });
   });
 
   testWidgets('não mostra "identificado como" quando o nome casado é igual ao identificado',
