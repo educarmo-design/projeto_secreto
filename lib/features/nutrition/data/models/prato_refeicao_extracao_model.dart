@@ -148,6 +148,19 @@ class ItemPratoNaoReconhecidoModel {
   final double? gordurasG100g;
   final List<MedidaCaseiraModel>? medidasDisponiveis;
 
+  /// RELATÓRIO 20260902_0002 — mesmos 4 campos de [ItemPratoExtraidoModel]
+  /// (fix de 20260823_0004), agora também no lado "não reconhecido": sem
+  /// eles, a tela de resolução manual não tinha como saber que um alimento
+  /// já casado (ex.: "suco de limão" sem "copo" cadastrado) é um LÍQUIDO —
+  /// pedia sempre peso em gramas, mesmo quando o item já é
+  /// `categoriaConsumo == 'liquido_frio'`/`unidadeMedidaPadrao == 'ml'` de
+  /// verdade. Presentes junto com [alimentoCasado] (mesma condição: o
+  /// alimento já foi casado).
+  final String? categoriaConsumo;
+  final String? unidadeMedidaPadrao;
+  final String? medidaPadraoNome;
+  final double? medidaPadraoQtd;
+
   const ItemPratoNaoReconhecidoModel({
     required this.nome,
     required this.medida,
@@ -158,6 +171,10 @@ class ItemPratoNaoReconhecidoModel {
     this.carboidratosG100g,
     this.gordurasG100g,
     this.medidasDisponiveis,
+    this.categoriaConsumo,
+    this.unidadeMedidaPadrao,
+    this.medidaPadraoNome,
+    this.medidaPadraoQtd,
   });
 
   factory ItemPratoNaoReconhecidoModel.fromJson(Map<String, dynamic> json) {
@@ -174,6 +191,10 @@ class ItemPratoNaoReconhecidoModel {
       medidasDisponiveis: medidasBrutas is List
           ? medidasBrutas.map((m) => MedidaCaseiraModel.fromJson(_requireMap(m))).toList()
           : null,
+      categoriaConsumo: json['categoria_consumo'] as String?,
+      unidadeMedidaPadrao: json['unidade_medida_padrao'] as String?,
+      medidaPadraoNome: json['medida_padrao_nome'] as String?,
+      medidaPadraoQtd: (json['medida_padrao_qtd'] as num?)?.toDouble(),
     );
   }
 }

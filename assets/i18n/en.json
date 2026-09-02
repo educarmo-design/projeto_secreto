@@ -586,6 +586,7 @@
     "tipo_refeicao_lanche": "Snack",
     "tipo_refeicao_jantar": "Dinner",
     "resolver_button": "Resolve",
+    "peso_com_unidade": "Weight ({{unidade}})",
     "resolver_item_title": "Which measure was it?",
     "resolver_item_descricao": "\"{{alimento}}\" doesn't have \"{{medida}}\" registered. Pick a real measure or enter the weight.",
     "medidas_disponiveis": "Measures registered for this food:",

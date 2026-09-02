@@ -674,6 +674,132 @@ void main() {
       expect(find.byIcon(Icons.warning_amber_rounded), findsOneWidget);
     });
   });
+
+  // RELATÓRIO 20260902_0002 (N27, Regra 23 — "copo de suco não reconhece a
+  // medida, mas a UI pedia gramas"): causa raiz real confirmada contra o
+  // catálogo do banco — "suco de limão" casa como `categoria_consumo:
+  // 'liquido_frio'`, mas só tem "colher de sopa" cadastrada (nunca "copo").
+  // Backend agora repassa `categoria_consumo`/`unidade_medida_padrao`
+  // também pros itens NÃO reconhecidos (antes só ia pros já resolvidos) —
+  // estes testes provam que o Flutter usa esse dado pra pedir "ml", nunca
+  // "gramas", num alimento líquido.
+  group('resolver item não reconhecido — unidade correta ml vs g (N27, líquidos)', () {
+    const itemLiquidoSemCopo = ItemPratoNaoReconhecidoModel(
+      nome: 'suco de limão',
+      medida: 'copo',
+      motivo: 'medida_nao_encontrada',
+      alimentoCasado: 'Limão, cravo, suco',
+      caloriasKcal100g: 14.1,
+      proteinasG100g: 0.33,
+      carboidratosG100g: 5.25,
+      gordurasG100g: 0,
+      medidasDisponiveis: [MedidaCaseiraModel(medida: 'colher de sopa', gramas: 15)],
+      categoriaConsumo: 'liquido_frio',
+      unidadeMedidaPadrao: 'ml',
+    );
+
+    testWidgets('medida cadastrada mostra "ml", não "g", quando o alimento é líquido', (tester) async {
+      await pumpPagina(tester, itens: [], itensNaoReconhecidos: [itemLiquidoSemCopo]);
+
+      await tester.tap(find.text('Resolver'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('colher de sopa (15ml)'), findsOneWidget);
+      expect(find.text('colher de sopa (15g)'), findsNothing);
+    });
+
+    testWidgets('campo de peso manual pede "ml", não "gramas", quando o alimento é líquido',
+        (tester) async {
+      await pumpPagina(tester, itens: [], itensNaoReconhecidos: [itemLiquidoSemCopo]);
+
+      await tester.tap(find.text('Resolver'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Peso (ml)'), findsOneWidget);
+      expect(find.text('Peso (gramas)'), findsNothing);
+      expect(find.text('ml'), findsWidgets); // suffix do TextField
+    });
+
+    testWidgets('digitar um valor manual num item líquido resolve com medida em "ml"', (tester) async {
+      await pumpPagina(tester, itens: [], itensNaoReconhecidos: [itemLiquidoSemCopo]);
+
+      await tester.tap(find.text('Resolver'));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byType(TextField), '240');
+      await tester.tap(find.text('Usar este peso'));
+      await tester.pumpAndSettle();
+
+      // Item promovido pra lista normal — badge de grandeza (mesmo padrão
+      // do RELATÓRIO 20260901_0003) confirma "240ml", nunca "240g".
+      expect(find.text('Não reconhecidos'), findsNothing);
+      expect(find.text('240ml'), findsOneWidget);
+      expect(find.text('240g'), findsNothing);
+    });
+
+    testWidgets('item sólido continua pedindo "gramas" normalmente (sem regressão)', (tester) async {
+      const itemSolido = ItemPratoNaoReconhecidoModel(
+        nome: 'feijaozinho',
+        medida: 'xícara',
+        motivo: 'medida_nao_encontrada',
+        alimentoCasado: 'Feijão, carioca, cozido',
+        caloriasKcal100g: 76,
+        proteinasG100g: 4.8,
+        carboidratosG100g: 13.6,
+        gordurasG100g: 0.5,
+        medidasDisponiveis: [MedidaCaseiraModel(medida: 'concha média', gramas: 80)],
+      );
+      await pumpPagina(tester, itens: [], itensNaoReconhecidos: [itemSolido]);
+
+      await tester.tap(find.text('Resolver'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Peso (g)'), findsOneWidget);
+      expect(find.text('concha média (80g)'), findsOneWidget);
+    });
+  });
+
+  // RELATÓRIO 20260902_0002 — achado real: o botão "Customizar" de um item
+  // JÁ RESOLVIDO como líquido (`_botaoEditarCustomizado`, chamado de
+  // `_buildBotoesLiquidoFrio`/`_buildBotoesLiquidoQuente`) já recebia
+  // `unidade: 'ml'` como parâmetro, mas nunca repassava pro diálogo — o
+  // diálogo sempre abria pedindo "Peso (gramas)"/sufixo "g", mesmo para um
+  // líquido. Corrigido: `_mostrarDialogoEditarPeso` agora recebe `unidade`.
+  group('editar peso de item líquido já resolvido — botão Customizar (N27)', () {
+    testWidgets('"Customizar" de um líquido abre o diálogo pedindo "ml", não "gramas"', (tester) async {
+      const itemLiquidoEstimado = ItemPratoExtraidoModel(
+        nomeCasado: 'Suco de laranja, natural',
+        nomeIdentificado: 'suco de laranja',
+        medida: 'copo',
+        quantidadeOriginal: 1,
+        gramasEstimados: 250,
+        calorias: 112,
+        proteinasG: 1.75,
+        carboidratosG: 26.25,
+        gordurasG: 0.25,
+        confianca: 0.9,
+        quantidadeEstimada: true,
+        pesoTipicoGramas: 250,
+        categoriaConsumo: 'liquido_frio',
+        unidadeMedidaPadrao: 'ml',
+        medidaPadraoNome: 'Copo médio',
+        medidaPadraoQtd: 250,
+      );
+      const extracao = PratoRefeicaoExtracaoModel(
+        itens: [itemLiquidoEstimado],
+        itensNaoReconhecidos: [],
+        possivelFotoDeTela: false,
+      );
+      await tester.pumpWidget(const MaterialApp(home: ConfirmacaoPratoPage(extracao: extracao)));
+      await tester.pump();
+
+      await tester.tap(find.text('Customizar'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Peso (ml)'), findsOneWidget);
+      expect(find.text('Peso (gramas)'), findsNothing);
+    });
+  });
 }
 
 /// Fake em memória — nunca toca `Supabase.instance`.

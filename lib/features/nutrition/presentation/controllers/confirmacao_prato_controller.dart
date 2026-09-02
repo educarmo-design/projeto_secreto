@@ -261,10 +261,28 @@ class ConfirmacaoPratoController extends ValueNotifier<ConfirmacaoPratoState> {
 
   /// Mesma ideia de [resolverComMedidaCadastrada], mas para quando nenhuma
   /// medida cadastrada serve (ou o alimento não tem nenhuma) e o usuário
-  /// digita o peso direto em gramas.
-  void resolverComPesoManual(ItemPratoNaoReconhecidoModel item, double gramas) {
-    if (gramas <= 0) return; // Mesma validação de editarPeso: peso deve ser positivo.
-    _promoverItemResolvido(item, gramas: gramas, medidaTexto: '${gramas.toStringAsFixed(0)}g');
+  /// digita o valor direto — em gramas OU ml, dependendo do alimento
+  /// (RELATÓRIO 20260902_0002, N27/Regra 23: "copo de suco" — um alimento
+  /// já casado como líquido, mas sem "copo" cadastrado, não deve pedir o
+  /// valor em "gramas"). O NÚMERO em si é tratado do mesmo jeito nos dois
+  /// casos (densidade~1 já assumida em todo o app — mesmo princípio do
+  /// badge "150g"/"200ml" do RELATÓRIO 20260901_0003); só o TEXTO da
+  /// medida salva muda, pra nunca mentir a unidade no histórico.
+  void resolverComPesoManual(ItemPratoNaoReconhecidoModel item, double valor) {
+    if (valor <= 0) return; // Mesma validação de editarPeso: peso deve ser positivo.
+    final unidade = _unidadeParaItemNaoReconhecido(item);
+    _promoverItemResolvido(item, gramas: valor, medidaTexto: '${valor.toStringAsFixed(0)}$unidade');
+  }
+
+  /// Mesma decisão de `_unidadeParaCategoria` (nível de arquivo) em
+  /// `confirmacao_prato_page.dart` — duplicada de propósito aqui: função
+  /// pura de 3 linhas, evita acoplar a camada de controller à camada de UI
+  /// só por isso (mesmo padrão já registrado em `_podeExibirDetalheTecnico`
+  /// no topo deste arquivo).
+  String _unidadeParaItemNaoReconhecido(ItemPratoNaoReconhecidoModel item) {
+    if (item.unidadeMedidaPadrao == 'ml') return 'ml';
+    if (item.categoriaConsumo == 'liquido_frio' || item.categoriaConsumo == 'liquido_quente') return 'ml';
+    return 'g';
   }
 
   void _promoverItemResolvido(
@@ -295,6 +313,16 @@ class ConfirmacaoPratoController extends ValueNotifier<ConfirmacaoPratoState> {
       confianca: 1.0,
       quantidadeEstimada: true,
       pesoTipicoGramas: gramas.round(),
+      // RELATÓRIO 20260902_0002 — achado ao testar: sem isto, o badge de
+      // grandeza do card (`_unidadeBase`, RELATÓRIO 20260901_0003) mostrava
+      // "g" mesmo depois de resolver manualmente um item líquido — a
+      // categorização do alimento (que `item` já carrega, ver doc de
+      // `ItemPratoNaoReconhecidoModel`) morria na promoção em vez de
+      // seguir pro item resolvido.
+      categoriaConsumo: item.categoriaConsumo,
+      unidadeMedidaPadrao: item.unidadeMedidaPadrao,
+      medidaPadraoNome: item.medidaPadraoNome,
+      medidaPadraoQtd: item.medidaPadraoQtd,
     );
 
     value = value.copyWith(

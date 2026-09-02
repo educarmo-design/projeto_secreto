@@ -779,6 +779,21 @@ export interface ItemPratoNaoReconhecido {
   /// lista vazia — alimento sem nenhuma medida cadastrada) — a UI oferece
   /// como opções de escolha; se nenhuma servir, o usuário digita gramas.
   medidasDisponiveis?: MedidaCaseiraCatalogo[];
+  /// RELATÓRIO 20260902_0002 — mesmos 4 campos de `ItemPratoCalculado`
+  /// (ver doc lá: `categoriaConsumo` chegava sempre `null` no Flutter antes
+  /// do fix de 20260823_0004, mas SÓ pros itens já RESOLVIDOS — para
+  /// `itensNaoReconhecidos`, cujo fluxo é inteiramente separado
+  /// [calcularPrato]/[resolverComBuscaSemantica], esses campos nunca
+  /// tinham sido propagados nem uma vez). Sem eles, a tela de resolução
+  /// manual (`ConfirmacaoPratoPage`) não tinha como saber que "suco de
+  /// limão sem 'copo' cadastrado" é um LÍQUIDO — caía sempre no input
+  /// genérico em gramas, mesmo quando o alimento já casado tem
+  /// `categoria_consumo: 'liquido_frio'` de verdade. Presentes junto com
+  /// `alimentoCasado` (mesma condição: o alimento já foi casado).
+  categoriaConsumo?: string;
+  unidadeMedidaPadrao?: string;
+  medidaPadraoNome?: string;
+  medidaPadraoQtd?: number;
 }
 
 export interface CalculoPrato {
@@ -1505,6 +1520,11 @@ export function calcularPrato(
         carboidratosG100g: alimento.carboidratosG100g,
         gordurasG100g: alimento.gordurasG100g,
         medidasDisponiveis: alimento.medidas,
+        // RELATÓRIO 20260902_0002 — ver doc de `ItemPratoNaoReconhecido`.
+        categoriaConsumo: alimento.categoriaConsumo,
+        unidadeMedidaPadrao: alimento.unidadeMedidaPadrao,
+        medidaPadraoNome: alimento.medidaPadraoNome,
+        medidaPadraoQtd: alimento.medidaPadraoQtd,
       });
       continue;
     }
@@ -1526,6 +1546,11 @@ export function calcularPrato(
         carboidratosG100g: alimento.carboidratosG100g,
         gordurasG100g: alimento.gordurasG100g,
         medidasDisponiveis: alimento.medidas,
+        // RELATÓRIO 20260902_0002 — ver doc de `ItemPratoNaoReconhecido`.
+        categoriaConsumo: alimento.categoriaConsumo,
+        unidadeMedidaPadrao: alimento.unidadeMedidaPadrao,
+        medidaPadraoNome: alimento.medidaPadraoNome,
+        medidaPadraoQtd: alimento.medidaPadraoQtd,
       });
       continue;
     }
@@ -1623,6 +1648,11 @@ export async function resolverComBuscaSemantica(
               carboidratosG100g: alimento.carboidratosG100g,
               gordurasG100g: alimento.gordurasG100g,
               medidasDisponiveis: alimento.medidas,
+              // RELATÓRIO 20260902_0002 — ver doc de `ItemPratoNaoReconhecido`.
+              categoriaConsumo: alimento.categoriaConsumo,
+              unidadeMedidaPadrao: alimento.unidadeMedidaPadrao,
+              medidaPadraoNome: alimento.medidaPadraoNome,
+              medidaPadraoQtd: alimento.medidaPadraoQtd,
             },
           };
         }
@@ -1655,6 +1685,11 @@ export async function resolverComBuscaSemantica(
               carboidratosG100g: alimento.carboidratosG100g,
               gordurasG100g: alimento.gordurasG100g,
               medidasDisponiveis: alimento.medidas,
+              // RELATÓRIO 20260902_0002 — ver doc de `ItemPratoNaoReconhecido`.
+              categoriaConsumo: alimento.categoriaConsumo,
+              unidadeMedidaPadrao: alimento.unidadeMedidaPadrao,
+              medidaPadraoNome: alimento.medidaPadraoNome,
+              medidaPadraoQtd: alimento.medidaPadraoQtd,
             },
           };
         }
@@ -2791,6 +2826,15 @@ async function processarPratoRefeicao(params: {
         ...(item.medidasDisponiveis ? {
           medidas_disponiveis: item.medidasDisponiveis.map((m) => ({ medida: m.medida, gramas: m.gramas })),
         } : {}),
+        // RELATÓRIO 20260902_0002 — mesmos 4 campos que `itens` já manda
+        // (fix de 20260823_0004); aqui NUNCA tinham chegado até agora —
+        // causa raiz de "suco de limão sem 'copo' cadastrado pede peso em
+        // gramas" (o item já sabe que é `categoria_consumo: 'liquido_frio'`,
+        // só nunca contava pro Flutter).
+        ...(item.categoriaConsumo ? { categoria_consumo: item.categoriaConsumo } : {}),
+        ...(item.unidadeMedidaPadrao ? { unidade_medida_padrao: item.unidadeMedidaPadrao } : {}),
+        ...(item.medidaPadraoNome ? { medida_padrao_nome: item.medidaPadraoNome } : {}),
+        ...(item.medidaPadraoQtd !== undefined ? { medida_padrao_qtd: item.medidaPadraoQtd } : {}),
       })),
       totais: {
         calorias: totaisFinais.calorias,
