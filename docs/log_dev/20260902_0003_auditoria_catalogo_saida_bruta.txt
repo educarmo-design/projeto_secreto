@@ -1,0 +1,782 @@
+﻿📥 Baixando alimentos_referencia + alimentos_medidas_caseiras (1 leitura cada)...
+
+Catálogo: 637 alimentos, 1056 medidas caseiras.
+
+═══ PARTE 1 — Colisão de aliases ═══
+
+🔴 Falhas de autoconsistência (termo do PRÓPRIO alimento resolve pra OUTRO): 404
+
+   "abobora cozida" (de "Abóbora, cozida") -> achou "Abóbora, cabotian, cozida"
+   "moranga crua" (de "Abóbora, moranga, crua") -> achou "Abóbora, cabotian, crua"
+   "abobrinha" (de "Abobrinha, italiana, crua") -> achou "Abobrinha, italiana, cozida"
+   "abobrinha italiana" (de "Abobrinha, italiana, crua") -> achou "Abobrinha, italiana, cozida"
+   "abobrinha" (de "Abobrinha, italiana, refogada") -> achou "Abobrinha, italiana, cozida"
+   "abobrinha italiana" (de "Abobrinha, italiana, refogada") -> achou "Abobrinha, italiana, cozida"
+   "abobrinha" (de "Abobrinha, paulista, crua") -> achou "Abobrinha, italiana, cozida"
+   "abobrinha crua" (de "Abobrinha, paulista, crua") -> achou "Abobrinha, italiana, crua"
+   "acai" (de "Açaí, polpa, congelada") -> achou "Açaí, polpa, com xarope de guaraná e glucose"
+   "polpa de acai" (de "Açaí, polpa, congelada") -> achou "Açaí, polpa, com xarope de guaraná e glucose"
+   "acerola" (de "Acerola, polpa, congelada") -> achou "Acerola, crua"
+   "acucar" (de "Açúcar, mascavo") -> achou "Açúcar, cristal"
+   "acucar" (de "Açúcar, refinado") -> achou "Açúcar, cristal"
+   "acucar branco" (de "Açúcar, refinado") -> achou "Açúcar, cristal"
+   "alface" (de "Alface, lisa, crua") -> achou "Alface, crespa, crua"
+   "salada de alface" (de "Alface, lisa, crua") -> achou "Alface, americana, crua"
+   "arroz branco" (de "Arroz, tipo 1, cozido") -> achou "Arroz, branco, cozido"
+   "arroz cozido" (de "Arroz, tipo 1, cozido") -> achou "Arroz, branco, cozido"
+   "graos" (de "Arroz, tipo 1, cru") -> achou "Arroz, integral, cru"
+   "arroz cozido" (de "Arroz, tipo 2, cozido") -> achou "Arroz, branco, cozido"
+   "arroz" (de "Arroz, tipo 2, cozido") -> achou "Arroz, branco, cozido"
+   "arroz cru" (de "Arroz, tipo 2, cru") -> achou "Arroz, tipo 1, cru"
+   "azeitona preta" (de "Azeitona, preta, conserva") -> achou "Azeitona, preta"
+   "azeitona" (de "Azeitona, verde, conserva") -> achou "Azeitona, preta"
+   "banana" (de "Banana, maçã") -> achou "Banana, figo, crua"
+   "banana maca" (de "Banana, maçã, crua") -> achou "Banana, maçã"
+   "banana" (de "Banana, maçã, crua") -> achou "Banana, figo, crua"
+   "banana" (de "Banana, nanica, crua") -> achou "Banana, figo, crua"
+   "banana da terra" (de "Banana, pacova, crua") -> achou "Banana, da terra, crua"
+   "banana" (de "Banana, prata, crua") -> achou "Banana, figo, crua"
+   "fruta" (de "Banana, prata, crua") -> achou "Atemóia, crua"
+   "batata baroa" (de "Batata, baroa, crua") -> achou "Batata, baroa, cozida"
+   "batata doce cozida" (de "Batata, doce, cozida") -> achou "Batata-doce, cozida"
+   "batata doce" (de "Batata, doce, cozida") -> achou "Batata-doce, cozida"
+   "batata doce" (de "Batata, doce, crua") -> achou "Batata-doce, cozida"
+   "batata inglesa cozida" (de "Batata, inglesa, cozida") -> achou "Batata, cozida"
+   "batata cozida" (de "Batata, inglesa, cozida") -> achou "Batata, cozida"
+   "batata" (de "Batata, inglesa, crua") -> achou "Batata, cozida"
+   "berinjela" (de "Berinjela, crua") -> achou "Berinjela, cozida"
+   "beterraba" (de "Beterraba, crua") -> achou "Beterraba, cozida"
+   "bolo" (de "Bolo, pronto, chocolate") -> achou "Bolo, pronto, aipim"
+   "fatia de bolo" (de "Bolo, pronto, chocolate") -> achou "Bolo, pronto, aipim"
+   "bolo" (de "Bolo, pronto, coco") -> achou "Bolo, pronto, aipim"
+   "fatia de bolo" (de "Bolo, pronto, coco") -> achou "Bolo, pronto, aipim"
+   "bolo" (de "Bolo, pronto, milho") -> achou "Bolo, pronto, aipim"
+   "fatia de bolo" (de "Bolo, pronto, milho") -> achou "Bolo, pronto, aipim"
+   "brocolis" (de "Brócolis, cru") -> achou "Brócolis, cozido"
+   "peixe cozido" (de "Cação, posta, cozida") -> achou "Abadejo, filé, congelado,cozido"
+   "peixe cru" (de "Cação, posta, crua") -> achou "Abadejo, filé, congelado, cru"
+   "Café, coado" (de "Café, coado") -> achou "Café, coado"
+   "cafe" (de "Café, coado") -> achou "Café, coado"
+   "cafe preto" (de "Café, coado") -> achou "Café, coado"
+   "cafezinho" (de "Café, coado") -> achou "Café, coado"
+   "cafe" (de "Café, infusão 10%") -> achou "Café, coado"
+   "cafe preto" (de "Café, infusão 10%") -> achou "Café, coado"
+   "caja" (de "Cajá, polpa, congelada") -> achou "Cajá-Manga, cru"
+   "caju" (de "Caju, polpa, congelada") -> achou "Caju, cru"
+   "suco de caju" (de "Caju, suco concentrado, envasado") -> achou "Caju, polpa, congelada"
+   "tempero em tablete" (de "Caldo de galinha, tablete") -> achou "Caldo de carne, tablete"
+   "camarao" (de "Camarão, Rio Grande, grande, cru") -> achou "Camarão, Rio Grande, grande, cozido"
+   "cana" (de "Cana, caldo de") -> achou "Cana, aguardente 1"
+   "cara" (de "Cará, cru") -> achou "Cará, cozido"
+   "almondega" (de "Carne, bovina, almôndegas, fritas") -> achou "Carne, bovina, almôndegas, cruas"
+   "bucho" (de "Carne, bovina, bucho, cru") -> achou "Carne, bovina, bucho, cozido"
+   "bife" (de "Carne, bovina, capa de contra-filé, com gordura, grelhada") -> achou "Carne, bovina, alcatra, grelhada"
+   "carne crua" (de "Carne, bovina, capa de contra-filé, sem gordura, crua") -> achou "Carne, bovina, capa de contra-filé, com gordura, crua"
+   "carne grelhada" (de "Carne, bovina, capa de contra-filé, sem gordura, grelhada") -> achou "Carne, bovina, capa de contra-filé, com gordura, grelhada"
+   "carne crua" (de "Carne, bovina, contra-filé de costela, cru") -> achou "Carne, bovina, capa de contra-filé, com gordura, crua"
+   "carne grelhada" (de "Carne, bovina, contra-filé de costela, grelhado") -> achou "Carne, bovina, capa de contra-filé, com gordura, grelhada"
+   "bife cru" (de "Carne, bovina, contra-filé, com gordura, cru") -> achou "Carne, bovina, capa de contra-filé, sem gordura, crua"
+   "carne crua" (de "Carne, bovina, contra-filé, com gordura, cru") -> achou "Carne, bovina, capa de contra-filé, com gordura, crua"
+   "bife" (de "Carne, bovina, contra-filé, com gordura, grelhado") -> achou "Carne, bovina, alcatra, grelhada"
+   "carne bovina" (de "Carne, bovina, contra-filé, com gordura, grelhado") -> achou "Carne, bovina, capa de contra-filé, com gordura, grelhada"
+   "bife magro" (de "Carne, bovina, contra-filé, sem gordura, grelhado") -> achou "Carne, bovina, capa de contra-filé, sem gordura, grelhada"
+   "carne grelhada" (de "Carne, bovina, contra-filé, sem gordura, grelhado") -> achou "Carne, bovina, capa de contra-filé, com gordura, grelhada"
+   "contrafile grelhado" (de "Carne, bovina, contrafilé, grelhado") -> achou "Carne, bovina, contra-filé, com gordura, grelhado"
+   "bife" (de "Carne, bovina, contrafilé, grelhado") -> achou "Carne, bovina, alcatra, grelhada"
+   "carne cozida" (de "Carne, bovina, coxão duro, sem gordura, cozido") -> achou "Barreado"
+   "carne bovina" (de "Carne, bovina, coxão duro, sem gordura, cozido") -> achou "Carne, bovina, capa de contra-filé, com gordura, grelhada"
+   "carne crua" (de "Carne, bovina, coxão duro, sem gordura, cru") -> achou "Carne, bovina, capa de contra-filé, com gordura, crua"
+   "bife cru" (de "Carne, bovina, coxão duro, sem gordura, cru") -> achou "Carne, bovina, capa de contra-filé, sem gordura, crua"
+   "carne cozida" (de "Carne, bovina, coxão mole, sem gordura, cozido") -> achou "Barreado"
+   "carne bovina" (de "Carne, bovina, coxão mole, sem gordura, cozido") -> achou "Carne, bovina, capa de contra-filé, com gordura, grelhada"
+   "carne crua" (de "Carne, bovina, coxão mole, sem gordura, cru") -> achou "Carne, bovina, capa de contra-filé, com gordura, crua"
+   "bife cru" (de "Carne, bovina, coxão mole, sem gordura, cru") -> achou "Carne, bovina, capa de contra-filé, sem gordura, crua"
+   "carne bovina crua" (de "Carne, bovina, coxão mole, sem gordura, cru") -> achou "Carne, bovina, coxão duro, sem gordura, cru"
+   "carne bovina" (de "Carne, bovina, cupim, assado") -> achou "Carne, bovina, capa de contra-filé, com gordura, grelhada"
+   "carne crua" (de "Carne, bovina, cupim, cru") -> achou "Carne, bovina, capa de contra-filé, com gordura, crua"
+   "cupim" (de "Carne, bovina, cupim, cru") -> achou "Carne, bovina, cupim, assado"
+   "carne bovina crua" (de "Carne, bovina, cupim, cru") -> achou "Carne, bovina, coxão duro, sem gordura, cru"
+   "carne bovina" (de "Carne, bovina, fígado, cru") -> achou "Carne, bovina, capa de contra-filé, com gordura, grelhada"
+   "figado" (de "Carne, bovina, fígado, grelhado") -> achou "Carne, bovina, fígado, cru"
+   "file mignon" (de "Carne, bovina, filé mingnon, sem gordura, grelhado") -> achou "Carne, bovina, filé mingnon, sem gordura, cru"
+   "carne grelhada" (de "Carne, bovina, filé mingnon, sem gordura, grelhado") -> achou "Carne, bovina, capa de contra-filé, com gordura, grelhada"
+   "carne cozida" (de "Carne, bovina, flanco, sem gordura, cozido") -> achou "Barreado"
+   "carne bovina" (de "Carne, bovina, flanco, sem gordura, cozido") -> achou "Carne, bovina, capa de contra-filé, com gordura, grelhada"
+   "carne crua" (de "Carne, bovina, flanco, sem gordura, cru") -> achou "Carne, bovina, capa de contra-filé, com gordura, crua"
+   "carne bovina crua" (de "Carne, bovina, flanco, sem gordura, cru") -> achou "Carne, bovina, coxão duro, sem gordura, cru"
+   "churrasco" (de "Carne, bovina, fraldinha, com gordura, cozida") -> achou "Carne, bovina, cupim, assado"
+   "fraldinha" (de "Carne, bovina, fraldinha, com gordura, crua") -> achou "Carne, bovina, fraldinha, com gordura, cozida"
+   "carne crua" (de "Carne, bovina, fraldinha, com gordura, crua") -> achou "Carne, bovina, capa de contra-filé, com gordura, crua"
+   "carne bovina crua" (de "Carne, bovina, fraldinha, com gordura, crua") -> achou "Carne, bovina, coxão duro, sem gordura, cru"
+   "carne bovina" (de "Carne, bovina, lagarto, cozido") -> achou "Carne, bovina, capa de contra-filé, com gordura, grelhada"
+   "lagarto" (de "Carne, bovina, lagarto, cru") -> achou "Carne, bovina, lagarto, cozido"
+   "carne bovina" (de "Carne, bovina, lagarto, cru") -> achou "Carne, bovina, capa de contra-filé, com gordura, grelhada"
+   "carne de lingua" (de "Carne, bovina, língua, crua") -> achou "Carne, bovina, língua, cozida"
+   "carne bovina" (de "Carne, bovina, maminha, crua") -> achou "Carne, bovina, capa de contra-filé, com gordura, grelhada"
+   "carne" (de "Carne, bovina, maminha, crua") -> achou "Carne, bovina, contrafilé, grelhado"
+   "maminha" (de "Carne, bovina, maminha, grelhada") -> achou "Carne, bovina, maminha, crua"
+   "carne grelhada" (de "Carne, bovina, maminha, grelhada") -> achou "Carne, bovina, capa de contra-filé, com gordura, grelhada"
+   "carne bovina" (de "Carne, bovina, maminha, grelhada") -> achou "Carne, bovina, capa de contra-filé, com gordura, grelhada"
+   "carne bovina" (de "Carne, bovina, miolo de alcatra, sem gordura, cru") -> achou "Carne, bovina, capa de contra-filé, com gordura, grelhada"
+   "bife cru" (de "Carne, bovina, miolo de alcatra, sem gordura, cru") -> achou "Carne, bovina, capa de contra-filé, sem gordura, crua"
+   "alcatra grelhada" (de "Carne, bovina, miolo de alcatra, sem gordura, grelhado") -> achou "Carne, bovina, alcatra, grelhada"
+   "bife de alcatra" (de "Carne, bovina, miolo de alcatra, sem gordura, grelhado") -> achou "Carne, bovina, alcatra, grelhada"
+   "carne" (de "Carne, bovina, miolo de alcatra, sem gordura, grelhado") -> achou "Carne, bovina, contrafilé, grelhado"
+   "carne de panela" (de "Carne, bovina, músculo, sem gordura, cozido") -> achou "Carne, bovina, lagarto, cozido"
+   "carne bovina" (de "Carne, bovina, músculo, sem gordura, cozido") -> achou "Carne, bovina, capa de contra-filé, com gordura, grelhada"
+   "musculo" (de "Carne, bovina, músculo, sem gordura, cru") -> achou "Carne, bovina, músculo, sem gordura, cozido"
+   "carne bovina" (de "Carne, bovina, músculo, sem gordura, cru") -> achou "Carne, bovina, capa de contra-filé, com gordura, grelhada"
+   "carne bovina" (de "Carne, bovina, paleta, com gordura, crua") -> achou "Carne, bovina, capa de contra-filé, com gordura, grelhada"
+   "paleta" (de "Carne, bovina, paleta, sem gordura, cozida") -> achou "Carne, bovina, paleta, com gordura, crua"
+   "carne de panela" (de "Carne, bovina, paleta, sem gordura, cozida") -> achou "Carne, bovina, lagarto, cozido"
+   "carne bovina" (de "Carne, bovina, paleta, sem gordura, cozida") -> achou "Carne, bovina, capa de contra-filé, com gordura, grelhada"
+   "paleta" (de "Carne, bovina, paleta, sem gordura, crua") -> achou "Carne, bovina, paleta, com gordura, crua"
+   "carne bovina" (de "Carne, bovina, paleta, sem gordura, crua") -> achou "Carne, bovina, capa de contra-filé, com gordura, grelhada"
+   "carne bovina" (de "Carne, bovina, patinho, sem gordura, cru") -> achou "Carne, bovina, capa de contra-filé, com gordura, grelhada"
+   "carne moida" (de "Carne, bovina, patinho, sem gordura, cru") -> achou "Carne, bovina, acém, moído, cozido"
+   "patinho" (de "Carne, bovina, patinho, sem gordura, grelhado") -> achou "Carne, bovina, patinho, sem gordura, cru"
+   "carne grelhada" (de "Carne, bovina, patinho, sem gordura, grelhado") -> achou "Carne, bovina, capa de contra-filé, com gordura, grelhada"
+   "carne cozida" (de "Carne, bovina, peito, sem gordura, cozido") -> achou "Barreado"
+   "peito bovino" (de "Carne, bovina, peito, sem gordura, cru") -> achou "Carne, bovina, peito, sem gordura, cozido"
+   "carne cozida" (de "Carne, bovina, peito, sem gordura, cru") -> achou "Barreado"
+   "churrasco" (de "Carne, bovina, picanha, com gordura, grelhada") -> achou "Carne, bovina, cupim, assado"
+   "carne grelhada" (de "Carne, bovina, picanha, com gordura, grelhada") -> achou "Carne, bovina, capa de contra-filé, com gordura, grelhada"
+   "carne crua" (de "Carne, bovina, picanha, sem gordura, crua") -> achou "Carne, bovina, capa de contra-filé, com gordura, crua"
+   "picanha" (de "Carne, bovina, picanha, sem gordura, crua") -> achou "Carne, bovina, picanha, com gordura, crua"
+   "carne grelhada" (de "Carne, bovina, picanha, sem gordura, grelhada") -> achou "Carne, bovina, capa de contra-filé, com gordura, grelhada"
+   "picanha" (de "Carne, bovina, picanha, sem gordura, grelhada") -> achou "Carne, bovina, picanha, com gordura, crua"
+   "carne de sol cozida" (de "Carne, bovina, seca, cozida") -> achou "Carne, bovina, charque, cozido"
+   "charque cozido" (de "Carne, bovina, seca, cozida") -> achou "Carne, bovina, charque, cozido"
+   "carne seca crua" (de "Carne, bovina, seca, crua") -> achou "Carne, bovina, charque, cru"
+   "charque" (de "Carne, bovina, seca, crua") -> achou "Carne, bovina, charque, cozido"
+   "verdura" (de "Catalonha, crua") -> achou "Caruru, cru"
+   "tempero verde" (de "Cebolinha, crua") -> achou "Alfavaca, crua"
+   "cenoura" (de "Cenoura, crua") -> achou "Cenoura, cozida"
+   "farinha de milho" (de "Cereais, milho, flocos, sem sal") -> achou "Cereais, milho, flocos, com sal"
+   "mingau" (de "Cereais, mingau, milho, infantil") -> achou "Aveia, flocos, crua"
+   "chá" (de "Chá, preto, infusão 5%") -> achou "Chá, coado"
+   "coco" (de "Coco, cru") -> achou "Coco, água de"
+   "peixe assado" (de "Corimbatá, assado") -> achou "Abadejo, filé, congelado, assado"
+   "peixe" (de "Corimbatá, assado") -> achou "Atum, fresco, cru"
+   "corimbata" (de "Corimbatá, cozido") -> achou "Corimbatá, assado"
+   "peixe cozido" (de "Corimbatá, cozido") -> achou "Abadejo, filé, congelado,cozido"
+   "peixe cru" (de "Corvina de água doce, crua") -> achou "Abadejo, filé, congelado, cru"
+   "corvina" (de "Corvina do mar, crua") -> achou "Corvina de água doce, crua"
+   "corvina crua" (de "Corvina do mar, crua") -> achou "Corvina de água doce, crua"
+   "corvina" (de "Corvina grande, assada") -> achou "Corvina de água doce, crua"
+   "peixe assado" (de "Corvina grande, assada") -> achou "Abadejo, filé, congelado, assado"
+   "corvina" (de "Corvina grande, cozida") -> achou "Corvina de água doce, crua"
+   "corvina grande" (de "Corvina grande, cozida") -> achou "Corvina grande, assada"
+   "peixe cozido" (de "Corvina grande, cozida") -> achou "Abadejo, filé, congelado,cozido"
+   "couve-flor" (de "Couve-flor, crua") -> achou "Couve-flor, cozida"
+   "couve flor" (de "Couve-flor, crua") -> achou "Couve-flor, cozida"
+   "couve" (de "Couve, manteiga, crua") -> achou "Couve, cozida"
+   "verdura" (de "Couve, manteiga, crua") -> achou "Caruru, cru"
+   "couve" (de "Couve, manteiga, refogada") -> achou "Couve, cozida"
+   "couve refogada" (de "Couve, manteiga, refogada") -> achou "Couve, cozida"
+   "coxinha" (de "Coxinha de frango, frita") -> achou "Coxinha"
+   "croquete" (de "Croquete, de carne, frito") -> achou "Croquete, de carne, cru"
+   "polpa congelada" (de "Cupuaçu, polpa, congelada") -> achou "Acerola, polpa, congelada"
+   "cupuaçu" (de "Cupuaçu, polpa, congelada") -> achou "Cupuaçu, cru"
+   "mingau de milho" (de "Curau, milho verde") -> achou "Cereais, mingau, milho, infantil"
+   "Dobradinha" (de "Dobradinha") -> achou "Carne, bovina, bucho, cozido"
+   "dobradinha" (de "Dobradinha") -> achou "Carne, bovina, bucho, cozido"
+   "bucho" (de "Dobradinha") -> achou "Carne, bovina, bucho, cozido"
+   "empada" (de "Empada, de frango, pré-cozida") -> achou "Empada de frango, pré-cozida, assada"
+   "empadinha" (de "Empada, de frango, pré-cozida") -> achou "Empada de frango, pré-cozida, assada"
+   "empada de frango" (de "Empada, de frango, pré-cozida") -> achou "Empada de frango, pré-cozida, assada"
+   "salgado" (de "Empada, de frango, pré-cozida") -> achou "Coxinha de frango, frita"
+   "ervilha" (de "Ervilha, enlatada, drenada") -> achou "Ervilha, em vagem"
+   "espinafre" (de "Espinafre, Nova Zelândia, refogado") -> achou "Espinafre, Nova Zelândia, cru"
+   "estrogonofe" (de "Estrogonofe de frango") -> achou "Estrogonofe de carne"
+   "farinha de arroz" (de "Farinha, de arroz, enriquecida") -> achou "Creme de arroz, pó"
+   "farinha" (de "Farinha, de mandioca, crua") -> achou "Farinha, de arroz, enriquecida"
+   "farinha de mandioca" (de "Farinha, de mandioca, torrada") -> achou "Farinha, de mandioca, crua"
+   "farinha de milho" (de "Farinha, de milho, amarela") -> achou "Cereais, milho, flocos, com sal"
+   "farinha" (de "Farinha, de trigo") -> achou "Farinha, de arroz, enriquecida"
+   "farinha lactea" (de "Farinha, láctea, de cereais") -> achou "Cereais, mistura para vitamina, trigo, cevada e aveia"
+   "polvilho doce" (de "Fécula, de mandioca") -> achou "Biscoito, polvilho doce"
+   "feijao" (de "Feijão, rosinha, cozido") -> achou "Feijão, carioca, cozido"
+   "feijao cru" (de "Feijão, rosinha, cru") -> achou "Feijão, carioca, cru"
+   "grao de feijao" (de "Feijão, rosinha, cru") -> achou "Feijão, carioca, cru"
+   "feijao" (de "Feijão, roxo, cozido") -> achou "Feijão, carioca, cozido"
+   "feijao cru" (de "Feijão, roxo, cru") -> achou "Feijão, carioca, cru"
+   "Feijoada" (de "Feijoada") -> achou "Feijão, preto, cozido"
+   "feijoada" (de "Feijoada") -> achou "Feijão, preto, cozido"
+   "frango cru" (de "Frango, coxa, com pele, crua") -> achou "Frango, asa, com pele, crua"
+   "frango cozido" (de "Frango, coxa, cozida") -> achou "Frango, com açafrão"
+   "coxa de frango cozida" (de "Frango, coxa, sem pele, cozida") -> achou "Frango, coxa, cozida"
+   "frango cozido sem pele" (de "Frango, coxa, sem pele, cozida") -> achou "Frango, caipira, inteiro, sem pele, cozido"
+   "frango cru" (de "Frango, coxa, sem pele, crua") -> achou "Frango, asa, com pele, crua"
+   "figado cru" (de "Frango, fígado, cru") -> achou "Carne, bovina, fígado, cru"
+   "figado" (de "Frango, fígado, cru") -> achou "Carne, bovina, fígado, cru"
+   "frango assado" (de "Frango, inteiro, sem pele, assado") -> achou "Frango, coxa, com pele, assada"
+   "frango inteiro cozido" (de "Frango, inteiro, sem pele, cozido") -> achou "Frango, caipira, inteiro, com pele, cozido"
+   "frango cozido" (de "Frango, inteiro, sem pele, cozido") -> achou "Frango, com açafrão"
+   "frango cru" (de "Frango, inteiro, sem pele, cru") -> achou "Frango, asa, com pele, crua"
+   "frango assado" (de "Frango, peito, com pele, assado") -> achou "Frango, coxa, com pele, assada"
+   "frango cru" (de "Frango, peito, com pele, cru") -> achou "Frango, asa, com pele, crua"
+   "frango" (de "Frango, peito, grelhado, sem pele") -> achou "Frango, inteiro, sem pele, cru"
+   "frango cozido" (de "Frango, peito, sem pele, cozido") -> achou "Frango, com açafrão"
+   "frango desfiado" (de "Frango, peito, sem pele, cozido") -> achou "Frango, inteiro, sem pele, cozido"
+   "frango cru" (de "Frango, peito, sem pele, cru") -> achou "Frango, asa, com pele, crua"
+   "frango grelhado" (de "Frango, peito, sem pele, grelhado") -> achou "Frango, peito, grelhado, sem pele"
+   "peito de frango grelhado" (de "Frango, peito, sem pele, grelhado") -> achou "Frango, peito, grelhado, sem pele"
+   "frango" (de "Frango, peito, sem pele, grelhado") -> achou "Frango, inteiro, sem pele, cru"
+   "frango assado" (de "Frango, sobrecoxa, com pele, assada") -> achou "Frango, coxa, com pele, assada"
+   "sobrecoxa assada" (de "Frango, sobrecoxa, sem pele, assada") -> achou "Frango, sobrecoxa, com pele, assada"
+   "frango cru" (de "Frango, sobrecoxa, sem pele, crua") -> achou "Frango, asa, com pele, crua"
+   "sobrecoxa crua" (de "Frango, sobrecoxa, sem pele, crua") -> achou "Frango, sobrecoxa, com pele, crua"
+   "goiabada" (de "Goiaba, doce, cascão") -> achou "Goiaba, doce em pasta"
+   "goiaba" (de "Goiaba, vermelha, com casca, crua") -> achou "Goiaba, branca, com casca, crua"
+   "goiaba com casca" (de "Goiaba, vermelha, com casca, crua") -> achou "Goiaba, branca, com casca, crua"
+   "goiaba" (de "Goiaba, vermelha, crua") -> achou "Goiaba, branca, com casca, crua"
+   "goiaba vermelha" (de "Goiaba, vermelha, crua") -> achou "Goiaba, vermelha, com casca, crua"
+   "fruta" (de "Goiaba, vermelha, crua") -> achou "Atemóia, crua"
+   "grao de bico" (de "Grão-de-bico, cru") -> achou "Grão de bico, cozido"
+   "inhame" (de "Inhame, cru") -> achou "Cará, cozido"
+   "iogurte" (de "Iogurte natural") -> achou "Bebida láctea, pêssego"
+   "iogurte natural" (de "Iogurte, natural") -> achou "Iogurte natural"
+   "iogurte de pessego" (de "Iogurte, sabor pêssego") -> achou "Bebida láctea, pêssego"
+   "iogurte" (de "Iogurte, sabor pêssego") -> achou "Bebida láctea, pêssego"
+   "peixe frito" (de "Lambari, congelado, frito") -> achou "Cação, posta, com farinha de trigo, frita"
+   "peixe fresco" (de "Lambari, fresco,cru") -> achou "Corvina do mar, crua"
+   "laranja" (de "Laranja, lima, crua") -> achou "Laranja, baía, crua"
+   "fruta" (de "Laranja, lima, crua") -> achou "Atemóia, crua"
+   "suco de laranja" (de "Laranja, lima, suco") -> achou "Laranja, baía, suco"
+   "laranja" (de "Laranja, pêra, crua") -> achou "Laranja, baía, crua"
+   "laranja para suco" (de "Laranja, pêra, crua") -> achou "Laranja, da terra, crua"
+   "fruta" (de "Laranja, pêra, crua") -> achou "Atemóia, crua"
+   "suco natural" (de "Laranja, pêra, suco") -> achou "Laranja, lima, suco"
+   "suco de laranja" (de "Laranja, pêra, suco") -> achou "Laranja, baía, suco"
+   "suco" (de "Laranja, pêra, suco") -> achou "Laranja, lima, suco"
+   "laranja" (de "Laranja, valência, crua") -> achou "Laranja, baía, crua"
+   "fruta" (de "Laranja, valência, crua") -> achou "Atemóia, crua"
+   "suco natural" (de "Laranja, valência, suco") -> achou "Laranja, lima, suco"
+   "suco de laranja" (de "Laranja, valência, suco") -> achou "Laranja, baía, suco"
+   "suco" (de "Laranja, valência, suco") -> achou "Laranja, lima, suco"
+   "coco" (de "Leite, de coco") -> achou "Coco, água de"
+   "achocolatado" (de "Leite, de vaca, achocolatado") -> achou "Achocolatado, pó"
+   "leite desnatado" (de "Leite, de vaca, desnatado, UHT") -> achou "Leite, de vaca, desnatado, pó"
+   "leite" (de "Leite, de vaca, desnatado, UHT") -> achou "Leite, de cabra"
+   "leite" (de "Leite, de vaca, integral") -> achou "Leite, de cabra"
+   "leite em po" (de "Leite, de vaca, integral, pó") -> achou "Leite, de vaca, desnatado, pó"
+   "leite fermentado" (de "Leite, fermentado") -> achou "Iogurte natural"
+   "leite" (de "Leite, integral") -> achou "Leite, de cabra"
+   "leite integral" (de "Leite, integral") -> achou "Leite, de vaca, integral"
+   "linguica frita" (de "Lingüiça, porco, frita") -> achou "Lingüiça, frango, frita"
+   "linguica grelhada" (de "Lingüiça, porco, grelhada") -> achou "Lingüiça, frango, grelhada"
+   "maca" (de "Maçã, Fuji, com casca, crua") -> achou "Maçã, Argentina, com casca, crua"
+   "maca com casca" (de "Maçã, Fuji, com casca, crua") -> achou "Maçã, Argentina, com casca, crua"
+   "maca crua" (de "Maçã, Fuji, com casca, crua") -> achou "Maçã, Argentina, com casca, crua"
+   "maca" (de "Maçã, vermelha, crua") -> achou "Maçã, Argentina, com casca, crua"
+   "maca crua" (de "Maçã, vermelha, crua") -> achou "Maçã, Argentina, com casca, crua"
+   "massa cozida" (de "Macarrão, cozido") -> achou "Lasanha, massa fresca, cozida"
+   "macarrao" (de "Macarrão, instantâneo") -> achou "Macarrão, cozido"
+   "mamao" (de "Mamão, Papaia, cru") -> achou "Mamão, Formosa, cru"
+   "mandioca" (de "Mandioca, crua") -> achou "Mandioca, cozida"
+   "aipim" (de "Mandioca, crua") -> achou "Mandioca, cozida"
+   "macaxeira" (de "Mandioca, crua") -> achou "Mandioca, cozida"
+   "mandioca cozida" (de "Mandioca, crua") -> achou "Mandioca, cozida"
+   "manga" (de "Manga, Palmer, crua") -> achou "Manga, Haden, crua"
+   "manga fresca" (de "Manga, Palmer, crua") -> achou "Manga, Haden, crua"
+   "fatia de manga" (de "Manga, Palmer, crua") -> achou "Manga, Haden, crua"
+   "polpa congelada" (de "Manga, polpa, congelada") -> achou "Acerola, polpa, congelada"
+   "manga" (de "Manga, Tommy Atkins, crua") -> achou "Manga, Haden, crua"
+   "manga fresca" (de "Manga, Tommy Atkins, crua") -> achou "Manga, Haden, crua"
+   "manjericão" (de "Manjericão, cru") -> achou "Alfavaca, crua"
+   "peixe frito" (de "Manjuba, com farinha de trigo, frita") -> achou "Cação, posta, com farinha de trigo, frita"
+   "manjuba frita" (de "Manjuba, frita") -> achou "Manjuba, com farinha de trigo, frita"
+   "peixe frito" (de "Manjuba, frita") -> achou "Cação, posta, com farinha de trigo, frita"
+   "manteiga" (de "Manteiga, sem sal") -> achou "Manteiga, com sal"
+   "polpa de maracujá" (de "Maracujá, polpa, congelada") -> achou "Maracujá, cru"
+   "suco concentrado" (de "Maracujá, suco concentrado, envasado") -> achou "Caju, suco concentrado, envasado"
+   "margarina" (de "Margarina, com óleo hidrogenado, sem sal (80% de lipídeos)") -> achou "Margarina, com óleo hidrogenado, com sal (65% de lipídeos)"
+   "margarina com sal" (de "Margarina, com óleo interesterificado, com sal (65%de lipídeos)") -> achou "Margarina, com óleo hidrogenado, com sal (65% de lipídeos)"
+   "margarina 65 por cento" (de "Margarina, com óleo interesterificado, com sal (65%de lipídeos)") -> achou "Margarina, com óleo hidrogenado, com sal (65% de lipídeos)"
+   "margarina sem sal" (de "Margarina, com óleo interesterificado, sem sal (65% de lipídeos)") -> achou "Margarina, com óleo hidrogenado, sem sal (80% de lipídeos)"
+   "margarina interesterificada" (de "Margarina, com óleo interesterificado, sem sal (65% de lipídeos)") -> achou "Margarina, com óleo interesterificado, com sal (65%de lipídeos)"
+   "margarina 65 por cento" (de "Margarina, com óleo interesterificado, sem sal (65% de lipídeos)") -> achou "Margarina, com óleo hidrogenado, com sal (65% de lipídeos)"
+   "doce de coco" (de "Maria mole, coco queimado") -> achou "Cocada branca"
+   "peixe assado" (de "Merluza, filé, assado") -> achou "Abadejo, filé, congelado, assado"
+   "peixe cru" (de "Merluza, filé, cru") -> achou "Abadejo, filé, congelado, cru"
+   "peixe frito" (de "Merluza, filé, frito") -> achou "Cação, posta, com farinha de trigo, frita"
+   "merluza" (de "Merluza, filé, frito") -> achou "Merluza, filé, cru"
+   "mexerica" (de "Mexerica, Rio, crua") -> achou "Mexerica, Murcote, crua"
+   "bergamota" (de "Mexerica, Rio, crua") -> achou "Mexerica, Murcote, crua"
+   "fuba" (de "Milho, fubá, cru") -> achou "Farinha, de milho, amarela"
+   "oleo vegetal" (de "Óleo, de canola") -> achou "Óleo, de babaçu"
+   "oleo" (de "Óleo, de girassol") -> achou "Óleo, de canola"
+   "oleo vegetal" (de "Óleo, de girassol") -> achou "Óleo, de babaçu"
+   "oleo" (de "Óleo, de milho") -> achou "Óleo, de canola"
+   "oleo vegetal" (de "Óleo, de milho") -> achou "Óleo, de babaçu"
+   "oleo" (de "Óleo, de soja") -> achou "Óleo, de canola"
+   "ovo" (de "Ovo, de galinha, frito") -> achou "Ovo, de galinha, cozido"
+   "ovo cozido" (de "Ovo, de galinha, inteiro, cozido/10minutos") -> achou "Ovo, de galinha, cozido"
+   "ovo" (de "Ovo, de galinha, inteiro, cozido/10minutos") -> achou "Ovo, de galinha, cozido"
+   "ovo" (de "Ovo, de galinha, inteiro, cru") -> achou "Ovo, de galinha, cozido"
+   "ovo frito" (de "Ovo, de galinha, inteiro, frito") -> achou "Ovo, de galinha, frito"
+   "ovo de galinha frito" (de "Ovo, de galinha, inteiro, frito") -> achou "Ovo, de galinha, frito"
+   "ovo" (de "Ovo, de galinha, inteiro, frito") -> achou "Ovo, de galinha, cozido"
+   "palmito" (de "Palmito, pupunha, em conserva") -> achou "Palmito, Juçara, em conserva"
+   "palmito em conserva" (de "Palmito, pupunha, em conserva") -> achou "Palmito, Juçara, em conserva"
+   "Pão de queijo" (de "Pão de queijo") -> achou "Pão de queijo"
+   "pao de queijo" (de "Pão de queijo") -> achou "Pão de queijo"
+   "pão de queijo" (de "Pão de queijo") -> achou "Pão de queijo"
+   "pao de queijo assado" (de "Pão, de queijo, assado") -> achou "Pão de queijo"
+   "pão de queijo" (de "Pão, de queijo, assado") -> achou "Pão de queijo"
+   "pao de queijo" (de "Pão, de queijo, assado") -> achou "Pão de queijo"
+   "pao de forma" (de "Pão, glúten, forma") -> achou "Pão, aveia, forma"
+   "pao integral" (de "Pão, trigo, forma, integral") -> achou "Pão, de soja"
+   "pao frances" (de "Pão, trigo, francês") -> achou "Pão, branco, francês"
+   "paozinho" (de "Pão, trigo, francês") -> achou "Pão, branco, francês"
+   "pao de sal" (de "Pão, trigo, francês") -> achou "Pão, branco, francês"
+   "pao" (de "Pão, trigo, sovado") -> achou "Pão, trigo, francês"
+   "salgado" (de "Pastel") -> achou "Coxinha de frango, frita"
+   "pastel" (de "Pastel, de carne, frito") -> achou "Pastel"
+   "pastel" (de "Pastel, de queijo, frito") -> achou "Pastel"
+   "massa crua" (de "Pastel, massa, crua") -> achou "Macarrão, trigo, cru"
+   "doce de amendoim" (de "Pé-de-moleque, amendoim") -> achou "Paçoca, amendoim"
+   "peixe" (de "Peixe, salmão, grelhado") -> achou "Atum, fresco, cru"
+   "pequi" (de "Pequi, cru") -> achou "Óleo, de pequi"
+   "fruta" (de "Pêra, Park, crua") -> achou "Atemóia, crua"
+   "pera" (de "Pêra, Williams, crua") -> achou "Pêra, Park, crua"
+   "pera crua" (de "Pêra, Williams, crua") -> achou "Pêra, Park, crua"
+   "fruta" (de "Pêra, Williams, crua") -> achou "Atemóia, crua"
+   "peixe cru" (de "Pescada, branca, crua") -> achou "Abadejo, filé, congelado, cru"
+   "peixe frito" (de "Pescada, branca, frita") -> achou "Cação, posta, com farinha de trigo, frita"
+   "pescada" (de "Pescada, filé, cru") -> achou "Pescada, branca, crua"
+   "peixe frito" (de "Pescada, filé, frito") -> achou "Cação, posta, com farinha de trigo, frita"
+   "pescada frita" (de "Pescada, filé, frito") -> achou "Pescada, branca, frita"
+   "peixe cru" (de "Pescadinha, crua") -> achou "Abadejo, filé, congelado, cru"
+   "pimentao" (de "Pimentão, verde, cru") -> achou "Pimentão, amarelo, cru"
+   "pimentao" (de "Pimentão, vermelho, cru") -> achou "Pimentão, amarelo, cru"
+   "peixe assado" (de "Pintado, assado") -> achou "Abadejo, filé, congelado, assado"
+   "peixe cru" (de "Pintado, cru") -> achou "Abadejo, filé, congelado, cru"
+   "peixe grelhado" (de "Pintado, grelhado") -> achou "Abadejo, filé, congelado, grelhado"
+   "polvilho doce" (de "Polvilho, doce") -> achou "Biscoito, polvilho doce"
+   "polvilho" (de "Polvilho, doce") -> achou "Fécula, de mandioca"
+   "porco assado" (de "Porco, pernil, assado") -> achou "Carne, suína, asinha, assada"
+   "carne de porco" (de "Porco, pernil, cru") -> achou "Porco, lombo, cru"
+   "porco salgado" (de "Porco, rabo, salgado, cru") -> achou "Porco, orelha, salgada, crua"
+   "peixe" (de "Porquinho, cru") -> achou "Atum, fresco, cru"
+   "Presunto" (de "Presunto") -> achou "Apresuntado"
+   "presunto" (de "Presunto") -> achou "Apresuntado"
+   "fatia de presunto" (de "Presunto, com capa de gordura") -> achou "Presunto"
+   "presunto" (de "Presunto, com capa de gordura") -> achou "Apresuntado"
+   "fatia de presunto" (de "Presunto, sem capa de gordura") -> achou "Presunto"
+   "palmito pupunha" (de "Pupunha, cozida") -> achou "Palmito, pupunha, em conserva"
+   "queijo meia cura" (de "Queijo, minas, meia cura") -> achou "Queijo meia cura"
+   "queijo minas" (de "Queijo, minas, meia cura") -> achou "Queijo, minas, frescal"
+   "iogurte de morango" (de "Queijo, petit suisse, morango") -> achou "Iogurte, sabor morango"
+   "queijo meia cura" (de "Queijo, tipo meia cura") -> achou "Queijo meia cura"
+   "queijo minas meia cura" (de "Queijo, tipo meia cura") -> achou "Queijo, minas, meia cura"
+   "pure de abobora" (de "Quibebe") -> achou "Abóbora, cozida"
+   "Refrigerante, cola" (de "Refrigerante, cola") -> achou "Refrigerante, cola"
+   "refrigerante de cola" (de "Refrigerante, cola") -> achou "Refrigerante, cola"
+   "refrigerante cola" (de "Refrigerante, cola") -> achou "Refrigerante, cola"
+   "refri" (de "Refrigerante, cola") -> achou "Refrigerante, cola"
+   "coca cola" (de "Refrigerante, tipo cola") -> achou "Refrigerante, cola"
+   "refrigerante de cola" (de "Refrigerante, tipo cola") -> achou "Refrigerante, cola"
+   "refri" (de "Refrigerante, tipo cola") -> achou "Refrigerante, cola"
+   "maionese" (de "Salada, de legumes, com maionese") -> achou "Maionese, tradicional com ovos"
+   "salmão grelhado" (de "Salmão, filé, com pele, fresco,  grelhado") -> achou "Peixe, salmão, grelhado"
+   "peixe grelhado" (de "Salmão, filé, com pele, fresco,  grelhado") -> achou "Abadejo, filé, congelado, grelhado"
+   "salmão" (de "Salmão, filé, com pele, fresco,  grelhado") -> achou "Peixe, salmão, grelhado"
+   "salmão" (de "Salmão, sem pele, fresco, cru") -> achou "Peixe, salmão, grelhado"
+   "salmão" (de "Salmão, sem pele, fresco, grelhado") -> achou "Peixe, salmão, grelhado"
+   "peixe grelhado" (de "Salmão, sem pele, fresco, grelhado") -> achou "Abadejo, filé, congelado, grelhado"
+   "cheiro verde" (de "Salsa, crua") -> achou "Cebolinha, crua"
+   "peixe assado" (de "Sardinha, assada") -> achou "Abadejo, filé, congelado, assado"
+   "peixe frito" (de "Sardinha, frita") -> achou "Cação, posta, com farinha de trigo, frita"
+   "sardinha" (de "Sardinha, frita") -> achou "Sardinha, assada"
+   "mix de legumes" (de "Seleta de legumes, enlatada") -> achou "Salada, de legumes, cozida no vapor"
+   "suco de laranja" (de "Suco de laranja, natural") -> achou "Laranja, baía, suco"
+   "suco natural" (de "Suco de laranja, natural") -> achou "Laranja, lima, suco"
+   "suco de laranja" (de "Suco, de laranja natural") -> achou "Laranja, baía, suco"
+   "suco natural" (de "Suco, de laranja natural") -> achou "Laranja, lima, suco"
+   "laranja espremida" (de "Suco, de laranja natural") -> achou "Suco de laranja, natural"
+   "hortalica" (de "Taioba, crua") -> achou "Serralha, crua"
+   "tangerina" (de "Tangerina, Poncã, crua") -> achou "Mexerica, Murcote, crua"
+   "mexerica" (de "Tangerina, Poncã, crua") -> achou "Mexerica, Murcote, crua"
+   "bergamota" (de "Tangerina, Poncã, crua") -> achou "Mexerica, Murcote, crua"
+   "tomate" (de "Tomate, cru") -> achou "Tomate, com semente, cru"
+   "tomate cru" (de "Tomate, cru") -> achou "Tomate, com semente, cru"
+   "molho de tomate" (de "Tomate, molho industrializado") -> achou "Tomate, extrato"
+   "extrato de tomate" (de "Tomate, molho industrializado") -> achou "Tomate, extrato"
+   "salada de tomate" (de "Tomate, salada") -> achou "Tomate, com semente, cru"
+   "tomate" (de "Tomate, salada") -> achou "Tomate, com semente, cru"
+   "tremoco" (de "Tremoço, em conserva") -> achou "Tremoço, cru"
+   "uva" (de "Uva, Rubi, crua") -> achou "Uva, Itália, crua"
+   "suco" (de "Uva, suco concentrado, envasado") -> achou "Laranja, lima, suco"
+   "suco de caixinha" (de "Uva, suco concentrado, envasado") -> achou "Caju, suco concentrado, envasado"
+
+🟠 Aliases de 1 palavra compartilhados por 2+ alimentos (colisão JÁ existe): 103
+
+   "fruta" -> Atemóia, crua | Banana, prata, crua | Goiaba, vermelha, crua | Laranja, lima, crua | Laranja, pêra, crua | Laranja, valência, crua | Pêra, Park, crua | Pêra, Williams, crua
+   "banana" -> Banana, figo, crua | Banana, maçã | Banana, maçã, crua | Banana, nanica, crua | Banana, prata, crua
+   "ovo" -> Ovo, de galinha, cozido | Ovo, de galinha, frito | Ovo, de galinha, inteiro, cozido/10minutos | Ovo, de galinha, inteiro, cru | Ovo, de galinha, inteiro, frito
+   "abobrinha" -> Abobrinha, italiana, cozida | Abobrinha, italiana, crua | Abobrinha, italiana, refogada | Abobrinha, paulista, crua
+   "bife" -> Carne, bovina, alcatra, grelhada | Carne, bovina, capa de contra-filé, com gordura, grelhada | Carne, bovina, contra-filé, com gordura, grelhado | Carne, bovina, contrafilé, grelhado
+   "bolo" -> Bolo, pronto, aipim | Bolo, pronto, chocolate | Bolo, pronto, coco | Bolo, pronto, milho
+   "corvina" -> Corvina de água doce, crua | Corvina do mar, crua | Corvina grande, assada | Corvina grande, cozida
+   "laranja" -> Laranja, baía, crua | Laranja, lima, crua | Laranja, pêra, crua | Laranja, valência, crua
+   "leite" -> Leite, de cabra | Leite, de vaca, desnatado, UHT | Leite, de vaca, integral | Leite, integral
+   "oleo" -> Óleo, de canola | Óleo, de girassol | Óleo, de milho | Óleo, de soja
+   "peixe" -> Atum, fresco, cru | Corimbatá, assado | Peixe, salmão, grelhado | Porquinho, cru
+   "salmao" -> Peixe, salmão, grelhado | Salmão, filé, com pele, fresco,  grelhado | Salmão, sem pele, fresco, cru | Salmão, sem pele, fresco, grelhado
+   "suco" -> Laranja, lima, suco | Laranja, pêra, suco | Laranja, valência, suco | Uva, suco concentrado, envasado
+   "acucar" -> Açúcar, cristal | Açúcar, mascavo | Açúcar, refinado
+   "bergamota" -> Mexerica, Murcote, crua | Mexerica, Rio, crua | Tangerina, Poncã, crua
+   "bucho" -> Carne, bovina, bucho, cozido | Carne, bovina, bucho, cru | Dobradinha
+   "carne" -> Carne, bovina, contrafilé, grelhado | Carne, bovina, maminha, crua | Carne, bovina, miolo de alcatra, sem gordura, grelhado
+   "churrasco" -> Carne, bovina, cupim, assado | Carne, bovina, fraldinha, com gordura, cozida | Carne, bovina, picanha, com gordura, grelhada
+   "coco" -> Coco, cru | Coco, água de | Leite, de coco
+   "couve" -> Couve, cozida | Couve, manteiga, crua | Couve, manteiga, refogada
+   "farinha" -> Farinha, de arroz, enriquecida | Farinha, de mandioca, crua | Farinha, de trigo
+   "feijao" -> Feijão, carioca, cozido | Feijão, rosinha, cozido | Feijão, roxo, cozido
+   "figado" -> Carne, bovina, fígado, cru | Carne, bovina, fígado, grelhado | Frango, fígado, cru
+   "frango" -> Frango, inteiro, sem pele, cru | Frango, peito, grelhado, sem pele | Frango, peito, sem pele, grelhado
+   "goiaba" -> Goiaba, branca, com casca, crua | Goiaba, vermelha, com casca, crua | Goiaba, vermelha, crua
+   "iogurte" -> Bebida láctea, pêssego | Iogurte natural | Iogurte, sabor pêssego
+   "maca" -> Maçã, Argentina, com casca, crua | Maçã, Fuji, com casca, crua | Maçã, vermelha, crua
+   "manga" -> Manga, Haden, crua | Manga, Palmer, crua | Manga, Tommy Atkins, crua
+   "mexerica" -> Mexerica, Murcote, crua | Mexerica, Rio, crua | Tangerina, Poncã, crua
+   "paleta" -> Carne, bovina, paleta, com gordura, crua | Carne, bovina, paleta, sem gordura, cozida | Carne, bovina, paleta, sem gordura, crua
+   "pastel" -> Pastel | Pastel, de carne, frito | Pastel, de queijo, frito
+   "picanha" -> Carne, bovina, picanha, com gordura, crua | Carne, bovina, picanha, sem gordura, crua | Carne, bovina, picanha, sem gordura, grelhada
+   "pimentao" -> Pimentão, amarelo, cru | Pimentão, verde, cru | Pimentão, vermelho, cru
+   "presunto" -> Apresuntado | Presunto | Presunto, com capa de gordura
+   "salgado" -> Coxinha de frango, frita | Empada, de frango, pré-cozida | Pastel
+   "tomate" -> Tomate, com semente, cru | Tomate, cru | Tomate, salada
+   "verdura" -> Caruru, cru | Catalonha, crua | Couve, manteiga, crua
+   "acai" -> Açaí, polpa, com xarope de guaraná e glucose | Açaí, polpa, congelada
+   "acerola" -> Acerola, crua | Acerola, polpa, congelada
+   "achocolatado" -> Achocolatado, pó | Leite, de vaca, achocolatado
+   "aipim" -> Mandioca, cozida | Mandioca, crua
+   "alface" -> Alface, crespa, crua | Alface, lisa, crua
+   "almondega" -> Carne, bovina, almôndegas, cruas | Carne, bovina, almôndegas, fritas
+   "arroz" -> Arroz, branco, cozido | Arroz, tipo 2, cozido
+   "azeitona" -> Azeitona, preta | Azeitona, verde, conserva
+   "batata" -> Batata, cozida | Batata, inglesa, crua
+   "berinjela" -> Berinjela, cozida | Berinjela, crua
+   "beterraba" -> Beterraba, cozida | Beterraba, crua
+   "brocolis" -> Brócolis, cozido | Brócolis, cru
+   "cafe" -> Café, coado | Café, infusão 10%
+   "caja" -> Cajá, polpa, congelada | Cajá-Manga, cru
+   "caju" -> Caju, cru | Caju, polpa, congelada
+   "camarao" -> Camarão, Rio Grande, grande, cozido | Camarão, Rio Grande, grande, cru
+   "cana" -> Cana, aguardente 1 | Cana, caldo de
+   "cara" -> Cará, cozido | Cará, cru
+   "cenoura" -> Cenoura, cozida | Cenoura, crua
+   "cha" -> Chá, coado | Chá, preto, infusão 5%
+   "charque" -> Carne, bovina, charque, cozido | Carne, bovina, seca, crua
+   "corimbata" -> Corimbatá, assado | Corimbatá, cozido
+   "couve-flor" -> Couve-flor, cozida | Couve-flor, crua
+   "coxinha" -> Coxinha | Coxinha de frango, frita
+   "croquete" -> Croquete, de carne, cru | Croquete, de carne, frito
+   "cupim" -> Carne, bovina, cupim, assado | Carne, bovina, cupim, cru
+   "cupuacu" -> Cupuaçu, cru | Cupuaçu, polpa, congelada
+   "dobradinha" -> Carne, bovina, bucho, cozido | Dobradinha
+   "empada" -> Empada de frango, pré-cozida, assada | Empada, de frango, pré-cozida
+   "empadinha" -> Empada de frango, pré-cozida, assada | Empada, de frango, pré-cozida
+   "ervilha" -> Ervilha, em vagem | Ervilha, enlatada, drenada
+   "espinafre" -> Espinafre, Nova Zelândia, cru | Espinafre, Nova Zelândia, refogado
+   "estrogonofe" -> Estrogonofe de carne | Estrogonofe de frango
+   "feijoada" -> Feijoada | Feijão, preto, cozido
+   "fraldinha" -> Carne, bovina, fraldinha, com gordura, cozida | Carne, bovina, fraldinha, com gordura, crua
+   "fuba" -> Farinha, de milho, amarela | Milho, fubá, cru
+   "goiabada" -> Goiaba, doce em pasta | Goiaba, doce, cascão
+   "graos" -> Arroz, integral, cru | Arroz, tipo 1, cru
+   "hortalica" -> Serralha, crua | Taioba, crua
+   "inhame" -> Cará, cozido | Inhame, cru
+   "lagarto" -> Carne, bovina, lagarto, cozido | Carne, bovina, lagarto, cru
+   "macarrao" -> Macarrão, cozido | Macarrão, instantâneo
+   "macaxeira" -> Mandioca, cozida | Mandioca, crua
+   "maionese" -> Maionese, tradicional com ovos | Salada, de legumes, com maionese
+   "mamao" -> Mamão, Formosa, cru | Mamão, Papaia, cru
+   "maminha" -> Carne, bovina, maminha, crua | Carne, bovina, maminha, grelhada
+   "mandioca" -> Mandioca, cozida | Mandioca, crua
+   "manjericao" -> Alfavaca, crua | Manjericão, cru
+   "manteiga" -> Manteiga, com sal | Manteiga, sem sal
+   "margarina" -> Margarina, com óleo hidrogenado, com sal (65% de lipídeos) | Margarina, com óleo hidrogenado, sem sal (80% de lipídeos)
+   "merluza" -> Merluza, filé, cru | Merluza, filé, frito
+   "mingau" -> Aveia, flocos, crua | Cereais, mingau, milho, infantil
+   "musculo" -> Carne, bovina, músculo, sem gordura, cozido | Carne, bovina, músculo, sem gordura, cru
+   "palmito" -> Palmito, Juçara, em conserva | Palmito, pupunha, em conserva
+   "pao" -> Pão, trigo, francês | Pão, trigo, sovado
+   "paozinho" -> Pão, branco, francês | Pão, trigo, francês
+   "patinho" -> Carne, bovina, patinho, sem gordura, cru | Carne, bovina, patinho, sem gordura, grelhado
+   "pequi" -> Pequi, cru | Óleo, de pequi
+   "pera" -> Pêra, Park, crua | Pêra, Williams, crua
+   "pescada" -> Pescada, branca, crua | Pescada, filé, cru
+   "polvilho" -> Fécula, de mandioca | Polvilho, doce
+   "refri" -> Refrigerante, cola | Refrigerante, tipo cola
+   "sardinha" -> Sardinha, assada | Sardinha, frita
+   "tangerina" -> Mexerica, Murcote, crua | Tangerina, Poncã, crua
+   "tremoco" -> Tremoço, cru | Tremoço, em conserva
+   "uva" -> Uva, Itália, crua | Uva, Rubi, crua
+
+🟡 Aliases de 1 palavra usados por só 1 alimento (risco latente pra fruta/prato ainda não cadastrado): 241
+
+   "abacate" -> Abacate, cru
+   "abacaxi" -> Abacaxi, cru
+   "abadejo" -> Abadejo, filé, congelado, assado
+   "abiu" -> Abiu, cru
+   "acaraje" -> Acarajé
+   "acelga" -> Acelga, crua
+   "acem" -> Carne, bovina, paleta, com gordura, crua
+   "acompanhamento" -> Catalonha, refogada
+   "agriao" -> Agrião, cru
+   "agua" -> Água, comum/mineral
+   "aguardente" -> Cana, aguardente 1
+   "aipo" -> Aipo, cru
+   "alcatra" -> Carne, bovina, miolo de alcatra, sem gordura, cru
+   "alfavaca" -> Alfavaca, crua
+   "alho" -> Alho, cru
+   "alho-poro" -> Alho-poró, cru
+   "almeirao" -> Almeirão, cru
+   "ameixa" -> Ameixa, crua
+   "amendoa" -> Amêndoa, torrada, salgada
+   "amendoim" -> Amendoim, grão, cru
+   "amido" -> Milho, amido, cru
+   "angu" -> Polenta, pré-cozida
+   "apresuntado" -> Apresuntado
+   "ata" -> Pinha, crua
+   "atemoia" -> Atemóia, crua
+   "atum" -> Atum, conserva em óleo
+   "aveia" -> Aveia, flocos, crua
+   "azeite" -> Azeite, de oliva, extra virgem
+   "babacu" -> Óleo, de babaçu
+   "bacalhau" -> Bacalhau, salgado, cru
+   "baiao" -> Baião de dois, arroz e feijão-de-corda
+   "bananada" -> Banana, doce em barra
+   "barreado" -> Barreado
+   "bibi" -> Leite, fermentado
+   "cacao" -> Cação, posta, cozida
+   "cachaca" -> Cana, aguardente 1
+   "cafezinho" -> Café, coado
+   "caja-manga" -> Cajá-Manga, cru
+   "canjica" -> Canjica, com leite integral
+   "capuccino" -> Capuccino, pó
+   "caqui" -> Caqui, chocolate, cru
+   "carambola" -> Carambola, crua
+   "caranguejo" -> Caranguejo, cozido
+   "carreteiro" -> Arroz carreteiro
+   "caruru" -> Caruru, cru
+   "castanha" -> Castanha-do-Brasil, crua
+   "catalonha" -> Catalonha, crua
+   "cebola" -> Cebola, crua
+   "cebolinha" -> Cebolinha, crua
+   "cerveja" -> Cerveja, pilsen 2
+   "chantilly" -> Chantilly, spray, com gordura vegetal
+   "charutinho" -> Charuto, de repolho
+   "charuto" -> Charuto, de repolho
+   "chicoria" -> Chicória, crua
+   "chips" -> Batata, frita, tipo chips, industrializada
+   "chocolate" -> Chocolate, ao leite
+   "chopp" -> Cerveja, pilsen 2
+   "chuchu" -> Chuchu, cozido
+   "ciriguela" -> Ciriguela, crua
+   "clara" -> Ovo, de galinha, clara, cozida/10minutos
+   "coca" -> Refrigerante, tipo cola
+   "cocada" -> Cocada branca
+   "contrafile" -> Carne, bovina, contrafilé, grelhado
+   "coracao" -> Frango, coração, grelhado
+   "corimba" -> Corimba, cru
+   "costela" -> Carne, bovina, costela, assada
+   "creme" -> Creme de Leite
+   "curau" -> Curau, milho verde
+   "curimbata" -> Corimba, cru
+   "cuscuz" -> Cuscuz, de milho, cozido com sal
+   "cuxa" -> Cuxá, molho
+   "danoninho" -> Queijo, petit suisse, morango
+   "dende" -> Azeite, de dendê
+   "doce" -> Pé-de-moleque, amendoim
+   "dourada" -> Dourada de água doce, fresca
+   "embutido" -> Salame
+   "erva-doce" -> Chá, erva-doce, infusão 5%
+   "farofa" -> Mandioca, farofa, temperada
+   "fiambreria" -> Mortadela
+   "fiambrina" -> Presunto
+   "figo" -> Figo, cru
+   "flocao" -> Cereais, milho, flocos, sem sal
+   "folhosa" -> Catalonha, crua
+   "fradinho" -> Feijão, fradinho, cozido
+   "frios" -> Apresuntado
+   "fritas" -> Batata, inglesa, frita
+   "fruta-pao" -> Fruta-pão, crua
+   "garapa" -> Cana, caldo de
+   "gatorade" -> Bebida isotônica, sabores variados
+   "gelatina" -> Gelatina, sabores variados, pó
+   "gema" -> Ovo, de galinha, gema, cozida/10minutos
+   "gergelim" -> Gergelim, semente
+   "glucose" -> Glicose de milho
+   "granola" -> Cereal integral, pronto para consumo
+   "grao-de-bico" -> Grão de bico, cozido
+   "graviola" -> Graviola, crua
+   "guandu" -> Guandu, cru
+   "guarana" -> Refrigerante, tipo guaraná
+   "h2oh" -> Refrigerante, tipo limão
+   "hamburguer" -> Hambúrguer, bovino, cru
+   "infusao" -> Chá, coado
+   "isotonico" -> Bebida isotônica, sabores variados
+   "jabuticaba" -> Jabuticaba, crua
+   "jaca" -> Jaca, crua
+   "jalo" -> Feijão, jalo, cozido
+   "jambo" -> Jambo, cru
+   "jamelao" -> Jamelão, cru
+   "jilo" -> Jiló, cru
+   "jurubeba" -> Jurubeba, crua
+   "kibe" -> Quibe, frito
+   "kiwi" -> Kiwi, cru
+   "lambari" -> Lambari, congelado, cru
+   "lasanha" -> Lasanha, massa fresca, cozida
+   "lentilha" -> Lentilha, cozida
+   "levedura" -> Fermento, biológico, levedura, tablete
+   "limao" -> Limão, tahiti, cru
+   "lingua" -> Carne, bovina, língua, cozida
+   "linhaca" -> Linhaça, semente
+   "lombo" -> Porco, lombo, assado
+   "macauba" -> Macaúba, crua
+   "maizena" -> Milho, amido, cru
+   "manau" -> Curau, milho verde
+   "mandioquinha" -> Batata, baroa, cozida
+   "manicoba" -> Maniçoba
+   "maniva" -> Maniçoba
+   "manjuba" -> Manjuba, frita
+   "maracuja" -> Maracujá, cru
+   "marmelada" -> Marmelada
+   "mate" -> Chá, mate, infusão 5%
+   "maxixe" -> Maxixe, cru
+   "mel" -> Mel, de abelha
+   "melado" -> Melado
+   "melancia" -> Melancia, crua
+   "melao" -> Melão, cru
+   "mignon" -> Carne, bovina, filé mingnon, sem gordura, grelhado
+   "milho" -> Milho, cozido
+   "miojo" -> Macarrão, instantâneo
+   "miudos" -> Carne, bovina, fígado, cru
+   "morango" -> Morango, cru
+   "mortadela" -> Mortadela
+   "mostarda" -> Mostarda, folha, crua
+   "moyashi" -> Feijão, broto, cru
+   "mungunza" -> Canjica, com leite integral
+   "murcote" -> Mexerica, Murcote, crua
+   "mussarela" -> Queijo, mozarela
+   "nabo" -> Nabo, cru
+   "negresco" -> Biscoito, doce, recheado com chocolate
+   "nescau" -> Achocolatado, pó
+   "nespera" -> Nêspera, crua
+   "nhoque" -> Nhoque, batata, cozido
+   "noz" -> Noz, crua
+   "nozes" -> Noz, crua
+   "omelete" -> Omelete, de queijo
+   "oreo" -> Biscoito, doce, recheado com chocolate
+   "pacoca" -> Paçoca, amendoim
+   "pacova" -> Banana, pacova, crua
+   "pamonha" -> Pamonha, barra para cozimento, pré-cozida
+   "papaia" -> Mamão, Papaia, cru
+   "parmesao" -> Queijo, parmesão
+   "passata" -> Tomate, purê
+   "patola" -> Caranguejo, cozido
+   "pe-de-moleque" -> Pé-de-moleque, amendoim
+   "peito" -> Carne, bovina, peito, sem gordura, cozido
+   "pepino" -> Pepino, cru
+   "pepsi" -> Refrigerante, cola
+   "pernil" -> Porco, pernil, assado
+   "peru" -> Peru, congelado, assado
+   "pescadinha" -> Pescadinha, crua
+   "pessego" -> Pêssego, Aurora, cru
+   "petiscos" -> Amendoim, torrado, salgado
+   "pinga" -> Cana, aguardente 1
+   "pinha" -> Pinha, crua
+   "pinhao" -> Pinhão, cozido
+   "pintado" -> Pintado, assado
+   "pipoca" -> Pipoca, com óleo de soja, sem sal
+   "pitanga" -> Pitanga, crua
+   "polenta" -> Polenta, pré-cozida
+   "ponca" -> Tangerina, Poncã, crua
+   "porco" -> Porco, lombo, cru
+   "poro" -> Alho-poró, cru
+   "porquinho" -> Porquinho, cru
+   "powerade" -> Bebida isotônica, sabores variados
+   "prato" -> Queijo, prato
+   "puba" -> Farinha, de puba
+   "pupunha" -> Pupunha, cozida
+   "queijo" -> Queijo meia cura
+   "quiabo" -> Quiabo, cru
+   "quibe" -> Quibe, cru
+   "quibebe" -> Quibebe
+   "quindao" -> Quindim
+   "quindim" -> Quindim
+   "rabanete" -> Rabanete, cru
+   "rajado" -> Feijão, rajado, cozido
+   "rapadura" -> Rapadura
+   "refogado" -> Caruru, cru
+   "refrigerante" -> Refrigerante, tipo cola
+   "repolho" -> Repolho, branco, cru
+   "ricota" -> Queijo, ricota
+   "roma" -> Romã, crua
+   "royal" -> Fermento em pó, químico
+   "rucula" -> Rúcula, crua
+   "sal" -> Sal, grosso
+   "salame" -> Salame
+   "salgadinho" -> Coxinha
+   "salpicao" -> Salpicão, de frango
+   "salsao" -> Aipo, cru
+   "salsinha" -> Salsa, crua
+   "sanduiche" -> Apresuntado
+   "sarapatel" -> Sarapatel
+   "seriguela" -> Ciriguela, crua
+   "serralha" -> Serralha, crua
+   "shoyu" -> Shoyu
+   "soja" -> Soja, farinha
+   "sprite" -> Refrigerante, tipo limão
+   "sucrilhos" -> Cereal matinal, milho, açúcar
+   "tabule" -> Tabule
+   "tacaca" -> Tacacá
+   "taioba" -> Taioba, crua
+   "tamarindo" -> Tamarindo, cru
+   "tapioca" -> Tapioca, com manteiga
+   "tempero" -> Cebola, crua
+   "toddy" -> Achocolatado, pó
+   "tofu" -> Soja, queijo (tofu)
+   "tonica" -> Refrigerante, tipo água tônica
+   "torrada" -> Torrada, pão francês
+   "torradinha" -> Torrada, pão francês
+   "torresmo" -> Toucinho, frito
+   "toucinho" -> Toucinho, cru
+   "tripa" -> Dobradinha
+   "tropeiro" -> Feijão tropeiro mineiro
+   "tucuma" -> Tucumã, cru
+   "tucunare" -> Tucunaré, filé, congelado, cru
+   "tucupi" -> Tucupi, com pimenta-de-cheiro
+   "umbu" -> Umbu, cru
+   "vagem" -> Vagem, crua
+   "vatapa" -> Vatapá
+   "virado" -> Virado à paulista
+   "whey" -> Whey Protein, pó
+   "yakisoba" -> Yakisoba
+   "yakult" -> Leite, fermentado
+   "zeitao" -> Jamelão, cru
+
+═══ PARTE 2 — Cobertura de medidas ═══
+
+🔴 Líquidos (liquido_frio/liquido_quente) SEM nenhuma medida de recipiente nomeado cadastrada: 3
+
+   [liquido_frio] Limão, cravo, suco — medidas: colher de sopa (15g)
+   [liquido_frio] Limão, galego, suco — medidas: colher de sopa (15g)
+   [liquido_quente] Tacacá — medidas: cuia (300g), tigela (250g)
+
+🟠 Itens de unidade/fatia SEM NENHUMA medida caseira cadastrada: 0
+
+
+🟡 Total de alimentos SEM NENHUMA medida caseira cadastrada (qualquer categoria): 0
+
+═══ PARTE 3 — Cruzamento (alias perigoso + medida ausente) ═══
+
+⚠️  Alimentos com AS DUAS vulnerabilidades ao mesmo tempo: 0
+
+
+✅ Auditoria concluída — nenhuma linha do banco foi alterada.
