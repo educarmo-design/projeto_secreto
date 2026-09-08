@@ -570,6 +570,150 @@ Deno.test('encontrarAlimento: alimento fora do catálogo -> null (nunca chuta)',
   assertEquals(encontrarAlimento(CATALOGO_TESTE, 'lasanha'), null);
 });
 
+// RELATÓRIO 20260908_0001 (auditoria 20260902_0003 + decisão do fundador):
+// Regra Anti-Sequestro + falha visível em empate — testes novos.
+Deno.test('encontrarAlimento: alias de 1 palavra NUNCA sequestra busca composta (Regra Anti-Sequestro)', () => {
+  const catalogo: AlimentoCatalogo[] = [
+    {
+      id: 'laranja-suco-id',
+      nomeTaco: 'Laranja, lima, suco',
+      aliases: ['suco'], // alias solto, 1 palavra — mesmo padrão do bug real
+      caloriasKcal100g: 45,
+      proteinasG100g: 0.5,
+      carboidratosG100g: 10,
+      gordurasG100g: 0.1,
+      medidas: [],
+    },
+  ];
+  // ACHADO ORIGINAL (RELATÓRIO 20260902_0002/0003): "suco de abacaxi"
+  // continha "suco" como substring e "sequestrava" o match pra laranja,
+  // mesmo sem "abacaxi" existir em lugar nenhum do catálogo. Com a
+  // blindagem, um alias de 1 palavra não participa mais dos passos
+  // 2/3 (prefixo/substring) — o resultado correto é null (alimento não
+  // encontrado), não mais um chute silencioso.
+  assertEquals(encontrarAlimento(catalogo, 'suco de abacaxi'), null);
+  // O alias de 1 palavra continua funcionando normalmente no MATCH EXATO
+  // (passo 1) — só perde poder nos passos 2/3, nunca no passo 1.
+  assertEquals(encontrarAlimento(catalogo, 'suco')?.id, 'laranja-suco-id');
+});
+
+Deno.test('encontrarAlimento: empate em match exato (2 alimentos com o mesmo alias) -> null, nunca arbitra', () => {
+  // Mesmo padrão real de produção: "carne", "peixe", "salgado" e
+  // "acompanhamento" foram deliberadamente MANTIDOS ambíguos no catálogo
+  // (decisão do fundador) — é esta blindagem do algoritmo, não curadoria
+  // de dado, que impede o antigo `.find()` de arbitrar um dos dois.
+  const catalogo: AlimentoCatalogo[] = [
+    {
+      id: 'a',
+      nomeTaco: 'Carne, bovina, contrafilé, grelhado',
+      aliases: ['carne'],
+      caloriasKcal100g: 200,
+      proteinasG100g: 30,
+      carboidratosG100g: 0,
+      gordurasG100g: 10,
+      medidas: [],
+    },
+    {
+      id: 'b',
+      nomeTaco: 'Carne, bovina, maminha, crua',
+      aliases: ['carne'],
+      caloriasKcal100g: 150,
+      proteinasG100g: 25,
+      carboidratosG100g: 0,
+      gordurasG100g: 5,
+      medidas: [],
+    },
+  ];
+  assertEquals(encontrarAlimento(catalogo, 'carne'), null);
+});
+
+Deno.test('encontrarAlimento: leite resolve único depois da curadoria (só 1 linha tem o alias)', () => {
+  // Mesmo padrão real pós-curadoria (RELATÓRIO 20260908_0001): "leite" só
+  // fica cadastrado em "Leite, de vaca, integral" — as outras variações
+  // (cabra, desnatado) perdem o alias, então não há mais ambiguidade
+  // nenhuma pra resolver (nem precisa da blindagem de empate aqui).
+  const catalogo: AlimentoCatalogo[] = [
+    {
+      id: 'integral-id',
+      nomeTaco: 'Leite, de vaca, integral',
+      aliases: ['leite', 'leite integral'],
+      caloriasKcal100g: 61,
+      proteinasG100g: 3.2,
+      carboidratosG100g: 4.5,
+      gordurasG100g: 3.3,
+      medidas: [],
+    },
+    {
+      id: 'cabra-id',
+      nomeTaco: 'Leite, de cabra',
+      aliases: [], // alias "leite" removido daqui pela curadoria
+      caloriasKcal100g: 69,
+      proteinasG100g: 3.5,
+      carboidratosG100g: 4.4,
+      gordurasG100g: 4.1,
+      medidas: [],
+    },
+  ];
+  assertEquals(encontrarAlimento(catalogo, 'leite')?.id, 'integral-id');
+});
+
+Deno.test('encontrarAlimento: empate em "começa com" -> null (2 alimentos diferentes, nenhum alias)', () => {
+  const catalogo: AlimentoCatalogo[] = [
+    {
+      id: 'a',
+      nomeTaco: 'Banana, prata, crua',
+      aliases: [],
+      caloriasKcal100g: 1,
+      proteinasG100g: 1,
+      carboidratosG100g: 1,
+      gordurasG100g: 1,
+      medidas: [],
+    },
+    {
+      id: 'b',
+      nomeTaco: 'Banana, nanica, crua',
+      aliases: [],
+      caloriasKcal100g: 1,
+      proteinasG100g: 1,
+      carboidratosG100g: 1,
+      gordurasG100g: 1,
+      medidas: [],
+    },
+  ];
+  // "banana" não bate exato em nenhum nomeTaco — cai pro passo 2 ("começa
+  // com"), onde as 2 linhas empatam igualmente.
+  assertEquals(encontrarAlimento(catalogo, 'banana'), null);
+});
+
+Deno.test('encontrarAlimento: empate em substring -> null (2 alimentos diferentes contidos no texto buscado)', () => {
+  const catalogo: AlimentoCatalogo[] = [
+    {
+      id: 'a',
+      nomeTaco: 'Frango',
+      aliases: [],
+      caloriasKcal100g: 1,
+      proteinasG100g: 1,
+      carboidratosG100g: 1,
+      gordurasG100g: 1,
+      medidas: [],
+    },
+    {
+      id: 'b',
+      nomeTaco: 'Peixe',
+      aliases: [],
+      caloriasKcal100g: 1,
+      proteinasG100g: 1,
+      carboidratosG100g: 1,
+      gordurasG100g: 1,
+      medidas: [],
+    },
+  ];
+  // O texto buscado CONTÉM os dois nomeTaco como substring — nem exato
+  // (passo 1) nem prefixo (passo 2, nenhum nomeTaco é mais longo que o
+  // texto todo), só o passo 3 (substring) encontra os dois, empatados.
+  assertEquals(encontrarAlimento(catalogo, 'frango ao molho de peixe'), null);
+});
+
 Deno.test('encontrarMedida: medida é escopada ao alimento (mesma "colher" pesa diferente)', () => {
   const arroz = CATALOGO_TESTE[0];
   const feijao = CATALOGO_TESTE[1];

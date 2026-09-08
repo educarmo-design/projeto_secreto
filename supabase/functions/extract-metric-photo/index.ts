@@ -1261,12 +1261,61 @@ function normalizarMedida(medida: string): string {
 // Agora a categoria vem do DB (AlimentoCatalogo.categoriaConsumo).
 // Ver encontrarMedida() abaixo \u2014 usa categoria do DB em vez de pattern matching.
 
+/// Um alias só participa de match por PREFIXO/SUBSTRING se tiver 2+
+/// palavras — ver `Regra Anti-Sequestro` na doc de `encontrarAlimento`.
+function aliasEhComposto(alias: string): boolean {
+  return normalizarTexto(alias).includes(' ');
+}
+
+/// Resultado interno de cada passo de `encontrarAlimento` — 3 estados, não
+/// 2 (`AlimentoCatalogo | null`), porque "nenhum candidato neste passo,
+/// tenta o próximo" e "vários candidatos DIFERENTES empataram, para tudo
+/// aqui" precisam de tratamento distinto (o segundo caso NUNCA cai pro
+/// próximo passo, mais fraco — RELATÓRIO 20260908_0001).
+type ResultadoPasso =
+  | { tipo: 'nenhum' }
+  | { tipo: 'unico'; alimento: AlimentoCatalogo }
+  | { tipo: 'ambiguo'; quantidade: number };
+
+/// `candidatos` pode ter o MESMO alimento repetido (bateu no nomeTaco E em
+/// 2 aliases diferentes, por exemplo) — dedup por `id` antes de decidir se
+/// é ambiguidade real (2+ alimentos DIFERENTES) ou só múltiplos motivos
+/// pro mesmo alimento.
+function avaliarCandidatos(candidatos: AlimentoCatalogo[]): ResultadoPasso {
+  if (candidatos.length === 0) return { tipo: 'nenhum' };
+  const idsUnicos = new Set(candidatos.map((a) => a.id));
+  if (idsUnicos.size === 1) return { tipo: 'unico', alimento: candidatos[0] };
+  return { tipo: 'ambiguo', quantidade: idsUnicos.size };
+}
+
 /// Casa o nome livre do Gemini contra `alimentos_referencia`:
 /// 1. Exato: nome_taco === busca OU alias === busca
 /// 2. Começa com: nome_taco.startsWith(busca) OU alias.startsWith(busca)
 /// 3. Substring: nome_taco.includes(busca) nos dois sentidos (último recurso)
 /// Nunca "quase-casa" por similaridade fonética — um alimento não encontrado
 /// vira `alimento_nao_encontrado`, nunca um chute (Missão F45).
+///
+/// RELATÓRIO 20260908_0001 (auditoria 20260902_0003 + decisão do fundador)
+/// — 2 blindagens novas, nenhuma delas move o `nomeTaco` (só afetam
+/// `aliases`, o dado editável em massa/por IA, fonte real do risco):
+///
+/// **Regra Anti-Sequestro**: um alias de 1 palavra só ("suco", "fruta",
+/// "peixe"...) só pode resolver por MATCH EXATO (passo 1) — nos passos 2/3
+/// (prefixo/substring) ele é simplesmente ignorado. Sem isso, um alias
+/// solto cadastrado numa linha "sequestrava" qualquer busca composta que o
+/// contivesse (achado real: "suco de abacaxi" casava com "Laranja, lima,
+/// suco" só porque essa linha tinha o alias avulso "suco" — RELATÓRIO
+/// 20260902_0002/0003), mesmo sem "abacaxi" aparecer em lugar nenhum do
+/// texto comparado.
+///
+/// **Falha visível em empate**: cada passo agora avalia TODOS os
+/// candidatos que bateram (não só o primeiro do `.find()`) — se 2+
+/// alimentos DIFERENTES empatarem no mesmo passo, o resultado é ambíguo e
+/// a função para ali, devolvendo `null` (nunca cai pro passo mais fraco
+/// seguinte, que arriscaria "desempatar" por acidente). Mesmo princípio já
+/// aplicado pelo N27 a `encontrarMedida`: ambiguidade é igual a não
+/// encontrado (Regra 23) — quem chama (`calcularPrato`) já sabe tratar
+/// `alimento_nao_encontrado`, inclusive tentando a busca semântica depois.
 export function encontrarAlimento(
   catalogo: AlimentoCatalogo[],
   nomeBuscado: string,
@@ -1274,33 +1323,63 @@ export function encontrarAlimento(
   const alvo = normalizarTexto(nomeBuscado);
   if (!alvo) return null;
 
-  // 1. Match exato (nome_taco ou alias)
-  const exato = catalogo.find(
+  // 1. Match exato (nome_taco ou QUALQUER alias, inclusive os de 1
+  // palavra — aqui não existe risco de sequestro: o usuário digitou
+  // EXATAMENTE aquele termo, não uma frase composta que o contém. Um
+  // empate neste passo é ambiguidade de dado real (ex.: "carne" cadastrado
+  // como alias em 3 linhas diferentes), não um bug de substring.
+  const exatos = catalogo.filter(
     (a) =>
       normalizarTexto(a.nomeTaco) === alvo ||
       a.aliases.some((alias) => normalizarTexto(alias) === alvo),
   );
-  if (exato) return exato;
+  const passo1 = avaliarCandidatos(exatos);
+  if (passo1.tipo === 'unico') return passo1.alimento;
+  if (passo1.tipo === 'ambiguo') {
+    console.log(
+      `[encontrarAlimento] Ambíguo (match exato): "${nomeBuscado}" bate em ${passo1.quantidade} alimentos diferentes — devolvendo null, não arbitrando (Regra 23)`,
+    );
+    return null;
+  }
 
-  // 2. Match "começa com" (mais específico que substring genérico)
-  const comecaCom = catalogo.find(
+  // 2. Match "começa com" (mais específico que substring genérico) —
+  // aliases de 1 palavra ficam de fora (Regra Anti-Sequestro).
+  const comecamCom = catalogo.filter(
     (a) =>
       normalizarTexto(a.nomeTaco).startsWith(alvo) ||
-      a.aliases.some((alias) => normalizarTexto(alias).startsWith(alvo)),
+      a.aliases.some((alias) => aliasEhComposto(alias) && normalizarTexto(alias).startsWith(alvo)),
   );
-  if (comecaCom) return comecaCom;
+  const passo2 = avaliarCandidatos(comecamCom);
+  if (passo2.tipo === 'unico') return passo2.alimento;
+  if (passo2.tipo === 'ambiguo') {
+    console.log(
+      `[encontrarAlimento] Ambíguo (começa com): "${nomeBuscado}" bate em ${passo2.quantidade} alimentos diferentes — devolvendo null, não arbitrando (Regra 23)`,
+    );
+    return null;
+  }
 
-  // 3. Match substring genérico (fallback menos preferido)
-  return (
-    catalogo.find(
-      (a) =>
-        normalizarTexto(a.nomeTaco).includes(alvo) ||
-        alvo.includes(normalizarTexto(a.nomeTaco)) ||
-        a.aliases.some(
-          (alias) => normalizarTexto(alias).includes(alvo) || alvo.includes(normalizarTexto(alias)),
-        ),
-    ) ?? null
+  // 3. Match substring genérico (fallback menos preferido) — mesma
+  // blindagem Anti-Sequestro pros aliases de 1 palavra.
+  const substrings = catalogo.filter(
+    (a) =>
+      normalizarTexto(a.nomeTaco).includes(alvo) ||
+      alvo.includes(normalizarTexto(a.nomeTaco)) ||
+      a.aliases.some(
+        (alias) =>
+          aliasEhComposto(alias) &&
+          (normalizarTexto(alias).includes(alvo) || alvo.includes(normalizarTexto(alias))),
+      ),
   );
+  const passo3 = avaliarCandidatos(substrings);
+  if (passo3.tipo === 'unico') return passo3.alimento;
+  if (passo3.tipo === 'ambiguo') {
+    console.log(
+      `[encontrarAlimento] Ambíguo (substring): "${nomeBuscado}" bate em ${passo3.quantidade} alimentos diferentes — devolvendo null, não arbitrando (Regra 23)`,
+    );
+    return null;
+  }
+
+  return null;
 }
 
 /// Mesma estratégia de `encontrarAlimento`, escopada às medidas cadastradas
