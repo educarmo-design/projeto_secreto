@@ -586,6 +586,7 @@
     "tipo_refeicao_lanche": "Merienda",
     "tipo_refeicao_jantar": "Cena",
     "resolver_button": "Resolver",
+    "peso_com_unidade": "Peso ({{unidade}})",
     "resolver_item_title": "¿Cuál fue la medida?",
     "resolver_item_descricao": "\"{{alimento}}\" no tiene \"{{medida}}\" registrada. Elige una medida real o indica el peso.",
     "medidas_disponiveis": "Medidas registradas para este alimento:",

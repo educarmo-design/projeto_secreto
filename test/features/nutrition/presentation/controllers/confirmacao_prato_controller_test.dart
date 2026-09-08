@@ -488,6 +488,38 @@ void main() {
       expect(resolvido.calorias, closeTo(114.0, 0.001)); // 76/100 * 150
     });
 
+    // RELATÓRIO 20260902_0002 (N27, Regra 23 — "copo de suco"): item já
+    // casado como líquido (`categoriaConsumo`/`unidadeMedidaPadrao`
+    // presentes) mas sem a medida "copo" cadastrada — `resolverComPesoManual`
+    // deve gravar a medida em "ml", nunca "g", E propagar a categorização
+    // pro item promovido (senão o badge da tela volta a mostrar "g").
+    test('resolverComPesoManual num item líquido grava a medida em "ml", não "g"', () {
+      const naoReconhecidoLiquido = ItemPratoNaoReconhecidoModel(
+        nome: 'suco de limão',
+        medida: 'copo',
+        motivo: 'medida_nao_encontrada',
+        alimentoCasado: 'Limão, cravo, suco',
+        caloriasKcal100g: 14.1,
+        proteinasG100g: 0.33,
+        carboidratosG100g: 5.25,
+        gordurasG100g: 0,
+        medidasDisponiveis: [MedidaCaseiraModel(medida: 'colher de sopa', gramas: 15)],
+        categoriaConsumo: 'liquido_frio',
+        unidadeMedidaPadrao: 'ml',
+      );
+      final controller = ConfirmacaoPratoController(
+        extracaoCom(itens: const [], itensNaoReconhecidos: [naoReconhecidoLiquido]),
+      );
+
+      controller.resolverComPesoManual(naoReconhecidoLiquido, 240);
+
+      final resolvido = controller.value.itens.single;
+      expect(resolvido.original.medida, '240ml');
+      expect(resolvido.original.categoriaConsumo, 'liquido_frio');
+      expect(resolvido.original.unidadeMedidaPadrao, 'ml');
+      expect(resolvido.calorias, closeTo(33.84, 0.001)); // 14.1/100 * 240
+    });
+
     test('resolverComPesoManual com peso <= 0 é ignorado (mesma validação de editarPeso)', () {
       final controller = ConfirmacaoPratoController(
         extracaoCom(itens: const [], itensNaoReconhecidos: [naoReconhecido]),

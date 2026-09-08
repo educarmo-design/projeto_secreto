@@ -8,6 +8,26 @@ import '../../data/repositories/favoritas_repository.dart';
 import '../controllers/confirmacao_prato_controller.dart';
 import '../widgets/dialogo_nome_tipo_favorita.dart';
 
+/// RELATÓRIO 20260901_0003 / 20260902_0002 — grandeza BASE do peso/volume
+/// (nunca o nome da medida caseira): `unidadeMedidaPadrao` já vem do
+/// catálogo quando o alimento tem categoria definida (fonte mais direta);
+/// sem isso, infere por `categoriaConsumo` (líquidos = ml); sem nenhum dos
+/// dois (alimento ainda sem categorização, `peso_livre`), assume 'g' — é o
+/// caso mais comum do catálogo (sólidos), e a TACO já reporta macros por
+/// 100g pra tudo, então 'g' nunca fica tecnicamente errado. Extraída como
+/// função de nível de arquivo (não presa a nenhuma classe) porque tanto
+/// [_ItemPratoTileState] (item já resolvido, [ItemPratoExtraidoModel])
+/// quanto [_ItemNaoReconhecidoTile] (item pendente,
+/// [ItemPratoNaoReconhecidoModel]) precisam da MESMA decisão — os dois
+/// tipos carregam os mesmos 2 campos, só não compartilham uma classe-base.
+String _unidadeParaCategoria({String? unidadeMedidaPadrao, String? categoriaConsumo}) {
+  if (unidadeMedidaPadrao == 'ml') return 'ml';
+  if (categoriaConsumo == 'liquido_frio' || categoriaConsumo == 'liquido_quente') {
+    return 'ml';
+  }
+  return 'g';
+}
+
 /// Identifica que esta tela está editando o CONTEÚDO de uma favorita já
 /// salva (RELATÓRIO 20260823 — 2º gap encontrado pelo fundador testando:
 /// "trocar tipo"/"excluir" existiam, editar itens/quantidades nunca tinha
@@ -362,22 +382,23 @@ class _ItemPratoTileState extends State<_ItemPratoTile> {
   String _formatarQuantidade(double quantidade) =>
       quantidade % 1 == 0 ? quantidade.toStringAsFixed(0) : quantidade.toStringAsFixed(1);
 
-  /// RELATÓRIO 20260901_0003 — grandeza BASE do peso calculado (nunca o
-  /// nome da medida caseira): `unidadeMedidaPadrao` já vem do catálogo
-  /// quando o alimento tem categoria definida (fonte mais direta); sem
-  /// isso, infere por `categoriaConsumo` (líquidos = ml); sem nenhum dos
-  /// dois (alimento ainda sem categorização, `peso_livre`), assume 'g' —
-  /// é o caso mais comum do catálogo (sólidos), e a TACO já reporta macros
-  /// por 100g pra tudo, então 'g' nunca fica tecnicamente errado.
-  String _unidadeBase(ItemPratoExtraidoModel original) {
-    if (original.unidadeMedidaPadrao == 'ml') return 'ml';
-    if (original.categoriaConsumo == 'liquido_frio' || original.categoriaConsumo == 'liquido_quente') {
-      return 'ml';
-    }
-    return 'g';
-  }
+  /// Ver doc de [_unidadeParaCategoria] (nível de arquivo) — delega pra lá,
+  /// mantido como método só para não precisar mudar todo call site já
+  /// existente que chama `_unidadeBase(original)`.
+  String _unidadeBase(ItemPratoExtraidoModel original) => _unidadeParaCategoria(
+        unidadeMedidaPadrao: original.unidadeMedidaPadrao,
+        categoriaConsumo: original.categoriaConsumo,
+      );
 
-  void _mostrarDialogoEditarPeso(BuildContext context, ItemPratoEditavel item) {
+  /// RELATÓRIO 20260902_0002 — `unidade` (padrão 'g', preserva os 2 call
+  /// sites que já chamavam sem esse parâmetro: unidade/fatia/peso_livre,
+  /// onde 'g' sempre foi certo) — os botões "Customizar" de líquido
+  /// (`_botaoEditarCustomizado`, chamados de `_buildBotoesLiquidoFrio`/
+  /// `_buildBotoesLiquidoQuente`) já recebiam `unidade: 'ml'` como
+  /// parâmetro, mas NUNCA repassavam pra cá — achado real desta tarefa: o
+  /// diálogo abria pedindo "Peso (gramas)"/sufixo "g" mesmo clicando
+  /// "Customizar" no cartão azul de um líquido.
+  void _mostrarDialogoEditarPeso(BuildContext context, ItemPratoEditavel item, {String unidade = 'g'}) {
     final controller = TextEditingController(
       text: (item.pesoPersonalizadoGramas ?? item.original.pesoTipicoGramas ?? _pesoInicialQuandoDesconhecidoGramas)
           .toStringAsFixed(0),
@@ -399,8 +420,8 @@ class _ItemPratoTileState extends State<_ItemPratoTile> {
               controller: controller,
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
               decoration: InputDecoration(
-                labelText: i18n.tr('confirmacao_prato.peso_gramas'),
-                suffix: const Text('g'),
+                labelText: i18n.tr('confirmacao_prato.peso_com_unidade', params: {'unidade': unidade}),
+                suffix: Text(unidade),
               ),
               autofocus: true,
             ),
@@ -660,7 +681,7 @@ class _ItemPratoTileState extends State<_ItemPratoTile> {
   /// Botão "Customizar" para entrada manual
   Widget _botaoEditarCustomizado(BuildContext context, ItemPratoEditavel item, String unidade) {
     return OutlinedButton(
-      onPressed: () => _mostrarDialogoEditarPeso(context, item),
+      onPressed: () => _mostrarDialogoEditarPeso(context, item, unidade: unidade),
       child: Text(
         'Customizar',
         style: TextStyle(fontSize: 11),
@@ -832,6 +853,19 @@ class _ItemNaoReconhecidoTile extends StatelessWidget {
     final medidas = item.medidasDisponiveis ?? const [];
     final pesoController = TextEditingController();
 
+    // RELATÓRIO 20260902_0002 (N27, Regra 23 — "copo de suco") — causa raiz
+    // real, confirmada contra o catálogo do banco: "suco de limão" casa
+    // corretamente com `categoria_consumo: 'liquido_frio'`, mas essa linha
+    // só tem "colher de sopa" cadastrada (nunca "copo") — Regra 23 diz pra
+    // NÃO arbitrar essa medida ausente, então o item some pra resolução
+    // manual mesmo, mas até este fix o diálogo sempre pedia "gramas",
+    // mesmo já sabendo (agora que o backend repassa) que é um líquido. Ver
+    // doc de `_unidadeParaCategoria` (nível de arquivo).
+    final unidade = _unidadeParaCategoria(
+      unidadeMedidaPadrao: item.unidadeMedidaPadrao,
+      categoriaConsumo: item.categoriaConsumo,
+    );
+
     await showDialog<void>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -857,7 +891,7 @@ class _ItemNaoReconhecidoTile extends StatelessWidget {
                   ListTile(
                     dense: true,
                     contentPadding: EdgeInsets.zero,
-                    title: Text('${medida.medida} (${medida.gramas.toStringAsFixed(0)}g)'),
+                    title: Text('${medida.medida} (${medida.gramas.toStringAsFixed(0)}$unidade)'),
                     onTap: () {
                       controller.resolverComMedidaCadastrada(item, medida);
                       Navigator.of(dialogContext).pop();
@@ -874,8 +908,8 @@ class _ItemNaoReconhecidoTile extends StatelessWidget {
                 controller: pesoController,
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
                 decoration: InputDecoration(
-                  labelText: i18n.tr('confirmacao_prato.peso_gramas'),
-                  suffix: const Text('g'),
+                  labelText: i18n.tr('confirmacao_prato.peso_com_unidade', params: {'unidade': unidade}),
+                  suffix: Text(unidade),
                 ),
                 autofocus: medidas.isEmpty,
               ),

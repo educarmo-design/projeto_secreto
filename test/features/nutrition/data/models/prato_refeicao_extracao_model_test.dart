@@ -217,6 +217,45 @@ void main() {
     expect(naoReconhecido.medidasDisponiveis!.single.gramas, 80.0);
   });
 
+  // RELATÓRIO 20260902_0002 (N27, Regra 23 — "copo de suco não reconhece
+  // a medida, mas a UI pedia gramas"): mesmos 4 campos que `itens` já
+  // parseava (categoria_consumo/unidade_medida_padrao/medida_padrao_nome/
+  // medida_padrao_qtd) — até este fix nunca chegavam pra
+  // `itens_nao_reconhecidos`, então a tela de resolução manual não tinha
+  // como saber que o alimento já casado era um líquido.
+  test('item não reconhecido parseia categoria_consumo/unidade_medida_padrao/medida_padrao_*', () {
+    final modelo = PratoRefeicaoExtracaoModel.fromJson(
+      respostaCompleta(
+        itens: [],
+        itensNaoReconhecidos: [
+          {
+            'nome': 'suco de limão',
+            'medida': 'copo',
+            'motivo': 'medida_nao_encontrada',
+            'alimento_casado': 'Limão, cravo, suco',
+            'calorias_kcal_100g': 14.1,
+            'proteinas_g_100g': 0.33,
+            'carboidratos_g_100g': 5.25,
+            'gorduras_g_100g': 0,
+            'medidas_disponiveis': [
+              {'medida': 'colher de sopa', 'gramas': 15},
+            ],
+            'categoria_consumo': 'liquido_frio',
+            'unidade_medida_padrao': 'ml',
+            'medida_padrao_nome': 'Copo',
+            'medida_padrao_qtd': 240,
+          },
+        ],
+      ),
+    );
+
+    final naoReconhecido = modelo.itensNaoReconhecidos.single;
+    expect(naoReconhecido.categoriaConsumo, 'liquido_frio');
+    expect(naoReconhecido.unidadeMedidaPadrao, 'ml');
+    expect(naoReconhecido.medidaPadraoNome, 'Copo');
+    expect(naoReconhecido.medidaPadraoQtd, 240.0);
+  });
+
   test('item não reconhecido com motivo alimento_nao_encontrado não tem os campos de N27', () {
     final modelo = PratoRefeicaoExtracaoModel.fromJson(
       respostaCompleta(
@@ -230,6 +269,8 @@ void main() {
     final naoReconhecido = modelo.itensNaoReconhecidos.single;
     expect(naoReconhecido.alimentoCasado, isNull);
     expect(naoReconhecido.medidasDisponiveis, isNull);
+    expect(naoReconhecido.categoriaConsumo, isNull);
+    expect(naoReconhecido.unidadeMedidaPadrao, isNull);
   });
 
   test('item não reconhecido sem "motivo" lança FormatException', () {
