@@ -193,6 +193,83 @@ void main() {
     });
   });
 
+  group('buscarHistoricoMetas', () {
+    test('devolve todas as metas próprias mapeadas com status_vigencia, mais recente primeiro', () async {
+      when(() => objetivosBuilder.select(any())).thenAnswer(
+        (_) => _FakeQuery<List<Map<String, dynamic>>>([
+          {
+            'calorias_alvo': 2200,
+            'proteina_g': 150,
+            'carbo_g': 220,
+            'gordura_g': 70,
+            'data_criacao': '2026-08-20T00:00:00Z',
+            'status_vigencia': 'ativo',
+          },
+          {
+            'calorias_alvo': 2000,
+            'proteina_g': null,
+            'carbo_g': null,
+            'gordura_g': null,
+            'data_criacao': '2026-07-01T00:00:00Z',
+            'status_vigencia': 'historico',
+          },
+        ]),
+      );
+
+      final historico = await repository.buscarHistoricoMetas();
+
+      expect(historico, hasLength(2));
+      expect(historico[0].caloriasAlvo, 2200);
+      expect(historico[0].statusVigencia, 'ativo');
+      expect(historico[1].caloriasAlvo, 2000);
+      expect(historico[1].statusVigencia, 'historico');
+    });
+
+    test('devolve lista vazia sem consultar o Supabase quando ninguém está logado', () async {
+      when(() => auth.currentUser).thenReturn(null);
+
+      final historico = await repository.buscarHistoricoMetas();
+
+      expect(historico, isEmpty);
+      verifyNever(() => supabase.from('objetivos_alimentares'));
+    });
+  });
+
+  group('gerarSugestaoMeta', () {
+    test('chama a RPC gerar_sugestao_meta e mapeia tdee_medio/tmb/detalhe_por_dia', () async {
+      when(() => supabase.rpc('gerar_sugestao_meta', params: any(named: 'params'))).thenAnswer(
+        (_) => _FakeQuery<Map<String, dynamic>>({
+          'id': 'sugestao-1',
+          'motor_resultado': {'tmb': 1774, 'gasto_sedentario': 2128.8},
+          'detalhe_por_dia': {
+            '0': {'gasto_atividade': 0, 'tdee': 2128.8},
+            '1': {'gasto_atividade': 200, 'tdee': 2328.8},
+          },
+          'tdee_medio': 2200.5,
+          'formula_usada': 'mifflin_st_jeor',
+          'avisos': <String>[],
+        }),
+      );
+
+      final resultado = await repository.gerarSugestaoMeta();
+
+      expect(resultado.tmb, 1774);
+      expect(resultado.tdeeMedio, 2200.5);
+      expect(resultado.tdeePorDia[0], 2128.8);
+      expect(resultado.tdeePorDia[1], 2328.8);
+      expect(resultado.tdeePorDia[2], isNull);
+      expect(resultado.formulaUsada, 'mifflin_st_jeor');
+      verify(() => supabase.rpc('gerar_sugestao_meta', params: {'p_usuario_id': _usuarioId})).called(1);
+    });
+
+    test('lança StateError sem chamar o Supabase quando ninguém está logado', () async {
+      when(() => auth.currentUser).thenReturn(null);
+
+      expect(() => repository.gerarSugestaoMeta(), throwsStateError);
+      verifyNever(() => supabase.rpc(any(), params: any(named: 'params')));
+    });
+  });
+
   group('buscarSugestaoCalorias', () {
     test('devolve gasto_sedentario do Motor N07', () async {
       when(() => supabase.rpc('calcular_motor_metabolico', params: any(named: 'params')))

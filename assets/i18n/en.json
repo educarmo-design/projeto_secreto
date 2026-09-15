@@ -476,6 +476,7 @@
     "objetivo_manutencao": "Maintenance",
     "objetivo_hipertrofia": "Muscle gain",
     "objetivo_obrigatorio": "Choose a goal before saving",
+    "sexo_obrigatorio": "Choose your biological sex before saving",
     "problemas_saude_label": "Health Conditions",
     "problemas_saude_empty": "No health conditions registered in the system yet.",
     "alergias_label": "Allergies",
@@ -492,6 +493,39 @@
     "atividades_modal_minutos_invalido": "Choose an activity type and enter minutes between 1 and 1440",
     "atividades_modal_cancel": "Cancel",
     "atividades_modal_confirm": "Add",
+
+    "dados_fisicos_label": "Your Data",
+    "peso_label": "Weight (kg)",
+    "peso_hint": "E.g.: 78.5",
+    "peso_validation_empty": "Enter your weight",
+    "peso_validation_invalid": "Enter numbers only",
+    "peso_validation_range": "Weight must be between 30 and 300 kg",
+
+    "rotina_dia_semana_label": "Weekly Routine",
+    "dia_semana_0": "Sunday",
+    "dia_semana_1": "Monday",
+    "dia_semana_2": "Tuesday",
+    "dia_semana_3": "Wednesday",
+    "dia_semana_4": "Thursday",
+    "dia_semana_5": "Friday",
+    "dia_semana_6": "Saturday",
+    "rotina_dia_vazio": "No activity on this day.",
+    "rotina_dia_add_button": "Add",
+    "atividades_modal_title_dia": "Add Activity — {{dia}}",
+    "atividades_minutos": "{{minutos}} min",
+
+    "anamnese_carencia_titulo": "Intake recently completed",
+    "anamnese_carencia_mensagem": "You can only redo the intake once every 30 days. Available again on {{data}}.",
+
+    "resultado_motor_title": "Goal Suggestion",
+    "resultado_motor_media_label": "Average Calorie Expenditure (week)",
+    "resultado_motor_tmb_label": "BMR (Basal Metabolic Rate)",
+    "resultado_motor_detalhe_label": "Detail by Day of Week",
+    "resultado_motor_sem_dado": "—",
+    "resultado_motor_aviso_disclaimer": "This information is for reference only; for any questions or additional information, please consult a health professional. This information is not saved to your Calorie and Nutrient goals.",
+    "resultado_motor_concluir_button": "Done",
+    "resultado_motor_erro": "Couldn't calculate your suggestion right now. Please try again.",
+
     "save_button": "Save",
     "save_success": "Intake saved successfully",
     "save_error": "Failed to save. Please try again.",
@@ -521,7 +555,18 @@
     "meta_bloqueio_profissional_titulo": "You're under professional care",
     "meta_bloqueio_profissional_mensagem": "Your current goal was set by a professional linked to your account. Talk to them to adjust it.",
     "meta_bloqueio_carencia_titulo": "Goal already set this month",
-    "meta_bloqueio_carencia_mensagem": "You can only change your wellness goal once a month."
+    "meta_bloqueio_carencia_mensagem": "You can only change your wellness goal once a month.",
+
+    "meta_atual_label": "Current Goal (Average)",
+    "meta_atual_vazio": "You haven't set a goal yet.",
+    "meta_historico_label": "Goal History",
+    "meta_historico_vazio": "No previous goals.",
+    "meta_historico_item_ativo": "Current",
+    "meta_historico_item_historico": "Previous",
+    "meta_proxima_revisao_label": "Next review available on {{data}}",
+    "meta_proxima_revisao_disponivel": "Review available now",
+    "meta_criar_nova_button": "Create New Goal",
+    "meta_flag_profissional_texto": "Your goals are set and monitored by your health professional."
   },
 
   "vinculos": {

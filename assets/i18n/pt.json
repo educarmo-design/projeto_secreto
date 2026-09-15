@@ -481,6 +481,7 @@
     "objetivo_manutencao": "Manutenção",
     "objetivo_hipertrofia": "Hipertrofia",
     "objetivo_obrigatorio": "Escolha um objetivo antes de salvar",
+    "sexo_obrigatorio": "Escolha o sexo biológico antes de salvar",
     "problemas_saude_label": "Problemas de Saúde",
     "problemas_saude_empty": "Nenhum problema de saúde cadastrado no sistema ainda.",
     "alergias_label": "Alergias",
@@ -497,6 +498,39 @@
     "atividades_modal_minutos_invalido": "Escolha uma modalidade e informe minutos entre 1 e 1440",
     "atividades_modal_cancel": "Cancelar",
     "atividades_modal_confirm": "Adicionar",
+
+    "dados_fisicos_label": "Seus Dados",
+    "peso_label": "Peso (kg)",
+    "peso_hint": "Ex.: 78.5",
+    "peso_validation_empty": "Informe seu peso",
+    "peso_validation_invalid": "Digite só números",
+    "peso_validation_range": "Peso deve estar entre 30 e 300 kg",
+
+    "rotina_dia_semana_label": "Rotina por Dia da Semana",
+    "dia_semana_0": "Domingo",
+    "dia_semana_1": "Segunda",
+    "dia_semana_2": "Terça",
+    "dia_semana_3": "Quarta",
+    "dia_semana_4": "Quinta",
+    "dia_semana_5": "Sexta",
+    "dia_semana_6": "Sábado",
+    "rotina_dia_vazio": "Nenhuma atividade neste dia.",
+    "rotina_dia_add_button": "Adicionar",
+    "atividades_modal_title_dia": "Adicionar Atividade — {{dia}}",
+    "atividades_minutos": "{{minutos}} min",
+
+    "anamnese_carencia_titulo": "Anamnese já preenchida recentemente",
+    "anamnese_carencia_mensagem": "Você só pode refazer a anamnese 1x a cada 30 dias. Disponível novamente em {{data}}.",
+
+    "resultado_motor_title": "Sugestão de Meta",
+    "resultado_motor_media_label": "Gasto Calórico Médio (semana)",
+    "resultado_motor_tmb_label": "TMB (Taxa Metabólica Basal)",
+    "resultado_motor_detalhe_label": "Detalhe por Dia da Semana",
+    "resultado_motor_sem_dado": "—",
+    "resultado_motor_aviso_disclaimer": "Estas informações são meramente informativas, qualquer dúvida ou informações adicionais deverá procurar um profissional de saúde. Estas informações não são gravadas em sua metas Calóricas e de Nutrientes.",
+    "resultado_motor_concluir_button": "Concluir",
+    "resultado_motor_erro": "Não foi possível calcular sua sugestão agora. Tente novamente.",
+
     "save_button": "Salvar",
     "save_success": "Anamnese salva com sucesso",
     "save_error": "Erro ao salvar. Tente novamente.",
@@ -526,7 +560,18 @@
     "meta_bloqueio_profissional_titulo": "Você está sob acompanhamento profissional",
     "meta_bloqueio_profissional_mensagem": "Sua meta atual foi definida por um profissional vinculado à sua conta. Fale com ele para ajustá-la.",
     "meta_bloqueio_carencia_titulo": "Meta já definida este mês",
-    "meta_bloqueio_carencia_mensagem": "Você só pode alterar sua meta de bem-estar 1x por mês."
+    "meta_bloqueio_carencia_mensagem": "Você só pode alterar sua meta de bem-estar 1x por mês.",
+
+    "meta_atual_label": "Meta Atual (Média)",
+    "meta_atual_vazio": "Você ainda não definiu uma meta.",
+    "meta_historico_label": "Histórico de Metas",
+    "meta_historico_vazio": "Nenhuma meta anterior.",
+    "meta_historico_item_ativo": "Atual",
+    "meta_historico_item_historico": "Anterior",
+    "meta_proxima_revisao_label": "Próxima revisão disponível em {{data}}",
+    "meta_proxima_revisao_disponivel": "Revisão disponível agora",
+    "meta_criar_nova_button": "Criar Nova Meta",
+    "meta_flag_profissional_texto": "As suas metas são definidas e acompanhadas pelo profissional de saúde."
   },
 
   "vinculos": {

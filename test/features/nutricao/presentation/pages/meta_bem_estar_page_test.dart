@@ -24,6 +24,7 @@ void main() {
     when(() => repository.buscarMetaAtivaDoProfissional()).thenAnswer((_) async => null);
     when(() => repository.buscarMinhaUltimaMetaPropria()).thenAnswer((_) async => null);
     when(() => repository.buscarSugestaoCalorias()).thenAnswer((_) async => null);
+    when(() => repository.buscarHistoricoMetas()).thenAnswer((_) async => const []);
   });
 
   Widget criarApp() {
@@ -160,6 +161,58 @@ void main() {
 
     await tester.tap(find.widgetWithText(FilledButton, 'Entendi'));
     await tester.pumpAndSettle();
+  });
+
+  testWidgets('sem meta própria ainda, mostra "Meta Atual" vazia e histórico vazio no formulário', (tester) async {
+    await configurarViewportAlto(tester);
+    await tester.pumpWidget(criarApp());
+    await tester.pumpAndSettle();
+
+    expect(find.text('Meta Atual (Média)'), findsOneWidget);
+    expect(find.text('Você ainda não definiu uma meta.'), findsOneWidget);
+    expect(find.text('Histórico de Metas'), findsOneWidget);
+    expect(find.text('Nenhuma meta anterior.'), findsOneWidget);
+  });
+
+  testWidgets('com meta própria e histórico, mostra a média atual, a próxima revisão e o histórico rotulado', (tester) async {
+    when(() => repository.buscarMinhaUltimaMetaPropria()).thenAnswer(
+      (_) async => MetaResumo(
+        caloriasAlvo: 2200,
+        proteinaG: 150,
+        dataCriacao: DateTime.now().subtract(const Duration(days: 40)),
+        statusVigencia: 'ativo',
+      ),
+    );
+    when(() => repository.buscarHistoricoMetas()).thenAnswer(
+      (_) async => [
+        MetaResumo(caloriasAlvo: 2200, dataCriacao: DateTime.now().subtract(const Duration(days: 40)), statusVigencia: 'ativo'),
+        MetaResumo(caloriasAlvo: 2000, dataCriacao: DateTime.now().subtract(const Duration(days: 70)), statusVigencia: 'historico'),
+      ],
+    );
+
+    await configurarViewportAlto(tester);
+    await tester.pumpWidget(criarApp());
+    await tester.pumpAndSettle();
+
+    expect(find.text('Meta Atual (Média)'), findsOneWidget);
+    expect(find.text('Revisão disponível agora'), findsOneWidget);
+    expect(find.text('Atual'), findsOneWidget);
+    expect(find.text('Anterior'), findsOneWidget);
+    expect(find.text('2000 kcal'), findsOneWidget);
+  });
+
+  testWidgets('sob acompanhamento profissional, mostra o texto dinâmico exato pedido pelo fundador', (tester) async {
+    when(() => repository.buscarMetaAtivaDoProfissional()).thenAnswer(
+      (_) async => MetaResumo(caloriasAlvo: 1900, dataCriacao: DateTime(2026, 8, 5)),
+    );
+
+    await tester.pumpWidget(criarApp());
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('As suas metas são definidas e acompanhadas pelo profissional de saúde.'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('calorias vazias mostram erro de validação, não chamam o repositório', (tester) async {

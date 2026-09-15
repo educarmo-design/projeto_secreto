@@ -49,6 +49,12 @@ class _MetaBemEstarPageState extends State<MetaBemEstarPage> {
   double? _sugestaoCalorias;
   DateTime? _dataProximaLiberacao;
   MetaResumo? _metaDoProfissional;
+  // RELATÓRIO 20260915_0003 — item 4 (Tela de Metas): "Meta Atual (Média)"
+  // e "Histórico de Metas" agora ficam visíveis em TODOS os estados que
+  // chegam a montar a tela (não só quando bloqueada), então precisam
+  // sobreviver fora do escopo de `_carregar`.
+  MetaResumo? _ultimaMetaPropria;
+  List<MetaResumo> _historico = const [];
 
   @override
   void initState() {
@@ -71,32 +77,44 @@ class _MetaBemEstarPageState extends State<MetaBemEstarPage> {
       // Prioridade B2B primeiro — se o profissional tem uma meta ativa,
       // nem importa a carência: a tela trava do mesmo jeito.
       final metaProfissional = await _repository.buscarMetaAtivaDoProfissional();
+      final ultimaMetaPropria = await _repository.buscarMinhaUltimaMetaPropria();
+      final historico = await _repository.buscarHistoricoMetas();
+
+      DateTime? liberaEm;
+      if (ultimaMetaPropria != null) {
+        liberaEm = ultimaMetaPropria.dataCriacao.add(const Duration(days: _carenciaDias));
+      }
+
       if (metaProfissional != null) {
         if (!mounted) return;
         setState(() {
           _metaDoProfissional = metaProfissional;
+          _ultimaMetaPropria = ultimaMetaPropria;
+          _historico = historico;
+          _dataProximaLiberacao = liberaEm;
           _status = _CargaStatus.bloqueadaProfissional;
         });
         return;
       }
 
-      final ultimaMetaPropria = await _repository.buscarMinhaUltimaMetaPropria();
-      if (ultimaMetaPropria != null) {
-        final liberaEm = ultimaMetaPropria.dataCriacao.add(const Duration(days: _carenciaDias));
-        if (liberaEm.isAfter(DateTime.now())) {
-          if (!mounted) return;
-          setState(() {
-            _dataProximaLiberacao = liberaEm;
-            _status = _CargaStatus.bloqueadaCarencia;
-          });
-          return;
-        }
+      if (liberaEm != null && liberaEm.isAfter(DateTime.now())) {
+        if (!mounted) return;
+        setState(() {
+          _ultimaMetaPropria = ultimaMetaPropria;
+          _historico = historico;
+          _dataProximaLiberacao = liberaEm;
+          _status = _CargaStatus.bloqueadaCarencia;
+        });
+        return;
       }
 
       final sugestao = await _repository.buscarSugestaoCalorias();
       if (!mounted) return;
       setState(() {
         _sugestaoCalorias = sugestao;
+        _ultimaMetaPropria = ultimaMetaPropria;
+        _historico = historico;
+        _dataProximaLiberacao = liberaEm;
         _status = _CargaStatus.formulario;
       });
     } catch (_) {
@@ -248,6 +266,7 @@ class _MetaBemEstarPageState extends State<MetaBemEstarPage> {
             'nutricao.meta_carencia_mensagem',
             params: {'data': _formatarData(_dataProximaLiberacao!)},
           ),
+          meta: _ultimaMetaPropria,
         );
       case _CargaStatus.bloqueadaProfissional:
         return _buildBloqueio(
@@ -256,6 +275,7 @@ class _MetaBemEstarPageState extends State<MetaBemEstarPage> {
           titulo: i18n.tr('nutricao.meta_acompanhamento_titulo'),
           mensagem: i18n.tr('nutricao.meta_acompanhamento_mensagem'),
           meta: _metaDoProfissional,
+          ehMetaProfissional: true,
         );
       case _CargaStatus.formulario:
         return _buildFormulario(context);
@@ -268,9 +288,10 @@ class _MetaBemEstarPageState extends State<MetaBemEstarPage> {
     required String titulo,
     required String mensagem,
     MetaResumo? meta,
+    bool ehMetaProfissional = false,
   }) {
     return Center(
-      child: Padding(
+      child: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -291,8 +312,24 @@ class _MetaBemEstarPageState extends State<MetaBemEstarPage> {
                   .bodyMedium
                   ?.copyWith(color: AppColors.mutedText),
             ),
+            // Item 4 da tarefa (RELATÓRIO 20260915_0003) — texto dinâmico
+            // exato pedido pelo fundador quando há acompanhamento
+            // profissional, ao lado (não em vez) do aviso já existente.
+            if (ehMetaProfissional) ...[
+              const SizedBox(height: 8),
+              Text(
+                i18n.tr('nutricao.meta_flag_profissional_texto'),
+                textAlign: TextAlign.center,
+                style: Theme.of(context)
+                    .textTheme
+                    .bodySmall
+                    ?.copyWith(color: AppColors.mutedText, fontStyle: FontStyle.italic),
+              ),
+            ],
             if (meta != null) ...[
               const SizedBox(height: 24),
+              Text(i18n.tr('nutricao.meta_atual_label'), style: Theme.of(context).textTheme.titleSmall),
+              const SizedBox(height: 4),
               Text(
                 '${meta.caloriasAlvo} kcal',
                 style: Theme.of(context).textTheme.headlineSmall,
@@ -305,9 +342,63 @@ class _MetaBemEstarPageState extends State<MetaBemEstarPage> {
                     ?.copyWith(color: AppColors.mutedText),
               ),
             ],
+            const SizedBox(height: 24),
+            _buildProximaRevisao(context),
+            const SizedBox(height: 16),
+            Align(alignment: Alignment.centerLeft, child: _buildHistorico(context)),
           ],
         ),
       ),
+    );
+  }
+
+  /// "Data da próxima revisão" (item 4) — persistente sempre que o usuário
+  /// já criou uma meta própria alguma vez, independente de estar
+  /// bloqueado agora ou não. Some (sem renderizar nada) se nunca criou.
+  Widget _buildProximaRevisao(BuildContext context) {
+    if (_ultimaMetaPropria == null) return const SizedBox.shrink();
+
+    final liberada = _dataProximaLiberacao == null || !_dataProximaLiberacao!.isAfter(DateTime.now());
+    final texto = liberada
+        ? i18n.tr('nutricao.meta_proxima_revisao_disponivel')
+        : i18n.tr('nutricao.meta_proxima_revisao_label', params: {'data': _formatarData(_dataProximaLiberacao!)});
+
+    return Text(
+      texto,
+      textAlign: TextAlign.center,
+      style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.mutedText),
+    );
+  }
+
+  /// "Histórico de Metas" (item 4) — todas as metas AUTO-criadas do
+  /// usuário, mais recente primeiro, rotuladas Atual/Anterior.
+  Widget _buildHistorico(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(i18n.tr('nutricao.meta_historico_label'), style: Theme.of(context).textTheme.titleSmall),
+        if (_historico.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Text(
+              i18n.tr('nutricao.meta_historico_vazio'),
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.mutedText),
+            ),
+          )
+        else
+          for (final item in _historico)
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              title: Text('${item.caloriasAlvo} kcal'),
+              subtitle: Text(_formatarData(item.dataCriacao)),
+              trailing: Text(
+                item.statusVigencia == 'ativo'
+                    ? i18n.tr('nutricao.meta_historico_item_ativo')
+                    : i18n.tr('nutricao.meta_historico_item_historico'),
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.mutedText),
+              ),
+            ),
+      ],
     );
   }
 
@@ -318,6 +409,32 @@ class _MetaBemEstarPageState extends State<MetaBemEstarPage> {
         key: _formKey,
         child: ListView(
           children: [
+            // Item 4 da tarefa — "Meta Atual (Média)" + próxima revisão +
+            // histórico ficam sempre visíveis no topo, mesmo quando o
+            // formulário de criar uma nova meta está liberado (a tela de
+            // Metas é "independente da Anamnese": mostra o estado atual
+            // sempre, não só quando bloqueada).
+            Text(i18n.tr('nutricao.meta_atual_label'), style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 4),
+            if (_ultimaMetaPropria == null)
+              Text(
+                i18n.tr('nutricao.meta_atual_vazio'),
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppColors.mutedText),
+              )
+            else ...[
+              Text('${_ultimaMetaPropria!.caloriasAlvo} kcal', style: Theme.of(context).textTheme.headlineSmall),
+              Text(
+                'P ${_ultimaMetaPropria!.proteinaG ?? '—'}g · C ${_ultimaMetaPropria!.carboG ?? '—'}g · G ${_ultimaMetaPropria!.gorduraG ?? '—'}g',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.mutedText),
+              ),
+            ],
+            const SizedBox(height: 8),
+            _buildProximaRevisao(context),
+            const SizedBox(height: 16),
+            _buildHistorico(context),
+            const SizedBox(height: 24),
+            const Divider(),
+            const SizedBox(height: 24),
             Text(
               i18n.tr('nutricao.meta_bem_estar_subtitle'),
               style: Theme.of(context)

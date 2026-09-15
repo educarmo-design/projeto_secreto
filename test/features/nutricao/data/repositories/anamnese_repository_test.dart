@@ -14,13 +14,15 @@ class _MockGoTrueClient extends Mock implements GoTrueClient {}
 class _MockSupabaseQueryBuilder extends Mock implements SupabaseQueryBuilder {}
 
 /// Fake genérico de query encadeável — cobre `.select()`/`.insert()`/
-/// `.eq()`/`.order()`/`.maybeSingle()`/`.single()` devolvendo sempre `this`
-/// (ou um `_FakeQuery` derivado, no caso de `maybeSingle`/`single`), e
-/// resolve via `.then()` — mesmo espírito de `_FakeFilterBuilder`/
-/// `_FakeSelectFilterBuilder` já usados em
+/// `.eq()`/`.not()`/`.order()`/`.limit()`/`.maybeSingle()`/`.single()`
+/// devolvendo sempre `this` (ou um `_FakeQuery` derivado, no caso de
+/// `maybeSingle`/`single`), e resolve via `.then()` — mesmo espírito de
+/// `_FakeFilterBuilder`/`_FakeSelectFilterBuilder` já usados em
 /// `perfil_usuario_repository_test.dart`/`treinos_historico_repository_test.dart`,
 /// só que unificado porque [AnamneseRepository] encadeia bem mais
-/// combinações diferentes de método por chamada.
+/// combinações diferentes de método por chamada. `.upsert()` NÃO precisa
+/// de suporte aqui — é stubado direto no `_MockSupabaseQueryBuilder` por
+/// cada teste, mesmo padrão de `.insert()`.
 class _FakeQuery<T> extends Fake implements PostgrestFilterBuilder<T> {
   _FakeQuery(this._value);
   final T _value;
@@ -37,6 +39,13 @@ class _FakeQuery<T> extends Fake implements PostgrestFilterBuilder<T> {
 
   @override
   PostgrestFilterBuilder<T> eq(String column, Object value) => this;
+
+  @override
+  PostgrestFilterBuilder<T> not(String column, String operator, Object? value) => this;
+
+  @override
+  PostgrestTransformBuilder<T> limit(int count, {String? referencedTable}) =>
+      this as PostgrestTransformBuilder<T>;
 
   @override
   PostgrestTransformBuilder<T> order(
@@ -98,6 +107,28 @@ void main() {
     final builder = _MockSupabaseQueryBuilder();
     when(() => supabase.from(tabela)).thenAnswer((_) => builder);
     return builder;
+  }
+
+  /// Stuba `perfis_usuarios.upsert` (altura/sexo) + `metricas_saude_diarias`
+  /// (o select de checagem "já tem peso hoje?" devolvendo vazio, e o
+  /// upsert) — os dois efeitos colaterais de [AnamneseRepository.salvarAnamnese]
+  /// ANTES do INSERT em `anamneses`. Chamado por todo teste de
+  /// `salvarAnamnese` que não é o foco específico de altura/sexo/peso.
+  ({_MockSupabaseQueryBuilder perfis, _MockSupabaseQueryBuilder metricas}) stubarDadosFisicos() {
+    final perfisBuilder = builderPara('perfis_usuarios');
+    when(() => perfisBuilder.upsert(any(), onConflict: any(named: 'onConflict'))).thenAnswer(
+      (_) => _FakeQuery<List<Map<String, dynamic>>>([]),
+    );
+
+    final metricasBuilder = builderPara('metricas_saude_diarias');
+    when(() => metricasBuilder.select(any())).thenAnswer(
+      (_) => _FakeQuery<List<Map<String, dynamic>>>([]),
+    );
+    when(() => metricasBuilder.upsert(any(), onConflict: any(named: 'onConflict'))).thenAnswer(
+      (_) => _FakeQuery<List<Map<String, dynamic>>>([]),
+    );
+
+    return (perfis: perfisBuilder, metricas: metricasBuilder);
   }
 
   group('catálogos', () {
@@ -166,11 +197,15 @@ void main() {
       expect(anamnese, isNull);
     });
 
-    test('devolve a anamnese ativa com as 3 relações N:N resolvidas', () async {
+    test('devolve a anamnese ativa com a rotina por dia da semana resolvida', () async {
       final anamnesesBuilder = builderPara('anamneses');
       when(() => anamnesesBuilder.select(any())).thenAnswer(
         (_) => _FakeQuery<List<Map<String, dynamic>>>([
-          {'id': 'anamnese-1', 'objetivo_codigo': 'hipertrofia'},
+          {
+            'id': 'anamnese-1',
+            'objetivo_codigo': 'hipertrofia',
+            'data_preenchimento': '2026-09-01T00:00:00Z',
+          },
         ]),
       );
 
@@ -188,12 +223,13 @@ void main() {
         ]),
       );
 
-      final atividadesBuilder = builderPara('anamneses_atividades');
+      final atividadesBuilder = builderPara('anamneses_atividades_dias');
       when(() => atividadesBuilder.select(any())).thenAnswer(
         (_) => _FakeQuery<List<Map<String, dynamic>>>([
           {
             'atividade_id': 30,
-            'minutos_diarios': 45,
+            'dia_semana': 1,
+            'minutos': 45,
             'tipos_atividades_fisicas': {'nome_exibicao': 'Corrida'},
           },
         ]),
@@ -203,12 +239,49 @@ void main() {
 
       expect(anamnese, isNotNull);
       expect(anamnese!.objetivoCodigo, 'hipertrofia');
+      expect(anamnese.dataPreenchimento, DateTime.parse('2026-09-01T00:00:00Z'));
       expect(anamnese.problemasSaudeIds, ['p1']);
       expect(anamnese.alergiaIds, ['a1']);
       expect(anamnese.atividades, hasLength(1));
       expect(anamnese.atividades.single.atividadeId, 30);
-      expect(anamnese.atividades.single.minutosDiarios, 45);
+      expect(anamnese.atividades.single.diaSemana, 1);
+      expect(anamnese.atividades.single.minutos, 45);
       expect(anamnese.atividades.single.nomeExibicao, 'Corrida');
+    });
+  });
+
+  group('buscarDadosFisicosAtuais', () {
+    test('devolve tudo null sem consultar o Supabase quando ninguém está logado', () async {
+      when(() => auth.currentUser).thenReturn(null);
+
+      final dados = await repository.buscarDadosFisicosAtuais();
+
+      expect(dados.alturaCm, isNull);
+      expect(dados.sexoBiologico, isNull);
+      expect(dados.pesoKg, isNull);
+      verifyNever(() => supabase.from(any()));
+    });
+
+    test('resolve altura/sexo de perfis_usuarios e peso da última leitura de metricas_saude_diarias', () async {
+      final perfisBuilder = builderPara('perfis_usuarios');
+      when(() => perfisBuilder.select(any())).thenAnswer(
+        (_) => _FakeQuery<List<Map<String, dynamic>>>([
+          {'altura_cm': 179, 'sexo_biologico': 'M'},
+        ]),
+      );
+
+      final metricasBuilder = builderPara('metricas_saude_diarias');
+      when(() => metricasBuilder.select(any())).thenAnswer(
+        (_) => _FakeQuery<List<Map<String, dynamic>>>([
+          {'peso_kg': 78.5},
+        ]),
+      );
+
+      final dados = await repository.buscarDadosFisicosAtuais();
+
+      expect(dados.alturaCm, 179.0);
+      expect(dados.sexoBiologico, 'M');
+      expect(dados.pesoKg, 78.5);
     });
   });
 
@@ -219,6 +292,9 @@ void main() {
       expect(
         () => repository.salvarAnamnese(
           objetivoCodigo: 'emagrecimento',
+          alturaCm: 179,
+          sexoBiologico: 'M',
+          pesoKg: 78,
           problemasSaudeIds: const [],
           alergiaIds: const [],
           atividades: const [],
@@ -228,7 +304,83 @@ void main() {
       verifyNever(() => supabase.from(any()));
     });
 
-    test('insere a anamnese e as 3 relações N:N com os payloads corretos', () async {
+    test('grava altura/sexo (perfis_usuarios) e peso de hoje (metricas_saude_diarias) antes da anamnese', () async {
+      final dadosFisicos = stubarDadosFisicos();
+
+      final anamnesesBuilder = builderPara('anamneses');
+      when(() => anamnesesBuilder.insert(any())).thenAnswer(
+        (_) => _FakeQuery<List<Map<String, dynamic>>>([
+          {'id': 'anamnese-nova'},
+        ]),
+      );
+
+      await repository.salvarAnamnese(
+        objetivoCodigo: 'manutencao',
+        alturaCm: 179,
+        sexoBiologico: 'M',
+        pesoKg: 78.5,
+        problemasSaudeIds: const [],
+        alergiaIds: const [],
+        atividades: const [],
+      );
+
+      verify(
+        () => dadosFisicos.perfis
+            .upsert({'id': _usuarioId, 'altura_cm': 179.0, 'sexo_biologico': 'M'}, onConflict: 'id'),
+      ).called(1);
+
+      final hoje = DateTime.now();
+      final dataReferenciaEsperada =
+          '${hoje.year.toString().padLeft(4, '0')}-${hoje.month.toString().padLeft(2, '0')}-${hoje.day.toString().padLeft(2, '0')}';
+      verify(
+        () => dadosFisicos.metricas.upsert(
+          {
+            'usuario_id_anonimo': _usuarioId,
+            'data_referencia': dataReferenciaEsperada,
+            'peso_kg': 78.5,
+            'origem': 'manual',
+          },
+          onConflict: 'usuario_id_anonimo,data_referencia',
+        ),
+      ).called(1);
+    });
+
+    test('NÃO sobrescreve o peso quando já existe uma leitura pra hoje', () async {
+      final perfisBuilder = builderPara('perfis_usuarios');
+      when(() => perfisBuilder.upsert(any(), onConflict: any(named: 'onConflict'))).thenAnswer(
+        (_) => _FakeQuery<List<Map<String, dynamic>>>([]),
+      );
+
+      final metricasBuilder = builderPara('metricas_saude_diarias');
+      when(() => metricasBuilder.select(any())).thenAnswer(
+        (_) => _FakeQuery<List<Map<String, dynamic>>>([
+          {'peso_kg': 80.0},
+        ]),
+      );
+
+      final anamnesesBuilder = builderPara('anamneses');
+      when(() => anamnesesBuilder.insert(any())).thenAnswer(
+        (_) => _FakeQuery<List<Map<String, dynamic>>>([
+          {'id': 'anamnese-nova'},
+        ]),
+      );
+
+      await repository.salvarAnamnese(
+        objetivoCodigo: 'manutencao',
+        alturaCm: 179,
+        sexoBiologico: 'M',
+        pesoKg: 78.5,
+        problemasSaudeIds: const [],
+        alergiaIds: const [],
+        atividades: const [],
+      );
+
+      verifyNever(() => metricasBuilder.upsert(any(), onConflict: any(named: 'onConflict')));
+    });
+
+    test('insere a anamnese e as relações N:N (incluindo a rotina por dia) com os payloads corretos', () async {
+      stubarDadosFisicos();
+
       final anamnesesBuilder = builderPara('anamneses');
       when(() => anamnesesBuilder.insert(any())).thenAnswer(
         (_) => _FakeQuery<List<Map<String, dynamic>>>([
@@ -246,17 +398,20 @@ void main() {
         (_) => _FakeQuery<List<Map<String, dynamic>>>([]),
       );
 
-      final atividadesBuilder = builderPara('anamneses_atividades');
+      final atividadesBuilder = builderPara('anamneses_atividades_dias');
       when(() => atividadesBuilder.insert(any())).thenAnswer(
         (_) => _FakeQuery<List<Map<String, dynamic>>>([]),
       );
 
       await repository.salvarAnamnese(
         objetivoCodigo: 'manutencao',
+        alturaCm: 179,
+        sexoBiologico: 'M',
+        pesoKg: 78.5,
         problemasSaudeIds: const ['p1', 'p2'],
         alergiaIds: const ['a1'],
         atividades: const [
-          AtividadeSelecionada(atividadeId: 30, nomeExibicao: 'Corrida', minutosDiarios: 45),
+          AtividadeSelecionada(atividadeId: 30, nomeExibicao: 'Corrida', minutos: 45, diaSemana: 1),
         ],
       );
 
@@ -276,12 +431,14 @@ void main() {
       ).called(1);
       verify(
         () => atividadesBuilder.insert([
-          {'anamnese_id': 'anamnese-nova', 'atividade_id': 30, 'minutos_diarios': 45},
+          {'anamnese_id': 'anamnese-nova', 'atividade_id': 30, 'dia_semana': 1, 'minutos': 45},
         ]),
       ).called(1);
     });
 
     test('não chama insert nas tabelas N:N quando as listas vêm vazias', () async {
+      stubarDadosFisicos();
+
       final anamnesesBuilder = builderPara('anamneses');
       when(() => anamnesesBuilder.insert(any())).thenAnswer(
         (_) => _FakeQuery<List<Map<String, dynamic>>>([
@@ -291,6 +448,9 @@ void main() {
 
       await repository.salvarAnamnese(
         objetivoCodigo: 'emagrecimento',
+        alturaCm: 179,
+        sexoBiologico: 'M',
+        pesoKg: 78.5,
         problemasSaudeIds: const [],
         alergiaIds: const [],
         atividades: const [],
@@ -298,7 +458,7 @@ void main() {
 
       verifyNever(() => supabase.from('anamneses_problemas_saude'));
       verifyNever(() => supabase.from('anamneses_alergias'));
-      verifyNever(() => supabase.from('anamneses_atividades'));
+      verifyNever(() => supabase.from('anamneses_atividades_dias'));
     });
   });
 }
