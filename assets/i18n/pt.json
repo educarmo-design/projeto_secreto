@@ -148,6 +148,8 @@
     "camera_option_description": "Para glicosímetro, aparelho de pressão ou balança sem Bluetooth",
     "camera_option_prato_refeicao": "Fotografar Refeição",
     "camera_option_rotulo": "Fotografar Rótulo Nutricional",
+    "camera_modo_prato": "Prato",
+    "camera_modo_rotulo": "Rótulo",
     "device_type_label": "Tipo de Aparelho",
     "device_type_glucose": "Glicosímetro",
     "device_type_blood_pressure": "Aparelho de Pressão",

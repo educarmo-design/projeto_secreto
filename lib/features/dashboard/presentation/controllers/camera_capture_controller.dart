@@ -156,14 +156,27 @@ class CameraCaptureController extends ValueNotifier<CameraCaptureState> {
   static const Duration _uploadTimeout = Duration(seconds: 90);
 
   /// Adendo v5.1 A.4: "a resolução de envio é função do `tipo_captura`".
-  /// Comida é barata (~512px, economiza token) porque a IA só precisa
-  /// reconhecer FORMA/COR de alimentos; todos os demais tipos — visor de
-  /// aparelho (glicosímetro/pressão/balança) E rótulo nutricional — ficam
-  /// em [ResolutionPreset.medium] porque OCR (de dígito OU de texto
-  /// impresso pequeno) não pode perder nitidez. A escolha acontece na
-  /// CAPTURA (o `camera` plugin already grava o frame no tamanho do
-  /// preset, nunca em alta resolução seguida de corte — Zero Storage nunca
-  /// materializa um frame maior do que o necessário na RAM do device).
+  ///
+  /// RELATÓRIO 20260915_0001 (UI de câmera unificada) — ACHADO/DECISÃO:
+  /// antes desta tarefa, só [TipoAparelho.pratoRefeicao] usava
+  /// [ResolutionPreset.low] (comida é barata — ~512px, a IA só precisa
+  /// reconhecer FORMA/COR); os outros 4 tipos, incluindo
+  /// [TipoAparelho.rotulo], já usavam [ResolutionPreset.medium] (OCR não
+  /// pode perder nitidez). Com o seletor de modo Prato/Rótulo dentro da
+  /// MESMA tela (ver `CameraCaptureView`), a resolução tem que ser
+  /// decidida na INICIALIZAÇÃO da câmera, antes de saber com qual modo o
+  /// usuário vai efetivamente disparar — e o `camera` plugin não permite
+  /// trocar o preset de um `CameraController` já inicializado sem
+  /// descartá-lo e recriar (o que quebraria o requisito de troca
+  /// "instantânea, só variável de estado" do seletor). Escolha: sempre
+  /// [ResolutionPreset.medium] quando o tipo inicial é prato OU rótulo —
+  /// nunca perde nitidez pro rótulo (o caso onde perder qualidade quebra a
+  /// função). Custo real MEDIDO (não presumido) no RELATÓRIO
+  /// 20260915_0001: dimensões reais do plugin instalado (`low`=320×240,
+  /// `medium`=720×480) + `countTokens` da API do Gemini —
+  /// delta de só +16 tokens de imagem (~1,5%), irrelevante pra custo/cota.
+  /// Os outros 3 tipos (glicosímetro/pressão/balança), que nunca mostram o
+  /// seletor, continuam em `medium` como sempre estiveram.
   Future<void> initializeCamera({required TipoAparelho tipoAparelho}) async {
     value = const CameraCaptureState(status: CameraCaptureStatus.initializing);
 
@@ -182,9 +195,7 @@ class CameraCaptureController extends ValueNotifier<CameraCaptureState> {
         orElse: () => cameras.first,
       );
 
-      final preset = tipoAparelho == TipoAparelho.pratoRefeicao
-          ? ResolutionPreset.low
-          : ResolutionPreset.medium;
+      const preset = ResolutionPreset.medium;
       final controller = CameraController(
         lens,
         preset,

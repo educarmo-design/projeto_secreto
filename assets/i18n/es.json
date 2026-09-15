@@ -148,6 +148,8 @@
     "camera_option_description": "Para glucómetro, tensiómetro o báscula sin Bluetooth",
     "camera_option_prato_refeicao": "Fotografiar Comida",
     "camera_option_rotulo": "Fotografiar Etiqueta Nutricional",
+    "camera_modo_prato": "Plato",
+    "camera_modo_rotulo": "Etiqueta",
     "device_type_label": "Tipo de Aparato",
     "device_type_glucose": "Glucómetro",
     "device_type_blood_pressure": "Tensiómetro",
