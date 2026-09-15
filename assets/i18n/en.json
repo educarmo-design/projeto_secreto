@@ -148,6 +148,8 @@
     "camera_option_description": "For a glucometer, blood pressure monitor, or scale without Bluetooth",
     "camera_option_prato_refeicao": "Photograph Meal",
     "camera_option_rotulo": "Photograph Nutrition Label",
+    "camera_modo_prato": "Meal",
+    "camera_modo_rotulo": "Label",
     "device_type_label": "Device Type",
     "device_type_glucose": "Glucometer",
     "device_type_blood_pressure": "Blood Pressure Monitor",
