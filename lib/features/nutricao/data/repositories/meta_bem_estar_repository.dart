@@ -9,12 +9,21 @@ class MetaResumo {
   final int? gorduraG;
   final DateTime dataCriacao;
 
+  /// `'ativo'` ou `'historico'` — `null` quando a query de origem não
+  /// selecionou esta coluna (ex.: [MetaBemEstarRepository.buscarMinhaUltimaMetaPropria]/
+  /// `buscarMetaAtivaDoProfissional`, que já filtram por status na própria
+  /// query e não precisam expor o valor). Só preenchido por
+  /// [MetaBemEstarRepository.buscarHistoricoMetas] (RELATÓRIO 20260915_0003),
+  /// pra Tela de Metas rotular cada item da lista.
+  final String? statusVigencia;
+
   const MetaResumo({
     required this.caloriasAlvo,
     required this.dataCriacao,
     this.proteinaG,
     this.carboG,
     this.gorduraG,
+    this.statusVigencia,
   });
 
   factory MetaResumo.fromJson(Map<String, dynamic> json) {
@@ -24,6 +33,49 @@ class MetaResumo {
       carboG: json['carbo_g'] as int?,
       gorduraG: json['gordura_g'] as int?,
       dataCriacao: DateTime.parse(json['data_criacao'] as String),
+      statusVigencia: json['status_vigencia'] as String?,
+    );
+  }
+}
+
+/// Resultado da RPC `gerar_sugestao_meta` (RELATÓRIO 20260915_0002/0003) —
+/// TDEE médio da semana + detalhe por dia, exibidos na Tela de Resultado
+/// do Motor Metabólico logo após o envio da Anamnese. Só os campos que a
+/// tela precisa mostrar (TMB informativo + a "média" pedida pelo
+/// fundador + o detalhe por dia) — o `motor_resultado`/`avisos` brutos da
+/// RPC ficam disponíveis em [avisos] sem precisar expor o jsonb inteiro.
+class SugestaoMetaResultado {
+  final double? tmb;
+  final double? tdeeMedio;
+
+  /// TDEE de cada dia (0=domingo..6=sábado) — `null` no valor quando o
+  /// motor não teve dado suficiente naquele dia (mesma convenção do resto
+  /// do app: ausência de dado não é erro).
+  final Map<int, double?> tdeePorDia;
+  final String formulaUsada;
+  final List<String> avisos;
+
+  const SugestaoMetaResultado({
+    required this.tmb,
+    required this.tdeeMedio,
+    required this.tdeePorDia,
+    required this.formulaUsada,
+    required this.avisos,
+  });
+
+  factory SugestaoMetaResultado.fromJson(Map<String, dynamic> json) {
+    final motor = json['motor_resultado'] as Map<String, dynamic>? ?? const {};
+    final detalhe = json['detalhe_por_dia'] as Map<String, dynamic>? ?? const {};
+
+    return SugestaoMetaResultado(
+      tmb: (motor['tmb'] as num?)?.toDouble(),
+      tdeeMedio: (json['tdee_medio'] as num?)?.toDouble(),
+      tdeePorDia: {
+        for (var dia = 0; dia <= 6; dia++)
+          dia: ((detalhe['$dia'] as Map<String, dynamic>?)?['tdee'] as num?)?.toDouble(),
+      },
+      formulaUsada: json['formula_usada'] as String? ?? 'dados_insuficientes',
+      avisos: (json['avisos'] as List?)?.cast<String>() ?? const [],
     );
   }
 }
@@ -120,6 +172,47 @@ class MetaBemEstarRepository {
     final metaProfissional = await buscarMetaAtivaDoProfissional();
     if (metaProfissional != null) return metaProfissional;
     return buscarMinhaUltimaMetaPropria();
+  }
+
+  /// Todas as metas AUTO-criadas do usuário (`profissional_id is null`),
+  /// de QUALQUER status_vigencia, mais recentes primeiro — "Histórico de
+  /// Metas" da Tela de Metas (RELATÓRIO 20260915_0003, item 4). Lista
+  /// vazia (não erro) quando o usuário nunca criou nenhuma.
+  Future<List<MetaResumo>> buscarHistoricoMetas() async {
+    final usuarioId = _supabase.auth.currentUser?.id;
+    if (usuarioId == null) return const [];
+
+    final linhas = await _supabase
+        .from('objetivos_alimentares')
+        .select('calorias_alvo, proteina_g, carbo_g, gordura_g, data_criacao, status_vigencia')
+        .eq('usuario_id', usuarioId)
+        .eq('tipo_dia', _tipoDia)
+        .isFilter('profissional_id', null)
+        .order('data_criacao', ascending: false);
+
+    return (linhas as List).cast<Map<String, dynamic>>().map(MetaResumo.fromJson).toList();
+  }
+
+  /// Roda o Motor Metabólico e PERSISTE a sugestão (RPC `gerar_sugestao_meta`,
+  /// RELATÓRIO 20260915_0002/0003) — diferente de [buscarSugestaoCalorias]
+  /// (só lê `gasto_sedentario` ao vivo, sem gravar nada, usada pelo botão
+  /// "Usar sugestão" do formulário de meta): esta é chamada pela Tela de
+  /// Resultado do Motor Metabólico logo após salvar a Anamnese, e grava um
+  /// rastro em `sugestao_meta`. NUNCA escreve em `objetivos_alimentares` —
+  /// a RPC em si já garante isso (ver o comentário da migration). Lança
+  /// [StateError] se ninguém estiver logado.
+  Future<SugestaoMetaResultado> gerarSugestaoMeta() async {
+    final usuarioId = _supabase.auth.currentUser?.id;
+    if (usuarioId == null) {
+      throw StateError('Nenhum usuário logado.');
+    }
+
+    final resultado = await _supabase.rpc(
+      'gerar_sugestao_meta',
+      params: {'p_usuario_id': usuarioId},
+    ) as Map<String, dynamic>;
+
+    return SugestaoMetaResultado.fromJson(resultado);
   }
 
   /// Sugestão de calorias "baseada no TMB" — usa `gasto_sedentario`
