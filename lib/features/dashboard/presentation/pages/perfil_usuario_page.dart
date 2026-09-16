@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/i18n/i18n_manager.dart';
@@ -9,11 +8,13 @@ import '../../data/repositories/perfil_usuario_repository.dart';
 enum _CargaStatus { carregando, sucesso, erro }
 
 /// Tela de Perfil do Usuário (RELATÓRIO 20260810_0006, decisão do
-/// fundador) — hoje só edita `altura_cm`. Existe para resolver um problema
-/// concreto encontrado no teste físico: o IMC não calculava porque
-/// `perfis_usuarios.altura_cm` estava vazio, e o fundador decidiu que o
-/// caminho certo é o próprio usuário preencher pelo app, não alguém
-/// injetar o valor via SQL manual.
+/// fundador) — nascida para editar `altura_cm`. RELATÓRIO 20260916_0001
+/// (SSOT, docs/motor_metabolico.txt): a altura PAROU de ser editável aqui —
+/// `perfis_usuarios.altura_cm` foi removida, a única forma de mudar a
+/// altura oficial agora é preencher uma anamnese nova
+/// (`lib/features/nutricao/`). Esta tela mostra a altura da última
+/// anamnese como TEXTO (não mais um campo editável) e continua editando
+/// data de nascimento/sexo biológico, que não fizeram parte da remoção.
 ///
 /// Regra 14 (Parte 0): "Validação = completa funcionalmente, crua
 /// visualmente" — um `TextFormField` numérico, um botão, um SnackBar de
@@ -53,7 +54,6 @@ class _PerfilUsuarioPageState extends State<PerfilUsuarioPage> {
       widget._repository ?? PerfilUsuarioRepository();
 
   final _formKey = GlobalKey<FormState>();
-  final _alturaController = TextEditingController();
 
   _CargaStatus _status = _CargaStatus.carregando;
   bool _salvando = false;
@@ -68,6 +68,11 @@ class _PerfilUsuarioPageState extends State<PerfilUsuarioPage> {
   /// "erro".
   SexoBiologico? _sexoBiologicoSelecionado;
 
+  /// RELATÓRIO 20260916_0001 — altura da ÚLTIMA ANAMNESE (SSOT), somente
+  /// leitura nesta tela. `null` = usuário nunca preencheu uma anamnese com
+  /// altura ainda (não é erro).
+  double? _alturaCmDaAnamnese;
+
   /// RELATÓRIO 20260812_0011 — última leitura de peso (do wearable, nunca
   /// digitada nesta tela) usada só pra calcular o IMC exibido ao lado da
   /// altura. `null` = nenhum peso sincronizado ainda (não é erro).
@@ -76,36 +81,22 @@ class _PerfilUsuarioPageState extends State<PerfilUsuarioPage> {
   @override
   void initState() {
     super.initState();
-    // RELATÓRIO 20260812_0011 — "tela reativa": o IMC recalcula a cada
-    // dígito digitado em altura, não só depois de salvar. `setState(() {})`
-    // vazio de propósito — o valor em si é lido do controller no `build()`
-    // via [_imcCalculado], este listener só força o rebuild.
-    _alturaController.addListener(_onAlturaAlterada);
     _carregar();
   }
 
-  void _onAlturaAlterada() => setState(() {});
-
-  @override
-  void dispose() {
-    _alturaController.removeListener(_onAlturaAlterada);
-    _alturaController.dispose();
-    super.dispose();
-  }
-
   /// IMC = peso (kg) / altura (m)². `null` com segurança total de tipos
-  /// sempre que faltar QUALQUER um dos dois insumos ou a altura digitada
-  /// não for um número válido ainda (nunca lança/`throw` por um campo
-  /// vazio/parcial enquanto o usuário digita) — RELATÓRIO 20260812_0011,
-  /// achado da auditoria: esta conversão simplesmente não existia em
-  /// lugar nenhum do app antes desta tarefa (o único IMC exibido era o
-  /// valor bruto pré-calculado no sync, em `historico_telemetria_page.dart`).
+  /// sempre que faltar QUALQUER um dos dois insumos — RELATÓRIO
+  /// 20260812_0011, achado da auditoria: esta conversão simplesmente não
+  /// existia em lugar nenhum do app antes daquela tarefa (o único IMC
+  /// exibido era o valor bruto pré-calculado no sync, em
+  /// `historico_telemetria_page.dart`). RELATÓRIO 20260916_0001: a altura
+  /// não é mais digitada nesta tela — vem de [_alturaCmDaAnamnese], fixa
+  /// até o próximo `_carregar()` (não recalcula "ao vivo" por dígito, já
+  /// que não há mais campo editável).
   double? get _imcCalculado {
     final pesoKg = _pesoRecente?.pesoKg;
-    if (pesoKg == null) return null;
-
-    final alturaCm = double.tryParse(_alturaController.text.trim().replaceAll(',', '.'));
-    if (alturaCm == null || alturaCm <= 0) return null;
+    final alturaCm = _alturaCmDaAnamnese;
+    if (pesoKg == null || alturaCm == null || alturaCm <= 0) return null;
 
     final alturaM = alturaCm / 100; // cm -> m, a conversão que faltava.
     return pesoKg / (alturaM * alturaM);
@@ -114,21 +105,13 @@ class _PerfilUsuarioPageState extends State<PerfilUsuarioPage> {
   Future<void> _carregar() async {
     setState(() => _status = _CargaStatus.carregando);
     try {
-      final alturaCm = await _repository.buscarAlturaCm();
+      final alturaCm = await _repository.buscarAlturaCmDaUltimaAnamnese();
       final dataNascimento = await _repository.buscarDataNascimento();
       final sexoBiologico = await _repository.buscarSexoBiologico();
       final pesoRecente = await _repository.buscarUltimoPesoKg();
       if (!mounted) return;
-      // toStringAsFixed(0): altura_cm é numeric(5,1) no banco, mas o
-      // teclado numérico simples não precisa mostrar ".0" pro caso comum
-      // de uma altura inteira — quem digitar uma casa decimal continua
-      // livre de fazer isso (ver keyboardType/inputFormatters abaixo).
-      _alturaController.text = alturaCm == null
-          ? ''
-          : (alturaCm == alturaCm.roundToDouble()
-              ? alturaCm.toStringAsFixed(0)
-              : alturaCm.toStringAsFixed(1));
       setState(() {
+        _alturaCmDaAnamnese = alturaCm;
         _dataNascimentoSelecionada = dataNascimento;
         _sexoBiologicoSelecionado = sexoBiologico;
         _pesoRecente = pesoRecente;
@@ -154,6 +137,27 @@ class _PerfilUsuarioPageState extends State<PerfilUsuarioPage> {
     );
     if (escolhida == null || !mounted) return;
     setState(() => _dataNascimentoSelecionada = escolhida);
+  }
+
+  Widget _buildAlturaSomenteLeitura(BuildContext context) {
+    return InputDecorator(
+      decoration: InputDecoration(
+        labelText: i18n.tr('perfil_fisico.altura_label'),
+        border: const OutlineInputBorder(),
+        enabled: false,
+      ),
+      child: Text(
+        _alturaCmDaAnamnese == null
+            ? i18n.tr('perfil_fisico.altura_leitura_vazio')
+            : '${_formatarAltura(_alturaCmDaAnamnese!)} cm',
+      ),
+    );
+  }
+
+  static String _formatarAltura(double alturaCm) {
+    return alturaCm == alturaCm.roundToDouble()
+        ? alturaCm.toStringAsFixed(0)
+        : alturaCm.toStringAsFixed(1);
   }
 
   Widget _buildImcAoVivo(BuildContext context) {
@@ -184,31 +188,14 @@ class _PerfilUsuarioPageState extends State<PerfilUsuarioPage> {
     return '$dia/$mes/${data.year}';
   }
 
-  String? _validarAltura(String? valor) {
-    final texto = valor?.trim() ?? '';
-    if (texto.isEmpty) {
-      return i18n.tr('perfil_fisico.altura_validation_empty');
-    }
-    final numero = double.tryParse(texto.replaceAll(',', '.'));
-    if (numero == null) {
-      return i18n.tr('perfil_fisico.altura_validation_invalid');
-    }
-    // 50–250 cm: faixa humana plausível, só para pegar erro de digitação
-    // grosseiro (ex.: "1790" em vez de "179") — não é validação clínica.
-    if (numero < 50 || numero > 250) {
-      return i18n.tr('perfil_fisico.altura_validation_range');
-    }
-    return null;
-  }
-
   Future<void> _salvar() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
 
     // N03 — validação de UX, espelhando a CHECK constraint
     // `perfis_usuarios_maioridade` do banco (a barreira real). Se o campo
     // nunca foi preenchido (usuário antigo, sem data de nascimento salva
-    // ainda), não bloqueia o salvamento da altura — só valida quando há
-    // uma data selecionada.
+    // ainda), não bloqueia o salvamento — só valida quando há uma data
+    // selecionada.
     final dataNascimento = _dataNascimentoSelecionada;
     if (dataNascimento != null &&
         _idadeEmAnos(dataNascimento) < _idadeMinimaAnos) {
@@ -223,12 +210,8 @@ class _PerfilUsuarioPageState extends State<PerfilUsuarioPage> {
       return;
     }
 
-    final alturaCm =
-        double.parse(_alturaController.text.trim().replaceAll(',', '.'));
-
     setState(() => _salvando = true);
     try {
-      await _repository.atualizarAlturaCm(alturaCm);
       if (dataNascimento != null) {
         await _repository.atualizarDataNascimento(dataNascimento);
       }
@@ -331,30 +314,11 @@ class _PerfilUsuarioPageState extends State<PerfilUsuarioPage> {
                       ?.copyWith(color: AppColors.mutedText),
                 ),
                 const SizedBox(height: 24),
-                TextFormField(
-                  controller: _alturaController,
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
-                  // Impede letras (Restrição da tarefa) já na digitação, não
-                  // só na validação — dígitos e, no máximo, um separador
-                  // decimal (vírgula ou ponto).
-                  inputFormatters: [
-                    FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
-                  ],
-                  decoration: InputDecoration(
-                    labelText: i18n.tr('perfil_fisico.altura_label'),
-                    hintText: i18n.tr('perfil_fisico.altura_hint'),
-                    suffixText: 'cm',
-                    border: const OutlineInputBorder(),
-                  ),
-                  validator: _validarAltura,
-                  enabled: !_salvando,
-                ),
+                // RELATÓRIO 20260916_0001 — SSOT: altura não é mais editável
+                // aqui, só exibida (a única forma de mudar é preencher uma
+                // Anamnese nova).
+                _buildAlturaSomenteLeitura(context),
                 const SizedBox(height: 8),
-                // RELATÓRIO 20260812_0011 — IMC ao vivo: recalcula a cada
-                // dígito digitado em altura (ver o listener em `initState`),
-                // usando o último peso sincronizado pelo wearable. Regra 14:
-                // texto cru, sem card/gauge.
                 _buildImcAoVivo(context),
                 const SizedBox(height: 16),
                 // N03 (RELATÓRIO 20260811_0005) — não é um TextFormField:

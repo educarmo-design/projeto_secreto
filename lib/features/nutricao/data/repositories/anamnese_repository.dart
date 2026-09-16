@@ -111,48 +111,50 @@ class AnamneseRepository {
     );
   }
 
-  /// Altura/sexo (de `perfis_usuarios`) + último peso conhecido (de
-  /// `metricas_saude_diarias`, mesma leitura de
-  /// `PerfilUsuarioRepository.buscarUltimoPesoKg`) — os mesmos 3 insumos
-  /// físicos que o Motor Metabólico N07 consulta. Duas queries pequenas
-  /// duplicadas aqui em vez de importar `PerfilUsuarioRepository`
-  /// (feature `dashboard`): mesmo espírito de baixo acoplamento entre
-  /// features já usado em outros pontos do app (ex.: `CORS_HEADERS`
-  /// duplicado entre Edge Functions) — 2 selects de 1 linha não
-  /// justificam uma dependência cross-feature.
+  /// RELATÓRIO 20260916_0001 (SSOT, docs/motor_metabolico.txt) — altura/peso
+  /// NÃO vêm mais de `perfis_usuarios`/`metricas_saude_diarias`: vêm da
+  /// ÚLTIMA ANAMNESE VÁLIDA (mais recente com os dois campos preenchidos,
+  /// de qualquer `status_vigencia`) — mesma resolução que
+  /// `calcular_motor_metabolico_v1` usa no banco. Usado só para PRÉ-PREENCHER
+  /// o formulário com "o que foi confirmado da última vez" (o usuário ainda
+  /// precisa CONFIRMAR/ALTERAR a cada nova anamnese, nunca é copiado
+  /// silenciosamente — a UI trata isto como sugestão editável).
+  /// `sexo_biologico` continua vindo de `perfis_usuarios` (não fazia parte
+  /// do pedido de remoção desta tarefa).
   Future<DadosFisicosAtuais> buscarDadosFisicosAtuais() async {
     final usuarioId = _supabase.auth.currentUser?.id;
     if (usuarioId == null) return const DadosFisicosAtuais();
 
     final resultados = await Future.wait([
-      _supabase.from('perfis_usuarios').select('altura_cm, sexo_biologico').eq('id', usuarioId).maybeSingle(),
+      _supabase.from('perfis_usuarios').select('sexo_biologico').eq('id', usuarioId).maybeSingle(),
       _supabase
-          .from('metricas_saude_diarias')
-          .select('peso_kg')
-          .eq('usuario_id_anonimo', usuarioId)
+          .from('anamneses')
+          .select('peso_kg, altura_cm')
+          .eq('usuario_id', usuarioId)
           .not('peso_kg', 'is', null)
-          .order('data_referencia', ascending: false)
+          .not('altura_cm', 'is', null)
+          .order('data_preenchimento', ascending: false)
           .limit(1)
           .maybeSingle(),
     ]);
 
     final perfil = resultados[0];
-    final ultimoPeso = resultados[1];
+    final ultimaAnamneseComDados = resultados[1];
 
     return DadosFisicosAtuais(
-      alturaCm: (perfil?['altura_cm'] as num?)?.toDouble(),
+      alturaCm: (ultimaAnamneseComDados?['altura_cm'] as num?)?.toDouble(),
       sexoBiologico: perfil?['sexo_biologico'] as String?,
-      pesoKg: (ultimoPeso?['peso_kg'] as num?)?.toDouble(),
+      pesoKg: (ultimaAnamneseComDados?['peso_kg'] as num?)?.toDouble(),
     );
   }
 
-  /// Grava um preenchimento NOVO da anamnese: upsert de altura/sexo em
-  /// `perfis_usuarios` + upsert do peso de HOJE em `metricas_saude_diarias`
-  /// (RELATÓRIO 20260915_0003 — item 1 da tarefa, "garantir a captura de
-  /// altura, sexo e peso"; `calcular_motor_metabolico` só lê peso desta
-  /// tabela, nunca de `perfis_usuarios.peso_kg`, ver a migration
-  /// `20260915120000`) + 1 INSERT em `anamneses` + batch insert nas
-  /// tabelas N:N (`anamneses_alergias`, `anamneses_problemas_saude`,
+  /// Grava um preenchimento NOVO da anamnese: peso/altura confirmados vão
+  /// DIRETO na própria linha de `anamneses` (RELATÓRIO 20260916_0001, SSOT
+  /// — cada versão da anamnese é o snapshot oficial de peso/altura daquele
+  /// momento, nunca mais um atributo permanente de `perfis_usuarios`, que
+  /// perdeu as duas colunas nesta mesma tarefa) + upsert de `sexo_biologico`
+  /// em `perfis_usuarios` (não fazia parte do pedido de remoção) + batch
+  /// insert nas tabelas N:N (`anamneses_alergias`, `anamneses_problemas_saude`,
   /// `anamneses_atividades_dias`). Um `.insert()` por tabela com a lista
   /// inteira de linhas — diferente do bug histórico de "upsert destrutivo"
   /// (`_enviarLinhas`, RELATÓRIO 20260811_0001), que era um problema de
@@ -161,12 +163,13 @@ class AnamneseRepository {
   /// upsert) e toda linha de uma mesma chamada tem exatamente as mesmas
   /// colunas — o risco daquele bug não existe nesta gravação.
   ///
-  /// A partir desta tarefa, PARA de gravar em `anamneses_atividades` (a
+  /// A partir de 20260915_0003, PARA de gravar em `anamneses_atividades` (a
   /// tabela uniforme antiga) — grava só em `anamneses_atividades_dias`
-  /// (RELATÓRIO 20260915_0002), que já é o que `gerar_sugestao_meta`
-  /// prioriza quando tem dado. `anamneses_atividades` fica órfã de novas
-  /// gravações do app a partir de agora (permanece intocada no banco por
-  /// compatibilidade retroativa das anamneses antigas, ver a migration).
+  /// (RELATÓRIO 20260915_0002), que já é o que `gerar_sugestao_meta`/
+  /// `calcular_motor_metabolico_v1` priorizam quando tem dado.
+  /// `anamneses_atividades` fica órfã de novas gravações do app a partir de
+  /// agora (permanece intocada no banco por compatibilidade retroativa das
+  /// anamneses antigas, ver a migration).
   ///
   /// Lança [StateError] se ninguém estiver logado. Uma falha em qualquer
   /// chamada depois do INSERT principal deixa a anamnese "órfã" de parte
@@ -191,36 +194,22 @@ class AnamneseRepository {
 
     await _supabase
         .from('perfis_usuarios')
-        .upsert({'id': usuarioId, 'altura_cm': alturaCm, 'sexo_biologico': sexoBiologico}, onConflict: 'id');
+        .upsert({'id': usuarioId, 'sexo_biologico': sexoBiologico}, onConflict: 'id');
 
-    // Não sobrescreve um peso já sincronizado hoje por outra fonte (ex.:
-    // wearable) — o auto-relato da anamnese só preenche o dia quando
-    // ainda não há leitura nenhuma, mesmo espírito de "wearable nunca é
-    // sobrescrito por fonte menos confiável" já aplicado à telemetria de
-    // calorias (RELATÓRIO 20260813_0018/0019).
     final hoje = DateTime.now();
     final dataReferencia =
         '${hoje.year.toString().padLeft(4, '0')}-${hoje.month.toString().padLeft(2, '0')}-${hoje.day.toString().padLeft(2, '0')}';
-    final pesoHojeJaExiste = await _supabase
-        .from('metricas_saude_diarias')
-        .select('peso_kg')
-        .eq('usuario_id_anonimo', usuarioId)
-        .eq('data_referencia', dataReferencia)
-        .not('peso_kg', 'is', null)
-        .maybeSingle();
-
-    if (pesoHojeJaExiste == null) {
-      await _supabase.from('metricas_saude_diarias').upsert({
-        'usuario_id_anonimo': usuarioId,
-        'data_referencia': dataReferencia,
-        'peso_kg': pesoKg,
-        'origem': 'manual',
-      }, onConflict: 'usuario_id_anonimo,data_referencia');
-    }
 
     final anamneseInserida = await _supabase
         .from('anamneses')
-        .insert({'usuario_id': usuarioId, 'objetivo_codigo': objetivoCodigo})
+        .insert({
+          'usuario_id': usuarioId,
+          'objetivo_codigo': objetivoCodigo,
+          'peso_kg': pesoKg,
+          'altura_cm': alturaCm,
+          'peso_data_medicao': dataReferencia,
+          'peso_origem': 'usuario',
+        })
         .select('id')
         .single();
     final anamneseId = anamneseInserida['id'] as String;

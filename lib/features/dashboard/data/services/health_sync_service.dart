@@ -2076,18 +2076,24 @@ class HealthSyncService {
     }
   }
 
-  /// Busca `perfis_usuarios.altura_cm` e converte para metros.
-  /// [_AlturaResultado.sucesso] distingue "consulta funcionou" (mesmo que
-  /// sem altura cadastrada — cacheável pelo resto do lote, ver
-  /// [_aplicarInferenciasCruzadas]) de "a consulta lançou exceção" (rede/
-  /// RLS/timeout — NÃO cacheável, a próxima linha do lote tenta de novo em
-  /// vez de desistir pro resto da Carga de 30 dias inteira).
+  /// RELATÓRIO 20260916_0001 (SSOT, docs/motor_metabolico.txt) — busca a
+  /// altura da ÚLTIMA ANAMNESE com o campo preenchido (não mais de
+  /// `perfis_usuarios.altura_cm`, coluna removida nesta mesma tarefa) e
+  /// converte para metros. [_AlturaResultado.sucesso] distingue "consulta
+  /// funcionou" (mesmo que sem altura registrada ainda — cacheável pelo
+  /// resto do lote, ver [_aplicarInferenciasCruzadas]) de "a consulta
+  /// lançou exceção" (rede/RLS/timeout — NÃO cacheável, a próxima linha do
+  /// lote tenta de novo em vez de desistir pro resto da Carga de 30 dias
+  /// inteira).
   Future<_AlturaResultado> _buscarAlturaMetros(String usuarioId) async {
     try {
       final resposta = await _supabase
-          .from('perfis_usuarios')
+          .from('anamneses')
           .select('altura_cm')
-          .eq('id', usuarioId)
+          .eq('usuario_id', usuarioId)
+          .not('altura_cm', 'is', null)
+          .order('data_preenchimento', ascending: false)
+          .limit(1)
           .maybeSingle();
       final alturaCm = (resposta?['altura_cm'] as num?)?.toDouble();
       if (alturaCm == null || alturaCm <= 0) {
@@ -2096,8 +2102,8 @@ class HealthSyncService {
       return _AlturaResultado(alturaMetros: alturaCm / 100, sucesso: true);
     } catch (e) {
       debugPrint(
-        'HealthSyncService: falha ao buscar altura do perfil (tentará de '
-        'novo na próxima linha do lote, se houver): $e',
+        'HealthSyncService: falha ao buscar altura da última anamnese '
+        '(tentará de novo na próxima linha do lote, se houver): $e',
       );
       return const _AlturaResultado(alturaMetros: null, sucesso: false);
     }

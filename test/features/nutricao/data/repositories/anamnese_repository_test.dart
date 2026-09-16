@@ -109,26 +109,17 @@ void main() {
     return builder;
   }
 
-  /// Stuba `perfis_usuarios.upsert` (altura/sexo) + `metricas_saude_diarias`
-  /// (o select de checagem "já tem peso hoje?" devolvendo vazio, e o
-  /// upsert) — os dois efeitos colaterais de [AnamneseRepository.salvarAnamnese]
-  /// ANTES do INSERT em `anamneses`. Chamado por todo teste de
-  /// `salvarAnamnese` que não é o foco específico de altura/sexo/peso.
-  ({_MockSupabaseQueryBuilder perfis, _MockSupabaseQueryBuilder metricas}) stubarDadosFisicos() {
+  /// Stuba `perfis_usuarios.upsert` (só `sexo_biologico` — RELATÓRIO
+  /// 20260916_0001/SSOT: altura/peso pararam de gravar aqui) — o único
+  /// efeito colateral de [AnamneseRepository.salvarAnamnese] ANTES do
+  /// INSERT em `anamneses`. Chamado por todo teste de `salvarAnamnese` que
+  /// não é o foco específico dessa gravação.
+  _MockSupabaseQueryBuilder stubarUpsertSexo() {
     final perfisBuilder = builderPara('perfis_usuarios');
     when(() => perfisBuilder.upsert(any(), onConflict: any(named: 'onConflict'))).thenAnswer(
       (_) => _FakeQuery<List<Map<String, dynamic>>>([]),
     );
-
-    final metricasBuilder = builderPara('metricas_saude_diarias');
-    when(() => metricasBuilder.select(any())).thenAnswer(
-      (_) => _FakeQuery<List<Map<String, dynamic>>>([]),
-    );
-    when(() => metricasBuilder.upsert(any(), onConflict: any(named: 'onConflict'))).thenAnswer(
-      (_) => _FakeQuery<List<Map<String, dynamic>>>([]),
-    );
-
-    return (perfis: perfisBuilder, metricas: metricasBuilder);
+    return perfisBuilder;
   }
 
   group('catálogos', () {
@@ -262,18 +253,18 @@ void main() {
       verifyNever(() => supabase.from(any()));
     });
 
-    test('resolve altura/sexo de perfis_usuarios e peso da última leitura de metricas_saude_diarias', () async {
+    test('resolve sexo de perfis_usuarios e altura/peso da última anamnese com os dois preenchidos', () async {
       final perfisBuilder = builderPara('perfis_usuarios');
       when(() => perfisBuilder.select(any())).thenAnswer(
         (_) => _FakeQuery<List<Map<String, dynamic>>>([
-          {'altura_cm': 179, 'sexo_biologico': 'M'},
+          {'sexo_biologico': 'M'},
         ]),
       );
 
-      final metricasBuilder = builderPara('metricas_saude_diarias');
-      when(() => metricasBuilder.select(any())).thenAnswer(
+      final anamnesesBuilder = builderPara('anamneses');
+      when(() => anamnesesBuilder.select(any())).thenAnswer(
         (_) => _FakeQuery<List<Map<String, dynamic>>>([
-          {'peso_kg': 78.5},
+          {'peso_kg': 78.5, 'altura_cm': 179},
         ]),
       );
 
@@ -304,8 +295,8 @@ void main() {
       verifyNever(() => supabase.from(any()));
     });
 
-    test('grava altura/sexo (perfis_usuarios) e peso de hoje (metricas_saude_diarias) antes da anamnese', () async {
-      final dadosFisicos = stubarDadosFisicos();
+    test('grava sexo (perfis_usuarios) + peso/altura DIRETO na anamnese (SSOT)', () async {
+      final perfisBuilder = stubarUpsertSexo();
 
       final anamnesesBuilder = builderPara('anamneses');
       when(() => anamnesesBuilder.insert(any())).thenAnswer(
@@ -325,61 +316,26 @@ void main() {
       );
 
       verify(
-        () => dadosFisicos.perfis
-            .upsert({'id': _usuarioId, 'altura_cm': 179.0, 'sexo_biologico': 'M'}, onConflict: 'id'),
+        () => perfisBuilder.upsert({'id': _usuarioId, 'sexo_biologico': 'M'}, onConflict: 'id'),
       ).called(1);
 
       final hoje = DateTime.now();
       final dataReferenciaEsperada =
           '${hoje.year.toString().padLeft(4, '0')}-${hoje.month.toString().padLeft(2, '0')}-${hoje.day.toString().padLeft(2, '0')}';
       verify(
-        () => dadosFisicos.metricas.upsert(
-          {
-            'usuario_id_anonimo': _usuarioId,
-            'data_referencia': dataReferenciaEsperada,
-            'peso_kg': 78.5,
-            'origem': 'manual',
-          },
-          onConflict: 'usuario_id_anonimo,data_referencia',
-        ),
+        () => anamnesesBuilder.insert({
+          'usuario_id': _usuarioId,
+          'objetivo_codigo': 'manutencao',
+          'peso_kg': 78.5,
+          'altura_cm': 179.0,
+          'peso_data_medicao': dataReferenciaEsperada,
+          'peso_origem': 'usuario',
+        }),
       ).called(1);
     });
 
-    test('NÃO sobrescreve o peso quando já existe uma leitura pra hoje', () async {
-      final perfisBuilder = builderPara('perfis_usuarios');
-      when(() => perfisBuilder.upsert(any(), onConflict: any(named: 'onConflict'))).thenAnswer(
-        (_) => _FakeQuery<List<Map<String, dynamic>>>([]),
-      );
-
-      final metricasBuilder = builderPara('metricas_saude_diarias');
-      when(() => metricasBuilder.select(any())).thenAnswer(
-        (_) => _FakeQuery<List<Map<String, dynamic>>>([
-          {'peso_kg': 80.0},
-        ]),
-      );
-
-      final anamnesesBuilder = builderPara('anamneses');
-      when(() => anamnesesBuilder.insert(any())).thenAnswer(
-        (_) => _FakeQuery<List<Map<String, dynamic>>>([
-          {'id': 'anamnese-nova'},
-        ]),
-      );
-
-      await repository.salvarAnamnese(
-        objetivoCodigo: 'manutencao',
-        alturaCm: 179,
-        sexoBiologico: 'M',
-        pesoKg: 78.5,
-        problemasSaudeIds: const [],
-        alergiaIds: const [],
-        atividades: const [],
-      );
-
-      verifyNever(() => metricasBuilder.upsert(any(), onConflict: any(named: 'onConflict')));
-    });
-
     test('insere a anamnese e as relações N:N (incluindo a rotina por dia) com os payloads corretos', () async {
-      stubarDadosFisicos();
+      stubarUpsertSexo();
 
       final anamnesesBuilder = builderPara('anamneses');
       when(() => anamnesesBuilder.insert(any())).thenAnswer(
@@ -416,9 +372,6 @@ void main() {
       );
 
       verify(
-        () => anamnesesBuilder.insert({'usuario_id': _usuarioId, 'objetivo_codigo': 'manutencao'}),
-      ).called(1);
-      verify(
         () => problemasBuilder.insert([
           {'anamnese_id': 'anamnese-nova', 'problema_saude_id': 'p1'},
           {'anamnese_id': 'anamnese-nova', 'problema_saude_id': 'p2'},
@@ -437,7 +390,7 @@ void main() {
     });
 
     test('não chama insert nas tabelas N:N quando as listas vêm vazias', () async {
-      stubarDadosFisicos();
+      stubarUpsertSexo();
 
       final anamnesesBuilder = builderPara('anamneses');
       when(() => anamnesesBuilder.insert(any())).thenAnswer(

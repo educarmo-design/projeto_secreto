@@ -1,0 +1,3511 @@
+1. Princípio central: única fonte da verdade
+
+A Anamnese versionada passa a ser a fonte oficial dos dados clínicos e antropométricos utilizados pelo sistema.
+
+Isso resolve o problema de peso e altura desatualizados.
+
+Peso
+
+O peso não deve ser mantido como atributo permanente do perfil.
+
+Fluxo:
+
+Balança integrada
+      ↓
+Peso = 82,4 kg
+Data = 16/09/2026
+      ↓
+Sugestão de atualização
+      ↓
+Usuário confirma
+      ↓
+Peso incorporado à nova Anamnese
+      ↓
+Anamnese vX
+Peso = 82,4 kg
+Data da medição = 16/09/2026
+
+O mesmo vale para:
+
+% gordura;
+massa muscular;
+massa magra;
+outras medidas provenientes de dispositivos.
+
+A leitura da balança continua existindo como dado de origem, mas só passa a ser dado antropométrico oficial da Anamnese após confirmação.
+
+2. Altura
+
+A altura deverá ser confirmada em toda nova Anamnese.
+
+Isso é importante porque:
+
+Altura não será simplesmente copiada silenciosamente da Anamnese anterior.
+
+O sistema apresenta:
+
+Altura registrada anteriormente: 1,78 m
+Confirmar / Alterar
+
+Se confirmar, o novo valor fica registrado naquela versão da Anamnese.
+
+Assim temos histórico auditável.
+
+3. Anamnese não é apenas questionário
+
+Esse ponto é muito importante.
+
+Cada Anamnese deverá ser um snapshot completo do estado do usuário naquele momento, incluindo:
+
+Dados informados
+peso;
+altura;
+composição corporal;
+objetivo;
+rotina;
+alimentação;
+condições;
+medicamentos;
+atividade física;
+etc.
+Dados derivados
+IMC;
+TMB;
+TDEE;
+consumo energético estimado;
+distribuição de macronutrientes;
+metas calculadas;
+indicadores metabólicos;
+resultados dos motores aplicáveis.
+Dados de contexto
+data;
+versão da Anamnese;
+fonte dos dados;
+origem dos dados;
+confirmação do usuário/profissional;
+qualidade dos dados;
+exceções identificadas.
+
+Isso transforma a Anamnese em um registro histórico clínico/metabólico, e não apenas em um formulário.
+
+4. Histórico deve permitir reconstrução
+
+Eu adotaria uma regra forte:
+
+Uma Anamnese não deve ser sobrescrita.
+
+Exemplo:
+
+Anamnese v1
+10/07/2026
+Peso: 84,2 kg
+Altura: 1,78
+Objetivo: perder peso
+TDEE calculado: 2.450 kcal
+
+        ↓
+
+Anamnese v2
+10/08/2026
+Peso: 82,9 kg
+Altura: 1,78
+Objetivo: perder peso
+TDEE calculado: 2.380 kcal
+
+        ↓
+
+Anamnese v3
+10/09/2026
+Peso: 81,7 kg
+Altura: 1,78
+Objetivo: recomposição corporal
+TDEE calculado: 2.410 kcal
+
+Isso permitirá futuramente comparar:
+
+Anamnese × consumo × atividade × peso × composição corporal × metas × resultados.
+
+5. Atividade física: concordo com sua definição
+
+Não devemos ter simplesmente:
+
+“Atividade física = musculação 4x/semana”.
+
+Precisamos registrar atividade por dia da semana, permitindo múltiplas atividades no mesmo dia.
+
+Exemplo:
+
+Segunda-feira
+Atividade	Duração	Intensidade
+Musculação	60 min	Moderada
+Corrida	30 min	Alta
+Caminhada	20 min	Leve
+Terça-feira
+Atividade	Duração	Intensidade
+Caminhada	45 min	Moderada
+
+E assim por diante.
+
+Isso permite ao Motor Metabólico calcular:
+
+Gasto energético estimado da segunda ≠ terça ≠ quarta...
+
+6. Consumo calórico estimado deverá ser por dia da semana
+
+Aqui temos uma informação muito importante para o futuro do sistema.
+
+A Anamnese deverá registrar algo como:
+
+Dia	TMB	NEAT	Atividade	TEF	TDEE estimado
+Segunda	X	X	X	X	2.650 kcal
+Terça	X	X	X	X	2.300 kcal
+Quarta	X	X	X	X	2.650 kcal
+Quinta	X	X	X	X	2.300 kcal
+Sexta	X	X	X	X	2.650 kcal
+Sábado	X	X	X	X	2.450 kcal
+Domingo	X	X	X	X	2.150 kcal
+
+Esses valores ficam congelados naquela versão da Anamnese.
+
+Depois poderemos comparar:
+
+TDEE estimado em setembro × consumo real × evolução do peso.
+
+Isso será extremamente útil para o Motor Adaptativo no futuro.
+
+7. Temos agora dois tipos de metas
+
+Esse ponto precisa ficar muito claro na arquitetura.
+
+Meta calculada pelo sistema
+
+Resultado do Motor Metabólico.
+
+Exemplo:
+
+Segunda-feira: 2.300 kcal
+Proteína: 150 g
+Carboidrato: 250 g
+Gordura: 70 g
+
+Meta definida pelo profissional
+
+Outro campo.
+
+Exemplo:
+
+Segunda-feira: 2.200 kcal
+Proteína: 160 g
+Carboidrato: 210 g
+Gordura: 65 g
+
+Uma nunca sobrescreve a outra.
+
+Isso é excelente para auditoria e para o Motor Adaptativo.
+
+8. Usuário acompanhado por profissional
+
+Aqui o profissional controla a periodicidade.
+
+Fluxo:
+
+Profissional define reavaliação
+          ↓
+Nova Anamnese
+          ↓
+Motor Metabólico
+          ↓
+Resultado calculado
+          ↓
+Profissional define/ajusta meta
+          ↓
+Meta profissional fica registrada
+
+A meta profissional pode ser:
+
+Igual todos os dias
+
+ou
+
+Diferente por dia
+
+Exemplo:
+
+Dia	Sistema	Profissional
+Seg	2.500	2.400
+Ter	2.250	2.200
+Qua	2.500	2.400
+Qui	2.250	2.200
+Sex	2.500	2.400
+Sáb	2.700	2.500
+Dom	2.200	2.200
+9. Usuário sem profissional
+
+Aqui a lógica é diferente.
+
+A Anamnese poderá ser realizada uma vez por mês.
+
+O Motor Metabólico calcula:
+
+necessidade energética;
+recomendação calórica;
+proteína;
+carboidrato;
+gordura.
+
+Mas, conforme você definiu, para esse usuário:
+
+A recomendação será uma média diária e será replicada para os sete dias da semana.
+
+Exemplo:
+
+Resultado médio do sistema
+
+2.200 kcal/dia
+Proteína: 150 g
+Carboidrato: 250 g
+Gordura: 70 g
+
+Então:
+
+Dia	Resultado do sistema
+Segunda	2.200 kcal
+Terça	2.200 kcal
+Quarta	2.200 kcal
+Quinta	2.200 kcal
+Sexta	2.200 kcal
+Sábado	2.200 kcal
+Domingo	2.200 kcal
+
+Mas o cálculo do gasto energético da rotina continua sendo individualizado por dia da semana.
+
+Essa distinção é importante:
+
+TDEE estimado → pode variar por dia.
+Recomendação para usuário sem profissional → média diária replicada.
+
+10. Macronutrientes seguem exatamente a mesma arquitetura
+
+O Motor Metabólico deverá produzir:
+
+Resultado calculado
+
+Por dia:
+
+kcal;
+proteína g;
+carboidrato g;
+gordura g.
+Meta profissional
+
+Separadamente:
+
+kcal;
+proteína;
+carboidrato;
+gordura.
+
+Portanto:
+
+                    MOTOR METABÓLICO
+                           │
+              ┌────────────┴────────────┐
+              │                         │
+       RESULTADO SISTEMA          META PROFISSIONAL
+              │                         │
+       Calculado pelo motor       Definida pelo profissional
+              │                         │
+       Histórico preservado       Histórico preservado
+
+Nunca:
+
+Resultado sistema
+       ↓
+sobrescreve
+       ↓
+Meta profissional
+11. E isso resolve uma questão importante dos protocolos
+
+Agora fica muito mais claro como os protocolos especializados entrarão.
+
+A Anamnese identifica o contexto aplicável:
+
+Objetivo
+   +
+Idade
+   +
+Composição corporal
+   +
+Atividade
+   +
+Condições
+   +
+Medicamentos
+   +
+Dados metabólicos
+   +
+Histórico
+        ↓
+Protocolos potencialmente aplicáveis
+        ↓
+Profissional seleciona
+        ↓
+Motor Metabólico calcula
+
+Para usuário sem profissional, teremos uma política específica de segurança para determinar quando o sistema pode gerar uma recomendação automática e quando deverá apenas sinalizar que é necessária avaliação profissional.
+
+Isso será especialmente importante para diabetes, DRC, situações de risco nutricional etc.
+
+Eu considero estas decisões fechadas
+
+1. Anamnese = fonte oficial versionada.
+2. Peso não fica como dado permanente do perfil.
+3. Altura deve ser confirmada em cada Anamnese.
+4. Leituras de balança são sugestões até confirmação.
+5. Nenhuma Anamnese é sobrescrita.
+6. Histórico completo deve ser consultável e auditável.
+7. Atividades são registradas por dia da semana, com múltiplas atividades/dia.
+8. TDEE/consumo energético estimado é calculado por dia da semana.
+9. Todo resultado do Motor Metabólico fica gravado na versão da Anamnese.
+10. Resultado calculado e meta profissional são campos distintos.
+11. Profissional pode definir metas diferentes por dia.
+12. Usuário sem profissional faz nova Anamnese mensalmente.
+13. Usuário sem profissional recebe recomendação média diária replicada nos 7 dias.
+14. Macronutrientes seguem a mesma lógica de energia.
+
+
+
+# 1. Objetivo
+
+A Anamnese é o registro estruturado e versionado do estado clínico, antropométrico, comportamental e metabólico do usuário em determinado momento.
+
+Ela constitui a **fonte oficial da verdade** para os dados utilizados pelos motores do sistema.
+
+Nenhuma nova Anamnese deve sobrescrever uma versão anterior.
+
+Cada versão deve permitir reconstruir:
+
+* quais informações estavam disponíveis;
+* quais foram informadas pelo usuário;
+* quais foram confirmadas pelo profissional;
+* quais vieram de dispositivos;
+* quais foram calculadas pelos motores;
+* quais metas estavam vigentes;
+* quais protocolos estavam associados;
+* quais resultados foram produzidos.
+
+---
+
+# 2. Tipos de usuário
+
+A Anamnese deve suportar dois cenários.
+
+### 2.1 Usuário sem acompanhamento profissional
+
+* Pode realizar nova Anamnese uma vez por mês.
+* O sistema utiliza a Anamnese para gerar recomendações automáticas dentro dos protocolos permitidos.
+* A recomendação energética e de macronutrientes será uma **média diária**.
+* Essa média será replicada para os sete dias da semana.
+* O sistema deverá registrar também o gasto energético estimado individual de cada dia da semana.
+
+### 2.2 Usuário acompanhado por profissional
+
+* O profissional define quando deverá ocorrer a próxima reavaliação.
+* O profissional pode definir metas diferentes para cada dia da semana.
+* O resultado calculado pelo Motor Metabólico nunca é sobrescrito pela meta profissional.
+* Resultado calculado e meta profissional são armazenados separadamente.
+
+---
+
+# 3. Princípio da fonte única da verdade
+
+Dados antropométricos utilizados pelos motores não devem permanecer como atributos permanentes e independentes do histórico da Anamnese.
+
+## 3.1 Peso
+
+O peso oficial utilizado pelo sistema deve estar vinculado à versão da Anamnese.
+
+Caso exista uma leitura proveniente de balança integrada:
+
+```text
+Balança
+↓
+Peso + data/hora + origem
+↓
+Sistema apresenta como sugestão
+↓
+Usuário/profissional confirma
+↓
+Peso passa a integrar a nova Anamnese
+```
+
+A leitura original permanece registrada como dado de origem.
+
+## 3.2 Percentual de gordura
+
+Segue a mesma regra.
+
+Caso venha de uma balança ou outro dispositivo:
+
+* armazenar valor;
+* data/hora;
+* dispositivo/origem;
+* método, quando disponível;
+* apresentar como sugestão;
+* incorporar à Anamnese somente após confirmação.
+
+## 3.3 Altura
+
+A altura deve ser apresentada para confirmação em toda nova Anamnese.
+
+Exemplo:
+
+> Altura registrada anteriormente: 1,78 m
+> [Confirmar] [Alterar]
+
+O valor confirmado passa a integrar aquela versão da Anamnese.
+
+---
+
+# 4. Estrutura da Anamnese
+
+## BLOCO 1 — Contexto da avaliação
+
+### Campos
+
+| Campo                                | Obrigatório | Origem               |
+| ------------------------------------ | ----------- | -------------------- |
+| Data da Anamnese                     | Sim         | Sistema              |
+| Tipo de avaliação                    | Sim         | Sistema/profissional |
+| Usuário acompanhado por profissional | Sim         | Sistema              |
+| Profissional responsável             | Condicional | Sistema              |
+| Data prevista para próxima avaliação | Condicional | Profissional         |
+| Motivo da avaliação                  | Sim         | Usuário/profissional |
+
+### Motivos possíveis
+
+* Avaliação inicial
+* Reavaliação periódica
+* Alteração de objetivo
+* Alteração de condição de saúde
+* Alteração importante de peso
+* Alteração de rotina
+* Nova avaliação profissional
+* Retorno após interrupção
+* Outro
+
+---
+
+# 5. BLOCO 2 — Objetivos
+
+## 5.1 Objetivo principal
+
+Opções:
+
+* Perda de peso
+* Ganho de peso
+* Manutenção de peso
+* Redução de gordura corporal
+* Ganho de massa muscular
+* Recomposição corporal
+* Melhora de desempenho esportivo
+* Controle metabólico
+* Preservação de massa muscular
+* Outro
+
+## 5.2 Objetivos secundários
+
+Permitir múltiplos.
+
+## 5.3 Meta quantitativa
+
+Quando aplicável:
+
+* peso desejado;
+* percentual de gordura desejado;
+* massa muscular desejada;
+* prazo;
+* outro indicador definido pelo profissional.
+
+A existência de uma meta não significa que o sistema deva automaticamente considerá-la clinicamente adequada.
+
+---
+
+# 6. BLOCO 3 — Antropometria
+
+### Campos
+
+* Peso
+* Data/hora da medição
+* Fonte
+* Altura
+* IMC calculado
+* Circunferência da cintura
+* Circunferência abdominal, se utilizada
+* Percentual de gordura
+* Massa gorda
+* Massa magra
+* Massa muscular
+* Método de avaliação da composição corporal
+* Data da avaliação
+
+### Origem possível
+
+* Usuário
+* Profissional
+* Balança
+* Bioimpedância
+* DEXA
+* Outro dispositivo
+* Importação
+
+Cada valor deve possuir sua origem.
+
+---
+
+# 7. BLOCO 4 — Histórico de peso
+
+O sistema deve recuperar automaticamente informações históricas disponíveis.
+
+Registrar:
+
+* peso atual;
+* peso anterior;
+* peso há 30 dias;
+* peso há 3 meses;
+* peso há 6 meses;
+* peso há 12 meses;
+* maior peso conhecido;
+* menor peso conhecido;
+* variação percentual.
+
+Esses dados são históricos e não devem ser confundidos com o peso oficial da nova Anamnese.
+
+---
+
+# 8. BLOCO 5 — Alimentação
+
+### Padrão alimentar
+
+* Número de refeições/dia
+* Horários habituais
+* Regularidade
+* Refeições fora de casa
+* Consumo de ultraprocessados
+* Preferências alimentares
+* Alimentos evitados
+* Restrições
+* Alergias
+* Intolerâncias
+* Padrão alimentar habitual
+
+### Consumo
+
+Quando disponível:
+
+* energia;
+* proteína;
+* carboidrato;
+* gordura;
+* fibras;
+* água;
+* álcool.
+
+A informação pode vir de:
+
+* registro alimentar;
+* estimativa do sistema;
+* profissional;
+* integração externa.
+
+---
+
+# 9. BLOCO 6 — Atividades e rotina semanal
+
+Este bloco é estruturado por **dia da semana**.
+
+Cada dia pode possuir múltiplas atividades.
+
+## Exemplo
+
+### Segunda-feira
+
+| Atividade  | Duração | Intensidade |
+| ---------- | ------: | ----------- |
+| Musculação |  60 min | Moderada    |
+| Corrida    |  30 min | Alta        |
+| Caminhada  |  20 min | Leve        |
+
+### Campos por atividade
+
+* Tipo
+* Categoria
+* Duração
+* Intensidade
+* Horário
+* Frequência
+* Distância, quando aplicável
+* Calorias fornecidas pelo dispositivo, quando disponíveis
+* Fonte
+
+### Atividade diária não estruturada
+
+Também registrar:
+
+* passos;
+* tempo em movimento;
+* tempo sedentário;
+* atividade ocupacional;
+* deslocamentos;
+* outras atividades relevantes.
+
+---
+
+# 10. BLOCO 7 — Sono e recuperação
+
+Registrar:
+
+* horas médias de sono;
+* horário habitual de dormir;
+* horário habitual de acordar;
+* qualidade percebida;
+* despertares;
+* dados de smartwatch, quando disponíveis;
+* outros indicadores disponíveis.
+
+O objetivo é fornecer contexto ao Motor Adaptativo e aos indicadores, não criar diagnóstico automático.
+
+---
+
+# 11. BLOCO 8 — Condições de saúde
+
+Pergunta inicial:
+
+> Possui alguma condição de saúde diagnosticada?
+
+Se sim, abrir seleção múltipla.
+
+### Grupos
+
+* Diabetes
+* Pré-diabetes
+* Hipertensão
+* Dislipidemia
+* Doença cardiovascular
+* Doença renal
+* Doença hepática
+* Doenças gastrointestinais
+* Doença da tireoide
+* Obesidade
+* Sarcopenia
+* Fragilidade
+* Transtornos alimentares
+* Outras condições relevantes
+
+Cada condição deve permitir:
+
+* diagnóstico;
+* data;
+* status;
+* profissional responsável;
+* observações;
+* evidências/exames associados.
+
+---
+
+# 12. BLOCO 9 — Medicamentos
+
+Para cada medicamento:
+
+* Nome
+* Dose
+* Unidade
+* Frequência
+* Horário
+* Indicação
+* Data de início
+* Data de término, quando aplicável
+* Uso atual
+* Prescritor
+
+O sistema deve considerar medicamentos como **contexto para os motores**, sem alterar tratamento automaticamente.
+
+---
+
+# 13. BLOCO 10 — Suplementos
+
+Para cada suplemento:
+
+* Nome
+* Dose
+* Unidade
+* Frequência
+* Horário
+* Objetivo
+* Uso atual
+* Prescrição/orientação profissional, quando aplicável.
+
+---
+
+# 14. BLOCO 11 — Exames laboratoriais
+
+Registrar, quando disponíveis:
+
+* Data do exame
+* Nome do exame
+* Resultado
+* Unidade
+* Referência apresentada pelo laboratório
+* Origem
+* Documento de origem
+
+O sistema deve preservar o resultado original.
+
+---
+
+# 15. BLOCO 12 — Blocos condicionais
+
+A Anamnese deve ser adaptativa.
+
+Não apresentar todas as perguntas para todos os usuários.
+
+## 12.1 Idoso
+
+Ativar conforme critérios definidos pelo sistema/profissional.
+
+Perguntar sobre:
+
+* perda involuntária de peso;
+* apetite;
+* dificuldade de alimentação;
+* mastigação;
+* deglutição;
+* mobilidade;
+* quedas;
+* força;
+* atividade física;
+* funcionalidade;
+* composição corporal;
+* risco nutricional;
+* suporte social.
+
+---
+
+# 16. Bloco Atleta
+
+Ativar quando o usuário indicar prática esportiva estruturada ou quando o profissional classificar como atleta.
+
+Perguntar:
+
+* modalidade;
+* nível;
+* horas/semana;
+* sessões/semana;
+* duração;
+* intensidade;
+* treinamento resistido;
+* treinamento aeróbico;
+* periodização;
+* dias de descanso;
+* competições;
+* próxima competição;
+* categoria/peso, quando aplicável;
+* estratégia de recuperação;
+* suplementação;
+* alimentação durante exercício.
+
+---
+
+# 17. Bloco Recomposição Corporal
+
+Ativar quando esse for o objetivo.
+
+Perguntar:
+
+* percentual de gordura atual;
+* percentual desejado;
+* massa magra;
+* massa muscular;
+* treinamento resistido;
+* frequência;
+* histórico de treinamento;
+* evolução de força;
+* histórico de perda/ganho de peso;
+* estratégia nutricional atual.
+
+---
+
+# 18. Bloco Diabetes
+
+Ativar para diabetes/pré-diabetes.
+
+Registrar:
+
+* tipo;
+* data do diagnóstico;
+* HbA1c;
+* glicemia;
+* hipoglicemias;
+* hiperglicemias;
+* insulina;
+* medicamentos;
+* CGM;
+* glicosímetro;
+* tempo no alvo, quando disponível;
+* relação com exercício;
+* complicações;
+* comorbidades.
+
+---
+
+# 19. Bloco Doença Renal
+
+Ativar quando houver doença renal.
+
+Registrar:
+
+* diagnóstico;
+* estágio;
+* TFG/eGFR;
+* creatinina;
+* albuminúria/proteinúria;
+* ureia;
+* potássio;
+* sódio;
+* fósforo;
+* cálcio;
+* bicarbonato;
+* diálise;
+* tipo de diálise;
+* transplante;
+* restrição hídrica;
+* orientação profissional de proteína;
+* outras restrições prescritas.
+
+---
+
+# 20. Blocos adicionais
+
+A arquitetura deverá permitir posteriormente:
+
+* Cardiometabólico
+* Hepático
+* Gastrointestinal
+* Gestação
+* Lactação
+* Oncologia
+* Pediatria
+* Outras populações especiais
+
+Esses blocos não precisam estar ativos no V1 se estiverem fora do escopo populacional definido.
+
+---
+
+# 21. BLOCO 13 — Resultados do Motor Metabólico
+
+Cada Anamnese deve armazenar uma fotografia completa dos resultados calculados.
+
+### Energia
+
+* TMB
+* Método/fórmula utilizada
+* TDEE
+* Componentes utilizados
+* Gasto estimado por dia da semana
+* Média semanal
+
+### Macronutrientes
+
+Para cada dia:
+
+* proteína calculada;
+* carboidrato calculado;
+* gordura calculada;
+* energia calculada.
+
+### Metadados
+
+* protocolo utilizado;
+* versão do protocolo;
+* fórmula utilizada;
+* versão da fórmula;
+* parâmetros utilizados;
+* data/hora do cálculo;
+* versão do Motor Metabólico.
+
+---
+
+# 22. BLOCO 14 — Metas
+
+É obrigatório manter separados:
+
+## 22.1 Resultado calculado pelo sistema
+
+Gerado pelo Motor Metabólico.
+
+## 22.2 Meta profissional
+
+Definida pelo profissional.
+
+A meta profissional pode ser:
+
+* igual todos os dias;
+* diferente por dia da semana.
+
+Nunca deve sobrescrever o resultado calculado.
+
+---
+
+# 23. Usuário sem profissional
+
+O Motor Metabólico produz:
+
+### Resultado energético
+
+Uma recomendação média diária.
+
+### Macronutrientes
+
+Uma recomendação média diária de:
+
+* proteína;
+* carboidrato;
+* gordura.
+
+Esses valores são replicados para os sete dias.
+
+Entretanto, o sistema mantém o **TDEE estimado específico de cada dia**.
+
+---
+
+# 24. Usuário com profissional
+
+O Motor Metabólico produz os resultados por dia da semana.
+
+O profissional poderá definir:
+
+```text
+Resultado do sistema
+        +
+Avaliação profissional
+        ↓
+Meta profissional
+```
+
+A meta poderá ser diferente para cada dia.
+
+---
+
+# 25. BLOCO 15 — Qualidade e exceções
+
+Cada Anamnese deve registrar:
+
+* score de qualidade;
+* dados faltantes;
+* dados inconsistentes;
+* dados desatualizados;
+* exceções bloqueantes;
+* alertas;
+* informações que limitaram algum cálculo.
+
+O resultado de um motor nunca deve ser apresentado sem informar quando sua qualidade estiver comprometida.
+
+---
+
+# 26. BLOCO 16 — Auditoria e versionamento
+
+Cada versão deve possuir:
+
+* ID da Anamnese;
+* número da versão;
+* data/hora de criação;
+* usuário que criou;
+* profissional, quando aplicável;
+* origem de cada dado;
+* data da medição;
+* dados confirmados;
+* alterações;
+* resultados dos motores;
+* protocolos;
+* metas;
+* versão dos algoritmos;
+* versão das regras;
+* histórico de alterações.
+
+Uma versão encerrada não deve ser alterada.
+
+Correções devem gerar nova versão ou evento de correção auditável, conforme a natureza da alteração.
+
+---
+
+# 27. Regra arquitetural principal
+
+A Anamnese deve distinguir claramente quatro categorias:
+
+### DADO INFORMADO
+
+Exemplo:
+
+> Usuário informa peso = 82 kg.
+
+### DADO MEDIDO
+
+Exemplo:
+
+> Balança registrou 81,8 kg em 16/09/2026.
+
+### DADO CALCULADO
+
+Exemplo:
+
+> Motor Metabólico calculou TDEE = 2.430 kcal.
+
+### META
+
+Exemplo:
+
+> Profissional definiu meta = 2.250 kcal.
+
+Essas quatro categorias **não podem ser misturadas ou sobrescritas entre si**.
+
+---
+
+# 28. Regra de ouro
+
+A arquitetura deverá obedecer:
+
+**Dado histórico → Anamnese → Motores → Resultado calculado → Decisão profissional → Meta**
+
+Nunca:
+
+**Resultado calculado → altera dado clínico**
+
+e nunca:
+
+**Meta → altera resultado histórico do cálculo.**
+
+Isso garante rastreabilidade, auditoria e capacidade de evolução futura do Motor Adaptativo.
+
+
+estágio, se conhecido;
+TFG/eGFR, se disponível;
+faz diálise?;
+existe orientação profissional específica de proteína/líquidos?
+
+“É atleta?” → Sim
+
+Abre:
+
+modalidade;
+horas de treinamento/semana;
+objetivo esportivo;
+competição próxima, se houver.
+
+“Idoso”
+
+Não precisa necessariamente de um questionário enorme. Podemos abrir apenas perguntas que realmente mudam o cálculo/protocolo, como:
+
+perda involuntária de peso;
+dificuldade de alimentação;
+redução de força/mobilidade.
+
+
+# 1. Objetivo
+
+Definir os campos mínimos necessários para que o Motor Metabólico V1.0 possa:
+
+* calcular necessidade energética;
+* estimar gasto energético por dia da semana;
+* calcular recomendação de macronutrientes;
+* considerar o objetivo do usuário;
+* identificar situações que exigem protocolo específico ou avaliação profissional;
+* manter histórico e auditoria das informações utilizadas nos cálculos.
+
+---
+
+# 2. Identificação da Anamnese
+
+| Campo                                | Tipo       | Obrigatório |
+| ------------------------------------ | ---------- | ----------- |
+| ID da Anamnese                       | Sistema    | Sim         |
+| Versão                               | Sistema    | Sim         |
+| Data/hora                            | Sistema    | Sim         |
+| Tipo de usuário                      | Sistema    | Sim         |
+| Profissional responsável             | Referência | Condicional |
+| Data prevista para próxima avaliação | Data       | Condicional |
+
+### Tipo de usuário
+
+* Sem acompanhamento profissional
+* Com acompanhamento profissional
+
+---
+
+# 3. Dados básicos
+
+| Campo                               | Tipo          | Obrigatório | Observação                           |
+| ----------------------------------- | ------------- | ----------- | ------------------------------------ |
+| Data de nascimento/idade            | Data/numérico | Sim         | Utilizada no cálculo                 |
+| Sexo biológico para fins de cálculo | Seleção       | Sim         | Conforme fórmula utilizada           |
+| Peso                                | Numérico      | Sim         | Deve ser confirmado                  |
+| Data da medição do peso             | Data/hora     | Sim         |                                      |
+| Fonte do peso                       | Seleção       | Sim         | Usuário, balança, profissional etc.  |
+| Altura                              | Numérico      | Sim         | Deve ser confirmada em toda Anamnese |
+| Data da confirmação da altura       | Sistema       | Sim         |                                      |
+| % gordura                           | Numérico      | Não         | Quando disponível                    |
+| Massa magra                         | Numérico      | Não         | Quando disponível                    |
+| Fonte da composição corporal        | Seleção       | Condicional |                                      |
+
+### Regra
+
+Peso e composição corporal provenientes de dispositivos devem ser apresentados como **sugestão para confirmação**.
+
+---
+
+# 4. Objetivo
+
+## 4.1 Objetivo principal
+
+Obrigatório.
+
+Opções iniciais:
+
+* Perder peso
+* Manter peso
+* Ganhar peso
+* Reduzir gordura corporal
+* Ganhar massa muscular
+* Recomposição corporal
+* Melhorar desempenho esportivo
+* Outro
+
+## 4.2 Meta quantitativa
+
+Condicional.
+
+Dependendo do objetivo:
+
+* peso desejado;
+* percentual de gordura desejado;
+* massa corporal desejada;
+* outro parâmetro.
+
+**Importante:** a meta informada pelo usuário não é automaticamente considerada uma meta clínica válida.
+
+---
+
+# 5. Rotina diária
+
+Pergunta única:
+
+### Como é sua rotina na maior parte do dia?
+
+* Predominantemente sentado
+* Pouco ativo
+* Moderadamente ativo
+* Muito ativo
+* Trabalho fisicamente intenso
+
+Esse campo será utilizado como informação complementar para estimativa de atividade/NEAT.
+
+---
+
+# 6. Atividades físicas por dia da semana
+
+Este é um dos principais blocos da V1.0.
+
+Para cada dia:
+
+**Segunda a domingo**
+
+Permitir adicionar múltiplas atividades.
+
+### Campos de cada atividade
+
+| Campo                                | Obrigatório |
+| ------------------------------------ | ----------- |
+| Tipo de atividade                    | Sim         |
+| Duração                              | Sim         |
+| Intensidade                          | Sim         |
+| Horário                              | Não         |
+| Distância                            | Condicional |
+| Calorias informadas pelo dispositivo | Não         |
+| Fonte                                | Sim         |
+
+### Exemplo
+
+**Segunda-feira**
+
+* Musculação — 60 min — moderada
+* Corrida — 30 min — alta
+* Caminhada — 20 min — leve
+
+**Terça-feira**
+
+* Caminhada — 40 min — moderada
+
+E assim sucessivamente.
+
+---
+
+# 7. Atividade não estruturada
+
+Para complementar a rotina:
+
+| Campo                           | Obrigatório           |
+| ------------------------------- | --------------------- |
+| Média de passos/dia             | Não                   |
+| Dados de smartwatch disponíveis | Não                   |
+| Tempo sedentário                | Não                   |
+| Atividade ocupacional           | Sim, quando relevante |
+
+Quando houver integração com smartwatch, os dados objetivos devem ser utilizados como fonte adicional.
+
+---
+
+# 8. Condições especiais
+
+Pergunta obrigatória:
+
+> Você possui alguma condição de saúde que possa influenciar sua alimentação, peso ou metabolismo?
+
+### Respostas
+
+* Não
+* Sim
+
+Se **Sim**, selecionar:
+
+* Diabetes
+* Pré-diabetes
+* Doença renal
+* Doença cardiovascular
+* Hipertensão
+* Doença hepática
+* Outra condição relevante
+
+Essa pergunta tem função principalmente de **classificação e segurança**.
+
+Não precisamos transformar a Anamnese V1.0 em prontuário médico.
+
+---
+
+# 9. Blocos condicionais
+
+Somente serão apresentados quando aplicáveis.
+
+## 9.1 Diabetes
+
+* Tipo de diabetes
+* Usa insulina?
+* Usa medicamento para controle glicêmico?
+* HbA1c, se disponível
+
+## 9.2 Doença renal
+
+* Possui diagnóstico de doença renal?
+* Estágio, se conhecido
+* TFG/eGFR, se disponível
+* Faz diálise?
+
+## 9.3 Atleta
+
+Ativar quando o usuário informar prática esportiva estruturada ou o profissional classificar como atleta.
+
+* Modalidade principal
+* Horas de treinamento por semana
+* Objetivo esportivo
+* Possui competição próxima?
+
+## 9.4 Idoso
+
+Ativar conforme classificação definida pelo sistema.
+
+* Houve perda involuntária de peso?
+* Houve redução importante de força ou mobilidade?
+* Existe dificuldade para alimentação?
+
+Essas perguntas têm principalmente função de **identificação de risco e seleção do contexto apropriado**.
+
+---
+
+# 10. Histórico recente de peso
+
+O sistema deve recuperar automaticamente o histórico existente.
+
+Não é necessário perguntar tudo novamente.
+
+Apresentar:
+
+* peso atual;
+* peso anterior;
+* variação nos últimos 30 dias;
+* variação em 3 meses;
+* variação em 6 meses, quando disponível.
+
+Pergunta adicional:
+
+> Houve perda ou ganho de peso importante não planejado?
+
+* Não
+* Sim
+* Não sabe
+
+---
+
+# 11. Confirmação dos dados
+
+Antes de concluir a Anamnese:
+
+### Tela "Confirme seus dados"
+
+Mostrar:
+
+* idade;
+* sexo para cálculo;
+* peso;
+* data do peso;
+* altura;
+* composição corporal, se disponível;
+* objetivo;
+* rotina;
+* atividades da semana;
+* condições especiais.
+
+Usuário/profissional confirma.
+
+Somente depois disso a Anamnese é finalizada e enviada aos motores.
+
+---
+
+# 12. Dados calculados — não são perguntas
+
+Os seguintes campos **não devem ser perguntados ao usuário**.
+
+São produzidos pelo sistema:
+
+* IMC;
+* classificação antropométrica aplicável;
+* TMB;
+* TDEE;
+* NEAT estimado;
+* EAT estimado;
+* TEF estimado;
+* gasto energético por dia da semana;
+* gasto energético médio semanal;
+* necessidade energética calculada;
+* proteína calculada;
+* carboidrato calculado;
+* gordura calculada.
+
+Todos devem ficar registrados na versão da Anamnese.
+
+---
+
+# 13. Resultado do Motor Metabólico
+
+A Anamnese deverá armazenar:
+
+### Energia calculada
+
+| Campo        |
+| ------------ |
+| TMB          |
+| TDEE segunda |
+| TDEE terça   |
+| TDEE quarta  |
+| TDEE quinta  |
+| TDEE sexta   |
+| TDEE sábado  |
+| TDEE domingo |
+| TDEE médio   |
+
+### Macronutrientes calculados
+
+Para cada dia:
+
+* kcal;
+* proteína (g);
+* carboidrato (g);
+* gordura (g).
+
+---
+
+# 14. Meta
+
+As metas são separadas do resultado calculado.
+
+## Resultado do sistema
+
+Calculado pelo Motor Metabólico.
+
+## Meta profissional
+
+Somente para usuário acompanhado.
+
+Pode ser definida:
+
+* para todos os dias igualmente;
+* individualmente por dia da semana.
+
+### Usuário sem profissional
+
+A recomendação calculada pelo sistema será:
+
+**média diária → replicada para os sete dias.**
+
+---
+
+# 15. Dados de controle e auditoria
+
+Cada Anamnese deverá registrar automaticamente:
+
+* versão;
+* data/hora;
+* usuário responsável;
+* profissional, quando aplicável;
+* origem dos dados;
+* data das medições;
+* dados confirmados;
+* fórmula utilizada;
+* protocolo utilizado;
+* versão da fórmula;
+* versão do protocolo;
+* versão do Motor Metabólico;
+* resultado calculado;
+* meta profissional;
+* exceções;
+* qualidade dos dados.
+
+---
+
+# 16. O que NÃO entra na Anamnese V1.0
+
+Para manter a proposta realmente mínima, não serão perguntas obrigatórias:
+
+* sono detalhado;
+* questionário alimentar extenso;
+* recordatório de 24 horas;
+* suplementos detalhados;
+* todos os medicamentos;
+* painel laboratorial completo;
+* doenças gastrointestinais detalhadas;
+* histórico médico completo;
+* histórico familiar;
+* avaliações psicológicas;
+* questionários extensos de estilo de vida.
+
+Esses dados poderão ser incorporados posteriormente por módulos específicos ou pelo acompanhamento profissional.
+
+---
+
+# 17. Resumo da Anamnese V1.0
+
+A Anamnese deverá responder essencialmente:
+
+**QUEM?**
+
+* idade;
+* sexo para cálculo;
+* peso;
+* altura;
+* composição corporal disponível.
+
+**QUER O QUÊ?**
+
+* objetivo;
+* meta, quando aplicável.
+
+**GASTA QUANTO?**
+
+* rotina;
+* atividades por dia da semana.
+
+**EXISTE ALGUMA CONDIÇÃO ESPECIAL?**
+
+* diabetes;
+* renal;
+* atleta;
+* idoso;
+* outras condições relevantes.
+
+**OS DADOS ESTÃO CONFIRMADOS?**
+
+* confirmação final.
+
+Todo o restante será calculado, recuperado do histórico ou tratado por módulos específicos.
+
+---
+
+# 18. Regra de arquitetura
+
+A V1.0 deve seguir:
+
+**Perguntas mínimas → Dados confirmados → Anamnese versionada → Motor Metabólico → Resultado calculado → Meta profissional, quando aplicável.**
+
+A Anamnese não deve conter informações redundantes que já existam em outros módulos nem pedir ao usuário informações que possam ser calculadas ou obtidas automaticamente.
+
+
+# 1. Objetivo
+
+Definir os campos mínimos necessários para que o Motor Metabólico V1.0 possa:
+
+* calcular necessidade energética;
+* estimar gasto energético por dia da semana;
+* calcular recomendação de macronutrientes;
+* considerar o objetivo do usuário;
+* identificar situações que exigem protocolo específico ou avaliação profissional;
+* manter histórico e auditoria das informações utilizadas nos cálculos.
+
+---
+
+# 2. Identificação da Anamnese
+
+| Campo                                | Tipo       | Obrigatório |
+| ------------------------------------ | ---------- | ----------- |
+| ID da Anamnese                       | Sistema    | Sim         |
+| Versão                               | Sistema    | Sim         |
+| Data/hora                            | Sistema    | Sim         |
+| Tipo de usuário                      | Sistema    | Sim         |
+| Profissional responsável             | Referência | Condicional |
+| Data prevista para próxima avaliação | Data       | Condicional |
+
+### Tipo de usuário
+
+* Sem acompanhamento profissional
+* Com acompanhamento profissional
+
+---
+
+# 3. Dados básicos
+
+| Campo                               | Tipo          | Obrigatório | Observação                           |
+| ----------------------------------- | ------------- | ----------- | ------------------------------------ |
+| Data de nascimento/idade            | Data/numérico | Sim         | Utilizada no cálculo                 |
+| Sexo biológico para fins de cálculo | Seleção       | Sim         | Conforme fórmula utilizada           |
+| Peso                                | Numérico      | Sim         | Deve ser confirmado                  |
+| Data da medição do peso             | Data/hora     | Sim         |                                      |
+| Fonte do peso                       | Seleção       | Sim         | Usuário, balança, profissional etc.  |
+| Altura                              | Numérico      | Sim         | Deve ser confirmada em toda Anamnese |
+| Data da confirmação da altura       | Sistema       | Sim         |                                      |
+| % gordura                           | Numérico      | Não         | Quando disponível                    |
+| Massa magra                         | Numérico      | Não         | Quando disponível                    |
+| Fonte da composição corporal        | Seleção       | Condicional |                                      |
+
+### Regra
+
+Peso e composição corporal provenientes de dispositivos devem ser apresentados como **sugestão para confirmação**.
+
+---
+
+# 4. Objetivo
+
+## 4.1 Objetivo principal
+
+Obrigatório.
+
+Opções iniciais:
+
+* Perder peso
+* Manter peso
+* Ganhar peso
+* Reduzir gordura corporal
+* Ganhar massa muscular
+* Recomposição corporal
+* Melhorar desempenho esportivo
+* Outro
+
+## 4.2 Meta quantitativa
+
+Condicional.
+
+Dependendo do objetivo:
+
+* peso desejado;
+* percentual de gordura desejado;
+* massa corporal desejada;
+* outro parâmetro.
+
+**Importante:** a meta informada pelo usuário não é automaticamente considerada uma meta clínica válida.
+
+---
+
+# 5. Rotina diária
+
+Pergunta única:
+
+### Como é sua rotina na maior parte do dia?
+
+* Predominantemente sentado
+* Pouco ativo
+* Moderadamente ativo
+* Muito ativo
+* Trabalho fisicamente intenso
+
+Esse campo será utilizado como informação complementar para estimativa de atividade/NEAT.
+
+---
+
+# 6. Atividades físicas por dia da semana
+
+Este é um dos principais blocos da V1.0.
+
+Para cada dia:
+
+**Segunda a domingo**
+
+Permitir adicionar múltiplas atividades.
+
+### Campos de cada atividade
+
+| Campo                                | Obrigatório |
+| ------------------------------------ | ----------- |
+| Tipo de atividade                    | Sim         |
+| Duração                              | Sim         |
+| Intensidade                          | Sim         |
+| Horário                              | Não         |
+| Distância                            | Condicional |
+| Calorias informadas pelo dispositivo | Não         |
+| Fonte                                | Sim         |
+
+### Exemplo
+
+**Segunda-feira**
+
+* Musculação — 60 min — moderada
+* Corrida — 30 min — alta
+* Caminhada — 20 min — leve
+
+**Terça-feira**
+
+* Caminhada — 40 min — moderada
+
+E assim sucessivamente.
+
+---
+
+# 7. Atividade não estruturada
+
+Para complementar a rotina:
+
+| Campo                           | Obrigatório           |
+| ------------------------------- | --------------------- |
+| Média de passos/dia             | Não                   |
+| Dados de smartwatch disponíveis | Não                   |
+| Tempo sedentário                | Não                   |
+| Atividade ocupacional           | Sim, quando relevante |
+
+Quando houver integração com smartwatch, os dados objetivos devem ser utilizados como fonte adicional.
+
+---
+
+# 8. Condições especiais
+
+Pergunta obrigatória:
+
+> Você possui alguma condição de saúde que possa influenciar sua alimentação, peso ou metabolismo?
+
+### Respostas
+
+* Não
+* Sim
+
+Se **Sim**, selecionar:
+
+* Diabetes
+* Pré-diabetes
+* Doença renal
+* Doença cardiovascular
+* Hipertensão
+* Doença hepática
+* Outra condição relevante
+
+Essa pergunta tem função principalmente de **classificação e segurança**.
+
+Não precisamos transformar a Anamnese V1.0 em prontuário médico.
+
+---
+
+# 9. Blocos condicionais
+
+Somente serão apresentados quando aplicáveis.
+
+## 9.1 Diabetes
+
+* Tipo de diabetes
+* Usa insulina?
+* Usa medicamento para controle glicêmico?
+* HbA1c, se disponível
+
+## 9.2 Doença renal
+
+* Possui diagnóstico de doença renal?
+* Estágio, se conhecido
+* TFG/eGFR, se disponível
+* Faz diálise?
+
+## 9.3 Atleta
+
+Ativar quando o usuário informar prática esportiva estruturada ou o profissional classificar como atleta.
+
+* Modalidade principal
+* Horas de treinamento por semana
+* Objetivo esportivo
+* Possui competição próxima?
+
+## 9.4 Idoso
+
+Ativar conforme classificação definida pelo sistema.
+
+* Houve perda involuntária de peso?
+* Houve redução importante de força ou mobilidade?
+* Existe dificuldade para alimentação?
+
+Essas perguntas têm principalmente função de **identificação de risco e seleção do contexto apropriado**.
+
+---
+
+# 10. Histórico recente de peso
+
+O sistema deve recuperar automaticamente o histórico existente.
+
+Não é necessário perguntar tudo novamente.
+
+Apresentar:
+
+* peso atual;
+* peso anterior;
+* variação nos últimos 30 dias;
+* variação em 3 meses;
+* variação em 6 meses, quando disponível.
+
+Pergunta adicional:
+
+> Houve perda ou ganho de peso importante não planejado?
+
+* Não
+* Sim
+* Não sabe
+
+---
+
+# 11. Confirmação dos dados
+
+Antes de concluir a Anamnese:
+
+### Tela "Confirme seus dados"
+
+Mostrar:
+
+* idade;
+* sexo para cálculo;
+* peso;
+* data do peso;
+* altura;
+* composição corporal, se disponível;
+* objetivo;
+* rotina;
+* atividades da semana;
+* condições especiais.
+
+Usuário/profissional confirma.
+
+Somente depois disso a Anamnese é finalizada e enviada aos motores.
+
+---
+
+# 12. Dados calculados — não são perguntas
+
+Os seguintes campos **não devem ser perguntados ao usuário**.
+
+São produzidos pelo sistema:
+
+* IMC;
+* classificação antropométrica aplicável;
+* TMB;
+* TDEE;
+* NEAT estimado;
+* EAT estimado;
+* TEF estimado;
+* gasto energético por dia da semana;
+* gasto energético médio semanal;
+* necessidade energética calculada;
+* proteína calculada;
+* carboidrato calculado;
+* gordura calculada.
+
+Todos devem ficar registrados na versão da Anamnese.
+
+---
+
+# 13. Resultado do Motor Metabólico
+
+A Anamnese deverá armazenar:
+
+### Energia calculada
+
+| Campo        |
+| ------------ |
+| TMB          |
+| TDEE segunda |
+| TDEE terça   |
+| TDEE quarta  |
+| TDEE quinta  |
+| TDEE sexta   |
+| TDEE sábado  |
+| TDEE domingo |
+| TDEE médio   |
+
+### Macronutrientes calculados
+
+Para cada dia:
+
+* kcal;
+* proteína (g);
+* carboidrato (g);
+* gordura (g).
+
+---
+
+# 14. Meta
+
+As metas são separadas do resultado calculado.
+
+## Resultado do sistema
+
+Calculado pelo Motor Metabólico.
+
+## Meta profissional
+
+Somente para usuário acompanhado.
+
+Pode ser definida:
+
+* para todos os dias igualmente;
+* individualmente por dia da semana.
+
+### Usuário sem profissional
+
+A recomendação calculada pelo sistema será:
+
+**média diária → replicada para os sete dias.**
+
+---
+
+# 15. Dados de controle e auditoria
+
+Cada Anamnese deverá registrar automaticamente:
+
+* versão;
+* data/hora;
+* usuário responsável;
+* profissional, quando aplicável;
+* origem dos dados;
+* data das medições;
+* dados confirmados;
+* fórmula utilizada;
+* protocolo utilizado;
+* versão da fórmula;
+* versão do protocolo;
+* versão do Motor Metabólico;
+* resultado calculado;
+* meta profissional;
+* exceções;
+* qualidade dos dados.
+
+---
+
+# 16. O que NÃO entra na Anamnese V1.0
+
+Para manter a proposta realmente mínima, não serão perguntas obrigatórias:
+
+* sono detalhado;
+* questionário alimentar extenso;
+* recordatório de 24 horas;
+* suplementos detalhados;
+* todos os medicamentos;
+* painel laboratorial completo;
+* doenças gastrointestinais detalhadas;
+* histórico médico completo;
+* histórico familiar;
+* avaliações psicológicas;
+* questionários extensos de estilo de vida.
+
+Esses dados poderão ser incorporados posteriormente por módulos específicos ou pelo acompanhamento profissional.
+
+---
+
+# 17. Resumo da Anamnese V1.0
+
+A Anamnese deverá responder essencialmente:
+
+**QUEM?**
+
+* idade;
+* sexo para cálculo;
+* peso;
+* altura;
+* composição corporal disponível.
+
+**QUER O QUÊ?**
+
+* objetivo;
+* meta, quando aplicável.
+
+**GASTA QUANTO?**
+
+* rotina;
+* atividades por dia da semana.
+
+**EXISTE ALGUMA CONDIÇÃO ESPECIAL?**
+
+* diabetes;
+* renal;
+* atleta;
+* idoso;
+* outras condições relevantes.
+
+**OS DADOS ESTÃO CONFIRMADOS?**
+
+* confirmação final.
+
+Todo o restante será calculado, recuperado do histórico ou tratado por módulos específicos.
+
+---
+
+# 18. Regra de arquitetura
+
+A V1.0 deve seguir:
+
+**Perguntas mínimas → Dados confirmados → Anamnese versionada → Motor Metabólico → Resultado calculado → Meta profissional, quando aplicável.**
+
+A Anamnese não deve conter informações redundantes que já existam em outros módulos nem pedir ao usuário informações que possam ser calculadas ou obtidas automaticamente.
+
+
+
+# Motor Metabólico — Fórmulas de TMB V1.0
+
+## 1. Objetivo
+
+Definir as fórmulas utilizadas pelo Motor Metabólico para estimar a **Taxa Metabólica Basal (TMB)** / gasto energético de repouso do usuário.
+
+As fórmulas são componentes de cálculo e **não representam diagnóstico clínico**.
+
+O resultado calculado deve permanecer separado de qualquer meta energética posteriormente definida pelo profissional.
+
+---
+
+## 2. Fórmulas obrigatórias da V1.0
+
+A V1.0 deverá disponibilizar três fórmulas:
+
+| Código  | Fórmula         | Principal requisito        |
+| ------- | --------------- | -------------------------- |
+| TMB-001 | Mifflin-St Jeor | peso, altura, idade e sexo |
+| TMB-002 | Katch-McArdle   | massa livre de gordura     |
+| TMB-003 | Cunningham      | massa livre de gordura     |
+
+### TMB-001 — Mifflin-St Jeor
+
+**Homens:**
+
+`TMB = (10 × peso) + (6,25 × altura) − (5 × idade) + 5`
+
+**Mulheres:**
+
+`TMB = (10 × peso) + (6,25 × altura) − (5 × idade) − 161`
+
+Onde:
+
+* peso = kg
+* altura = cm
+* idade = anos
+* resultado = kcal/dia
+
+A equação original foi desenvolvida a partir de 498 adultos de 19 a 78 anos, com gasto energético medido por calorimetria indireta.
+
+**Requisito mínimo:**
+
+* idade válida;
+* sexo necessário para a equação;
+* peso válido;
+* altura válida.
+
+---
+
+### TMB-002 — Katch-McArdle
+
+`TMB = 370 + (21,6 × MLG)`
+
+Onde:
+
+* MLG = massa livre de gordura em kg;
+* resultado = kcal/dia.
+
+**Requisito mínimo:**
+
+* peso válido;
+* massa livre de gordura válida e confiável.
+
+A fórmula é baseada na relação entre gasto energético de repouso e massa corporal livre de gordura. A utilização de composição corporal deve considerar a qualidade da medição utilizada para estimar a MLG.
+
+---
+
+### TMB-003 — Cunningham
+
+`TMB = 500 + (22 × MLG)`
+
+Onde:
+
+* MLG = massa livre de gordura em kg;
+* resultado = kcal/dia.
+
+A relação entre massa livre de gordura e gasto energético de repouso é especialmente relevante em indivíduos fisicamente ativos, embora estudos mostrem que nenhuma equação preditiva deve ser interpretada como equivalente a uma medição individual por calorimetria indireta.
+
+---
+
+## 3. Seleção da fórmula
+
+O sistema deverá registrar explicitamente a fórmula utilizada.
+
+O sistema **não deverá substituir silenciosamente** a fórmula selecionada.
+
+Quando houver profissional:
+
+> **O profissional seleciona a fórmula.**
+
+Quando não houver profissional:
+
+> **O sistema seleciona a fórmula de acordo com as regras parametrizadas e os dados disponíveis.**
+
+A seleção deverá considerar principalmente a disponibilidade e a qualidade dos dados necessários.
+
+### Regra geral
+
+**Sem MLG confiável:**
+
+→ Mifflin-St Jeor disponível.
+
+**Com MLG confiável:**
+
+→ Katch-McArdle e Cunningham podem ser calculadas.
+
+O fato de uma fórmula poder ser calculada **não significa que ela seja automaticamente escolhida**.
+
+---
+
+## 4. Quando houver mais de uma fórmula disponível
+
+Quando os dados permitirem calcular mais de uma fórmula, o sistema poderá apresentar:
+
+* resultado da fórmula selecionada;
+* resultados das demais fórmulas disponíveis;
+* diferença entre os resultados;
+* identificação da fórmula efetivamente utilizada no cálculo energético.
+
+O sistema **não deverá fazer uma média automática entre as fórmulas** na V1.0.
+
+Também não deverá escolher automaticamente a fórmula que produzir o maior ou menor gasto energético.
+
+---
+
+## 5. Qualidade da massa livre de gordura
+
+A MLG utilizada pelas fórmulas TMB-002 e TMB-003 deverá possuir:
+
+* valor;
+* unidade;
+* data da medição;
+* fonte;
+* método, quando disponível;
+* indicação de confiabilidade/qualidade.
+
+Exemplos de fonte:
+
+* avaliação profissional;
+* DEXA;
+* bioimpedância;
+* dispositivo conectado;
+* cálculo derivado de outros dados.
+
+A origem da MLG deverá permanecer registrada.
+
+Uma MLG antiga não deverá ser tratada automaticamente como se fosse uma medição atual.
+
+---
+
+## 6. Dados insuficientes
+
+Se os dados necessários para determinada fórmula não estiverem disponíveis ou forem considerados inválidos:
+
+* a fórmula não deverá ser executada;
+* o sistema deverá registrar o motivo;
+* outra fórmula somente poderá ser utilizada se estiver autorizada pelas regras de seleção;
+* nenhuma variável ausente deverá ser artificialmente preenchida.
+
+Exemplo:
+
+> MLG ausente → não executar Katch-McArdle ou Cunningham.
+
+---
+
+## 7. Resultado da TMB
+
+Cada cálculo deverá armazenar:
+
+* código da fórmula;
+* nome da fórmula;
+* versão da fórmula;
+* data/hora do cálculo;
+* peso utilizado;
+* altura utilizada;
+* idade utilizada;
+* sexo utilizado;
+* MLG utilizada, quando aplicável;
+* fonte da MLG;
+* TMB calculada;
+* versão do Motor Metabólico;
+* origem dos dados;
+* eventuais alertas de qualidade.
+
+O resultado deverá ficar vinculado à **versão da anamnese** que originou o cálculo.
+
+---
+
+## 8. Não sobrescrever resultados históricos
+
+Um novo cálculo não deverá alterar o resultado de uma anamnese anterior.
+
+Exemplo:
+
+**Anamnese 01**
+
+* Mifflin-St Jeor
+* 1.780 kcal/dia
+
+**Anamnese 02**
+
+* Cunningham
+* 1.920 kcal/dia
+
+Os dois resultados permanecem disponíveis no histórico.
+
+---
+
+## 9. Calorimetria indireta
+
+Quando houver uma medição válida de gasto energético de repouso por calorimetria indireta, o valor medido deverá ser armazenado como **resultado medido**, separado dos resultados estimados pelas equações.
+
+O sistema não deverá tratar automaticamente uma equação preditiva como equivalente à medição direta.
+
+A literatura demonstra variação individual relevante entre gasto medido e estimado, reforçando essa distinção.
+
+---
+
+## 10. Princípio fundamental
+
+O Motor Metabólico deverá distinguir:
+
+**Dado informado**
+→ peso, altura, sexo, etc.
+
+**Dado medido**
+→ composição corporal, calorimetria, etc.
+
+**Dado observado**
+→ dados provenientes de dispositivos e integrações.
+
+**Resultado calculado**
+→ TMB estimada pela fórmula.
+
+**Meta**
+→ valor posteriormente definido pelo sistema dentro das regras permitidas ou pelo profissional.
+
+Nenhum desses conceitos deverá substituir silenciosamente o outro.
+
+---
+
+## 11. Estrutura recomendada da biblioteca de fórmulas
+
+Cada fórmula deverá possuir:
+
+* `formula_id`
+* `codigo`
+* `nome`
+* `descricao`
+* `equacao`
+* `unidade_entrada`
+* `unidade_saida`
+* `variaveis_necessarias`
+* `populacao_alvo`
+* `restricoes`
+* `referencia_cientifica`
+* `versao`
+* `data_inicio_validade`
+* `data_fim_validade`
+* `status`
+* `observacoes`
+
+A biblioteca deverá permitir a inclusão de novas fórmulas sem alterar a estrutura principal do Motor Metabólico.
+
+---
+
+## 12. Observação científica
+
+As equações são **estimativas populacionais**, não medições individuais. Estudos de validação mostram diferenças relevantes entre equações e calorimetria indireta, variando conforme população e composição corporal. Portanto, o resultado deverá ser utilizado como estimativa e posteriormente confrontado com a evolução observada do usuário.
+
+
+# Motor Metabólico — Gasto Energético Diário e TDEE V1.0
+
+## 1. Objetivo
+
+Definir as regras para cálculo do **gasto energético total diário (TDEE)** a partir da TMB/REE calculada pelo Motor Metabólico e dos dados disponíveis sobre atividade física, rotina e alimentação.
+
+O resultado deverá ser calculado **individualmente para cada dia da semana**, sempre que houver dados suficientes para diferenciar os dias.
+
+---
+
+# 2. Conceito
+
+O TDEE representa o gasto energético total diário e é composto, de forma simplificada, por:
+
+**TDEE = gasto de repouso + atividade física + efeito térmico dos alimentos**
+
+A atividade física inclui tanto atividades estruturadas/exercício quanto atividades não relacionadas ao exercício (NEAT).
+
+Para o Motor Metabólico, serão consideradas duas estratégias:
+
+### Estratégia A — PAL
+
+`TDEE = TMB × PAL`
+
+Utilizada principalmente quando não existem dados suficientemente confiáveis para decompor o gasto energético diário.
+
+### Estratégia B — Decomposição
+
+Quando houver dados suficientes:
+
+`TDEE = TMB + NEAT + EAT + TEF`
+
+Onde:
+
+* **TMB** = metabolismo de repouso utilizado pelo sistema;
+* **NEAT** = atividade física não relacionada ao exercício;
+* **EAT** = gasto relacionado ao exercício/atividade física estruturada;
+* **TEF** = efeito térmico dos alimentos.
+
+---
+
+# 3. Regra fundamental de cálculo
+
+O sistema deverá utilizar a **melhor estratégia suportada pela qualidade dos dados disponíveis**.
+
+### Dados insuficientes para decomposição
+
+Utilizar:
+
+`TDEE = TMB × PAL`
+
+### Dados suficientes e confiáveis
+
+Utilizar:
+
+`TDEE = TMB + NEAT + EAT + TEF`
+
+O sistema deverá registrar qual estratégia foi utilizada.
+
+O sistema **não deverá combinar parcialmente os dois métodos sem uma regra explícita**, evitando dupla contagem de atividade.
+
+---
+
+# 4. Cálculo por dia da semana
+
+O Motor Metabólico deverá calcular o gasto energético para:
+
+* segunda-feira;
+* terça-feira;
+* quarta-feira;
+* quinta-feira;
+* sexta-feira;
+* sábado;
+* domingo.
+
+Cada dia poderá possuir um TDEE diferente.
+
+Exemplo:
+
+| Dia     | Atividade            | TDEE calculado |
+| ------- | -------------------- | -------------: |
+| Segunda | treino               |     2.450 kcal |
+| Terça   | rotina sedentária    |     2.050 kcal |
+| Quarta  | treino               |     2.450 kcal |
+| Quinta  | rotina sedentária    |     2.050 kcal |
+| Sexta   | treino               |     2.450 kcal |
+| Sábado  | atividade recreativa |     2.300 kcal |
+| Domingo | baixa atividade      |     1.950 kcal |
+
+Os valores acima são apenas ilustrativos.
+
+---
+
+# 5. NEAT
+
+O NEAT representa o gasto relacionado às atividades físicas não estruturadas do cotidiano.
+
+A prioridade dos dados será:
+
+1. dados objetivos de smartwatch/dispositivo;
+2. passos registrados;
+3. atividades registradas manualmente;
+4. rotina ocupacional e nível geral de atividade informado na anamnese.
+
+Quando não houver dados suficientes para estimar o NEAT individualmente, o sistema **não deverá inventar um valor numérico**.
+
+Nesse caso, deverá utilizar o PAL como método de cálculo.
+
+---
+
+# 6. EAT — exercício/atividade estruturada
+
+O EAT poderá ser calculado quando existirem dados confiáveis de atividades estruturadas.
+
+Cada atividade poderá possuir:
+
+* tipo;
+* duração;
+* intensidade;
+* frequência;
+* distância, quando aplicável;
+* gasto energético estimado pelo dispositivo, quando disponível;
+* fonte do dado;
+* data;
+* dia da semana.
+
+Quando o dispositivo fornecer estimativa de gasto energético, o valor deverá ser tratado como **estimativa do dispositivo**, e não como medição direta.
+
+O sistema deverá manter a origem do valor.
+
+---
+
+# 7. TEF
+
+O efeito térmico dos alimentos deverá ser considerado quando houver informação suficiente sobre ingestão energética/composição da dieta.
+
+Como estimativa simplificada, o sistema poderá utilizar aproximadamente **10% do gasto energético total**, conforme parametrização da versão do Motor. O TEF é influenciado pela composição dos alimentos e por características individuais.
+
+Quando houver macronutrientes disponíveis, o sistema poderá utilizar uma estimativa baseada na composição da dieta, desde que os coeficientes estejam parametrizados e versionados.
+
+O sistema não deverá aplicar simultaneamente:
+
+* TEF global;
+* TEF por macronutrientes.
+
+Isso geraria dupla contagem.
+
+---
+
+# 8. PAL como fallback
+
+O PAL será utilizado quando:
+
+* não houver dados suficientes de NEAT;
+* não houver dados confiáveis de exercício;
+* os dados do dispositivo forem insuficientes;
+* houver baixa qualidade ou baixa continuidade dos dados;
+* a decomposição dos componentes produzir resultado pouco confiável.
+
+O PAL deverá ser um parâmetro versionado da biblioteca do Motor Metabólico.
+
+O valor utilizado deverá ser registrado juntamente com sua fonte/configuração.
+
+A literatura utiliza PAL como relação entre TDEE e gasto energético de repouso, embora existam limitações na estimativa individual.
+
+---
+
+# 9. Não tratar ausência de atividade como atividade zero
+
+A ausência de registro de atividade **não significa automaticamente ausência de atividade**.
+
+Exemplo:
+
+O usuário não registrou treino na terça-feira.
+
+O sistema não deverá concluir automaticamente:
+
+`EAT = 0`
+
+Antes deverá verificar a qualidade e completude dos dados.
+
+Se não for possível determinar o gasto de atividade com confiabilidade, o sistema deverá utilizar a estratégia adequada de fallback e registrar a limitação.
+
+---
+
+# 10. Dados de smartwatch
+
+Quando houver integração disponível, o sistema poderá utilizar:
+
+* passos;
+* duração das atividades;
+* tipo de atividade;
+* frequência;
+* distância;
+* estimativa de calorias;
+* dados de movimento;
+* outros dados suportados.
+
+Os dados observados deverão ser utilizados para melhorar a estimativa nas reavaliações seguintes.
+
+Dados de smartwatch **não deverão ser tratados como diagnóstico clínico nem como medição direta do TDEE**.
+
+---
+
+# 11. Regra para usuário sem profissional
+
+Para usuário sem acompanhamento profissional:
+
+1. o sistema calcula a TMB utilizando a fórmula de referência definida para o usuário;
+2. identifica a qualidade dos dados disponíveis;
+3. seleciona a estratégia de cálculo do TDEE;
+4. calcula o TDEE de cada dia da semana;
+5. informa ao usuário a estratégia utilizada;
+6. registra a estratégia e os parâmetros utilizados;
+7. mantém a estratégia enquanto os dados permanecerem adequados.
+
+Uma nova estratégia não deverá ser escolhida simplesmente porque novos dados apareceram.
+
+A mudança deverá ocorrer somente quando as regras de qualidade dos dados indicarem que a estratégia anterior deixou de ser adequada.
+
+---
+
+# 12. Regra para usuário com profissional
+
+Para usuário acompanhado por profissional:
+
+* o profissional poderá definir a estratégia de cálculo;
+* poderá utilizar PAL;
+* poderá utilizar decomposição por componentes;
+* poderá definir parâmetros quando permitido pelo Motor;
+* poderá definir metas energéticas independentemente do TDEE calculado.
+
+O **TDEE calculado e a meta profissional são campos diferentes**.
+
+A meta profissional nunca deverá sobrescrever o TDEE calculado.
+
+---
+
+# 13. Média semanal
+
+O sistema deverá calcular:
+
+`TDEE médio semanal = soma dos TDEE dos 7 dias ÷ 7`
+
+A média semanal é um indicador complementar.
+
+Ela **não deverá substituir os valores individuais de cada dia**.
+
+Os sete valores deverão permanecer disponíveis para:
+
+* planejamento;
+* comparação histórica;
+* análise de aderência;
+* reavaliação;
+* Motor Adaptativo;
+* dashboards.
+
+---
+
+# 14. Armazenamento do resultado
+
+Cada cálculo deverá armazenar:
+
+* TDEE de cada dia;
+* TDEE médio semanal;
+* TMB utilizada;
+* fórmula da TMB;
+* estratégia de cálculo;
+* PAL, quando utilizado;
+* NEAT, quando calculado;
+* EAT, quando calculado;
+* TEF, quando calculado;
+* parâmetros utilizados;
+* fontes dos dados;
+* qualidade dos dados;
+* versão do algoritmo;
+* data/hora do cálculo;
+* versão da anamnese relacionada.
+
+---
+
+# 15. Histórico
+
+O TDEE calculado deverá permanecer vinculado à respectiva versão da anamnese.
+
+Uma nova reavaliação não poderá alterar retroativamente:
+
+* TMB anterior;
+* TDEE anterior;
+* atividade anterior;
+* parâmetros anteriores;
+* estratégia anterior.
+
+A comparação histórica deverá mostrar claramente a evolução dos valores.
+
+---
+
+# 16. Regra de rastreabilidade
+
+Para qualquer TDEE apresentado ao usuário ou profissional, o sistema deverá ser capaz de responder:
+
+**"Como este valor foi calculado?"**
+
+Devem estar disponíveis:
+
+1. TMB utilizada;
+2. fórmula da TMB;
+3. dados de entrada;
+4. estratégia utilizada;
+5. componentes considerados;
+6. parâmetros;
+7. fontes dos dados;
+8. versão do algoritmo;
+9. data do cálculo.
+
+---
+
+# 17. Princípio fundamental
+
+O Motor Metabólico deverá priorizar:
+
+**dados objetivos → dados observados → dados informados → estimativa por PAL**
+
+quando aplicável.
+
+Quanto melhor a qualidade dos dados, maior poderá ser a especificidade do cálculo.
+
+Entretanto, **maior quantidade de dados não significa automaticamente maior precisão**. A qualidade, continuidade, consistência e confiabilidade dos dados deverão ser avaliadas antes da utilização.
+
+A literatura mostra que estimativas de gasto energético por questionários e métodos indiretos apresentam limitações importantes em nível individual, reforçando a necessidade de registrar a qualidade e a origem dos dados.
+
+
+# Motor Metabólico — Protocolos de Macronutrientes V1.0
+
+## 1. Objetivo
+
+Definir os protocolos utilizados pelo Motor Metabólico para calcular as metas de:
+
+* proteína;
+* gordura;
+* carboidrato.
+
+O sistema deverá separar:
+
+**TDEE calculado → objetivo energético → protocolo de macronutrientes → cálculo dos macros → meta final.**
+
+O cálculo dos macronutrientes não substitui a decisão clínica do profissional.
+
+---
+
+# 2. Princípio geral
+
+O Motor Metabólico não deverá assumir que existe uma distribuição universal de macronutrientes adequada para todos os usuários.
+
+A distribuição deverá considerar:
+
+* objetivo;
+* características individuais;
+* nível de atividade;
+* composição corporal, quando disponível;
+* condições clínicas relevantes;
+* qualidade dos dados;
+* protocolo selecionado;
+* parâmetros definidos pelo profissional, quando houver.
+
+A literatura e diretrizes atuais apoiam a individualização da distribuição de macronutrientes, em vez de uma única proporção fixa para todos.
+
+---
+
+# 3. Protocolos V1.0
+
+A V1.0 deverá disponibilizar:
+
+| Código    | Protocolo                                                                     |
+| --------- | ----------------------------------------------------------------------------- |
+| MACRO-001 | Percentual energético                                                         |
+| MACRO-002 | Proteína g/kg + gordura g/kg + carboidrato residual                           |
+| MACRO-003 | Proteína g/kg de massa livre de gordura + gordura g/kg + carboidrato residual |
+| MACRO-004 | Proteína prioritária + carboidrato variável                                   |
+| MACRO-005 | Personalizado pelo profissional                                               |
+
+---
+
+# 4. MACRO-001 — Percentual energético
+
+O profissional ou sistema define a proporção energética destinada a cada macronutriente.
+
+Exemplo de estrutura:
+
+* proteína: X%;
+* carboidrato: Y%;
+* gordura: Z%.
+
+Regra:
+
+`X + Y + Z = 100%`
+
+Conversão:
+
+### Proteína
+
+`gramas = kcal × percentual ÷ 4`
+
+### Carboidrato
+
+`gramas = kcal × percentual ÷ 4`
+
+### Gordura
+
+`gramas = kcal × percentual ÷ 9`
+
+O sistema deverá armazenar tanto o percentual quanto o resultado em gramas.
+
+---
+
+# 5. MACRO-002 — Proteína g/kg + gordura g/kg + carboidrato residual
+
+Nesse protocolo:
+
+1. define-se proteína em g/kg;
+2. define-se gordura em g/kg;
+3. calcula-se a energia correspondente;
+4. carboidrato recebe a energia restante.
+
+### Proteína
+
+`P(g) = peso × meta_proteína_g/kg`
+
+### Gordura
+
+`G(g) = peso × meta_gordura_g/kg`
+
+### Carboidrato
+
+`C(kcal) = energia-alvo − proteína(kcal) − gordura(kcal)`
+
+`C(g) = C(kcal) ÷ 4`
+
+O sistema deverá validar se o resultado é matematicamente possível.
+
+---
+
+# 6. MACRO-003 — Proteína g/kg de massa livre de gordura
+
+Quando houver massa livre de gordura confiável, o protocolo poderá utilizar a MLG como referência para proteína.
+
+### Proteína
+
+`P(g) = MLG × meta_proteína_g/kg_MLG`
+
+A gordura poderá ser calculada por g/kg de peso ou outro parâmetro autorizado.
+
+O carboidrato será calculado como energia residual.
+
+A fonte e a data da MLG deverão ser preservadas.
+
+---
+
+# 7. MACRO-004 — Proteína prioritária + carboidrato variável
+
+Esse protocolo permite que a proteína seja estabelecida como prioridade e que o restante da energia seja distribuído entre carboidrato e gordura de acordo com parâmetros configurados.
+
+Estrutura:
+
+1. determinar energia-alvo;
+2. determinar proteína;
+3. determinar limite/parâmetro de gordura;
+4. calcular carboidrato com a energia restante.
+
+O sistema deverá registrar todos os parâmetros utilizados.
+
+---
+
+# 8. MACRO-005 — Personalizado pelo profissional
+
+O profissional poderá definir diretamente:
+
+* calorias;
+* proteína;
+* carboidrato;
+* gordura;
+* valores em g/kg;
+* percentuais;
+* ou combinação desses parâmetros.
+
+O sistema deverá validar a consistência matemática dos valores.
+
+A meta definida pelo profissional deverá ser armazenada como:
+
+**Meta profissional**
+
+e nunca substituir:
+
+**Resultado calculado pelo Motor Metabólico.**
+
+---
+
+# 9. Usuário sem profissional
+
+Para usuário sem acompanhamento profissional:
+
+1. o sistema identifica o objetivo;
+2. verifica os dados disponíveis;
+3. verifica condições que exigem tratamento específico;
+4. seleciona um protocolo autorizado;
+5. informa ao usuário qual protocolo foi utilizado;
+6. informa os principais parâmetros utilizados;
+7. calcula os macronutrientes;
+8. registra a versão do protocolo.
+
+O sistema deverá manter o protocolo selecionado nas reavaliações seguintes, desde que continue adequado segundo as regras de qualidade e consistência dos dados.
+
+A simples disponibilidade posterior de outro dado não deverá provocar troca automática de protocolo.
+
+---
+
+# 10. Usuário com profissional
+
+Quando houver acompanhamento profissional:
+
+**o profissional define o protocolo e seus parâmetros**, dentro das funcionalidades disponíveis no Motor Metabólico.
+
+O profissional poderá:
+
+* aceitar um protocolo disponível;
+* alterar parâmetros;
+* utilizar protocolo personalizado;
+* definir metas diretamente.
+
+O sistema deverá registrar a autoria e a data da definição.
+
+---
+
+# 11. Objetivo não determina automaticamente o protocolo
+
+O objetivo do usuário não deverá ser convertido diretamente em uma distribuição fixa de macronutrientes.
+
+Exemplo:
+
+**Objetivo = perda de peso**
+
+não significa automaticamente:
+
+> proteína X%, carboidrato Y%, gordura Z%.
+
+O objetivo é uma informação utilizada pelo processo de seleção, mas a definição final depende do protocolo e dos demais dados.
+
+---
+
+# 12. Condições clínicas
+
+Quando houver condição clínica relevante, o sistema deverá verificar se existem regras específicas aplicáveis.
+
+Exemplos:
+
+* diabetes;
+* doença renal;
+* doença cardiovascular;
+* doença hepática;
+* outras condições relevantes.
+
+Na presença de uma condição que exija individualização clínica, o sistema não deverá aplicar automaticamente um protocolo genérico como se fosse universal.
+
+Para diabetes, por exemplo, a ADA recomenda individualização do plano alimentar e não estabelece uma distribuição única de macronutrientes.
+
+---
+
+# 13. Proteína
+
+A meta proteica deverá possuir:
+
+* valor em g/dia;
+* referência utilizada;
+* unidade de referência;
+* peso ou MLG utilizada;
+* protocolo;
+* fonte;
+* versão.
+
+O sistema poderá trabalhar com:
+
+* g/kg de peso;
+* g/kg de massa livre de gordura;
+* percentual energético;
+* valor definido pelo profissional.
+
+Não deverá existir um único valor universal de proteína aplicado a todos os usuários.
+
+---
+
+# 14. Gordura
+
+A gordura poderá ser determinada por:
+
+* percentual energético;
+* g/kg;
+* valor profissional;
+* cálculo residual, quando autorizado pelo protocolo.
+
+O sistema deverá preservar o método utilizado.
+
+---
+
+# 15. Carboidrato
+
+O carboidrato poderá ser determinado por:
+
+* percentual energético;
+* g/kg;
+* cálculo residual;
+* valor definido pelo profissional.
+
+Quando calculado como residual:
+
+`Carboidrato = energia-alvo − proteína − gordura`
+
+convertendo posteriormente as kcal restantes para gramas.
+
+---
+
+# 16. Validação matemática
+
+Após o cálculo, o sistema deverá verificar:
+
+`kcal proteína + kcal carboidrato + kcal gordura = energia-alvo`
+
+Considerando a tolerância de arredondamento configurada pelo sistema.
+
+Se houver diferença além da tolerância:
+
+* gerar alerta;
+* não apresentar o resultado como final;
+* registrar a inconsistência.
+
+---
+
+# 17. Metas diárias
+
+Para usuário sem profissional:
+
+A recomendação de macronutrientes será inicialmente uma **meta média diária**, replicada para os sete dias da semana.
+
+Entretanto, o TDEE calculado poderá ser diferente em cada dia.
+
+Portanto:
+
+**TDEE pode variar por dia sem obrigatoriamente alterar a meta diária de macronutrientes.**
+
+Para usuário com profissional:
+
+O profissional poderá definir:
+
+* uma meta única para os sete dias;
+* ou metas diferentes para cada dia da semana.
+
+---
+
+# 18. Resultado calculado × meta
+
+O sistema deverá manter campos independentes para:
+
+### Resultado calculado
+
+Valor produzido pelo Motor Metabólico.
+
+### Meta do sistema
+
+Valor recomendado pelo sistema quando aplicável.
+
+### Meta profissional
+
+Valor definido pelo profissional.
+
+Nenhum desses campos deverá sobrescrever os demais.
+
+---
+
+# 19. Histórico
+
+Cada cálculo deverá armazenar:
+
+* protocolo;
+* versão;
+* energia-alvo;
+* proteína;
+* carboidrato;
+* gordura;
+* unidade utilizada;
+* peso;
+* MLG, quando utilizada;
+* parâmetros;
+* origem dos dados;
+* usuário/profissional responsável pela definição;
+* data;
+* versão do Motor Metabólico.
+
+Uma nova reavaliação não deverá alterar os resultados históricos.
+
+---
+
+# 20. Princípio de segurança
+
+O Motor Metabólico é um mecanismo de cálculo e apoio à decisão.
+
+Ele não deverá:
+
+* diagnosticar doenças;
+* prescrever tratamento clínico;
+* alterar medicamentos;
+* substituir decisão profissional;
+* aplicar automaticamente um protocolo clínico específico sem as condições necessárias;
+* apresentar uma distribuição de macronutrientes como universalmente correta.
+
+Quando a situação exigir avaliação clínica individualizada, o sistema deverá sinalizar a necessidade de avaliação profissional.
+
+---
+
+# 21. Referência científica
+
+A arquitetura de protocolos deve permitir individualização. Diretrizes atuais, como as da American Diabetes Association, explicitam que não existe uma distribuição única de macronutrientes adequada para todas as pessoas e que o planejamento deve considerar necessidades, preferências, objetivos metabólicos e contexto individual.
+
+
+# Motor Metabólico — Definição da Meta Energética V1.0
+
+## 1. Objetivo
+
+Definir como o Motor Metabólico transforma o **TDEE calculado** em uma **meta energética diária**, considerando:
+
+* objetivo do usuário;
+* presença ou ausência de acompanhamento profissional;
+* TDEE de cada dia;
+* características individuais;
+* condições clínicas relevantes;
+* qualidade dos dados.
+
+A meta energética deverá permanecer separada do TDEE calculado.
+
+---
+
+# 2. Conceitos
+
+### TDEE
+
+Energia estimada que o usuário gasta por dia.
+
+### Meta energética
+
+Energia diária recomendada pelo sistema ou definida pelo profissional.
+
+### Diferença energética
+
+`Meta energética − TDEE`
+
+A diferença poderá representar:
+
+* déficit energético;
+* equilíbrio energético;
+* superávit energético.
+
+---
+
+# 3. Usuário sem acompanhamento profissional
+
+Para o usuário sem profissional, o sistema deverá:
+
+1. identificar o objetivo principal;
+2. utilizar o TDEE calculado;
+3. avaliar qualidade e disponibilidade dos dados;
+4. verificar condições ou situações que impeçam uma recomendação automática;
+5. selecionar uma estratégia energética autorizada;
+6. calcular a recomendação;
+7. informar ao usuário como a recomendação foi obtida;
+8. registrar a estratégia utilizada.
+
+A recomendação deverá ser **conservadora e parametrizada**, não sendo permitido ao sistema criar arbitrariamente um déficit ou superávit.
+
+---
+
+# 4. Objetivo: manutenção
+
+Quando o objetivo for manutenção:
+
+`Meta energética = TDEE`
+
+Quando o TDEE variar entre os dias da semana, o sistema poderá calcular uma meta energética diferente para cada dia.
+
+Entretanto, para o usuário sem profissional, a V1.0 deverá inicialmente apresentar uma **meta média diária semanal**.
+
+### Média
+
+`Meta média = Σ TDEE dos 7 dias ÷ 7`
+
+Essa média poderá ser utilizada como referência para uma meta diária única.
+
+Os TDEE individuais dos sete dias deverão permanecer armazenados.
+
+---
+
+# 5. Objetivo: perda de peso / redução de gordura
+
+Para perda de peso ou redução de gordura, a meta deverá ser inferior ao gasto energético estimado.
+
+`Meta energética = TDEE − déficit`
+
+O déficit deverá ser determinado por uma **regra parametrizada**, e não por um valor arbitrário fixo.
+
+A literatura e as diretrizes de manejo de peso apoiam abordagens individualizadas, considerando características e contexto do indivíduo.
+
+### V1.0
+
+Para usuário sem profissional, o sistema deverá utilizar uma tabela parametrizada de déficit energético por perfil.
+
+A tabela deverá considerar, no mínimo:
+
+* objetivo;
+* peso;
+* TDEE;
+* nível de atividade;
+* presença de condições relevantes;
+* disponibilidade/qualidade dos dados.
+
+Os parâmetros deverão ser versionados e passíveis de atualização.
+
+---
+
+# 6. Objetivo: ganho de peso
+
+Para ganho de peso:
+
+`Meta energética = TDEE + superávit`
+
+O superávit deverá seguir parâmetros configuráveis.
+
+O sistema não deverá aplicar automaticamente um superávit elevado.
+
+Quando o objetivo for especificamente ganho de massa muscular, o sistema deverá considerar também:
+
+* treinamento;
+* composição corporal;
+* nível de atividade;
+* objetivo esportivo;
+* qualidade dos dados.
+
+---
+
+# 7. Objetivo: ganho de massa / recomposição corporal
+
+A recomposição corporal não deverá ser tratada simplesmente como:
+
+> TDEE + X kcal
+
+ou
+
+> TDEE − X kcal.
+
+O sistema deverá permitir protocolo específico.
+
+Na V1.0, para usuário sem profissional, a recomendação deverá utilizar uma estratégia parametrizada específica para esse objetivo.
+
+Para usuário com profissional, o profissional poderá definir:
+
+* manutenção;
+* déficit;
+* superávit;
+* meta específica.
+
+---
+
+# 8. Objetivo: performance esportiva
+
+Para usuários com objetivo de performance, o sistema deverá considerar a relação entre ingestão energética, treinamento e disponibilidade energética.
+
+Não deverá aplicar automaticamente um déficit energético agressivo.
+
+Em atletas, baixa disponibilidade energética prolongada pode estar associada a efeitos adversos sobre saúde e desempenho.
+
+Quando o usuário estiver acompanhado por profissional, a definição da meta energética deverá ser do profissional.
+
+---
+
+# 9. Usuário com profissional
+
+Para usuário acompanhado por profissional:
+
+### O sistema calcula
+
+* TMB;
+* TDEE;
+* TDEE por dia da semana;
+* média semanal;
+* resultados dos protocolos selecionados.
+
+### O profissional define
+
+* meta energética;
+* déficit ou superávit, quando aplicável;
+* uma meta única;
+* ou metas diferentes por dia da semana.
+
+A meta definida pelo profissional deverá permanecer independente do TDEE calculado.
+
+---
+
+# 10. Metas diferentes por dia
+
+O profissional poderá definir:
+
+| Dia     |      TDEE |          Meta profissional |
+| ------- | --------: | -------------------------: |
+| Segunda | calculado | definida pelo profissional |
+| Terça   | calculado | definida pelo profissional |
+| Quarta  | calculado | definida pelo profissional |
+| Quinta  | calculado | definida pelo profissional |
+| Sexta   | calculado | definida pelo profissional |
+| Sábado  | calculado | definida pelo profissional |
+| Domingo | calculado | definida pelo profissional |
+
+Isso permite, por exemplo, que o profissional ajuste a ingestão conforme a rotina de treinamento.
+
+---
+
+# 11. Usuário sem profissional — meta inicial
+
+Na primeira recomendação, o sistema deverá produzir:
+
+### Resultado energético calculado
+
+TDEE de cada dia.
+
+### Recomendação energética
+
+Meta recomendada pelo sistema.
+
+### Meta diária apresentada
+
+Uma meta média diária, inicialmente replicada para os sete dias.
+
+O sistema deverá informar que o gasto energético pode variar entre os dias.
+
+---
+
+# 12. Manutenção da meta entre reavaliações
+
+Para usuário sem profissional:
+
+A meta energética permanecerá válida até a próxima reavaliação mensal, salvo ocorrência de evento que exija nova avaliação.
+
+Exemplos:
+
+* mudança importante de peso;
+* mudança relevante de rotina;
+* mudança importante de atividade;
+* alteração do objetivo;
+* nova condição relevante;
+* alteração significativa na qualidade dos dados.
+
+O sistema deverá registrar o motivo da nova avaliação.
+
+---
+
+# 13. Reavaliação mensal
+
+Para usuário sem profissional:
+
+**reavaliação = no máximo a cada 1 mês.**
+
+Na reavaliação, o sistema deverá utilizar os dados acumulados disponíveis.
+
+Isso permite comparar:
+
+* peso;
+* TDEE;
+* ingestão registrada;
+* atividade;
+* aderência;
+* evolução do objetivo;
+* resultados anteriores.
+
+A meta anterior não deverá ser simplesmente sobrescrita.
+
+Deverá ser criada uma nova versão.
+
+---
+
+# 14. Reavaliação com profissional
+
+Quando houver profissional:
+
+O profissional define a data da próxima reavaliação, respeitando a regra estabelecida no sistema de que o intervalo **não deverá ser superior a 1 mês**.
+
+Na nova avaliação, o profissional poderá:
+
+* manter a meta;
+* alterar a meta;
+* definir novas metas por dia;
+* alterar o protocolo;
+* alterar parâmetros;
+* alterar o objetivo.
+
+Cada alteração deverá gerar nova versão quando aplicável.
+
+---
+
+# 15. Resultado calculado × recomendação × meta profissional
+
+O sistema deverá manter três conceitos distintos:
+
+### TDEE calculado
+
+Quanto o sistema estima que o usuário gasta.
+
+### Recomendação do sistema
+
+Quanto o sistema recomenda consumir, quando o usuário não possui profissional e as regras permitem recomendação automática.
+
+### Meta profissional
+
+Quanto o profissional definiu que o usuário deve consumir.
+
+Nenhum desses valores deverá sobrescrever os demais.
+
+---
+
+# 16. Bloqueios e exceções
+
+O sistema não deverá gerar automaticamente uma meta energética quando houver situação que exija avaliação profissional ou dados insuficientes para uma recomendação segura.
+
+Nesses casos deverá:
+
+1. identificar a exceção;
+2. interromper ou limitar a recomendação automática;
+3. informar o motivo;
+4. solicitar avaliação profissional quando aplicável.
+
+---
+
+# 17. Dados insuficientes
+
+A ausência de dados não deverá ser interpretada como:
+
+* ausência de atividade;
+* gasto energético zero;
+* ingestão zero;
+* adesão zero.
+
+Quando os dados forem insuficientes, o sistema deverá utilizar uma metodologia de fallback previamente definida ou sinalizar que não possui base suficiente para uma recomendação automática.
+
+---
+
+# 18. Armazenamento
+
+Cada meta energética deverá armazenar:
+
+* valor;
+* unidade;
+* objetivo;
+* TDEE utilizado;
+* método utilizado;
+* déficit/superávit aplicado;
+* parâmetros;
+* estratégia;
+* origem;
+* usuário ou profissional responsável;
+* data;
+* versão;
+* versão do Motor Metabólico;
+* justificativa, quando aplicável.
+
+---
+
+# 19. Princípio fundamental
+
+O Motor Metabólico deverá seguir:
+
+**Dados → TMB → TDEE → Objetivo → Estratégia energética → Meta**
+
+A meta não deverá ser utilizada para alterar retroativamente o TDEE.
+
+O TDEE é um **resultado estimado**.
+
+A meta é uma **decisão de planejamento**.
+
+Quando houver profissional, a decisão final pertence ao profissional.
+
+Quando não houver profissional, o sistema poderá gerar uma recomendação automática somente dentro dos protocolos autorizados e com os dados necessários.
+
+
+## Definição de Cálculos, Metas e Prescrição — V1.0
+
+### ME-001 — Resultados calculados pelo Motor Metabólico
+
+O Motor Metabólico deverá calcular, registrar e disponibilizar para **todos os tipos de usuários**, independentemente da existência de acompanhamento profissional, todos os resultados previstos para a versão vigente do motor.
+
+Entre os resultados poderão estar:
+
+* Taxa Metabólica Basal (TMB);
+* Gasto Energético Total Diário (TDEE);
+* gasto energético estimado por dia da semana;
+* média energética semanal;
+* NEAT, EAT e TEF, quando aplicáveis;
+* energia total calculada;
+* distribuição e quantidade calculada de macronutrientes;
+* demais indicadores previstos na configuração vigente do Motor Metabólico.
+
+Cada resultado deverá ser armazenado com sua respectiva fórmula, parâmetros, fonte dos dados, versão do algoritmo e data do cálculo.
+
+Os resultados calculados pelo Motor Metabólico são **informações calculadas** e não deverão ser sobrescritos pela definição de metas.
+
+---
+
+### ME-002 — Disponibilização dos resultados calculados
+
+Os resultados calculados pelo Motor Metabólico deverão estar disponíveis para **todos os tipos de usuários**.
+
+A existência ou não de acompanhamento profissional não deverá impedir o usuário de visualizar seus resultados calculados.
+
+O sistema deverá apresentar de forma clara a distinção entre:
+
+* **Resultado calculado pelo Motor Metabólico**;
+* **Meta registrada**;
+* **Resultado observado**.
+
+O resultado calculado deverá permanecer preservado no histórico da respectiva anamnese/ciclo.
+
+---
+
+### ME-003 — Metas
+
+O sistema deverá possuir campos específicos para registro das **metas**, separados dos resultados calculados pelo Motor Metabólico.
+
+As metas poderão contemplar, entre outras:
+
+* energia/calorias;
+* proteínas;
+* carboidratos;
+* gorduras;
+* demais nutrientes parametrizados;
+* metas específicas por dia da semana, quando aplicável.
+
+A meta **não deverá sobrescrever, alterar ou substituir o resultado calculado pelo Motor Metabólico**.
+
+A relação deverá ser:
+
+**Resultado calculado → informação do motor**
+
+**Meta → objetivo definido para acompanhamento**
+
+**Resultado observado → aquilo que efetivamente ocorreu**
+
+---
+
+### ME-004 — Definição das metas conforme tipo de usuário
+
+#### Usuário com acompanhamento profissional
+
+As metas serão definidas e registradas pelo **profissional responsável**.
+
+O profissional poderá definir:
+
+* uma meta diária única;
+* metas diferentes por dia da semana;
+* metas energéticas;
+* metas de macronutrientes;
+* demais metas permitidas pelo sistema.
+
+A definição deverá ficar registrada no histórico, vinculada ao profissional, à anamnese/ciclo e à respectiva versão.
+
+#### Usuário sem acompanhamento profissional
+
+O próprio usuário poderá registrar suas metas no sistema.
+
+O sistema deverá permitir que o usuário informe suas metas energéticas, de macronutrientes e demais metas disponibilizadas.
+
+O sistema **não deverá interpretar o simples registro da meta pelo usuário como uma prescrição profissional**.
+
+---
+
+### ME-005 — Ausência de prescrição automática
+
+Para usuários sem acompanhamento profissional, o Motor Metabólico não deverá utilizar automaticamente seus cálculos para gerar uma prescrição de déficit, superávit ou distribuição de macronutrientes.
+
+O sistema poderá apresentar os resultados calculados pelo motor e permitir que o usuário registre suas próprias metas.
+
+Quando aplicável, o sistema poderá apresentar informações educativas e alertas relacionados a bem-estar e segurança, sem transformar essas informações em prescrição automática.
+
+---
+
+### ME-006 — Separação obrigatória entre cálculo, meta e resultado
+
+O sistema deverá manter três informações distintas:
+
+**1. Resultado calculado**
+
+* produzido pelo Motor Metabólico;
+* baseado nas fórmulas e dados disponíveis;
+* armazenado no histórico;
+* não pode ser sobrescrito pela meta.
+
+**2. Meta**
+
+* objetivo definido para o período;
+* pode ser definida pelo profissional ou pelo próprio usuário, conforme seu tipo de acompanhamento;
+* pode ser alterada mediante novo registro/versionamento.
+
+**3. Resultado observado**
+
+* representa o que efetivamente ocorreu;
+* pode ser obtido por registro manual, dispositivo integrado ou outra fonte válida;
+* não altera retroativamente o cálculo ou a meta registrada.
+
+---
+
+### ME-007 — Usuário com acompanhamento profissional
+
+Quando houver acompanhamento profissional, o Motor Metabólico continuará responsável exclusivamente pelos cálculos previstos em sua configuração.
+
+O profissional utilizará esses resultados, juntamente com histórico, dados observados, qualidade dos dados e demais informações clínicas disponíveis, para definir as metas e a conduta aplicável.
+
+A decisão profissional deverá permanecer registrada separadamente dos cálculos do motor.
+
+---
+
+### ME-008 — Motor Adaptativo
+
+O Motor Adaptativo poderá comparar:
+
+**Meta × Resultado calculado × Resultado observado**
+
+e identificar desvios, tendências ou padrões.
+
+Poderá apresentar informações e sugestões analíticas ao usuário ou ao profissional, conforme o contexto.
+
+Entretanto, o Motor Adaptativo não poderá alterar automaticamente:
+
+* metas;
+* resultados calculados;
+* fórmulas;
+* parâmetros do Motor Metabólico;
+* diagnóstico;
+* conduta profissional.
+
+Qualquer alteração de meta deverá gerar um novo registro/versionamento.
+
+---
+
+### ME-009 — Princípio arquitetural
+
+O Motor Metabólico deverá seguir o seguinte princípio:
+
+> **O Motor Metabólico calcula e informa. A meta é registrada separadamente. O profissional, quando existente, define a meta e a conduta profissional. O usuário sem acompanhamento pode registrar suas próprias metas, sem que isso seja tratado pelo sistema como prescrição profissional.**
+
+Dessa forma, o Motor Metabólico permanece como **motor de cálculo e informação, e não como motor de prescrição**.
+
+

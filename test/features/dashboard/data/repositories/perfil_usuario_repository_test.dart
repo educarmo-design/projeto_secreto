@@ -95,6 +95,7 @@ void main() {
   late _MockGoTrueClient auth;
   late _MockSupabaseQueryBuilder perfisBuilder;
   late _MockSupabaseQueryBuilder metricasBuilder;
+  late _MockSupabaseQueryBuilder anamnesesBuilder;
   late PerfilUsuarioRepository repository;
 
   setUpAll(() {
@@ -106,32 +107,39 @@ void main() {
     auth = _MockGoTrueClient();
     perfisBuilder = _MockSupabaseQueryBuilder();
     metricasBuilder = _MockSupabaseQueryBuilder();
+    anamnesesBuilder = _MockSupabaseQueryBuilder();
 
     when(() => supabase.auth).thenReturn(auth);
     when(() => auth.currentUser).thenReturn(_usuarioAutenticado);
     when(() => supabase.from('perfis_usuarios')).thenAnswer((_) => perfisBuilder);
     when(() => supabase.from('metricas_saude_diarias')).thenAnswer((_) => metricasBuilder);
+    when(() => supabase.from('anamneses')).thenAnswer((_) => anamnesesBuilder);
 
     repository = PerfilUsuarioRepository(supabaseClient: supabase);
   });
 
-  group('buscarAlturaCm', () {
-    test('devolve a altura quando a coluna está preenchida', () async {
-      when(() => perfisBuilder.select(any())).thenAnswer(
+  // RELATÓRIO 20260916_0001 (SSOT, docs/motor_metabolico.txt) —
+  // `perfis_usuarios.altura_cm` foi removida; a altura oficial agora vem da
+  // última anamnese com o campo preenchido. Mesmo encadeamento
+  // `.select().eq().not().order().limit().maybeSingle()` de
+  // `buscarUltimoPesoKg`, por isso reaproveita `_FakeSelectFilterBuilder`.
+  group('buscarAlturaCmDaUltimaAnamnese', () {
+    test('devolve a altura da última anamnese com o campo preenchido', () async {
+      when(() => anamnesesBuilder.select(any())).thenAnswer(
         (_) => _FakeSelectFilterBuilder({'altura_cm': 179}),
       );
 
-      final altura = await repository.buscarAlturaCm();
+      final altura = await repository.buscarAlturaCmDaUltimaAnamnese();
 
       expect(altura, 179.0);
     });
 
-    test('devolve null quando a coluna está vazia (não é erro)', () async {
-      when(() => perfisBuilder.select(any())).thenAnswer(
-        (_) => _FakeSelectFilterBuilder({'altura_cm': null}),
+    test('devolve null quando nunca preencheu uma anamnese com altura (não é erro)', () async {
+      when(() => anamnesesBuilder.select(any())).thenAnswer(
+        (_) => _FakeSelectFilterBuilder(null),
       );
 
-      final altura = await repository.buscarAlturaCm();
+      final altura = await repository.buscarAlturaCmDaUltimaAnamnese();
 
       expect(altura, isNull);
     });
@@ -139,40 +147,10 @@ void main() {
     test('devolve null sem consultar o Supabase quando ninguém está logado', () async {
       when(() => auth.currentUser).thenReturn(null);
 
-      final altura = await repository.buscarAlturaCm();
+      final altura = await repository.buscarAlturaCmDaUltimaAnamnese();
 
       expect(altura, isNull);
-      verifyNever(() => supabase.from('perfis_usuarios'));
-    });
-  });
-
-  group('atualizarAlturaCm', () {
-    // RELATÓRIO 20260812_0011 — BUG CORRIGIDO: era `.update()`, que não
-    // grava nada (sem erro!) se `perfis_usuarios` ainda não tiver uma
-    // linha pro usuário (achado real: `atleta1000@teste.com` tinha
-    // `auth.users` e `metricas_saude_diarias` cheios de dados do Garmin,
-    // mas ZERO linha em `perfis_usuarios`). `.upsert()` cria a linha se
-    // faltar, atualiza se existir.
-    test('faz UPSERT em perfis_usuarios com o id do usuário logado (cria a linha se faltar)', () async {
-      when(() => perfisBuilder.upsert(any(), onConflict: any(named: 'onConflict'))).thenAnswer(
-        (_) => _FakeFilterBuilder<dynamic>(
-          Future.value(const <Map<String, dynamic>>[]),
-        ),
-      );
-
-      await repository.atualizarAlturaCm(179);
-
-      verify(() => perfisBuilder.upsert(
-            {'id': _usuarioId, 'altura_cm': 179.0},
-            onConflict: 'id',
-          )).called(1);
-    });
-
-    test('lança StateError sem chamar o Supabase quando ninguém está logado', () async {
-      when(() => auth.currentUser).thenReturn(null);
-
-      expect(() => repository.atualizarAlturaCm(179), throwsStateError);
-      verifyNever(() => supabase.from('perfis_usuarios'));
+      verifyNever(() => supabase.from('anamneses'));
     });
   });
 
@@ -331,9 +309,9 @@ void main() {
     });
   });
 
-  // N16 (RELATÓRIO 20260819) — mesmo padrão de buscarAlturaCm/
-  // atualizarAlturaCm, exceto o valor padrão de "campo em branco": aqui é
-  // 200 (o padrão de produto/coluna no banco), não `null`.
+  // N16 (RELATÓRIO 20260819) — mesmo padrão de buscarDataNascimento/
+  // atualizarDataNascimento, exceto o valor padrão de "campo em branco":
+  // aqui é 200 (o padrão de produto/coluna no banco), não `null`.
   group('buscarTamanhoCopoMl', () {
     test('devolve o tamanho quando a coluna está preenchida', () async {
       when(() => perfisBuilder.select(any())).thenAnswer(

@@ -401,7 +401,14 @@ class CadastroController extends ValueNotifier<CadastroCepState> {
       'estado': perfil.uf,
       'geo_ranking_id': perfil.geoRankingId,
       if (perfil.idade != null) 'idade': perfil.idade,
-      if (perfil.pesoKg != null) 'peso_kg': perfil.pesoKg,
+      // RELATÓRIO 20260916_0001 (SSOT, docs/motor_metabolico.txt) —
+      // `perfis_usuarios.peso_kg` foi removida ("o peso não deve ser
+      // mantido como atributo permanente do perfil"). O campo continua
+      // capturado na Etapa 1 do cadastro e indo para
+      // `auth.users.user_metadata` via `toUserMetadata()` (JSONB livre,
+      // não afetado pela remoção da coluna) — só PAROU de ser gravado
+      // aqui, em `perfis_usuarios`. A fonte oficial de peso agora é sempre
+      // a Anamnese (`lib/features/nutricao/`).
       'eh_profissional': perfil.ehProfissional,
       if (perfil.tipoProfissional != null)
         'tipo_profissional': perfil.tipoProfissional,
@@ -463,12 +470,14 @@ class CadastroSubmitResult {
 /// nunca chegam a ser verificados.
 ///
 /// [perfilUso]/[ehProfissional]/[tipoProfissional]/[registroProfissional]/
-/// [idade]/[pesoKg] são os campos do Cadastro Dinâmico (Perfil Base +
-/// Profissional de Saúde) — persistidos duas vezes, de propósito: aqui em
+/// [idade] são os campos do Cadastro Dinâmico (Perfil Base + Profissional
+/// de Saúde) — persistidos duas vezes, de propósito: aqui em
 /// `perfis_usuarios` (o que o resto do app lê via RLS) via
 /// [toUserMetadata] direto no `signUp` da Etapa 1 (o que fica em
 /// `auth.users.user_metadata`, disponível mesmo antes da confirmação de
-/// e-mail).
+/// e-mail). [pesoKg] é exceção desde RELATÓRIO 20260916_0001 (SSOT): vai
+/// SÓ para `user_metadata`, nunca mais para `perfis_usuarios` (coluna
+/// removida) — a fonte oficial de peso é sempre a Anamnese.
 @immutable
 class CadastroPerfilPendente {
   final String nickname;

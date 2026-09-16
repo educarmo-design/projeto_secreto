@@ -38,12 +38,14 @@ class _FakeFilterBuilder<T> extends Fake implements PostgrestFilterBuilder<T> {
   }) => _future.then(onValue, onError: onError);
 }
 
-/// Encadeamento falso de `.select('altura_cm').eq('id', usuarioId).maybeSingle()`
+/// Encadeamento falso de
+/// `.select('altura_cm').eq('usuario_id', usuarioId).not('altura_cm', 'is', null).order(...).limit(1).maybeSingle()`
 /// — usado só por [HealthSyncService._buscarAlturaMetros] (inferência de
-/// IMC). Duas classes, uma por etapa do builder real (mesmo padrão de
-/// [_FakeFilterBuilder] acima, só que .eq() precisa devolver algo
-/// encadeável e .maybeSingle() troca de tipo — `PostgrestFilterBuilder` ->
-/// `PostgrestTransformBuilder`).
+/// IMC; RELATÓRIO 20260916_0001: lê `anamneses`, não mais
+/// `perfis_usuarios`). Duas classes, uma por etapa do builder real (mesmo
+/// padrão de [_FakeFilterBuilder] acima, só que .eq()/.not()/.order()/
+/// .limit() precisam devolver algo encadeável e .maybeSingle() troca de
+/// tipo — `PostgrestFilterBuilder` -> `PostgrestTransformBuilder`).
 class _FakeAlturaFilterBuilder extends Fake
     implements PostgrestFilterBuilder<List<Map<String, dynamic>>> {
   _FakeAlturaFilterBuilder(this._resultado, {this.erro});
@@ -58,6 +60,27 @@ class _FakeAlturaFilterBuilder extends Fake
     String column,
     Object value,
   ) => this as PostgrestFilterBuilder<List<Map<String, dynamic>>>;
+
+  @override
+  PostgrestFilterBuilder<List<Map<String, dynamic>>> not(
+    String column,
+    String operator,
+    Object? value,
+  ) => this as PostgrestFilterBuilder<List<Map<String, dynamic>>>;
+
+  @override
+  PostgrestTransformBuilder<List<Map<String, dynamic>>> order(
+    String column, {
+    bool ascending = false,
+    bool nullsFirst = false,
+    String? referencedTable,
+  }) => this as PostgrestTransformBuilder<List<Map<String, dynamic>>>;
+
+  @override
+  PostgrestTransformBuilder<List<Map<String, dynamic>>> limit(
+    int count, {
+    String? referencedTable,
+  }) => this as PostgrestTransformBuilder<List<Map<String, dynamic>>>;
 
   @override
   PostgrestTransformBuilder<Map<String, dynamic>?> maybeSingle() =>
@@ -270,7 +293,7 @@ void main() {
   late _MockGoTrueClient auth;
   late _MockSupabaseQueryBuilder metricasBuilder;
   late _MockSupabaseQueryBuilder anomaliasBuilder;
-  late _MockSupabaseQueryBuilder perfisBuilder;
+  late _MockSupabaseQueryBuilder anamnesesBuilder;
   late _MockSupabaseQueryBuilder treinosBuilder;
   late _MockSupabaseQueryBuilder rotasBuilder;
   late FakeSecureStorage secureStorage;
@@ -287,17 +310,19 @@ void main() {
     );
   }
 
-  /// Altura cadastrada em `perfis_usuarios.altura_cm` que o mock devolve —
-  /// `null` por padrão (mesma situação da maioria dos usuários hoje: coluna
-  /// nova, sem UI de preenchimento ainda). Testes de IMC-por-inferência
-  /// chamam de novo com um valor real.
+  /// Altura da última anamnese com o campo preenchido (RELATÓRIO
+  /// 20260916_0001 — não mais `perfis_usuarios.altura_cm`, coluna
+  /// removida) que o mock devolve — `null` por padrão (mesma situação da
+  /// maioria dos usuários hoje: ninguém preencheu uma anamnese com altura
+  /// ainda). Testes de IMC-por-inferência chamam de novo com um valor
+  /// real.
   void stubAltura(double? alturaCm) {
     // thenAnswer, não thenReturn: _FakeAlturaFilterBuilder implementa Future
     // (via .then(), mesmo truque de _FakeFilterBuilder) — mocktail recusa
     // thenReturn com um valor Future-like (mesma pegadinha já documentada
     // em stubUpsertMetricas acima, mas essa é síncrona então não tinha
     // batido nela até agora).
-    when(() => perfisBuilder.select(any())).thenAnswer(
+    when(() => anamnesesBuilder.select(any())).thenAnswer(
       (_) => _FakeAlturaFilterBuilder(
         alturaCm == null ? null : {'altura_cm': alturaCm},
       ),
@@ -322,7 +347,7 @@ void main() {
     auth = _MockGoTrueClient();
     metricasBuilder = _MockSupabaseQueryBuilder();
     anomaliasBuilder = _MockSupabaseQueryBuilder();
-    perfisBuilder = _MockSupabaseQueryBuilder();
+    anamnesesBuilder = _MockSupabaseQueryBuilder();
     treinosBuilder = _MockSupabaseQueryBuilder();
     rotasBuilder = _MockSupabaseQueryBuilder();
     secureStorage = FakeSecureStorage();
@@ -353,10 +378,11 @@ void main() {
         .thenAnswer((_) => _FakeFilterBuilder<dynamic>(Future.value(const <Map<String, dynamic>>[])));
     stubUpsertMetricas(() => Future.value(const <Map<String, dynamic>>[]));
 
-    // Inferência cruzada de IMC (RELATÓRIO 20260811130000) — padrão "sem
-    // altura cadastrada" pra não afetar os testes que não são sobre isso;
+    // Inferência cruzada de IMC (RELATÓRIO 20260811130000, fonte trocada
+    // pra `anamneses` no RELATÓRIO 20260916_0001/SSOT) — padrão "sem
+    // altura registrada" pra não afetar os testes que não são sobre isso;
     // testes específicos chamam stubAltura(valor) para sobrescrever.
-    when(() => supabase.from('perfis_usuarios')).thenAnswer((_) => perfisBuilder);
+    when(() => supabase.from('anamneses')).thenAnswer((_) => anamnesesBuilder);
     stubAltura(null);
 
     // Treinos/Rotas (RELATÓRIO 20260811_0002) — padrão "sucesso", id
@@ -1640,7 +1666,7 @@ void main() {
       final resultado = await service.sincronizarDeltaDiario();
 
       expect(resultado.linhas.single['imc'], 23.5);
-      verifyNever(() => perfisBuilder.select(any()));
+      verifyNever(() => anamnesesBuilder.select(any()));
     });
 
     test('inferência cruzada: peso + percentual de gordura presentes, massa magra ausente → calcula massa magra', () async {
@@ -1747,7 +1773,7 @@ void main() {
 
       expect(resultado.linhas, hasLength(2));
       expect(resultado.linhas.every((linha) => linha['imc'] != null), isTrue);
-      verify(() => perfisBuilder.select(any())).called(1);
+      verify(() => anamnesesBuilder.select(any())).called(1);
     });
 
     test('achado RELATÓRIO 20260810_0007: falha transitória na 1ª tentativa NÃO apaga o IMC do resto do lote — tenta de novo', () async {
@@ -1759,7 +1785,7 @@ void main() {
       // não dava pra saber a altura ainda), mas o lote NÃO desiste: o dia
       // seguinte tenta de novo e consegue.
       var tentativas = 0;
-      when(() => perfisBuilder.select(any())).thenAnswer((_) {
+      when(() => anamnesesBuilder.select(any())).thenAnswer((_) {
         tentativas++;
         return tentativas == 1
             ? _FakeAlturaFilterBuilder(null, erro: Exception('timeout de rede'))
@@ -1786,7 +1812,7 @@ void main() {
       };
       expect(porData[_dataIso(hoje)]!['imc'], isNull);
       expect(porData[_dataIso(ontem)]!['imc'], isNotNull);
-      verify(() => perfisBuilder.select(any())).called(2);
+      verify(() => anamnesesBuilder.select(any())).called(2);
     });
   });
 
