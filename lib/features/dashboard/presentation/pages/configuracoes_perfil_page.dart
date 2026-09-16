@@ -137,9 +137,11 @@ class _ConfiguracoesPerfilPageState extends State<ConfiguracoesPerfilPage> {
                     MaterialPageRoute<void>(builder: (_) => const GerirVinculosPage()),
                   ),
                 ),
-                // RELATÓRIO 20260810_0006 — altura_cm alimenta o cálculo de
-                // IMC em HealthSyncService._buscarAlturaMetros; sem essa
-                // tela o único jeito de preencher era SQL manual.
+                // RELATÓRIO 20260810_0006 — altura alimenta o cálculo de
+                // IMC em HealthSyncService._buscarAlturaMetros. RELATÓRIO
+                // 20260916_0001 (SSOT): a altura em si só é editável via
+                // Anamnese agora — esta tela mostra o valor (somente
+                // leitura) e continua editando data de nascimento/sexo.
                 ListTile(
                   contentPadding: EdgeInsets.zero,
                   leading: const Icon(Icons.height),

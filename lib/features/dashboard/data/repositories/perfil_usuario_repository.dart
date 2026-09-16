@@ -22,18 +22,22 @@ enum SexoBiologico {
   }
 }
 
-/// Repositório mínimo do "dado físico" do usuário — hoje só `altura_cm`
-/// (RELATÓRIO 20260810_0006, decisão do fundador: tela de Perfil em vez de
-/// injetar o dado via SQL manual). Não usa [HealthPayloadModel]/a tabela
-/// `metricas_saude_diarias`: `altura_cm` é um dado de PERFIL (muda raramente,
-/// não é uma métrica diária), mora em `perfis_usuarios`
-/// (`20260811130000_metricas_saude_fc_maxima_balanca.sql`) e é lido de lá por
-/// `HealthSyncService._buscarAlturaMetros` para inferir o IMC.
+/// Repositório do "dado físico" do usuário — hoje `data_nascimento`/
+/// `sexo_biologico`/`tamanho_copo_ml` (todos em `perfis_usuarios`).
 ///
-/// `.select('altura_cm')`/`.upsert({'altura_cm': ...})` — nunca `.select()`
-/// (todas as colunas): `perfis_usuarios.nome/telefone/email` são PII
-/// cifradas em repouso (D2, `20260730160000_d2_pii_criptografia_repouso.sql`)
-/// e esta tela não tem nenhum motivo pra puxá-las.
+/// RELATÓRIO 20260916_0001 (SSOT, docs/motor_metabolico.txt) — `altura_cm`
+/// e `peso_kg` PARARAM de existir em `perfis_usuarios` (colunas removidas):
+/// "o peso não deve ser mantido como atributo permanente do perfil" / "a
+/// altura deverá ser confirmada em toda nova Anamnese". Este repositório não
+/// tem mais `buscarAlturaCm`/`atualizarAlturaCm` — quem precisa da altura
+/// oficial do usuário agora lê [buscarAlturaCmDaUltimaAnamnese] (read-only:
+/// a ÚNICA forma de mudar a altura oficial é preencher uma anamnese nova,
+/// em `lib/features/nutricao/`).
+///
+/// `.select(...)` sempre com colunas explícitas, nunca `.select()` (todas as
+/// colunas): `perfis_usuarios.nome/telefone/email` são PII cifradas em
+/// repouso (D2, `20260730160000_d2_pii_criptografia_repouso.sql`) e este
+/// repositório não tem nenhum motivo pra puxá-las.
 ///
 /// RELATÓRIO 20260812_0011 — BUG CORRIGIDO: as gravações usavam `.update()`,
 /// que precisa de uma linha PRÉ-EXISTENTE em `perfis_usuarios` pra afetar
@@ -55,43 +59,33 @@ class PerfilUsuarioRepository {
 
   final SupabaseClient _supabase;
 
-  /// `null` tanto para "ninguém logado" quanto para "coluna vazia" — a
-  /// tela trata os dois casos como "campo em branco, pronto pra
-  /// preencher", não como erro.
-  Future<double?> buscarAlturaCm() async {
+  /// RELATÓRIO 20260916_0001 — altura OFICIAL do usuário: a da última
+  /// anamnese com o campo preenchido (mesma resolução usada por
+  /// `calcular_motor_metabolico_v1` no banco — duplicada aqui em vez de
+  /// importar `AnamneseRepository`/feature `nutricao`, mesmo espírito de
+  /// baixo acoplamento entre features já usado em outros pontos do app).
+  /// `null` tanto para "ninguém logado" quanto para "nunca preencheu uma
+  /// anamnese com altura ainda" — a tela trata os dois casos como "sem
+  /// dado", não como erro.
+  Future<double?> buscarAlturaCmDaUltimaAnamnese() async {
     final usuarioId = _supabase.auth.currentUser?.id;
     if (usuarioId == null) return null;
 
     final linha = await _supabase
-        .from('perfis_usuarios')
+        .from('anamneses')
         .select('altura_cm')
-        .eq('id', usuarioId)
+        .eq('usuario_id', usuarioId)
+        .not('altura_cm', 'is', null)
+        .order('data_preenchimento', ascending: false)
+        .limit(1)
         .maybeSingle();
 
     return (linha?['altura_cm'] as num?)?.toDouble();
   }
 
-  /// `.upsert()`, não `.update()` (RELATÓRIO 20260812_0011 — ver o
-  /// comentário da classe): cria a linha em `perfis_usuarios` se ela ainda
-  /// não existir, atualiza se já existir. RLS `perfis_usuarios_insert_own`/
-  /// `_update_own` (`auth.uid() = id`) já garante que só o dono da linha
-  /// grava — sem checagem extra de segurança no cliente. Lança
-  /// [StateError] se ninguém estiver logado (não deveria ser alcançável: a
-  /// tela só existe atrás do gate de autenticação do router).
-  Future<void> atualizarAlturaCm(double alturaCm) async {
-    final usuarioId = _supabase.auth.currentUser?.id;
-    if (usuarioId == null) {
-      throw StateError('Nenhum usuário logado.');
-    }
-
-    await _supabase
-        .from('perfis_usuarios')
-        .upsert({'id': usuarioId, 'altura_cm': alturaCm}, onConflict: 'id');
-  }
-
   /// N03 (RELATÓRIO 20260811_0005, ajuste do fundador) — `null` tanto para
   /// "ninguém logado" quanto para "coluna vazia", mesma convenção de
-  /// [buscarAlturaCm].
+  /// [buscarAlturaCmDaUltimaAnamnese].
   Future<DateTime?> buscarDataNascimento() async {
     final usuarioId = _supabase.auth.currentUser?.id;
     if (usuarioId == null) return null;
@@ -129,7 +123,7 @@ class PerfilUsuarioRepository {
   static String _dataOnly(DateTime data) => data.toIso8601String().split('T').first;
 
   /// N07 (RELATÓRIO 20260812_0008) — `null` tanto para "ninguém logado"
-  /// quanto para "coluna vazia", mesma convenção de [buscarAlturaCm].
+  /// quanto para "coluna vazia", mesma convenção de [buscarAlturaCmDaUltimaAnamnese].
   Future<SexoBiologico?> buscarSexoBiologico() async {
     final usuarioId = _supabase.auth.currentUser?.id;
     if (usuarioId == null) return null;
@@ -143,9 +137,8 @@ class PerfilUsuarioRepository {
     return SexoBiologico.fromCodigo(linha?['sexo_biologico'] as String?);
   }
 
-  /// Mesma regra de segurança de [atualizarAlturaCm]/[atualizarDataNascimento]
-  /// — RLS `perfis_usuarios_update_own` já garante que só o dono da linha
-  /// grava.
+  /// Mesma regra de segurança de [atualizarDataNascimento] — RLS
+  /// `perfis_usuarios_update_own` já garante que só o dono da linha grava.
   Future<void> atualizarSexoBiologico(SexoBiologico sexoBiologico) async {
     final usuarioId = _supabase.auth.currentUser?.id;
     if (usuarioId == null) {
@@ -204,11 +197,10 @@ class PerfilUsuarioRepository {
     return (linha?['tamanho_copo_ml'] as num?)?.toInt() ?? 200;
   }
 
-  /// Mesma regra de segurança de [atualizarAlturaCm] — RLS
+  /// Mesma regra de segurança de [atualizarDataNascimento] — RLS
   /// `perfis_usuarios_update_own` já garante que só o dono da linha grava.
   /// Faixa plausível (50–1000 ml) é validada em
-  /// `RegistroHidratacaoPage`, não aqui — mesmo padrão de altura_cm (a
-  /// coluna não tem CHECK no banco, ver comentário da migration).
+  /// `RegistroHidratacaoPage`, não aqui.
   Future<void> atualizarTamanhoCopoMl(int tamanhoCopoMl) async {
     final usuarioId = _supabase.auth.currentUser?.id;
     if (usuarioId == null) {

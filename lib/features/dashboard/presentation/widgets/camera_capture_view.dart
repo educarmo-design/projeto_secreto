@@ -3,13 +3,16 @@ import 'dart:convert';
 
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/config/app_config.dart';
 import '../../../../core/i18n/i18n_manager.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../nutrition/data/repositories/coleta_diaria_repository.dart';
 import '../../../nutrition/presentation/pages/confirmacao_prato_page.dart';
 import '../../data/models/health_payload_model.dart';
+import '../../data/models/rotulo_extracao_model.dart';
 import '../controllers/camera_capture_controller.dart';
 
 /// Full-screen live camera capture for a Bluetooth-less device's display —
@@ -27,9 +30,11 @@ import '../controllers/camera_capture_controller.dart';
 ///   Confirming there pops both screens; declining resets the camera so the
 ///   user can try again, same pattern as [GravarRefeicaoPage]/
 ///   [DescreverRefeicaoPage].
-/// - [TipoAparelho.rotulo] (F10 Passo 2): still shows its server-transcribed
-///   JSON crude/in-place (see [_buildRawResult]) — no typed confirmation
-///   screen yet.
+/// - [TipoAparelho.rotulo] (F10 Passo 2): RELATÓRIO 20260916_0001 — ganhou
+///   um card nutricional tipado e editável (ver [_buildResultadoRotulo]),
+///   substituindo o JSON cru mostrado antes. "Confirmar" grava em
+///   `coleta_diaria` via [ColetaDiariaRepository.gravarLeituraRotulo] com
+///   os valores (possivelmente corrigidos pelo usuário) antes de fechar.
 ///
 /// RELATÓRIO 20260915_0001 (UI de câmera unificada) — quando aberta com
 /// [TipoAparelho.pratoRefeicao] OU [TipoAparelho.rotulo] (nunca para os 3
@@ -40,9 +45,20 @@ import '../controllers/camera_capture_controller.dart';
 /// interpretada) é [_tipoAtual], livremente alternável até o instante do
 /// disparo. Ver [_modoDuplo]/[_mudarModo].
 class CameraCaptureView extends StatefulWidget {
-  const CameraCaptureView({super.key, required this.tipoAparelho});
+  const CameraCaptureView({
+    super.key,
+    required this.tipoAparelho,
+    ColetaDiariaRepository? coletaDiariaRepository,
+  }) : _coletaDiariaRepository = coletaDiariaRepository;
 
   final TipoAparelho tipoAparelho;
+
+  /// Só usado pelo fluxo [TipoAparelho.rotulo] (ver [_confirmarRotulo]) —
+  /// injeção de dependência mesmo padrão do resto do app, útil se este
+  /// widget algum dia ganhar cobertura de teste (hoje não tem nenhuma: o
+  /// `CameraController` do pacote `camera` não é mockável, achado já
+  /// registrado nos RELATÓRIOS 20260827_0001/20260902_0001/20260915_0001).
+  final ColetaDiariaRepository? _coletaDiariaRepository;
 
   @override
   State<CameraCaptureView> createState() => _CameraCaptureViewState();
@@ -67,6 +83,23 @@ class _CameraCaptureViewState extends State<CameraCaptureView> {
   // [CameraCaptureController.initializeCamera] sobre a resolução única
   // que torna isso possível).
   late TipoAparelho _tipoAtual = widget.tipoAparelho;
+
+  late final ColetaDiariaRepository _coletaDiariaRepository =
+      widget._coletaDiariaRepository ?? ColetaDiariaRepository();
+
+  // RELATÓRIO 20260916_0001 — card nutricional editável do resultado de
+  // rótulo (substitui o JSON cru). Os 4 controllers são preenchidos UMA vez
+  // por captura (guarda em [_camposRotuloPreenchidos], resetado em
+  // [_tentarNovamenteRotulo]) — sem isso, cada rebuild (ex.: o usuário
+  // digitando) re-populariava os campos com o valor original, apagando a
+  // edição em andamento.
+  final _caloriasController = TextEditingController();
+  final _proteinasController = TextEditingController();
+  final _carboidratosController = TextEditingController();
+  final _gordurasController = TextEditingController();
+  RotuloExtracaoModel? _rotuloExtraido;
+  bool _camposRotuloPreenchidos = false;
+  bool _salvandoRotulo = false;
 
   /// Seletor só aparece (e só faz sentido) quando o ponto de entrada foi
   /// "Prato" ou "Rótulo" — os 3 tipos de aparelho clínico (glicosímetro/
@@ -160,13 +193,17 @@ class _CameraCaptureViewState extends State<CameraCaptureView> {
         });
         return;
       }
-      // Rótulo nutricional (Adendo v5.1 §B) ainda não tem tela de
-      // confirmação bonita — o resultado (já transcrito pelo backend, A.8.3)
-      // fica visível NESTA tela, crua, em vez de fechar com pop.
+      // Rótulo nutricional (Adendo v5.1 §B) — RELATÓRIO 20260916_0001: o
+      // resultado (já transcrito pelo backend, A.8.3) agora popula o card
+      // nutricional editável ([_buildResultadoRotulo]) em vez de ficar cru.
       if (_tipoAtual == TipoAparelho.rotulo) {
-        debugPrint(
-          'F10 — resultado de rotulo: ${jsonEncode(_controller.value.rawResult)}',
-        );
+        final decoded = _controller.value.rawResult;
+        debugPrint('F10 — resultado de rotulo: ${jsonEncode(decoded)}');
+        if (decoded != null && !_camposRotuloPreenchidos) {
+          _rotuloExtraido = RotuloExtracaoModel.fromJson(decoded);
+          _preencherCamposRotulo(_rotuloExtraido!);
+          _camposRotuloPreenchidos = true;
+        }
         setState(() {});
         return;
       }
@@ -233,7 +270,82 @@ class _CameraCaptureViewState extends State<CameraCaptureView> {
     _timerAvisoDemora?.cancel();
     _controller.removeListener(_onStateChanged);
     _controller.dispose();
+    _caloriasController.dispose();
+    _proteinasController.dispose();
+    _carboidratosController.dispose();
+    _gordurasController.dispose();
     super.dispose();
+  }
+
+  void _preencherCamposRotulo(RotuloExtracaoModel extracao) {
+    _caloriasController.text = extracao.caloriasKcal == null
+        ? ''
+        : _formatarNumero(extracao.caloriasKcal!, casasDecimais: 0);
+    _proteinasController.text =
+        extracao.proteinasG == null ? '' : _formatarNumero(extracao.proteinasG!);
+    _carboidratosController.text =
+        extracao.carboidratosG == null ? '' : _formatarNumero(extracao.carboidratosG!);
+    _gordurasController.text =
+        extracao.gordurasG == null ? '' : _formatarNumero(extracao.gordurasG!);
+  }
+
+  static String _formatarNumero(double valor, {int casasDecimais = 1}) {
+    return valor == valor.truncateToDouble()
+        ? valor.toStringAsFixed(0)
+        : valor.toStringAsFixed(casasDecimais);
+  }
+
+  void _tentarNovamenteRotulo() {
+    _camposRotuloPreenchidos = false;
+    _rotuloExtraido = null;
+    _controller.reset();
+    _controller.initializeCamera(tipoAparelho: _tipoAtual);
+  }
+
+  /// Grava a leitura em `coleta_diaria` com os valores ATUAIS dos campos —
+  /// ou seja, com qualquer correção que o usuário tenha feito no card antes
+  /// de tocar "Confirmar" (item 1b da tarefa: "permitindo que o usuário
+  /// valide os dados antes de gravar no banco"). Fecha a tela só em caso de
+  /// sucesso — uma falha de rede deixa o usuário tentar "Confirmar" de novo
+  /// sem perder o que já digitou.
+  Future<void> _confirmarRotulo() async {
+    setState(() => _salvandoRotulo = true);
+
+    double? paraDouble(TextEditingController controller) {
+      final texto = controller.text.trim();
+      if (texto.isEmpty) return null;
+      return double.tryParse(texto.replaceAll(',', '.'));
+    }
+
+    final payload = RotuloExtracaoModel(
+      porcaoDescricao: _rotuloExtraido?.porcaoDescricao,
+      caloriasKcal: paraDouble(_caloriasController),
+      proteinasG: paraDouble(_proteinasController),
+      carboidratosG: paraDouble(_carboidratosController),
+      gordurasG: paraDouble(_gordurasController),
+      ingredientesPrincipais: _rotuloExtraido?.ingredientesPrincipais ?? const [],
+    ).toJson();
+
+    final resultado = await _coletaDiariaRepository.gravarLeituraRotulo(payload: payload);
+
+    if (!mounted) return;
+    setState(() => _salvandoRotulo = false);
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(
+            resultado.success
+                ? i18n.tr('dashboard.camera_save_success')
+                : (resultado.errorMessage ?? i18n.tr('dashboard.camera_save_error')),
+          ),
+          backgroundColor: resultado.success ? AppColors.success : AppColors.error,
+        ),
+      );
+
+    if (resultado.success) {
+      Navigator.of(context).pop();
+    }
   }
 
   @override
@@ -432,7 +544,11 @@ class _CameraCaptureViewState extends State<CameraCaptureView> {
             Align(
               alignment: Alignment.bottomCenter,
               child: Padding(
-                padding: const EdgeInsets.only(bottom: 32),
+                // RELATÓRIO 20260916_0001 — subiu de 32 pra 42 (+10px, ~2mm
+                // na maioria das densidades de tela), pedido explícito do
+                // fundador: os botões ficavam colados demais na borda
+                // inferior/gesture bar de alguns aparelhos.
+                padding: const EdgeInsets.only(bottom: 42),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -457,9 +573,8 @@ class _CameraCaptureViewState extends State<CameraCaptureView> {
         );
 
       case CameraCaptureStatus.success:
-        final resultado = state.rawResult;
-        if (resultado != null) {
-          return _buildRawResult(resultado);
+        if (state.rawResult != null) {
+          return _buildResultadoRotulo(context, _rotuloExtraido);
         }
         // Glicosímetro/balança/pressão: `_onStateChanged` já fez
         // `Navigator.pop` antes deste frame renderizar de fato — este
@@ -473,13 +588,14 @@ class _CameraCaptureViewState extends State<CameraCaptureView> {
     }
   }
 
-  /// F10 Passo 2 (Adendo v5.1 §B — "completa funcionalmente, crua
-  /// visualmente"): mostra o JSON JÁ TRANSCRITO pelo backend para
-  /// [TipoAparelho.rotulo] (porção/macros/ingredientes lidos do rótulo
-  /// impresso, A.8.3) sem nenhum acabamento visual. Prato de comida não
+  /// F10 Passo 2 (item 1b, RELATÓRIO 20260916_0001) — card nutricional
+  /// amigável para [TipoAparelho.rotulo] (porção/macros/ingredientes lidos
+  /// do rótulo impresso, A.8.3), substituindo o JSON cru exibido antes. Os
+  /// 4 macros são `TextFormField`s EDITÁVEIS: o usuário pode corrigir um
+  /// número que a IA leu errado antes de confirmar — "validar os dados
+  /// antes de gravar no banco" (Restrição da tarefa). Prato de comida não
   /// chega mais aqui — tem [ConfirmacaoPratoPage] própria (F10 Passo 3).
-  Widget _buildRawResult(Map<String, dynamic> resultado) {
-    const encoder = JsonEncoder.withIndent('  ');
+  Widget _buildResultadoRotulo(BuildContext context, RotuloExtracaoModel? extracao) {
     return SafeArea(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -487,9 +603,96 @@ class _CameraCaptureViewState extends State<CameraCaptureView> {
           Expanded(
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(16),
-              child: SelectableText(
-                encoder.convert(resultado),
-                style: const TextStyle(color: Colors.white, fontFamily: 'monospace'),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (extracao?.porcaoDescricao != null) ...[
+                    Text(
+                      i18n.tr('dashboard.camera_rotulo_porcao_label'),
+                      style: const TextStyle(color: Colors.white70, fontSize: 12),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      extracao!.porcaoDescricao!,
+                      style: const TextStyle(color: Colors.white, fontSize: 16),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+                  if (extracao?.possivelFotoDeTela ?? false) ...[
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.orange),
+                      ),
+                      child: Text(
+                        i18n.tr('dashboard.camera_rotulo_possivel_foto_tela'),
+                        style: const TextStyle(color: Colors.orange),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+                  Card(
+                    color: Colors.white,
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            i18n.tr('dashboard.camera_rotulo_card_title'),
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                          const SizedBox(height: 12),
+                          _buildCampoMacro(
+                            controller: _caloriasController,
+                            labelKey: 'dashboard.camera_rotulo_calorias_label',
+                            suffix: 'kcal',
+                          ),
+                          const SizedBox(height: 12),
+                          _buildCampoMacro(
+                            controller: _proteinasController,
+                            labelKey: 'dashboard.camera_rotulo_proteinas_label',
+                            suffix: 'g',
+                          ),
+                          const SizedBox(height: 12),
+                          _buildCampoMacro(
+                            controller: _carboidratosController,
+                            labelKey: 'dashboard.camera_rotulo_carboidratos_label',
+                            suffix: 'g',
+                          ),
+                          const SizedBox(height: 12),
+                          _buildCampoMacro(
+                            controller: _gordurasController,
+                            labelKey: 'dashboard.camera_rotulo_gorduras_label',
+                            suffix: 'g',
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  if (extracao?.ingredientesPrincipais.isNotEmpty ?? false) ...[
+                    const SizedBox(height: 16),
+                    Text(
+                      i18n.tr('dashboard.camera_rotulo_ingredientes_label'),
+                      style: const TextStyle(color: Colors.white70, fontSize: 12),
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        for (final ingrediente in extracao!.ingredientesPrincipais)
+                          Chip(
+                            label: Text(ingrediente),
+                            backgroundColor: Colors.white24,
+                            labelStyle: const TextStyle(color: Colors.white),
+                          ),
+                      ],
+                    ),
+                  ],
+                ],
               ),
             ),
           ),
@@ -499,18 +702,21 @@ class _CameraCaptureViewState extends State<CameraCaptureView> {
               children: [
                 Expanded(
                   child: OutlinedButton(
-                    onPressed: () {
-                      _controller.reset();
-                      _controller.initializeCamera(tipoAparelho: _tipoAtual);
-                    },
+                    onPressed: _salvandoRotulo ? null : _tentarNovamenteRotulo,
                     child: Text(i18n.tr('dashboard.camera_retry_button')),
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: FilledButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    child: Text(i18n.tr('dashboard.camera_confirm_button')),
+                    onPressed: _salvandoRotulo ? null : _confirmarRotulo,
+                    child: _salvandoRotulo
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : Text(i18n.tr('dashboard.camera_confirm_button')),
                   ),
                 ),
               ],
@@ -518,6 +724,25 @@ class _CameraCaptureViewState extends State<CameraCaptureView> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildCampoMacro({
+    required TextEditingController controller,
+    required String labelKey,
+    required String suffix,
+  }) {
+    return TextFormField(
+      controller: controller,
+      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+      inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]'))],
+      decoration: InputDecoration(
+        labelText: i18n.tr(labelKey),
+        suffixText: suffix,
+        border: const OutlineInputBorder(),
+        isDense: true,
+      ),
+      enabled: !_salvandoRotulo,
     );
   }
 

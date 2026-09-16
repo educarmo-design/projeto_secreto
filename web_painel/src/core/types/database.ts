@@ -29,8 +29,10 @@ export interface Database {
           /** CRM/CRN/CREFITO/CREF — texto livre, cada conselho tem formato próprio (20260722120000). NÃO cifrado (D2 só cobre nome/telefone/email). */
           registro_profissional: string | null;
           nickname: string | null;
-          /** cm — Perfil Físico do app (20260811130000), input do Motor Metabólico N07 (Mifflin-St Jeor). */
-          altura_cm: number | null;
+          // altura_cm/peso_kg REMOVIDAS (RELATÓRIO 20260916_0001, SSOT):
+          // peso/altura pararam de ser atributo permanente do perfil — a
+          // fonte oficial agora é `anamneses.altura_cm`/`peso_kg` (snapshot
+          // por versão da Anamnese, docs/motor_metabolico.txt).
           pais: string | null;
           cep: string | null;
           logradouro: string | null;

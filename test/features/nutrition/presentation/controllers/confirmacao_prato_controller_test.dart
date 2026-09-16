@@ -621,5 +621,12 @@ class _FakeColetaDiariaRepository implements ColetaDiariaRepository {
       throw UnimplementedError();
 
   @override
+  Future<ColetaDiariaResult> gravarLeituraRotulo({
+    required Map<String, dynamic> payload,
+    DateTime? dataColeta,
+  }) =>
+      throw UnimplementedError();
+
+  @override
   Future<ConsumoDia> buscarConsumoHoje() => throw UnimplementedError();
 }

@@ -285,6 +285,53 @@ class ColetaDiariaRepository {
     }
   }
 
+  /// RELATÓRIO 20260916_0001 — grava UMA leitura de rótulo nutricional
+  /// (F10 Passo 2) já revisada pelo usuário no card de confirmação. Mesmo
+  /// padrão exato de [gravarLeituraAparelho] (`valor_jsonb` = leitura
+  /// atômica inteira, nunca EAV fragmentado) — não reaproveita
+  /// [gravarLeituraAparelho] diretamente porque rótulo nunca produziu um
+  /// [HealthPayloadModel] (campos diferentes, ver `RotuloExtracaoModel`),
+  /// só o formato de gravação em si.
+  Future<ColetaDiariaResult> gravarLeituraRotulo({
+    required Map<String, dynamic> payload,
+    DateTime? dataColeta,
+  }) async {
+    final usuarioId = _supabase.auth.currentUser?.id;
+    if (usuarioId == null) {
+      return const ColetaDiariaResult(
+        success: false,
+        errorMessage: 'Sessão expirada — faça login novamente.',
+        debugDetail: 'ColetaDiariaRepository.gravarLeituraRotulo: currentUser é null.',
+      );
+    }
+
+    try {
+      await _supabase.from('coleta_diaria').insert({
+        'usuario_id': usuarioId,
+        'atributo': 'rotulo_nutricional',
+        'valor_jsonb': payload,
+        'origem': 'ocr_rotulo',
+        'data_coleta': _dateOnly(dataColeta ?? DateTime.now()),
+      });
+      return const ColetaDiariaResult(success: true);
+    } on PostgrestException catch (e) {
+      debugPrint('ColetaDiariaRepository.gravarLeituraRotulo: ${e.code} — ${e.message}');
+      return ColetaDiariaResult(
+        success: false,
+        errorMessage: 'Não foi possível salvar a leitura agora. Tente novamente.',
+        debugDetail: 'PostgrestException ${e.code}: ${e.message}',
+      );
+    } catch (e, stackTrace) {
+      debugPrint('ColetaDiariaRepository.gravarLeituraRotulo: ${e.runtimeType} — $e');
+      debugPrint(stackTrace.toString());
+      return ColetaDiariaResult(
+        success: false,
+        errorMessage: 'Erro inesperado ao salvar a leitura.',
+        debugDetail: '${e.runtimeType}: $e',
+      );
+    }
+  }
+
   /// RELATÓRIO 20260820 — soma de todas as refeições confirmadas HOJE, pro
   /// card "consumo × meta". Lê `valor_jsonb->totais` (gravado por
   /// [gravarRefeicao]) de cada linha e soma em Dart — mesmo padrão de
