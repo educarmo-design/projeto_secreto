@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Tipos do schema Postgres/Supabase — escritos à mão (não há CLI do
  * Supabase disponível neste ambiente para gerar `supabase gen types
  * typescript`) espelhando exatamente as migrations em `supabase/migrations/`
@@ -430,6 +430,63 @@ export interface Database {
         Update: never;
         Relationships: [];
       };
+
+      /**
+       * N09 (`20260811240000`) + RELATÓRIO 20260917_0001 (item 1 e 2).
+       * INSERT-only por natureza (trigger `anamneses_trg_versionar` — nunca
+       * edita uma linha existente, sempre versiona com um INSERT novo);
+       * RLS só permite o próprio dono inserir (`anamneses_insert_own`) — o
+       * profissional escreve exclusivamente via a RPC
+       * `profissional_salvar_anamnese` (nunca um `.insert()` direto daqui),
+       * por isso `Insert`/`Update` ficam `never`, mesmo padrão de
+       * `objetivos_alimentares` acima.
+       */
+      anamneses: {
+        Row: {
+          id: string;
+          usuario_id: string;
+          profissional_id: string | null;
+          objetivo_codigo: 'emagrecimento' | 'manutencao' | 'hipertrofia' | 'outro';
+          /** Só preenchido quando `objetivo_codigo = 'outro'` (item 2 — "Outros objetivos personalizados"). */
+          objetivo_outro: string | null;
+          data_preenchimento: string;
+          status_vigencia: 'ativo' | 'historico';
+          peso_kg: number | null;
+          altura_cm: number | null;
+          peso_data_medicao: string | null;
+          peso_origem: string | null;
+          /** Só preenchido pelo profissional (Anamnese Profissional) — livre, sem a trava fixa de 30 dias do self-service (RELATÓRIO 20260917_0001, item 2). */
+          data_proxima_avaliacao: string | null;
+          /** Gap Crítico (RELATÓRIO 20260917_0001, item 1) — JSON EXATO de `calcular_motor_metabolico_v1` no momento em que uma Meta foi salva para esta anamnese; `null` até a primeira meta ser salva. */
+          resultado_motor_v1: MotorMetabolicoV1Resultado | null;
+          resultado_motor_gravado_em: string | null;
+        };
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
+
+      /**
+       * `20260915120000` — rotina semanal opcional por anamnese, paralela a
+       * `anamneses_atividades` (que não tem noção de dia da semana). Input
+       * de `calcular_motor_metabolico_v1` (estratégia "decomposição") e
+       * escrita pela nova RPC `profissional_salvar_anamnese` (Anamnese
+       * Profissional) — o app Flutter grava aqui via `.insert()` direto
+       * (RLS `..._insert_own`), então `Insert`/`Update` refletem isso.
+       */
+      anamneses_atividades_dias: {
+        Row: {
+          anamnese_id: string;
+          /** `tipos_atividades_fisicas.id` é `smallint` no banco — este campo usa o tipo tecnicamente correto (diferente de `tipos_atividades_fisicas.id` acima, que já era `string` neste arquivo antes desta tarefa; não foi corrigido aqui, fora de escopo). */
+          atividade_id: number;
+          /** 0 = domingo .. 6 = sábado (`extract(dow from date)`). */
+          dia_semana: number;
+          minutos: number;
+        };
+        Insert: Database['public']['Tables']['anamneses_atividades_dias']['Row'];
+        Update: never;
+        Relationships: [];
+      };
     };
     Views: {
       /**
@@ -610,6 +667,40 @@ export interface Database {
         };
         Returns: ValidarESalvarMetaResultado;
       };
+
+      /**
+       * `20260916120000` — Motor Metabólico Centralizado V1. Função PURA
+       * (ME-005/006 — nunca faz insert/update/delete); peso/altura vêm SSOT
+       * da última anamnese com os dois campos preenchidos, nunca de
+       * `perfis_usuarios`. Mesmo guard de acesso de `calcular_motor_
+       * metabolico` (dono, profissional com vínculo ATIVO, ou admin).
+       */
+      calcular_motor_metabolico_v1: {
+        Args: { p_usuario_id: string };
+        Returns: MotorMetabolicoV1Resultado;
+      };
+
+      /**
+       * RELATÓRIO 20260917_0001 (item 2) — Anamnese Profissional (Painel
+       * Web): profissional com vínculo ATIVO preenche uma anamnese nova
+       * pro paciente. SEM trava de carência — `data_proxima_avaliacao` é
+       * livre. `atividades` é opcional (default `[]`), cada item vira uma
+       * linha em `anamneses_atividades_dias`.
+       */
+      profissional_salvar_anamnese: {
+        Args: {
+          p_paciente_id: string;
+          p_payload: {
+            objetivo_codigo: 'emagrecimento' | 'manutencao' | 'hipertrofia' | 'outro';
+            objetivo_outro?: string | null;
+            peso_kg?: number | null;
+            altura_cm?: number | null;
+            data_proxima_avaliacao?: string | null;
+            atividades?: { atividade_id: number; dia_semana: number; minutos: number }[];
+          };
+        };
+        Returns: { sucesso: true; anamnese_id: string };
+      };
     };
     Enums: {
       tipo_profissional_saude: TipoProfissionalSaude;
@@ -644,6 +735,36 @@ export interface MotorMetabolicoResultado {
     massa_magra_kg: number | null;
   };
   avisos: string[];
+}
+
+/**
+ * Formato do JSONB devolvido por `calcular_motor_metabolico_v1` — ver
+ * comentário da função na migration `20260916120000` para a matemática
+ * completa. Diferente de `MotorMetabolicoResultado` (V0): aqui o TDEE vem
+ * por dia da semana (`tdee_por_dia`, chaveado "0" domingo .. "6" sábado),
+ * além da média (`tdee_medio`, só preenchida quando os 7 dias têm dado).
+ */
+export interface MotorMetabolicoV1Resultado {
+  motor_versao: 'v1';
+  formula_tmb: { codigo: 'TMB-001'; nome: 'Mifflin-St Jeor'; versao: string };
+  estrategia_tdee: 'decomposicao_parcial' | 'pal';
+  parametros: { pal_padrao: number; pal_versao: string; tef_percentual: number };
+  tmb: number | null;
+  tef_estimado: number | null;
+  tdee_por_dia: Record<string, { tdee: number | null; estrategia: 'decomposicao' | 'pal' | 'dados_insuficientes' }>;
+  /** `null` a menos que os 7 dias tenham `tdee` calculado (Seção 13 — não enviesar média com dias faltantes). */
+  tdee_medio: number | null;
+  insumos: {
+    idade: number | null;
+    sexo_biologico: SexoBiologico | null;
+    altura_cm: number | null;
+    peso_kg: number | null;
+    peso_data_medicao: string | null;
+    /** `null` quando não há anamnese com peso+altura preenchidos — é essa que `validar_e_salvar_meta` usa pra saber onde gravar o snapshot (RELATÓRIO 20260917_0001, item 1). */
+    anamnese_id: string | null;
+  };
+  avisos: string[];
+  calculado_em: string;
 }
 
 /** Formato do JSONB devolvido por `validar_e_salvar_meta` em caso de sucesso — ver comentário da função na migration `20260812110000` para as regras completas do Motor de Exceções (N08). */

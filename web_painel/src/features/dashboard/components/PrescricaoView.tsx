@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react';
+﻿import { useEffect, useState, type FormEvent } from 'react';
 import { supabase } from '@/core/supabase';
 import type { Database } from '@/core/types/database';
 import { Toast, type ToastMessage } from '@/components/Toast';
@@ -37,6 +37,27 @@ function dataMaisSeteDias(): string {
 }
 
 /**
+ * RELATÓRIO 20260917_0001 (item 3) — "metas diferentes para cada dia da
+ * semana" não precisou de nenhuma migration/RPC nova: `tipo_dia` já é TEXT
+ * livre (versionado independentemente por `(usuario_id, tipo_dia)`, ver
+ * `20260812110000`) — só faltava esta tela oferecer os 7 valores prontos
+ * em vez do profissional ter que digitar "SEGUNDA"/"TERCA"/... na mão.
+ */
+const DIAS_SEMANA: { codigo: string; rotulo: string }[] = [
+  { codigo: 'SEGUNDA', rotulo: 'Segunda' },
+  { codigo: 'TERCA', rotulo: 'Terça' },
+  { codigo: 'QUARTA', rotulo: 'Quarta' },
+  { codigo: 'QUINTA', rotulo: 'Quinta' },
+  { codigo: 'SEXTA', rotulo: 'Sexta' },
+  { codigo: 'SABADO', rotulo: 'Sábado' },
+  { codigo: 'DOMINGO', rotulo: 'Domingo' },
+];
+
+function caloriasPorDiaVazio(): Record<string, string> {
+  return Object.fromEntries(DIAS_SEMANA.map((d) => [d.codigo, '']));
+}
+
+/**
  * N10 (RELATÓRIO 20260812_0010) — Prescrição Profissional: formulário +
  * cards de metas ativas + histórico, tudo passando pela RPC
  * `validar_e_salvar_meta` (Motor de Exceções N08) com
@@ -57,6 +78,8 @@ export function PrescricaoView({ pacienteId }: PrescricaoViewProps) {
   const [ultimoAviso, setUltimoAviso] = useState<{ violacaoClinica: boolean; avisos: string[] } | null>(null);
 
   const [form, setForm] = useState(CAMPOS_VAZIOS);
+  const [modoMeta, setModoMeta] = useState<'unica' | 'por_dia'>('unica');
+  const [caloriasPorDia, setCaloriasPorDia] = useState(caloriasPorDiaVazio);
 
   useEffect(() => {
     void carregar();
@@ -101,16 +124,12 @@ export function PrescricaoView({ pacienteId }: PrescricaoViewProps) {
     setUltimoAviso(null);
   }
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setSalvando(true);
-    setUltimoAviso(null);
-
-    const { data, error } = await supabase.rpc('validar_e_salvar_meta', {
+  async function salvarUmDia(tipoDia: string, caloriasAlvo: number) {
+    return supabase.rpc('validar_e_salvar_meta', {
       p_payload: {
         usuario_id: pacienteId,
-        tipo_dia: form.tipoDia.trim().toUpperCase() || 'PADRAO',
-        calorias_alvo: Number(form.caloriasAlvo),
+        tipo_dia: tipoDia,
+        calorias_alvo: caloriasAlvo,
         proteina_g: form.proteinaG.trim() ? Number(form.proteinaG) : null,
         carbo_g: form.carboG.trim() ? Number(form.carboG) : null,
         gordura_g: form.gorduraG.trim() ? Number(form.gorduraG) : null,
@@ -118,25 +137,73 @@ export function PrescricaoView({ pacienteId }: PrescricaoViewProps) {
       },
       p_is_profissional: true,
     });
+  }
 
-    setSalvando(false);
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSalvando(true);
+    setUltimoAviso(null);
 
-    if (error) {
-      // N08_SEM_VINCULO é o único caso plausível aqui — a tela só é
-      // acessível com vínculo ativo (RLS já barra a leitura antes), mas
-      // Zero Trust: a RPC re-valida no servidor de qualquer forma.
-      setToast({ variant: 'error', text: `Não foi possível salvar: ${error.message}` });
+    if (modoMeta === 'unica') {
+      const { data, error } = await salvarUmDia(form.tipoDia.trim().toUpperCase() || 'PADRAO', Number(form.caloriasAlvo));
+
+      setSalvando(false);
+
+      if (error) {
+        // N08_SEM_VINCULO é o único caso plausível aqui — a tela só é
+        // acessível com vínculo ativo (RLS já barra a leitura antes), mas
+        // Zero Trust: a RPC re-valida no servidor de qualquer forma.
+        setToast({ variant: 'error', text: `Não foi possível salvar: ${error.message}` });
+        return;
+      }
+
+      setUltimoAviso({ violacaoClinica: data.violacao_clinica, avisos: data.avisos });
+      setToast({
+        variant: data.violacao_clinica ? 'error' : 'success',
+        text: data.violacao_clinica
+          ? 'Meta salva — fora da faixa de segurança clínica (ver aviso abaixo).'
+          : 'Meta salva com sucesso.',
+      });
+      setForm({ ...CAMPOS_VAZIOS, tipoDia: form.tipoDia });
+      void carregar();
       return;
     }
 
-    setUltimoAviso({ violacaoClinica: data.violacao_clinica, avisos: data.avisos });
-    setToast({
-      variant: data.violacao_clinica ? 'error' : 'success',
-      text: data.violacao_clinica
-        ? 'Meta salva — fora da faixa de segurança clínica (ver aviso abaixo).'
-        : 'Meta salva com sucesso.',
-    });
-    setForm({ ...CAMPOS_VAZIOS, tipoDia: form.tipoDia });
+    // Modo "por dia da semana": chama a MESMA RPC uma vez por dia
+    // preenchido (dias vazios são pulados) — cada chamada versiona seu
+    // próprio `tipo_dia` de forma independente, o Motor de Exceções N08
+    // roda igual pra cada uma (nenhum bypass).
+    const diasPreenchidos = DIAS_SEMANA.filter((d) => caloriasPorDia[d.codigo]?.trim());
+    if (diasPreenchidos.length === 0) {
+      setSalvando(false);
+      setToast({ variant: 'error', text: 'Preencha ao menos um dia da semana.' });
+      return;
+    }
+
+    const errosPorDia: string[] = [];
+    let algumaViolacaoClinica = false;
+    for (const dia of diasPreenchidos) {
+      const { data, error } = await salvarUmDia(dia.codigo, Number(caloriasPorDia[dia.codigo]));
+      if (error) {
+        errosPorDia.push(`${dia.rotulo}: ${error.message}`);
+      } else if (data.violacao_clinica) {
+        algumaViolacaoClinica = true;
+      }
+    }
+
+    setSalvando(false);
+
+    if (errosPorDia.length > 0) {
+      setToast({ variant: 'error', text: `Alguns dias não foram salvos: ${errosPorDia.join(' · ')}` });
+    } else {
+      setToast({
+        variant: algumaViolacaoClinica ? 'error' : 'success',
+        text: algumaViolacaoClinica
+          ? `${diasPreenchidos.length} dia(s) salvos — pelo menos um fora da faixa de segurança clínica.`
+          : `${diasPreenchidos.length} dia(s) salvos com sucesso.`,
+      });
+      setCaloriasPorDia(caloriasPorDiaVazio());
+    }
     void carregar();
   }
 
@@ -181,43 +248,92 @@ export function PrescricaoView({ pacienteId }: PrescricaoViewProps) {
             onSubmit={(event) => void handleSubmit(event)}
             className="space-y-4 rounded-2xl border border-clinical-border bg-clinical-surface p-5"
           >
-            <div className="flex flex-wrap items-end justify-between gap-3">
-              <div className="min-w-[160px]">
-                <label htmlFor="prescricao-tipo-dia" className="block text-xs font-medium text-slate-300">
-                  Tipo de dia
-                </label>
-                <input
-                  id="prescricao-tipo-dia"
-                  type="text"
-                  required
-                  disabled={salvando}
-                  value={form.tipoDia}
-                  onChange={(event) => setForm((atual) => ({ ...atual, tipoDia: event.target.value }))}
-                  placeholder="PADRAO, TREINO, DESCANSO..."
-                  className="mt-1 w-full rounded-lg border border-clinical-border bg-clinical-bg px-3 py-2 text-sm text-slate-100 outline-none focus:border-clinical-primary disabled:opacity-60"
-                />
-              </div>
-
-              {ativoDoTipoSelecionado && (
-                <button
-                  type="button"
-                  onClick={() => copiarUltimo(ativoDoTipoSelecionado)}
-                  className="rounded-lg border border-clinical-border px-3 py-2 text-xs font-medium text-clinical-muted transition hover:border-clinical-primary hover:text-clinical-primary"
-                >
-                  Copiar Último ({ativoDoTipoSelecionado.tipo_dia})
-                </button>
-              )}
+            {/* Item 3 (RELATÓRIO 20260917_0001) — meta única (comportamento
+                original) ou uma meta diferente por dia da semana. Troca só
+                o que aparece abaixo; P/C/G e vencimento continuam
+                compartilhados entre os dias (o pedido do fundador dava
+                calorias como exemplo do que varia por dia). */}
+            <div className="flex gap-2 rounded-lg border border-clinical-border bg-clinical-bg p-1 text-xs">
+              <button
+                type="button"
+                disabled={salvando}
+                onClick={() => setModoMeta('unica')}
+                className={`flex-1 rounded-md px-3 py-1.5 font-medium transition ${
+                  modoMeta === 'unica' ? 'bg-clinical-primary text-white' : 'text-clinical-muted hover:text-slate-100'
+                }`}
+              >
+                Meta única
+              </button>
+              <button
+                type="button"
+                disabled={salvando}
+                onClick={() => setModoMeta('por_dia')}
+                className={`flex-1 rounded-md px-3 py-1.5 font-medium transition ${
+                  modoMeta === 'por_dia' ? 'bg-clinical-primary text-white' : 'text-clinical-muted hover:text-slate-100'
+                }`}
+              >
+                Meta por dia da semana
+              </button>
             </div>
 
+            {modoMeta === 'unica' ? (
+              <>
+                <div className="flex flex-wrap items-end justify-between gap-3">
+                  <div className="min-w-[160px]">
+                    <label htmlFor="prescricao-tipo-dia" className="block text-xs font-medium text-slate-300">
+                      Tipo de dia
+                    </label>
+                    <input
+                      id="prescricao-tipo-dia"
+                      type="text"
+                      required
+                      disabled={salvando}
+                      value={form.tipoDia}
+                      onChange={(event) => setForm((atual) => ({ ...atual, tipoDia: event.target.value }))}
+                      placeholder="PADRAO, TREINO, DESCANSO..."
+                      className="mt-1 w-full rounded-lg border border-clinical-border bg-clinical-bg px-3 py-2 text-sm text-slate-100 outline-none focus:border-clinical-primary disabled:opacity-60"
+                    />
+                  </div>
+
+                  {ativoDoTipoSelecionado && (
+                    <button
+                      type="button"
+                      onClick={() => copiarUltimo(ativoDoTipoSelecionado)}
+                      className="rounded-lg border border-clinical-border px-3 py-2 text-xs font-medium text-clinical-muted transition hover:border-clinical-primary hover:text-clinical-primary"
+                    >
+                      Copiar Último ({ativoDoTipoSelecionado.tipo_dia})
+                    </button>
+                  )}
+                </div>
+
+                <CampoNumerico
+                  id="prescricao-calorias"
+                  label="Calorias (kcal)"
+                  value={form.caloriasAlvo}
+                  required
+                  disabled={salvando}
+                  onChange={(valor) => setForm((atual) => ({ ...atual, caloriasAlvo: valor }))}
+                />
+              </>
+            ) : (
+              <div>
+                <p className="mb-2 text-xs font-medium text-slate-300">Calorias (kcal) por dia — deixe em branco para não alterar aquele dia</p>
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
+                  {DIAS_SEMANA.map((dia) => (
+                    <CampoNumerico
+                      key={dia.codigo}
+                      id={`prescricao-calorias-${dia.codigo}`}
+                      label={dia.rotulo}
+                      value={caloriasPorDia[dia.codigo] ?? ''}
+                      disabled={salvando}
+                      onChange={(valor) => setCaloriasPorDia((atual) => ({ ...atual, [dia.codigo]: valor }))}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <CampoNumerico
-                id="prescricao-calorias"
-                label="Calorias (kcal)"
-                value={form.caloriasAlvo}
-                required
-                disabled={salvando}
-                onChange={(valor) => setForm((atual) => ({ ...atual, caloriasAlvo: valor }))}
-              />
               <CampoNumerico
                 id="prescricao-proteina"
                 label="Proteína (g)"
@@ -278,7 +394,7 @@ export function PrescricaoView({ pacienteId }: PrescricaoViewProps) {
                 disabled={salvando}
                 className="rounded-lg bg-clinical-primary px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {salvando ? 'Salvando...' : 'Salvar Prescrição'}
+                {salvando ? 'Salvando...' : modoMeta === 'por_dia' ? 'Salvar Metas por Dia' : 'Salvar Prescrição'}
               </button>
             </div>
           </form>

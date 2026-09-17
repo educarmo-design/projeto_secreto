@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+﻿import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useParams } from 'react-router-dom';
 import {
   CartesianGrid,
@@ -13,8 +13,10 @@ import {
 import { supabase, type ProfissionalAutenticado } from '@/core/supabase';
 import type { Database, SexoBiologico } from '@/core/types/database';
 import { Toast, type ToastMessage } from '@/components/Toast';
+import { AnamneseProfissionalView } from './AnamneseProfissionalView';
 import { InserirMedicaoModal } from './InserirMedicaoModal';
 import { MotorMetabolicoCard } from './MotorMetabolicoCard';
+import { MotorMetabolicoV1Card } from './MotorMetabolicoV1Card';
 import { PrescricaoView } from './PrescricaoView';
 
 type MetricaDiariaRow = Database['public']['Tables']['metricas_saude_diarias']['Row'];
@@ -65,6 +67,10 @@ export function PatientDetails({ profissional }: PatientDetailsProps) {
   // magra novos mudam o resultado). O valor em si não tem significado, só
   // precisa mudar.
   const [gatilhoRecalculoMotor, setGatilhoRecalculoMotor] = useState(0);
+  // RELATÓRIO 20260917_0001 (item 3) — mesmo padrão de `gatilhoRecalculoMotor`,
+  // mas para o Motor V1: dispara um novo cálculo quando a Anamnese
+  // Profissional é salva (peso/altura/rotina novos mudam o resultado).
+  const [gatilhoRecalculoMotorV1, setGatilhoRecalculoMotorV1] = useState(0);
 
   useEffect(() => {
     if (!pacienteId) return;
@@ -310,10 +316,23 @@ export function PatientDetails({ profissional }: PatientDetailsProps) {
         </div>
       </header>
 
-      {pacienteId && <MotorMetabolicoCard pacienteId={pacienteId} gatilhoRecalculo={gatilhoRecalculoMotor} />}
+      {/* RELATÓRIO 20260917_0001 (item 2/3, ME-007) — Anamnese Profissional
+          → Resultado do Motor V1 → Meta Profissional (Prescrição), nessa
+          ordem: primeiro os insumos, depois o cálculo puro que eles
+          alimentam, depois a meta que o profissional decide em cima do
+          cálculo. */}
+      {pacienteId && (
+        <AnamneseProfissionalView
+          pacienteId={pacienteId}
+          onSalvo={() => setGatilhoRecalculoMotorV1((atual) => atual + 1)}
+        />
+      )}
+      {pacienteId && <MotorMetabolicoV1Card pacienteId={pacienteId} gatilhoRecalculo={gatilhoRecalculoMotorV1} />}
 
       {/* N10 (RELATÓRIO 20260812_0010) — Prescrição de metas alimentares. */}
       {pacienteId && <PrescricaoView pacienteId={pacienteId} />}
+
+      {pacienteId && <MotorMetabolicoCard pacienteId={pacienteId} gatilhoRecalculo={gatilhoRecalculoMotor} />}
 
       <section className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <ChartCard titulo="Evolução da Glicemia" subtitulo="Glicose em jejum (mg/dL)">
