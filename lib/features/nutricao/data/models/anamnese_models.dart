@@ -96,10 +96,11 @@ class AnamneseAtiva {
   });
 }
 
-/// Altura/sexo/peso atuais do usuário — lidos de `perfis_usuarios`
-/// (altura/sexo) e da última leitura de `metricas_saude_diarias` (peso),
-/// os mesmos insumos que o Motor Metabólico N07 consulta. Usado só para
-/// PRÉ-PREENCHER a seção de dados físicos da anamnese — `null` em qualquer
+/// Altura/peso/sexo atuais do usuário — RELATÓRIO 20260916_0001 (SSOT):
+/// altura/peso vêm da ÚLTIMA ANAMNESE com os dois campos preenchidos (não
+/// mais de `perfis_usuarios`/`metricas_saude_diarias` diretamente), sexo
+/// continua de `perfis_usuarios`. Usado só para PRÉ-PREENCHER a seção de
+/// dados físicos da anamnese como sugestão editável — `null` em qualquer
 /// campo é "ainda não informado", não erro.
 class DadosFisicosAtuais {
   final double? alturaCm;
@@ -107,4 +108,54 @@ class DadosFisicosAtuais {
   final double? pesoKg;
 
   const DadosFisicosAtuais({this.alturaCm, this.sexoBiologico, this.pesoKg});
+}
+
+/// RELATÓRIO 20260917 (item 1 — "Captura Inteligente") — leitura mais
+/// recente de `metricas_saude_diarias` (balança/wearable), mostrada como
+/// SUGESTÃO distinta do valor que vai compor o snapshot oficial da
+/// Anamnese (docs/motor_metabolico.txt, Seção 1: "a leitura da balança
+/// continua existindo como dado de origem, mas só passa a ser dado
+/// antropométrico oficial após confirmação"). `null` em qualquer campo =
+/// aquele dado não foi sincronizado ainda, não erro.
+class SugestaoBalanca {
+  final double? pesoKg;
+  final double? percentualGordura;
+  final DateTime? dataReferencia;
+
+  const SugestaoBalanca({this.pesoKg, this.percentualGordura, this.dataReferencia});
+
+  bool get temAlgumDado => pesoKg != null || percentualGordura != null;
+}
+
+/// RELATÓRIO 20260917 (item 3 — "Histórico de Avaliações") — uma linha do
+/// histórico de anamneses do usuário (qualquer `status_vigencia`), mais
+/// recente primeiro. Só os campos que a tela de histórico mostra — peso e
+/// altura já vêm da própria anamnese (SSOT), sem precisar de outra tabela.
+class AnamneseHistoricoItem {
+  final String id;
+  final DateTime dataPreenchimento;
+  final String objetivoCodigo;
+  final double? pesoKg;
+  final double? alturaCm;
+  final String statusVigencia;
+
+  const AnamneseHistoricoItem({
+    required this.id,
+    required this.dataPreenchimento,
+    required this.objetivoCodigo,
+    required this.statusVigencia,
+    this.pesoKg,
+    this.alturaCm,
+  });
+
+  factory AnamneseHistoricoItem.fromJson(Map<String, dynamic> json) {
+    return AnamneseHistoricoItem(
+      id: json['id'] as String,
+      dataPreenchimento: DateTime.parse(json['data_preenchimento'] as String),
+      objetivoCodigo: json['objetivo_codigo'] as String,
+      statusVigencia: json['status_vigencia'] as String,
+      pesoKg: (json['peso_kg'] as num?)?.toDouble(),
+      alturaCm: (json['altura_cm'] as num?)?.toDouble(),
+    );
+  }
 }

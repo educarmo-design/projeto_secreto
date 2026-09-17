@@ -69,6 +69,11 @@ class _AnamneseSelfServicePageState extends State<AnamneseSelfServicePage> {
   bool _salvando = false;
   DateTime? _dataProximaLiberacao;
 
+  /// RELATÓRIO 20260917 (item 1 — "Captura Inteligente") — última leitura
+  /// de balança/wearable, mostrada como SUGESTÃO separada do campo de
+  /// peso (nunca preenche o campo sozinha).
+  SugestaoBalanca? _sugestaoBalanca;
+
   List<CatalogoItem> _problemasSaude = const [];
   List<CatalogoItem> _alergias = const [];
   List<TipoAtividadeItem> _tiposAtividades = const [];
@@ -100,6 +105,7 @@ class _AnamneseSelfServicePageState extends State<AnamneseSelfServicePage> {
       final tiposAtividades = await _repository.buscarTiposAtividades();
       final anamneseAtiva = await _repository.buscarAnamneseAtiva();
       final dadosFisicos = await _repository.buscarDadosFisicosAtuais();
+      final sugestaoBalanca = await _repository.buscarSugestaoBalanca();
 
       if (!mounted) return;
 
@@ -142,6 +148,7 @@ class _AnamneseSelfServicePageState extends State<AnamneseSelfServicePage> {
           _pesoController.text = _formatarNumero(dadosFisicos.pesoKg!);
         }
         _sexoSelecionado = dadosFisicos.sexoBiologico;
+        _sugestaoBalanca = sugestaoBalanca;
         _status = _CargaStatus.sucesso;
       });
     } catch (_) {
@@ -375,6 +382,10 @@ class _AnamneseSelfServicePageState extends State<AnamneseSelfServicePage> {
       children: [
         Text(i18n.tr('nutricao.dados_fisicos_label'), style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 8),
+        if (_sugestaoBalanca?.temAlgumDado ?? false) ...[
+          _buildSugestaoBalanca(context, _sugestaoBalanca!),
+          const SizedBox(height: 16),
+        ],
         TextFormField(
           controller: _alturaController,
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -430,6 +441,57 @@ class _AnamneseSelfServicePageState extends State<AnamneseSelfServicePage> {
           ),
         ),
       ],
+    );
+  }
+
+  /// RELATÓRIO 20260917 (item 1 — "Captura Inteligente e Confirmação
+  /// Obrigatória", docs/motor_metabolico.txt Seção 1: "a leitura da
+  /// balança continua existindo como dado de origem, mas só passa a ser
+  /// dado antropométrico oficial após confirmação") — mostra a última
+  /// leitura de `metricas_saude_diarias` como SUGESTÃO. "Confirmar" só
+  /// copia o valor pro campo de peso (ainda editável) — o campo continua
+  /// `required`/validado normalmente, então o usuário sempre confirma
+  /// (ou corrige) antes de salvar, nunca é gravado sozinho.
+  Widget _buildSugestaoBalanca(BuildContext context, SugestaoBalanca sugestao) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.primaryGold.withValues(alpha: 0.1),
+        border: Border.all(color: AppColors.primaryGold),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            i18n.tr('nutricao.sugestao_balanca_titulo'),
+            style: Theme.of(context).textTheme.titleSmall,
+          ),
+          const SizedBox(height: 4),
+          if (sugestao.pesoKg != null)
+            Text(i18n.tr('nutricao.sugestao_balanca_peso', params: {
+              'peso': _formatarNumero(sugestao.pesoKg!),
+              'data': _formatarData(sugestao.dataReferencia!),
+            })),
+          if (sugestao.percentualGordura != null)
+            Text(i18n.tr('nutricao.sugestao_balanca_percentual_gordura', params: {
+              'percentual': _formatarNumero(sugestao.percentualGordura!),
+              'data': _formatarData(sugestao.dataReferencia!),
+            })),
+          if (sugestao.pesoKg != null) ...[
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: OutlinedButton(
+                onPressed: _salvando
+                    ? null
+                    : () => setState(() => _pesoController.text = _formatarNumero(sugestao.pesoKg!)),
+                child: Text(i18n.tr('nutricao.sugestao_balanca_usar_button')),
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 

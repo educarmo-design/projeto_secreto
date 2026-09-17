@@ -44,6 +44,9 @@ class _FakeQuery<T> extends Fake implements PostgrestFilterBuilder<T> {
   PostgrestFilterBuilder<T> not(String column, String operator, Object? value) => this;
 
   @override
+  PostgrestFilterBuilder<T> or(String filters, {String? referencedTable}) => this;
+
+  @override
   PostgrestTransformBuilder<T> limit(int count, {String? referencedTable}) =>
       this as PostgrestTransformBuilder<T>;
 
@@ -273,6 +276,91 @@ void main() {
       expect(dados.alturaCm, 179.0);
       expect(dados.sexoBiologico, 'M');
       expect(dados.pesoKg, 78.5);
+    });
+  });
+
+  group('buscarSugestaoBalanca', () {
+    test('devolve tudo null sem consultar o Supabase quando ninguém está logado', () async {
+      when(() => auth.currentUser).thenReturn(null);
+
+      final sugestao = await repository.buscarSugestaoBalanca();
+
+      expect(sugestao.pesoKg, isNull);
+      expect(sugestao.percentualGordura, isNull);
+      verifyNever(() => supabase.from(any()));
+    });
+
+    test('devolve peso e percentual de gordura da última leitura', () async {
+      final metricasBuilder = builderPara('metricas_saude_diarias');
+      when(() => metricasBuilder.select(any())).thenAnswer(
+        (_) => _FakeQuery<List<Map<String, dynamic>>>([
+          {'peso_kg': 82.4, 'percentual_gordura': 18.5, 'data_referencia': '2026-09-16'},
+        ]),
+      );
+
+      final sugestao = await repository.buscarSugestaoBalanca();
+
+      expect(sugestao.pesoKg, 82.4);
+      expect(sugestao.percentualGordura, 18.5);
+      expect(sugestao.dataReferencia, DateTime.parse('2026-09-16'));
+      expect(sugestao.temAlgumDado, isTrue);
+    });
+
+    test('devolve tudo null quando nunca sincronizou nada (não é erro)', () async {
+      final metricasBuilder = builderPara('metricas_saude_diarias');
+      when(() => metricasBuilder.select(any())).thenAnswer(
+        (_) => _FakeQuery<List<Map<String, dynamic>>>([]),
+      );
+
+      final sugestao = await repository.buscarSugestaoBalanca();
+
+      expect(sugestao.temAlgumDado, isFalse);
+    });
+  });
+
+  group('buscarHistoricoAnamneses', () {
+    test('devolve lista vazia sem consultar o Supabase quando ninguém está logado', () async {
+      when(() => auth.currentUser).thenReturn(null);
+
+      final historico = await repository.buscarHistoricoAnamneses();
+
+      expect(historico, isEmpty);
+      verifyNever(() => supabase.from(any()));
+    });
+
+    test('devolve todas as anamneses mapeadas, mais recente primeiro', () async {
+      final anamnesesBuilder = builderPara('anamneses');
+      when(() => anamnesesBuilder.select(any())).thenAnswer(
+        (_) => _FakeQuery<List<Map<String, dynamic>>>([
+          {
+            'id': 'anamnese-2',
+            'data_preenchimento': '2026-09-10T00:00:00Z',
+            'objetivo_codigo': 'hipertrofia',
+            'peso_kg': 79.3,
+            'altura_cm': 178.0,
+            'status_vigencia': 'ativo',
+          },
+          {
+            'id': 'anamnese-1',
+            'data_preenchimento': '2026-08-10T00:00:00Z',
+            'objetivo_codigo': 'emagrecimento',
+            'peso_kg': null,
+            'altura_cm': null,
+            'status_vigencia': 'historico',
+          },
+        ]),
+      );
+
+      final historico = await repository.buscarHistoricoAnamneses();
+
+      expect(historico, hasLength(2));
+      expect(historico[0].id, 'anamnese-2');
+      expect(historico[0].pesoKg, 79.3);
+      expect(historico[0].alturaCm, 178.0);
+      expect(historico[0].statusVigencia, 'ativo');
+      expect(historico[1].id, 'anamnese-1');
+      expect(historico[1].pesoKg, isNull);
+      expect(historico[1].statusVigencia, 'historico');
     });
   });
 
