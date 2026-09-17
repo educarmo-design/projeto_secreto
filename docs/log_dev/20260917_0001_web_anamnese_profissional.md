@@ -57,4 +57,4 @@ Adicionados: tabelas `anamneses`/`anamneses_atividades_dias` (Insert/Update `nev
 - Migration `supabase/migrations/20260917120000_anamnese_profissional_web_snapshot_motor.sql`, já aplicada em produção.
 - Código React: `AnamneseProfissionalView.tsx` e `MotorMetabolicoV1Card.tsx` novos; `PrescricaoView.tsx` e `PatientDetails.tsx` editados; `core/types/database.ts` ampliado.
 - Nenhum arquivo Flutter tocado (ver seção "Item 1" acima — o patch na RPC compartilhada é suficiente para os dois clientes).
-- Branch `feat/web-anamnese-profissional`, a partir de `main`, **não mesclada** (Regra 18 — aguardando autorização explícita do fundador).
+- Branch `feat/web-anamnese-profissional`, a partir de `main`. **Mesclada em `main` em 2026-09-17** (autorização explícita do fundador) — reverificado na `main` mesclada: `npx tsc -b` limpo.
