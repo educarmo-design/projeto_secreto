@@ -47,11 +47,17 @@ class AtividadeSelecionada {
   final int minutos;
   final int diaSemana;
 
+  /// Bloco 6 (docs/motor_metabolico.txt) — "leve" | "moderada" | "alta".
+  /// Obrigatório por pedido explícito do fundador (RELATÓRIO 20260918_0001)
+  /// — mesmo CHECK constraint em `anamneses_atividades_dias.intensidade`.
+  final String intensidade;
+
   const AtividadeSelecionada({
     required this.atividadeId,
     required this.nomeExibicao,
     required this.minutos,
     required this.diaSemana,
+    required this.intensidade,
   });
 
   /// Igualdade por valor — necessária para a comparação de "já adicionada"
@@ -65,10 +71,236 @@ class AtividadeSelecionada {
       other.atividadeId == atividadeId &&
       other.nomeExibicao == nomeExibicao &&
       other.minutos == minutos &&
-      other.diaSemana == diaSemana;
+      other.diaSemana == diaSemana &&
+      other.intensidade == intensidade;
 
   @override
-  int get hashCode => Object.hash(atividadeId, nomeExibicao, minutos, diaSemana);
+  int get hashCode => Object.hash(atividadeId, nomeExibicao, minutos, diaSemana, intensidade);
+}
+
+/// Bloco 9/10/11 (docs/motor_metabolico.txt) — item repetível de
+/// Medicamento/Suplemento/Exame. Os 3 blocos compartilham a mesma forma
+/// "lista de cartões com nome + poucos campos opcionais", então usam o
+/// MESMO modelo genérico em vez de 3 classes quase idênticas — `campos`
+/// guarda só o que aquele bloco específico preenche (chaves diferentes por
+/// bloco, ver [AnamneseRepository.salvarAnamnese]).
+class ItemRepetivel {
+  final String nome;
+  final Map<String, String> campos;
+
+  const ItemRepetivel({required this.nome, this.campos = const {}});
+
+  @override
+  bool operator ==(Object other) =>
+      other is ItemRepetivel &&
+      other.nome == nome &&
+      _mapasIguais(other.campos, campos);
+
+  static bool _mapasIguais(Map<String, String> a, Map<String, String> b) {
+    if (a.length != b.length) return false;
+    for (final chave in a.keys) {
+      if (a[chave] != b[chave]) return false;
+    }
+    return true;
+  }
+
+  @override
+  int get hashCode => Object.hash(nome, Object.hashAllUnordered(campos.entries.map((e) => Object.hash(e.key, e.value))));
+}
+
+/// Bloco 4 (docs/motor_metabolico.txt) — resultado da RPC
+/// `anamnese_historico_peso`, só leitura, nunca editável pela tela ("esses
+/// dados são históricos e não devem ser confundidos com o peso oficial da
+/// nova Anamnese").
+class HistoricoPeso {
+  final double? pesoAtual;
+  final double? pesoAnterior;
+  final double? peso30Dias;
+  final double? peso3Meses;
+  final double? peso6Meses;
+  final double? peso12Meses;
+  final double? maiorPeso;
+  final double? menorPeso;
+  final double? variacaoPercentual;
+
+  const HistoricoPeso({
+    this.pesoAtual,
+    this.pesoAnterior,
+    this.peso30Dias,
+    this.peso3Meses,
+    this.peso6Meses,
+    this.peso12Meses,
+    this.maiorPeso,
+    this.menorPeso,
+    this.variacaoPercentual,
+  });
+
+  factory HistoricoPeso.fromJson(Map<String, dynamic> json) {
+    double? numOu(String chave) => (json[chave] as num?)?.toDouble();
+    return HistoricoPeso(
+      pesoAtual: numOu('peso_atual'),
+      pesoAnterior: numOu('peso_anterior'),
+      peso30Dias: numOu('peso_30_dias'),
+      peso3Meses: numOu('peso_3_meses'),
+      peso6Meses: numOu('peso_6_meses'),
+      peso12Meses: numOu('peso_12_meses'),
+      maiorPeso: numOu('maior_peso'),
+      menorPeso: numOu('menor_peso'),
+      variacaoPercentual: numOu('variacao_percentual'),
+    );
+  }
+
+  bool get temAlgumDado => pesoAtual != null || pesoAnterior != null;
+}
+
+/// Todos os campos novos da Anamnese (RELATÓRIO 20260918_0001, compliance
+/// total com docs/motor_metabolico.txt Blocos 1-16) que não existiam antes
+/// desta tarefa — agrupados num objeto só pra não estourar a assinatura de
+/// [AnamneseRepository.salvarAnamnese] com 30+ parâmetros nomeados soltos.
+/// Todo campo é opcional (`null`/lista vazia = não preenchido) — nenhum
+/// bloco condicional é obrigatório para todo mundo (Seção 15/9, "adaptativa").
+class DadosComplementaresAnamnese {
+  // Bloco 1 — Contexto da avaliação
+  final String? motivoAvaliacao;
+  final String? motivoAvaliacaoOutro;
+
+  // Bloco 2 — Objetivos
+  final String? objetivoOutro;
+  final List<String> objetivosSecundarios;
+  final double? metaPesoDesejadoKg;
+  final double? metaPercentualGorduraDesejado;
+  final double? metaMassaDesejadaKg;
+  final DateTime? metaPrazo;
+  final String? metaOutroIndicador;
+
+  // Bloco 3 — Antropometria (composição corporal)
+  final double? percentualGordura;
+  final double? massaGordaKg;
+  final double? massaMagraKg;
+  final double? massaMuscularKg;
+  final double? circunferenciaCinturaCm;
+  final double? circunferenciaAbdominalCm;
+  final String? metodoAvaliacaoComposicao;
+  final String? fonteComposicaoCorporal;
+
+  // Bloco 4 — Histórico de peso (pergunta, não o histórico em si)
+  final String? houveAlteracaoPesoNaoPlanejada;
+
+  // Bloco 5 — Alimentação
+  final int? numeroRefeicoesDia;
+  final String? horariosRefeicoesHabituais;
+  final String? regularidadeAlimentar;
+  final String? refeicoesForaDeCasa;
+  final String? consumoUltraprocessados;
+  final String? preferenciasAlimentares;
+  final String? alimentosEvitados;
+  final List<String> restricoesAlimentares;
+  final List<String> intolerancias;
+  final String? padraoAlimentarHabitual;
+
+  // Seção 5 + Bloco 6 (atividade não estruturada)
+  final String? rotinaDiaria;
+  final String? atividadeOcupacional;
+
+  // Bloco 7 — Sono
+  final double? horasSonoMedias;
+  final String? horarioDormirHabitual; // "HH:mm"
+  final String? horarioAcordarHabitual; // "HH:mm"
+  final String? qualidadeSonoPercebida;
+  final int? despertaresNoturnos;
+  final String? sonoObservacoes;
+
+  // Bloco 8 — Condições de saúde
+  final bool? possuiCondicaoSaude;
+
+  // Bloco 12 — Blocos condicionais
+  final Map<String, dynamic>? blocoIdoso;
+  final Map<String, dynamic>? blocoAtleta;
+  final Map<String, dynamic>? blocoRecomposicao;
+  final Map<String, dynamic>? blocoDiabetes;
+  final Map<String, dynamic>? blocoDoencaRenal;
+
+  // Blocos 9/10/11 — Medicamentos, Suplementos, Exames
+  final List<ItemRepetivel> medicamentos;
+  final List<ItemRepetivel> suplementos;
+  final List<ItemRepetivel> exames;
+
+  const DadosComplementaresAnamnese({
+    this.motivoAvaliacao,
+    this.motivoAvaliacaoOutro,
+    this.objetivoOutro,
+    this.objetivosSecundarios = const [],
+    this.metaPesoDesejadoKg,
+    this.metaPercentualGorduraDesejado,
+    this.metaMassaDesejadaKg,
+    this.metaPrazo,
+    this.metaOutroIndicador,
+    this.percentualGordura,
+    this.massaGordaKg,
+    this.massaMagraKg,
+    this.massaMuscularKg,
+    this.circunferenciaCinturaCm,
+    this.circunferenciaAbdominalCm,
+    this.metodoAvaliacaoComposicao,
+    this.fonteComposicaoCorporal,
+    this.houveAlteracaoPesoNaoPlanejada,
+    this.numeroRefeicoesDia,
+    this.horariosRefeicoesHabituais,
+    this.regularidadeAlimentar,
+    this.refeicoesForaDeCasa,
+    this.consumoUltraprocessados,
+    this.preferenciasAlimentares,
+    this.alimentosEvitados,
+    this.restricoesAlimentares = const [],
+    this.intolerancias = const [],
+    this.padraoAlimentarHabitual,
+    this.rotinaDiaria,
+    this.atividadeOcupacional,
+    this.horasSonoMedias,
+    this.horarioDormirHabitual,
+    this.horarioAcordarHabitual,
+    this.qualidadeSonoPercebida,
+    this.despertaresNoturnos,
+    this.sonoObservacoes,
+    this.possuiCondicaoSaude,
+    this.blocoIdoso,
+    this.blocoAtleta,
+    this.blocoRecomposicao,
+    this.blocoDiabetes,
+    this.blocoDoencaRenal,
+    this.medicamentos = const [],
+    this.suplementos = const [],
+    this.exames = const [],
+  });
+}
+
+/// Seção 11 (docs/motor_metabolico.txt) — "Confirme seus dados": tudo que
+/// [AnamneseSelfServicePage] coletou, ainda não enviado, a caminho de
+/// [ConfirmarAnamnesePage]. Só um carregador de dados entre as duas telas —
+/// a gravação de verdade só acontece quando o usuário toca "Confirmar e
+/// Enviar" lá (nunca antes).
+class AnamneseRascunho {
+  final String objetivoCodigo;
+  final double alturaCm;
+  final String sexoBiologico;
+  final double pesoKg;
+  final int? idade;
+  final List<CatalogoItem> problemasSaudeSelecionados;
+  final List<CatalogoItem> alergiasSelecionadas;
+  final List<AtividadeSelecionada> atividades;
+  final DadosComplementaresAnamnese complementares;
+
+  const AnamneseRascunho({
+    required this.objetivoCodigo,
+    required this.alturaCm,
+    required this.sexoBiologico,
+    required this.pesoKg,
+    required this.problemasSaudeSelecionados,
+    required this.alergiasSelecionadas,
+    required this.atividades,
+    required this.complementares,
+    this.idade,
+  });
 }
 
 /// A anamnese `status_vigencia = 'ativo'` do usuário logado, já com as
@@ -107,7 +339,24 @@ class DadosFisicosAtuais {
   final String? sexoBiologico;
   final double? pesoKg;
 
-  const DadosFisicosAtuais({this.alturaCm, this.sexoBiologico, this.pesoKg});
+  /// RELATÓRIO 20260918_0001 — usada só pra decidir se o Bloco 12.1 (Idoso)
+  /// deve ser oferecido (idade >= 60) e pra exibir "Idade" na tela de
+  /// confirmação; nunca perguntada de novo aqui (já existe em
+  /// `perfis_usuarios.data_nascimento`, coletada no cadastro).
+  final DateTime? dataNascimento;
+
+  const DadosFisicosAtuais({this.alturaCm, this.sexoBiologico, this.pesoKg, this.dataNascimento});
+
+  int? get idade {
+    final nascimento = dataNascimento;
+    if (nascimento == null) return null;
+    final hoje = DateTime.now();
+    var anos = hoje.year - nascimento.year;
+    if (hoje.month < nascimento.month || (hoje.month == nascimento.month && hoje.day < nascimento.day)) {
+      anos--;
+    }
+    return anos;
+  }
 }
 
 /// RELATÓRIO 20260917 (item 1 — "Captura Inteligente") — leitura mais

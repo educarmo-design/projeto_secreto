@@ -197,7 +197,7 @@ void main() {
         (_) => _FakeQuery<List<Map<String, dynamic>>>([
           {
             'id': 'anamnese-1',
-            'objetivo_codigo': 'hipertrofia',
+            'objetivo_codigo': 'ganhar_massa_muscular',
             'data_preenchimento': '2026-09-01T00:00:00Z',
           },
         ]),
@@ -232,7 +232,7 @@ void main() {
       final anamnese = await repository.buscarAnamneseAtiva();
 
       expect(anamnese, isNotNull);
-      expect(anamnese!.objetivoCodigo, 'hipertrofia');
+      expect(anamnese!.objetivoCodigo, 'ganhar_massa_muscular');
       expect(anamnese.dataPreenchimento, DateTime.parse('2026-09-01T00:00:00Z'));
       expect(anamnese.problemasSaudeIds, ['p1']);
       expect(anamnese.alergiaIds, ['a1']);
@@ -335,7 +335,7 @@ void main() {
           {
             'id': 'anamnese-2',
             'data_preenchimento': '2026-09-10T00:00:00Z',
-            'objetivo_codigo': 'hipertrofia',
+            'objetivo_codigo': 'ganhar_massa_muscular',
             'peso_kg': 79.3,
             'altura_cm': 178.0,
             'status_vigencia': 'ativo',
@@ -343,7 +343,7 @@ void main() {
           {
             'id': 'anamnese-1',
             'data_preenchimento': '2026-08-10T00:00:00Z',
-            'objetivo_codigo': 'emagrecimento',
+            'objetivo_codigo': 'perder_peso',
             'peso_kg': null,
             'altura_cm': null,
             'status_vigencia': 'historico',
@@ -364,13 +364,49 @@ void main() {
     });
   });
 
+  group('buscarHistoricoPeso', () {
+    test('devolve tudo null sem consultar o Supabase quando ninguém está logado', () async {
+      when(() => auth.currentUser).thenReturn(null);
+
+      final historico = await repository.buscarHistoricoPeso();
+
+      expect(historico.pesoAtual, isNull);
+      verifyNever(() => supabase.rpc(any(), params: any(named: 'params')));
+    });
+
+    test('chama a RPC anamnese_historico_peso e mapeia o resultado', () async {
+      when(() => supabase.rpc('anamnese_historico_peso', params: {'p_usuario_id': _usuarioId})).thenAnswer(
+        (_) => _FakeQuery<Map<String, dynamic>>({
+          'peso_atual': 88.0,
+          'peso_anterior': 90.0,
+          'peso_30_dias': null,
+          'peso_3_meses': null,
+          'peso_6_meses': null,
+          'peso_12_meses': null,
+          'maior_peso': 90.0,
+          'menor_peso': 88.0,
+          'variacao_percentual': -2.2,
+        }),
+      );
+
+      final historico = await repository.buscarHistoricoPeso();
+
+      expect(historico.pesoAtual, 88.0);
+      expect(historico.pesoAnterior, 90.0);
+      expect(historico.maiorPeso, 90.0);
+      expect(historico.menorPeso, 88.0);
+      expect(historico.variacaoPercentual, -2.2);
+      expect(historico.temAlgumDado, isTrue);
+    });
+  });
+
   group('salvarAnamnese', () {
     test('lança StateError sem chamar o Supabase quando ninguém está logado', () async {
       when(() => auth.currentUser).thenReturn(null);
 
       expect(
         () => repository.salvarAnamnese(
-          objetivoCodigo: 'emagrecimento',
+          objetivoCodigo: 'perder_peso',
           alturaCm: 179,
           sexoBiologico: 'M',
           pesoKg: 78,
@@ -394,7 +430,7 @@ void main() {
       );
 
       await repository.salvarAnamnese(
-        objetivoCodigo: 'manutencao',
+        objetivoCodigo: 'manter_peso',
         alturaCm: 179,
         sexoBiologico: 'M',
         pesoKg: 78.5,
@@ -410,16 +446,23 @@ void main() {
       final hoje = DateTime.now();
       final dataReferenciaEsperada =
           '${hoje.year.toString().padLeft(4, '0')}-${hoje.month.toString().padLeft(2, '0')}-${hoje.day.toString().padLeft(2, '0')}';
-      verify(
-        () => anamnesesBuilder.insert({
-          'usuario_id': _usuarioId,
-          'objetivo_codigo': 'manutencao',
-          'peso_kg': 78.5,
-          'altura_cm': 179.0,
-          'peso_data_medicao': dataReferenciaEsperada,
-          'peso_origem': 'usuario',
-        }),
-      ).called(1);
+
+      // RELATÓRIO 20260918_0001 — o payload ganhou ~35 campos opcionais
+      // (Blocos 1-16 de docs/motor_metabolico.txt); em vez de igualdade
+      // exata do Map inteiro (frágil a cada novo campo opcional futuro),
+      // captura a chamada e confere só os campos que este teste realmente
+      // documenta — os campos "fixos" que já existiam antes desta tarefa +
+      // os 2 que toda chamada de salvarAnamnese sempre grava agora
+      // (dados_confirmados/confirmado_em, Seção 11 — "Confirme seus dados").
+      final payload = verify(() => anamnesesBuilder.insert(captureAny())).captured.single as Map<String, dynamic>;
+      expect(payload['usuario_id'], _usuarioId);
+      expect(payload['objetivo_codigo'], 'manter_peso');
+      expect(payload['peso_kg'], 78.5);
+      expect(payload['altura_cm'], 179.0);
+      expect(payload['peso_data_medicao'], dataReferenciaEsperada);
+      expect(payload['peso_origem'], 'usuario');
+      expect(payload['dados_confirmados'], isTrue);
+      expect(payload['confirmado_em'], isNotNull);
     });
 
     test('insere a anamnese e as relações N:N (incluindo a rotina por dia) com os payloads corretos', () async {
@@ -448,14 +491,14 @@ void main() {
       );
 
       await repository.salvarAnamnese(
-        objetivoCodigo: 'manutencao',
+        objetivoCodigo: 'manter_peso',
         alturaCm: 179,
         sexoBiologico: 'M',
         pesoKg: 78.5,
         problemasSaudeIds: const ['p1', 'p2'],
         alergiaIds: const ['a1'],
         atividades: const [
-          AtividadeSelecionada(atividadeId: 30, nomeExibicao: 'Corrida', minutos: 45, diaSemana: 1),
+          AtividadeSelecionada(atividadeId: 30, nomeExibicao: 'Corrida', minutos: 45, diaSemana: 1, intensidade: 'alta'),
         ],
       );
 
@@ -472,7 +515,7 @@ void main() {
       ).called(1);
       verify(
         () => atividadesBuilder.insert([
-          {'anamnese_id': 'anamnese-nova', 'atividade_id': 30, 'dia_semana': 1, 'minutos': 45},
+          {'anamnese_id': 'anamnese-nova', 'atividade_id': 30, 'dia_semana': 1, 'minutos': 45, 'intensidade': 'alta'},
         ]),
       ).called(1);
     });
@@ -488,7 +531,7 @@ void main() {
       );
 
       await repository.salvarAnamnese(
-        objetivoCodigo: 'emagrecimento',
+        objetivoCodigo: 'perder_peso',
         alturaCm: 179,
         sexoBiologico: 'M',
         pesoKg: 78.5,

@@ -6,36 +6,30 @@ import '../../../../core/theme/app_theme.dart';
 import '../../data/models/anamnese_models.dart';
 import '../../data/repositories/anamnese_repository.dart';
 import '../../data/repositories/meta_bem_estar_repository.dart';
-import 'resultado_motor_metabolico_page.dart';
+import '../widgets/lista_repetivel_widget.dart';
+import '../widgets/seletor_multiplo_bottom_sheet.dart';
+import 'confirmar_anamnese_page.dart';
 
 enum _CargaStatus { carregando, sucesso, erro, bloqueadaCarencia }
 
 const _carenciaDias = 30;
+const _idadeMinimaBlocoIdoso = 60;
 
 /// N09 (RELATÓRIO 20260811_0007) — Anamnese Nutricional Versionada,
-/// preenchimento SELF-SERVICE pelo próprio atleta (sem tela equivalente no
-/// Painel Web — restrição explícita desta tarefa, foco 100% mobile).
+/// self-service. RELATÓRIO 20260918_0001 — compliance total com os Blocos
+/// 1-16 de docs/motor_metabolico.txt: esta tela cobre os Blocos 1-12
+/// (coleta de dados) em seções sequenciais dentro de uma única página
+/// rolável — "passos" no sentido de blocos claramente delimitados, não uma
+/// troca de tela por bloco (decisão de escopo registrada no relatório
+/// desta tarefa) — seguidos por uma tela dedicada de confirmação final
+/// ([ConfirmarAnamnesePage], Seção 11) antes de qualquer gravação.
 ///
-/// RELATÓRIO 20260915_0003 — 3 mudanças de escopo sobre a v1 (N09):
-///   1. Captura altura/sexo/peso junto (item 1 da tarefa) — mesmo padrão
-///      de campo de [PerfilUsuarioPage], mas gravados aqui porque o Motor
-///      Metabólico N07 precisa dos 3 pra calcular TMB/TDEE e a anamnese é
-///      o momento natural de pedir isso a quem ainda não preencheu.
-///   2. Rotina de Atividades agora é POR DIA DA SEMANA (Dom-Sáb), gravando
-///      em `anamneses_atividades_dias` em vez da `anamneses_atividades`
-///      uniforme antiga — ver o comentário de
-///      [AnamneseRepository.salvarAnamnese].
-///   3. Trava de 30 Dias: como [MetaBemEstarPage] já faz para a Meta, esta
-///      tela bloqueia um novo preenchimento antes de 30 dias do último.
+/// "Salvar" nesta tela NUNCA grava nada — só monta um [AnamneseRascunho] e
+/// navega pra confirmação; a gravação de verdade
+/// ([AnamneseRepository.salvarAnamnese]) só acontece lá.
 ///
 /// Regra 14 (Parte 0): "Validação = completa funcionalmente, crua
 /// visualmente" — Radio/Checkbox/ListTile crus, sem carrossel/ilustração.
-///
-/// Salvar SEMPRE cria uma anamnese NOVA (nunca edita a anterior) — o
-/// trigger `anamneses_trg_versionar` no banco vira a anterior pra
-/// "historico" sozinho. Por isso esta tela pré-preenche com a anamnese
-/// ATIVA (se existir) só pra conveniência de quem está atualizando, mas
-/// "Salvar" nunca é um UPDATE.
 class AnamneseSelfServicePage extends StatefulWidget {
   const AnamneseSelfServicePage({
     super.key,
@@ -46,17 +40,47 @@ class AnamneseSelfServicePage extends StatefulWidget {
 
   final AnamneseRepository? _repository;
 
-  /// Só repassado adiante pra [ResultadoMotorMetabolicoPage] (injeção de
-  /// dependência em cascata, pra testes poderem mockar a tela seguinte sem
-  /// tocar rede) — esta tela em si nunca chama nada de
-  /// [MetaBemEstarRepository] diretamente.
+  /// Só repassado adiante em cascata (Anamnese → Confirmação → Resultado)
+  /// pra testes poderem mockar a última tela sem tocar rede.
   final MetaBemEstarRepository? _metaRepository;
 
   @override
   State<AnamneseSelfServicePage> createState() => _AnamneseSelfServicePageState();
 }
 
-const _objetivos = ['emagrecimento', 'manutencao', 'hipertrofia'];
+const _objetivos = [
+  'perder_peso',
+  'manter_peso',
+  'ganhar_peso',
+  'reduzir_gordura_corporal',
+  'ganhar_massa_muscular',
+  'recomposicao_corporal',
+  'melhorar_desempenho_esportivo',
+  'outro',
+];
+
+const _motivosAvaliacao = [
+  'avaliacao_inicial',
+  'reavaliacao_periodica',
+  'alteracao_objetivo',
+  'alteracao_condicao_saude',
+  'alteracao_peso',
+  'alteracao_rotina',
+  'nova_avaliacao_profissional',
+  'retorno_apos_interrupcao',
+  'outro',
+];
+
+const _rotinasDiarias = [
+  'predominantemente_sentado',
+  'pouco_ativo',
+  'moderadamente_ativo',
+  'muito_ativo',
+  'trabalho_fisicamente_intenso',
+];
+
+const _qualidadesSono = ['muito_ruim', 'ruim', 'regular', 'boa', 'muito_boa'];
+const _intensidades = ['leve', 'moderada', 'alta'];
 
 class _AnamneseSelfServicePageState extends State<AnamneseSelfServicePage> {
   late final AnamneseRepository _repository = widget._repository ?? AnamneseRepository();
@@ -66,23 +90,87 @@ class _AnamneseSelfServicePageState extends State<AnamneseSelfServicePage> {
   final _pesoController = TextEditingController();
 
   _CargaStatus _status = _CargaStatus.carregando;
-  bool _salvando = false;
+  bool _indoParaConfirmacao = false;
   DateTime? _dataProximaLiberacao;
 
-  /// RELATÓRIO 20260917 (item 1 — "Captura Inteligente") — última leitura
-  /// de balança/wearable, mostrada como SUGESTÃO separada do campo de
-  /// peso (nunca preenche o campo sozinha).
   SugestaoBalanca? _sugestaoBalanca;
+  HistoricoPeso? _historicoPeso;
+  int? _idade;
 
   List<CatalogoItem> _problemasSaude = const [];
   List<CatalogoItem> _alergias = const [];
   List<TipoAtividadeItem> _tiposAtividades = const [];
 
+  String? _motivoAvaliacaoSelecionado;
+  final _motivoAvaliacaoOutroController = TextEditingController();
+
   String? _objetivoSelecionado;
+  final _objetivoOutroController = TextEditingController();
+  final Set<String> _objetivosSecundariosSelecionados = {};
+  final _metaPesoController = TextEditingController();
+  final _metaPercentualGorduraController = TextEditingController();
+  final _metaMassaController = TextEditingController();
+  final _metaOutroIndicadorController = TextEditingController();
+
   String? _sexoSelecionado;
+  final _percentualGorduraController = TextEditingController();
+  final _massaMagraController = TextEditingController();
+  final _massaGordaController = TextEditingController();
+  final _massaMuscularController = TextEditingController();
+  final _circCinturaController = TextEditingController();
+  final _circAbdominalController = TextEditingController();
+
+  String? _houveAlteracaoPeso;
+
+  final _numeroRefeicoesController = TextEditingController();
+  final _horariosRefeicoesController = TextEditingController();
+  final _refeicoesForaController = TextEditingController();
+  final _preferenciasController = TextEditingController();
+  final _alimentosEvitadosController = TextEditingController();
+  final _restricoesController = TextEditingController();
+  final _intolerenciasController = TextEditingController();
+  final _padraoAlimentarController = TextEditingController();
+
+  String? _rotinaDiariaSelecionada;
+  final _atividadeOcupacionalController = TextEditingController();
+
+  final _horasSonoController = TextEditingController();
+  final _horarioDormirController = TextEditingController();
+  final _horarioAcordarController = TextEditingController();
+  String? _qualidadeSonoSelecionada;
+  final _despertaresController = TextEditingController();
+
+  bool? _possuiCondicaoSaude;
   final Set<String> _problemasSaudeSelecionados = {};
   final Set<String> _alergiasSelecionadas = {};
   final List<AtividadeSelecionada> _atividadesSelecionadas = [];
+
+  bool _praticaEsporteEstruturado = false;
+  final _atletaModalidadeController = TextEditingController();
+  final _atletaHorasSemanaController = TextEditingController();
+  final _atletaObjetivoEsportivoController = TextEditingController();
+  bool _atletaCompeticaoProxima = false;
+
+  bool _idosoPerdaPeso = false;
+  bool _idosoReducaoForcaMobilidade = false;
+  bool _idosoDificuldadeAlimentacao = false;
+
+  final _diabetesTipoController = TextEditingController();
+  bool _diabetesUsaInsulina = false;
+  bool _diabetesUsaMedicamento = false;
+  final _diabetesHba1cController = TextEditingController();
+
+  final _renalEstagioController = TextEditingController();
+  final _renalTfgController = TextEditingController();
+  bool _renalFazDialise = false;
+
+  final _recomposicaoPercentualAtualController = TextEditingController();
+  final _recomposicaoPercentualDesejadoController = TextEditingController();
+  bool _recomposicaoTreinamentoResistido = false;
+
+  final List<ItemRepetivel> _medicamentos = [];
+  final List<ItemRepetivel> _suplementos = [];
+  final List<ItemRepetivel> _exames = [];
 
   @override
   void initState() {
@@ -94,6 +182,40 @@ class _AnamneseSelfServicePageState extends State<AnamneseSelfServicePage> {
   void dispose() {
     _alturaController.dispose();
     _pesoController.dispose();
+    _motivoAvaliacaoOutroController.dispose();
+    _objetivoOutroController.dispose();
+    _metaPesoController.dispose();
+    _metaPercentualGorduraController.dispose();
+    _metaMassaController.dispose();
+    _metaOutroIndicadorController.dispose();
+    _percentualGorduraController.dispose();
+    _massaMagraController.dispose();
+    _massaGordaController.dispose();
+    _massaMuscularController.dispose();
+    _circCinturaController.dispose();
+    _circAbdominalController.dispose();
+    _numeroRefeicoesController.dispose();
+    _horariosRefeicoesController.dispose();
+    _refeicoesForaController.dispose();
+    _preferenciasController.dispose();
+    _alimentosEvitadosController.dispose();
+    _restricoesController.dispose();
+    _intolerenciasController.dispose();
+    _padraoAlimentarController.dispose();
+    _atividadeOcupacionalController.dispose();
+    _horasSonoController.dispose();
+    _horarioDormirController.dispose();
+    _horarioAcordarController.dispose();
+    _despertaresController.dispose();
+    _atletaModalidadeController.dispose();
+    _atletaHorasSemanaController.dispose();
+    _atletaObjetivoEsportivoController.dispose();
+    _diabetesTipoController.dispose();
+    _diabetesHba1cController.dispose();
+    _renalEstagioController.dispose();
+    _renalTfgController.dispose();
+    _recomposicaoPercentualAtualController.dispose();
+    _recomposicaoPercentualDesejadoController.dispose();
     super.dispose();
   }
 
@@ -106,14 +228,11 @@ class _AnamneseSelfServicePageState extends State<AnamneseSelfServicePage> {
       final anamneseAtiva = await _repository.buscarAnamneseAtiva();
       final dadosFisicos = await _repository.buscarDadosFisicosAtuais();
       final sugestaoBalanca = await _repository.buscarSugestaoBalanca();
+      final historicoPeso = await _repository.buscarHistoricoPeso();
 
       if (!mounted) return;
 
-      // Trava de 30 Dias (item 3 da tarefa) — a anamnese ATIVA é sempre a
-      // mais recentemente preenchida (o trigger de versionamento garante
-      // no máximo 1 "ativo" por usuário), então `dataPreenchimento` dela
-      // já é a data do último preenchimento, sem precisar de uma 2ª
-      // consulta. Mesmo espírito de `MetaBemEstarPage._carregar`.
+      // Trava de 30 Dias — mesmo espírito de MetaBemEstarPage._carregar.
       if (anamneseAtiva != null) {
         final liberaEm = anamneseAtiva.dataPreenchimento.add(const Duration(days: _carenciaDias));
         if (liberaEm.isAfter(DateTime.now())) {
@@ -129,11 +248,14 @@ class _AnamneseSelfServicePageState extends State<AnamneseSelfServicePage> {
         _problemasSaude = problemasSaude;
         _alergias = alergias;
         _tiposAtividades = tiposAtividades;
+        _historicoPeso = historicoPeso;
+        _idade = dadosFisicos.idade;
         if (anamneseAtiva != null) {
           _objetivoSelecionado = anamneseAtiva.objetivoCodigo;
           _problemasSaudeSelecionados
             ..clear()
             ..addAll(anamneseAtiva.problemasSaudeIds);
+          _possuiCondicaoSaude = anamneseAtiva.problemasSaudeIds.isNotEmpty ? true : _possuiCondicaoSaude;
           _alergiasSelecionadas
             ..clear()
             ..addAll(anamneseAtiva.alergiaIds);
@@ -179,10 +301,20 @@ class _AnamneseSelfServicePageState extends State<AnamneseSelfServicePage> {
     return null;
   }
 
-  /// Modalidades ainda não adicionadas NESTE dia específico — a mesma
-  /// atividade pode aparecer em dias diferentes (a duplicidade é evitada
-  /// só dentro do mesmo `diaSemana`, mesma granularidade da PK de
-  /// `anamneses_atividades_dias`).
+  bool get _mostrarBlocoIdoso => (_idade ?? 0) >= _idadeMinimaBlocoIdoso;
+
+  bool get _mostrarBlocoDiabetes => _problemasSaudeSelecionados.any((id) {
+        final nome = _problemasSaude.firstWhere((item) => item.id == id, orElse: () => const CatalogoItem(id: '', nome: '')).nome;
+        return nome.toLowerCase().contains('diabetes');
+      });
+
+  bool get _mostrarBlocoRenal => _problemasSaudeSelecionados.any((id) {
+        final nome = _problemasSaude.firstWhere((item) => item.id == id, orElse: () => const CatalogoItem(id: '', nome: '')).nome;
+        return nome.toLowerCase().contains('renal');
+      });
+
+  bool get _mostrarBlocoRecomposicao => _objetivoSelecionado == 'recomposicao_corporal';
+
   Future<void> _abrirModalAdicionarAtividade(int diaSemana) async {
     final disponiveis = _tiposAtividades
         .where((tipo) => !_atividadesSelecionadas.any((a) => a.atividadeId == tipo.id && a.diaSemana == diaSemana))
@@ -204,66 +336,129 @@ class _AnamneseSelfServicePageState extends State<AnamneseSelfServicePage> {
     setState(() => _atividadesSelecionadas.add(resultado));
   }
 
-  Future<void> _salvar() async {
+  void _irParaConfirmacao() {
     if (!(_formKey.currentState?.validate() ?? false)) return;
 
     if (_objetivoSelecionado == null) {
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          SnackBar(
-            content: Text(i18n.tr('nutricao.objetivo_obrigatorio')),
-            backgroundColor: AppColors.error,
-          ),
-        );
+      _mostrarErro(i18n.tr('nutricao.objetivo_obrigatorio'));
       return;
     }
-
     if (_sexoSelecionado == null) {
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          SnackBar(
-            content: Text(i18n.tr('nutricao.sexo_obrigatorio')),
-            backgroundColor: AppColors.error,
-          ),
-        );
+      _mostrarErro(i18n.tr('nutricao.sexo_obrigatorio'));
       return;
     }
 
-    setState(() => _salvando = true);
-    try {
-      await _repository.salvarAnamnese(
-        objetivoCodigo: _objetivoSelecionado!,
-        alturaCm: double.parse(_alturaController.text.trim().replaceAll(',', '.')),
-        sexoBiologico: _sexoSelecionado!,
-        pesoKg: double.parse(_pesoController.text.trim().replaceAll(',', '.')),
-        problemasSaudeIds: _problemasSaudeSelecionados.toList(),
-        alergiaIds: _alergiasSelecionadas.toList(),
-        atividades: _atividadesSelecionadas,
-      );
-      if (!mounted) return;
-      // Item 2 da tarefa: após o envio, abre a Tela de Resultado do Motor
-      // Metabólico (que chama gerar_sugestao_meta sozinha) — não fica
-      // nesta tela mostrando só um snackbar.
-      await Navigator.of(context).push(
-        MaterialPageRoute<void>(
-          builder: (_) => ResultadoMotorMetabolicoPage(repository: widget._metaRepository),
-        ),
-      );
-    } catch (_) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          SnackBar(
-            content: Text(i18n.tr('nutricao.save_error')),
-            backgroundColor: AppColors.error,
-          ),
-        );
-    } finally {
-      if (mounted) setState(() => _salvando = false);
-    }
+    final complementares = DadosComplementaresAnamnese(
+      motivoAvaliacao: _motivoAvaliacaoSelecionado,
+      motivoAvaliacaoOutro: _textoOuNulo(_motivoAvaliacaoOutroController),
+      objetivoOutro: _textoOuNulo(_objetivoOutroController),
+      objetivosSecundarios: _objetivosSecundariosSelecionados.toList(),
+      metaPesoDesejadoKg: double.tryParse(_metaPesoController.text.trim().replaceAll(',', '.')),
+      metaPercentualGorduraDesejado: double.tryParse(_metaPercentualGorduraController.text.trim().replaceAll(',', '.')),
+      metaMassaDesejadaKg: double.tryParse(_metaMassaController.text.trim().replaceAll(',', '.')),
+      metaOutroIndicador: _metaOutroIndicadorController.text.trim().isEmpty ? null : _metaOutroIndicadorController.text.trim(),
+      percentualGordura: double.tryParse(_percentualGorduraController.text.trim().replaceAll(',', '.')),
+      massaMagraKg: double.tryParse(_massaMagraController.text.trim().replaceAll(',', '.')),
+      massaGordaKg: double.tryParse(_massaGordaController.text.trim().replaceAll(',', '.')),
+      massaMuscularKg: double.tryParse(_massaMuscularController.text.trim().replaceAll(',', '.')),
+      circunferenciaCinturaCm: double.tryParse(_circCinturaController.text.trim().replaceAll(',', '.')),
+      circunferenciaAbdominalCm: double.tryParse(_circAbdominalController.text.trim().replaceAll(',', '.')),
+      houveAlteracaoPesoNaoPlanejada: _houveAlteracaoPeso,
+      numeroRefeicoesDia: int.tryParse(_numeroRefeicoesController.text.trim()),
+      horariosRefeicoesHabituais: _textoOuNulo(_horariosRefeicoesController),
+      refeicoesForaDeCasa: _textoOuNulo(_refeicoesForaController),
+      preferenciasAlimentares: _textoOuNulo(_preferenciasController),
+      alimentosEvitados: _textoOuNulo(_alimentosEvitadosController),
+      restricoesAlimentares: _listaDeTexto(_restricoesController),
+      intolerancias: _listaDeTexto(_intolerenciasController),
+      padraoAlimentarHabitual: _textoOuNulo(_padraoAlimentarController),
+      rotinaDiaria: _rotinaDiariaSelecionada,
+      atividadeOcupacional: _textoOuNulo(_atividadeOcupacionalController),
+      horasSonoMedias: double.tryParse(_horasSonoController.text.trim().replaceAll(',', '.')),
+      horarioDormirHabitual: _textoOuNulo(_horarioDormirController),
+      horarioAcordarHabitual: _textoOuNulo(_horarioAcordarController),
+      qualidadeSonoPercebida: _qualidadeSonoSelecionada,
+      despertaresNoturnos: int.tryParse(_despertaresController.text.trim()),
+      possuiCondicaoSaude: _possuiCondicaoSaude,
+      blocoAtleta: !_praticaEsporteEstruturado
+          ? null
+          : {
+              'modalidade': _atletaModalidadeController.text.trim(),
+              'horas_semana': _atletaHorasSemanaController.text.trim(),
+              'objetivo_esportivo': _atletaObjetivoEsportivoController.text.trim(),
+              'competicao_proxima': _atletaCompeticaoProxima,
+            },
+      blocoIdoso: !_mostrarBlocoIdoso
+          ? null
+          : {
+              'perda_involuntaria_peso': _idosoPerdaPeso,
+              'reducao_forca_mobilidade': _idosoReducaoForcaMobilidade,
+              'dificuldade_alimentacao': _idosoDificuldadeAlimentacao,
+            },
+      blocoDiabetes: !_mostrarBlocoDiabetes
+          ? null
+          : {
+              'tipo': _diabetesTipoController.text.trim(),
+              'usa_insulina': _diabetesUsaInsulina,
+              'usa_medicamento': _diabetesUsaMedicamento,
+              'hba1c': _diabetesHba1cController.text.trim(),
+            },
+      blocoDoencaRenal: !_mostrarBlocoRenal
+          ? null
+          : {
+              'estagio': _renalEstagioController.text.trim(),
+              'tfg_egfr': _renalTfgController.text.trim(),
+              'faz_dialise': _renalFazDialise,
+            },
+      blocoRecomposicao: !_mostrarBlocoRecomposicao
+          ? null
+          : {
+              'percentual_gordura_atual': _recomposicaoPercentualAtualController.text.trim(),
+              'percentual_desejado': _recomposicaoPercentualDesejadoController.text.trim(),
+              'treinamento_resistido': _recomposicaoTreinamentoResistido,
+            },
+      medicamentos: _medicamentos,
+      suplementos: _suplementos,
+      exames: _exames,
+    );
+
+    final rascunho = AnamneseRascunho(
+      objetivoCodigo: _objetivoSelecionado!,
+      alturaCm: double.parse(_alturaController.text.trim().replaceAll(',', '.')),
+      sexoBiologico: _sexoSelecionado!,
+      pesoKg: double.parse(_pesoController.text.trim().replaceAll(',', '.')),
+      idade: _idade,
+      problemasSaudeSelecionados: _problemasSaude.where((item) => _problemasSaudeSelecionados.contains(item.id)).toList(),
+      alergiasSelecionadas: _alergias.where((item) => _alergiasSelecionadas.contains(item.id)).toList(),
+      atividades: _atividadesSelecionadas,
+      complementares: complementares,
+    );
+
+    setState(() => _indoParaConfirmacao = true);
+    Navigator.of(context)
+        .push(MaterialPageRoute<void>(
+          builder: (_) => ConfirmarAnamnesePage(rascunho: rascunho, repository: _repository, metaRepository: widget._metaRepository),
+        ))
+        .whenComplete(() {
+      if (mounted) setState(() => _indoParaConfirmacao = false);
+    });
+  }
+
+  String? _textoOuNulo(TextEditingController controller) {
+    final texto = controller.text.trim();
+    return texto.isEmpty ? null : texto;
+  }
+
+  List<String> _listaDeTexto(TextEditingController controller) {
+    final texto = controller.text.trim();
+    if (texto.isEmpty) return const [];
+    return texto.split(',').map((item) => item.trim()).where((item) => item.isNotEmpty).toList();
+  }
+
+  void _mostrarErro(String mensagem) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(mensagem), backgroundColor: AppColors.error));
   }
 
   @override
@@ -288,16 +483,10 @@ class _AnamneseSelfServicePageState extends State<AnamneseSelfServicePage> {
                 Text(
                   i18n.tr('nutricao.load_error'),
                   textAlign: TextAlign.center,
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodyMedium
-                      ?.copyWith(color: AppColors.error),
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppColors.error),
                 ),
                 const SizedBox(height: 12),
-                OutlinedButton(
-                  onPressed: _carregar,
-                  child: Text(i18n.tr('nutricao.save_button')),
-                ),
+                OutlinedButton(onPressed: _carregar, child: Text(i18n.tr('nutricao.save_button'))),
               ],
             ),
           ),
@@ -318,10 +507,7 @@ class _AnamneseSelfServicePageState extends State<AnamneseSelfServicePage> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  i18n.tr(
-                    'nutricao.anamnese_carencia_mensagem',
-                    params: {'data': _formatarData(_dataProximaLiberacao!)},
-                  ),
+                  i18n.tr('nutricao.anamnese_carencia_mensagem', params: {'data': _formatarData(_dataProximaLiberacao!)}),
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppColors.mutedText),
                 ),
@@ -340,40 +526,120 @@ class _AnamneseSelfServicePageState extends State<AnamneseSelfServicePage> {
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppColors.mutedText),
               ),
               const SizedBox(height: 24),
+              _buildSecaoMotivoAvaliacao(context),
+              const SizedBox(height: 24),
               _buildSecaoDadosFisicos(context),
+              const SizedBox(height: 24),
+              _buildSecaoComposicaoCorporal(context),
+              const SizedBox(height: 24),
+              _buildSecaoHistoricoPeso(context),
               const SizedBox(height: 24),
               _buildSecaoObjetivo(context),
               const SizedBox(height: 24),
-              _buildSecaoMultiSelect(
-                titulo: i18n.tr('nutricao.problemas_saude_label'),
-                vazio: i18n.tr('nutricao.problemas_saude_empty'),
-                itens: _problemasSaude,
-                selecionados: _problemasSaudeSelecionados,
-              ),
+              _buildSecaoAlimentacao(context),
               const SizedBox(height: 24),
-              _buildSecaoMultiSelect(
-                titulo: i18n.tr('nutricao.alergias_label'),
-                vazio: i18n.tr('nutricao.alergias_empty'),
-                itens: _alergias,
-                selecionados: _alergiasSelecionadas,
-              ),
+              _buildSecaoRotinaDiaria(context),
               const SizedBox(height: 24),
               _buildSecaoRotina(context),
+              const SizedBox(height: 24),
+              _buildSecaoSono(context),
+              const SizedBox(height: 24),
+              _buildSecaoCondicoes(context),
+              if (_mostrarBlocoDiabetes) ...[const SizedBox(height: 24), _buildBlocoDiabetes(context)],
+              if (_mostrarBlocoRenal) ...[const SizedBox(height: 24), _buildBlocoRenal(context)],
+              if (_mostrarBlocoRecomposicao) ...[const SizedBox(height: 24), _buildBlocoRecomposicao(context)],
+              if (_mostrarBlocoIdoso) ...[const SizedBox(height: 24), _buildBlocoIdoso(context)],
+              const SizedBox(height: 24),
+              _buildBlocoAtleta(context),
+              const SizedBox(height: 24),
+              ListaRepetivelWidget(
+                titulo: i18n.tr('nutricao.medicamentos_label'),
+                vazioTexto: i18n.tr('nutricao.medicamentos_empty'),
+                addButtonTexto: i18n.tr('nutricao.medicamentos_add_button'),
+                modalTitulo: i18n.tr('nutricao.medicamentos_modal_title'),
+                itens: _medicamentos,
+                habilitado: !_indoParaConfirmacao,
+                camposExtras: [
+                  CampoExtra(chave: 'dose', label: i18n.tr('nutricao.medicamentos_modal_dose_label'), tipo: TextInputType.number),
+                  CampoExtra(chave: 'unidade', label: i18n.tr('nutricao.medicamentos_modal_unidade_label')),
+                  CampoExtra(chave: 'frequencia', label: i18n.tr('nutricao.medicamentos_modal_frequencia_label')),
+                ],
+                onAdicionar: (item) => setState(() => _medicamentos.add(item)),
+                onRemover: (item) => setState(() => _medicamentos.remove(item)),
+              ),
+              const SizedBox(height: 24),
+              ListaRepetivelWidget(
+                titulo: i18n.tr('nutricao.suplementos_label'),
+                vazioTexto: i18n.tr('nutricao.suplementos_empty'),
+                addButtonTexto: i18n.tr('nutricao.suplementos_add_button'),
+                modalTitulo: i18n.tr('nutricao.suplementos_modal_title'),
+                itens: _suplementos,
+                habilitado: !_indoParaConfirmacao,
+                camposExtras: [
+                  CampoExtra(chave: 'dose', label: i18n.tr('nutricao.medicamentos_modal_dose_label'), tipo: TextInputType.number),
+                  CampoExtra(chave: 'unidade', label: i18n.tr('nutricao.medicamentos_modal_unidade_label')),
+                  CampoExtra(chave: 'objetivo', label: i18n.tr('nutricao.suplementos_modal_objetivo_label')),
+                ],
+                onAdicionar: (item) => setState(() => _suplementos.add(item)),
+                onRemover: (item) => setState(() => _suplementos.remove(item)),
+              ),
+              const SizedBox(height: 24),
+              ListaRepetivelWidget(
+                titulo: i18n.tr('nutricao.exames_label'),
+                vazioTexto: i18n.tr('nutricao.exames_empty'),
+                addButtonTexto: i18n.tr('nutricao.exames_add_button'),
+                modalTitulo: i18n.tr('nutricao.exames_modal_title'),
+                itens: _exames,
+                habilitado: !_indoParaConfirmacao,
+                camposExtras: [
+                  CampoExtra(chave: 'resultado', label: i18n.tr('nutricao.exames_modal_resultado_label')),
+                  CampoExtra(chave: 'unidade', label: i18n.tr('nutricao.medicamentos_modal_unidade_label')),
+                ],
+                onAdicionar: (item) => setState(() => _exames.add(item)),
+                onRemover: (item) => setState(() => _exames.remove(item)),
+              ),
+              const SizedBox(height: 24),
+              _buildSecaoAlergias(context),
               const SizedBox(height: 32),
               FilledButton(
-                onPressed: _salvando ? null : _salvar,
-                child: _salvando
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
+                onPressed: _indoParaConfirmacao ? null : _irParaConfirmacao,
+                child: _indoParaConfirmacao
+                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
                     : Text(i18n.tr('nutricao.save_button')),
               ),
             ],
           ),
         );
     }
+  }
+
+  /// Bloco 1 — motivo da avaliação.
+  Widget _buildSecaoMotivoAvaliacao(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(i18n.tr('nutricao.motivo_avaliacao_label'), style: Theme.of(context).textTheme.titleMedium),
+        RadioGroup<String>(
+          groupValue: _motivoAvaliacaoSelecionado,
+          onChanged: (valor) {
+            if (_indoParaConfirmacao) return;
+            setState(() => _motivoAvaliacaoSelecionado = valor);
+          },
+          child: Column(
+            children: [
+              for (final motivo in _motivosAvaliacao)
+                RadioListTile<String>(contentPadding: EdgeInsets.zero, value: motivo, title: Text(i18n.tr('nutricao.motivo_avaliacao_$motivo'))),
+            ],
+          ),
+        ),
+        if (_motivoAvaliacaoSelecionado == 'outro')
+          TextFormField(
+            controller: _motivoAvaliacaoOutroController,
+            decoration: InputDecoration(hintText: i18n.tr('nutricao.motivo_avaliacao_outro_hint'), border: const OutlineInputBorder()),
+            enabled: !_indoParaConfirmacao,
+          ),
+      ],
+    );
   }
 
   Widget _buildSecaoDadosFisicos(BuildContext context) {
@@ -397,7 +663,7 @@ class _AnamneseSelfServicePageState extends State<AnamneseSelfServicePage> {
             border: const OutlineInputBorder(),
           ),
           validator: _validarAltura,
-          enabled: !_salvando,
+          enabled: !_indoParaConfirmacao,
         ),
         const SizedBox(height: 16),
         TextFormField(
@@ -411,14 +677,14 @@ class _AnamneseSelfServicePageState extends State<AnamneseSelfServicePage> {
             border: const OutlineInputBorder(),
           ),
           validator: _validarPeso,
-          enabled: !_salvando,
+          enabled: !_indoParaConfirmacao,
         ),
         const SizedBox(height: 16),
         Text(i18n.tr('perfil_fisico.sexo_biologico_label'), style: Theme.of(context).textTheme.bodyMedium),
         RadioGroup<String>(
           groupValue: _sexoSelecionado,
           onChanged: (valor) {
-            if (_salvando) return;
+            if (_indoParaConfirmacao) return;
             setState(() => _sexoSelecionado = valor);
           },
           child: Row(
@@ -444,14 +710,6 @@ class _AnamneseSelfServicePageState extends State<AnamneseSelfServicePage> {
     );
   }
 
-  /// RELATÓRIO 20260917 (item 1 — "Captura Inteligente e Confirmação
-  /// Obrigatória", docs/motor_metabolico.txt Seção 1: "a leitura da
-  /// balança continua existindo como dado de origem, mas só passa a ser
-  /// dado antropométrico oficial após confirmação") — mostra a última
-  /// leitura de `metricas_saude_diarias` como SUGESTÃO. "Confirmar" só
-  /// copia o valor pro campo de peso (ainda editável) — o campo continua
-  /// `required`/validado normalmente, então o usuário sempre confirma
-  /// (ou corrige) antes de salvar, nunca é gravado sozinho.
   Widget _buildSugestaoBalanca(BuildContext context, SugestaoBalanca sugestao) {
     return Container(
       padding: const EdgeInsets.all(12),
@@ -463,10 +721,7 @@ class _AnamneseSelfServicePageState extends State<AnamneseSelfServicePage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            i18n.tr('nutricao.sugestao_balanca_titulo'),
-            style: Theme.of(context).textTheme.titleSmall,
-          ),
+          Text(i18n.tr('nutricao.sugestao_balanca_titulo'), style: Theme.of(context).textTheme.titleSmall),
           const SizedBox(height: 4),
           if (sugestao.pesoKg != null)
             Text(i18n.tr('nutricao.sugestao_balanca_peso', params: {
@@ -483,7 +738,7 @@ class _AnamneseSelfServicePageState extends State<AnamneseSelfServicePage> {
             Align(
               alignment: Alignment.centerLeft,
               child: OutlinedButton(
-                onPressed: _salvando
+                onPressed: _indoParaConfirmacao
                     ? null
                     : () => setState(() => _pesoController.text = _formatarNumero(sugestao.pesoKg!)),
                 child: Text(i18n.tr('nutricao.sugestao_balanca_usar_button')),
@@ -495,6 +750,76 @@ class _AnamneseSelfServicePageState extends State<AnamneseSelfServicePage> {
     );
   }
 
+  /// Bloco 3 (docs/motor_metabolico.txt) — composição corporal, todos
+  /// opcionais ("quando disponível").
+  Widget _buildSecaoComposicaoCorporal(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(i18n.tr('nutricao.composicao_corporal_label'), style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: 8),
+        _campoNumericoOpcional(_percentualGorduraController, i18n.tr('nutricao.percentual_gordura_label')),
+        const SizedBox(height: 8),
+        _campoNumericoOpcional(_massaMagraController, i18n.tr('nutricao.massa_magra_label')),
+        const SizedBox(height: 8),
+        _campoNumericoOpcional(_massaGordaController, i18n.tr('nutricao.massa_gorda_label')),
+        const SizedBox(height: 8),
+        _campoNumericoOpcional(_massaMuscularController, i18n.tr('nutricao.massa_muscular_label')),
+        const SizedBox(height: 8),
+        _campoNumericoOpcional(_circCinturaController, i18n.tr('nutricao.circunferencia_cintura_label')),
+        const SizedBox(height: 8),
+        _campoNumericoOpcional(_circAbdominalController, i18n.tr('nutricao.circunferencia_abdominal_label')),
+      ],
+    );
+  }
+
+  /// Bloco 4 — histórico recuperado automaticamente (RPC
+  /// `anamnese_historico_peso`), nunca reperguntado; só a pergunta
+  /// adicional da Seção 10 vira input.
+  Widget _buildSecaoHistoricoPeso(BuildContext context) {
+    final historico = _historicoPeso;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(i18n.tr('nutricao.historico_peso_label'), style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: 4),
+        if (historico == null || !historico.temAlgumDado)
+          Text(i18n.tr('nutricao.historico_peso_vazio'), style: Theme.of(context).textTheme.bodySmall)
+        else ...[
+          if (historico.pesoAtual != null) Text(i18n.tr('nutricao.historico_peso_atual', params: {'peso': '${historico.pesoAtual}'})),
+          if (historico.pesoAnterior != null) Text(i18n.tr('nutricao.historico_peso_anterior', params: {'peso': '${historico.pesoAnterior}'})),
+          if (historico.peso30Dias != null) Text(i18n.tr('nutricao.historico_peso_30_dias', params: {'peso': '${historico.peso30Dias}'})),
+          if (historico.peso3Meses != null) Text(i18n.tr('nutricao.historico_peso_3_meses', params: {'peso': '${historico.peso3Meses}'})),
+          if (historico.peso6Meses != null) Text(i18n.tr('nutricao.historico_peso_6_meses', params: {'peso': '${historico.peso6Meses}'})),
+          if (historico.peso12Meses != null) Text(i18n.tr('nutricao.historico_peso_12_meses', params: {'peso': '${historico.peso12Meses}'})),
+          if (historico.maiorPeso != null) Text(i18n.tr('nutricao.historico_peso_maior', params: {'peso': '${historico.maiorPeso}'})),
+          if (historico.menorPeso != null) Text(i18n.tr('nutricao.historico_peso_menor', params: {'peso': '${historico.menorPeso}'})),
+          if (historico.variacaoPercentual != null)
+            Text(i18n.tr('nutricao.historico_peso_variacao', params: {'percentual': '${historico.variacaoPercentual}'})),
+        ],
+        const SizedBox(height: 12),
+        Text(i18n.tr('nutricao.alteracao_peso_pergunta'), style: Theme.of(context).textTheme.bodyMedium),
+        RadioGroup<String>(
+          groupValue: _houveAlteracaoPeso,
+          onChanged: (valor) {
+            if (_indoParaConfirmacao) return;
+            setState(() => _houveAlteracaoPeso = valor);
+          },
+          child: Column(
+            children: [
+              for (final opcao in ['sim', 'nao', 'nao_sabe'])
+                RadioListTile<String>(
+                  contentPadding: EdgeInsets.zero,
+                  value: opcao,
+                  title: Text(i18n.tr('nutricao.alteracao_peso_$opcao')),
+                ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildSecaoObjetivo(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -503,7 +828,7 @@ class _AnamneseSelfServicePageState extends State<AnamneseSelfServicePage> {
         RadioGroup<String>(
           groupValue: _objetivoSelecionado,
           onChanged: (valor) {
-            if (_salvando) return;
+            if (_indoParaConfirmacao) return;
             setState(() => _objetivoSelecionado = valor);
           },
           child: Column(
@@ -517,42 +842,113 @@ class _AnamneseSelfServicePageState extends State<AnamneseSelfServicePage> {
             ],
           ),
         ),
+        if (_objetivoSelecionado == 'outro')
+          TextFormField(
+            controller: _objetivoOutroController,
+            decoration: InputDecoration(hintText: i18n.tr('nutricao.objetivo_outro_hint'), border: const OutlineInputBorder()),
+            enabled: !_indoParaConfirmacao,
+          ),
+        const SizedBox(height: 16),
+        ResumoSelecaoMultipla(
+          label: i18n.tr('nutricao.objetivos_secundarios_label'),
+          quantidadeSelecionada: _objetivosSecundariosSelecionados.length,
+          onEditar: () async {
+            final resultado = await abrirSeletorMultiplo(
+              context: context,
+              titulo: i18n.tr('nutricao.objetivos_secundarios_label'),
+              itens: [
+                for (final codigo in _objetivos.where((o) => o != 'outro' && o != _objetivoSelecionado))
+                  CatalogoItem(id: codigo, nome: i18n.tr('nutricao.objetivo_$codigo')),
+              ],
+              selecionadosIniciais: _objetivosSecundariosSelecionados,
+            );
+            if (resultado != null) {
+              setState(() {
+                _objetivosSecundariosSelecionados
+                  ..clear()
+                  ..addAll(resultado);
+              });
+            }
+          },
+        ),
+        const SizedBox(height: 16),
+        Text(i18n.tr('nutricao.meta_quantitativa_label'), style: Theme.of(context).textTheme.titleSmall),
+        Text(
+          i18n.tr('nutricao.meta_quantitativa_aviso'),
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.mutedText),
+        ),
+        const SizedBox(height: 8),
+        _campoNumericoOpcional(_metaPesoController, i18n.tr('nutricao.meta_peso_desejado_label')),
+        const SizedBox(height: 8),
+        _campoNumericoOpcional(_metaPercentualGorduraController, i18n.tr('nutricao.meta_percentual_gordura_desejado_label')),
+        const SizedBox(height: 8),
+        _campoNumericoOpcional(_metaMassaController, i18n.tr('nutricao.meta_massa_desejada_label')),
+        const SizedBox(height: 8),
+        TextFormField(
+          controller: _metaOutroIndicadorController,
+          decoration: InputDecoration(labelText: i18n.tr('nutricao.meta_outro_indicador_label'), border: const OutlineInputBorder()),
+          enabled: !_indoParaConfirmacao,
+        ),
       ],
     );
   }
 
-  Widget _buildSecaoMultiSelect({
-    required String titulo,
-    required String vazio,
-    required List<CatalogoItem> itens,
-    required Set<String> selecionados,
-  }) {
+  /// Bloco 5 — padrão alimentar. "Consumo" (energia/macros) deliberadamente
+  /// fora daqui — já existe o diário alimentar (Seção 18 do documento: não
+  /// duplicar informação de outro módulo).
+  Widget _buildSecaoAlimentacao(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(titulo, style: Theme.of(context).textTheme.titleMedium),
-        if (itens.isEmpty)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: Text(vazio, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.mutedText)),
-          )
-        else
-          for (final item in itens)
-            CheckboxListTile(
-              contentPadding: EdgeInsets.zero,
-              controlAffinity: ListTileControlAffinity.leading,
-              value: selecionados.contains(item.id),
-              title: Text(item.nome),
-              onChanged: _salvando
-                  ? null
-                  : (marcado) => setState(() {
-                        if (marcado ?? false) {
-                          selecionados.add(item.id);
-                        } else {
-                          selecionados.remove(item.id);
-                        }
-                      }),
-            ),
+        Text(i18n.tr('nutricao.alimentacao_label'), style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: 8),
+        TextFormField(
+          controller: _numeroRefeicoesController,
+          keyboardType: TextInputType.number,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          decoration: InputDecoration(labelText: i18n.tr('nutricao.numero_refeicoes_label'), border: const OutlineInputBorder()),
+          enabled: !_indoParaConfirmacao,
+        ),
+        const SizedBox(height: 8),
+        _campoTextoOpcional(_horariosRefeicoesController, i18n.tr('nutricao.horarios_refeicoes_label')),
+        const SizedBox(height: 8),
+        _campoTextoOpcional(_refeicoesForaController, i18n.tr('nutricao.refeicoes_fora_label')),
+        const SizedBox(height: 8),
+        _campoTextoOpcional(_preferenciasController, i18n.tr('nutricao.preferencias_alimentares_label')),
+        const SizedBox(height: 8),
+        _campoTextoOpcional(_alimentosEvitadosController, i18n.tr('nutricao.alimentos_evitados_label')),
+        const SizedBox(height: 8),
+        _campoTextoOpcional(_restricoesController, i18n.tr('nutricao.restricoes_alimentares_label')),
+        const SizedBox(height: 8),
+        _campoTextoOpcional(_intolerenciasController, i18n.tr('nutricao.intolerancias_label')),
+        const SizedBox(height: 8),
+        _campoTextoOpcional(_padraoAlimentarController, i18n.tr('nutricao.padrao_alimentar_label')),
+      ],
+    );
+  }
+
+  /// Seção 5 — rotina diária (pergunta única, complementar ao NEAT) +
+  /// atividade ocupacional.
+  Widget _buildSecaoRotinaDiaria(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(i18n.tr('nutricao.rotina_diaria_pergunta'), style: Theme.of(context).textTheme.titleMedium),
+        RadioGroup<String>(
+          groupValue: _rotinaDiariaSelecionada,
+          onChanged: (valor) {
+            if (_indoParaConfirmacao) return;
+            setState(() => _rotinaDiariaSelecionada = valor);
+          },
+          child: Column(
+            children: [
+              for (final opcao in _rotinasDiarias)
+                RadioListTile<String>(contentPadding: EdgeInsets.zero, value: opcao, title: Text(i18n.tr('nutricao.rotina_diaria_$opcao'))),
+            ],
+          ),
+        ),
+        const SizedBox(height: 8),
+        _campoTextoOpcional(_atividadeOcupacionalController, i18n.tr('nutricao.atividade_ocupacional_label')),
       ],
     );
   }
@@ -589,24 +985,297 @@ class _AnamneseSelfServicePageState extends State<AnamneseSelfServicePage> {
               contentPadding: EdgeInsets.zero,
               title: Text(atividade.nomeExibicao),
               subtitle: Text(
-                i18n.tr('nutricao.atividades_minutos', params: {'minutos': atividade.minutos.toString()}),
+                '${i18n.tr('nutricao.atividades_minutos', params: {
+                      'minutos': atividade.minutos.toString()
+                    })} · ${i18n.tr('nutricao.intensidade_${atividade.intensidade}')}',
               ),
               trailing: IconButton(
                 icon: const Icon(Icons.close),
-                onPressed: _salvando
-                    ? null
-                    : () => setState(() => _atividadesSelecionadas.remove(atividade)),
+                onPressed: _indoParaConfirmacao ? null : () => setState(() => _atividadesSelecionadas.remove(atividade)),
               ),
             ),
         Align(
           alignment: Alignment.centerLeft,
           child: TextButton.icon(
-            onPressed: _salvando ? null : () => _abrirModalAdicionarAtividade(diaSemana),
+            onPressed: _indoParaConfirmacao ? null : () => _abrirModalAdicionarAtividade(diaSemana),
             icon: const Icon(Icons.add),
             label: Text(i18n.tr('nutricao.rotina_dia_add_button')),
           ),
         ),
       ],
+    );
+  }
+
+  /// Bloco 7 — Sono e recuperação.
+  Widget _buildSecaoSono(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(i18n.tr('nutricao.sono_label'), style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: 8),
+        _campoNumericoOpcional(_horasSonoController, i18n.tr('nutricao.sono_horas_medias_label')),
+        const SizedBox(height: 8),
+        TextFormField(
+          controller: _horarioDormirController,
+          decoration: InputDecoration(labelText: i18n.tr('nutricao.sono_horario_dormir_label'), hintText: 'HH:mm', border: const OutlineInputBorder()),
+          enabled: !_indoParaConfirmacao,
+        ),
+        const SizedBox(height: 8),
+        TextFormField(
+          controller: _horarioAcordarController,
+          decoration: InputDecoration(labelText: i18n.tr('nutricao.sono_horario_acordar_label'), hintText: 'HH:mm', border: const OutlineInputBorder()),
+          enabled: !_indoParaConfirmacao,
+        ),
+        const SizedBox(height: 8),
+        Text(i18n.tr('nutricao.sono_qualidade_label'), style: Theme.of(context).textTheme.bodyMedium),
+        RadioGroup<String>(
+          groupValue: _qualidadeSonoSelecionada,
+          onChanged: (valor) {
+            if (_indoParaConfirmacao) return;
+            setState(() => _qualidadeSonoSelecionada = valor);
+          },
+          child: Column(
+            children: [
+              for (final opcao in _qualidadesSono)
+                RadioListTile<String>(contentPadding: EdgeInsets.zero, value: opcao, title: Text(i18n.tr('nutricao.sono_qualidade_$opcao'))),
+            ],
+          ),
+        ),
+        const SizedBox(height: 8),
+        TextFormField(
+          controller: _despertaresController,
+          keyboardType: TextInputType.number,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          decoration: InputDecoration(labelText: i18n.tr('nutricao.sono_despertares_label'), border: const OutlineInputBorder()),
+          enabled: !_indoParaConfirmacao,
+        ),
+      ],
+    );
+  }
+
+  /// Bloco 8 — "Não tenho" explícito primeiro (RESTRIÇÃO da tarefa), lista
+  /// exata só aparece se "Sim, tenho".
+  Widget _buildSecaoCondicoes(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(i18n.tr('nutricao.condicoes_pergunta'), style: Theme.of(context).textTheme.titleMedium),
+        RadioGroup<bool>(
+          groupValue: _possuiCondicaoSaude,
+          onChanged: (valor) {
+            if (_indoParaConfirmacao) return;
+            setState(() {
+              _possuiCondicaoSaude = valor;
+              if (valor == false) _problemasSaudeSelecionados.clear();
+            });
+          },
+          child: Column(
+            children: [
+              RadioListTile<bool>(contentPadding: EdgeInsets.zero, value: false, title: Text(i18n.tr('nutricao.condicoes_nao_tenho'))),
+              RadioListTile<bool>(contentPadding: EdgeInsets.zero, value: true, title: Text(i18n.tr('nutricao.condicoes_tenho'))),
+            ],
+          ),
+        ),
+        if (_possuiCondicaoSaude == true) ...[
+          const SizedBox(height: 8),
+          if (_problemasSaude.isEmpty)
+            Text(i18n.tr('nutricao.problemas_saude_empty'), style: Theme.of(context).textTheme.bodySmall)
+          else
+            ResumoSelecaoMultipla(
+              label: i18n.tr('nutricao.condicoes_selecionar_label'),
+              quantidadeSelecionada: _problemasSaudeSelecionados.length,
+              onEditar: () async {
+                final resultado = await abrirSeletorMultiplo(
+                  context: context,
+                  titulo: i18n.tr('nutricao.condicoes_selecionar_label'),
+                  itens: _problemasSaude,
+                  selecionadosIniciais: _problemasSaudeSelecionados,
+                );
+                if (resultado != null) {
+                  setState(() {
+                    _problemasSaudeSelecionados
+                      ..clear()
+                      ..addAll(resultado);
+                  });
+                }
+              },
+            ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildBlocoAtleta(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(child: Text(i18n.tr('nutricao.bloco_atleta_pergunta_ativar'), style: Theme.of(context).textTheme.titleMedium)),
+            Switch(
+              value: _praticaEsporteEstruturado,
+              onChanged: _indoParaConfirmacao ? null : (valor) => setState(() => _praticaEsporteEstruturado = valor),
+            ),
+          ],
+        ),
+        if (_praticaEsporteEstruturado) ...[
+          _campoTextoOpcional(_atletaModalidadeController, i18n.tr('nutricao.bloco_atleta_modalidade_label')),
+          const SizedBox(height: 8),
+          _campoNumericoOpcional(_atletaHorasSemanaController, i18n.tr('nutricao.bloco_atleta_horas_semana_label')),
+          const SizedBox(height: 8),
+          _campoTextoOpcional(_atletaObjetivoEsportivoController, i18n.tr('nutricao.bloco_atleta_objetivo_esportivo_label')),
+          const SizedBox(height: 8),
+          CheckboxListTile(
+            contentPadding: EdgeInsets.zero,
+            controlAffinity: ListTileControlAffinity.leading,
+            value: _atletaCompeticaoProxima,
+            title: Text(i18n.tr('nutricao.bloco_atleta_competicao_label')),
+            onChanged: _indoParaConfirmacao ? null : (valor) => setState(() => _atletaCompeticaoProxima = valor ?? false),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildBlocoIdoso(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(i18n.tr('nutricao.bloco_idoso_titulo'), style: Theme.of(context).textTheme.titleMedium),
+        CheckboxListTile(
+          contentPadding: EdgeInsets.zero,
+          controlAffinity: ListTileControlAffinity.leading,
+          value: _idosoPerdaPeso,
+          title: Text(i18n.tr('nutricao.bloco_idoso_perda_peso_label')),
+          onChanged: _indoParaConfirmacao ? null : (valor) => setState(() => _idosoPerdaPeso = valor ?? false),
+        ),
+        CheckboxListTile(
+          contentPadding: EdgeInsets.zero,
+          controlAffinity: ListTileControlAffinity.leading,
+          value: _idosoReducaoForcaMobilidade,
+          title: Text(i18n.tr('nutricao.bloco_idoso_forca_mobilidade_label')),
+          onChanged: _indoParaConfirmacao ? null : (valor) => setState(() => _idosoReducaoForcaMobilidade = valor ?? false),
+        ),
+        CheckboxListTile(
+          contentPadding: EdgeInsets.zero,
+          controlAffinity: ListTileControlAffinity.leading,
+          value: _idosoDificuldadeAlimentacao,
+          title: Text(i18n.tr('nutricao.bloco_idoso_dificuldade_alimentacao_label')),
+          onChanged: _indoParaConfirmacao ? null : (valor) => setState(() => _idosoDificuldadeAlimentacao = valor ?? false),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildBlocoDiabetes(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(i18n.tr('nutricao.bloco_diabetes_titulo'), style: Theme.of(context).textTheme.titleMedium),
+        _campoTextoOpcional(_diabetesTipoController, i18n.tr('nutricao.bloco_diabetes_tipo_label')),
+        CheckboxListTile(
+          contentPadding: EdgeInsets.zero,
+          controlAffinity: ListTileControlAffinity.leading,
+          value: _diabetesUsaInsulina,
+          title: Text(i18n.tr('nutricao.bloco_diabetes_insulina_label')),
+          onChanged: _indoParaConfirmacao ? null : (valor) => setState(() => _diabetesUsaInsulina = valor ?? false),
+        ),
+        CheckboxListTile(
+          contentPadding: EdgeInsets.zero,
+          controlAffinity: ListTileControlAffinity.leading,
+          value: _diabetesUsaMedicamento,
+          title: Text(i18n.tr('nutricao.bloco_diabetes_medicamento_label')),
+          onChanged: _indoParaConfirmacao ? null : (valor) => setState(() => _diabetesUsaMedicamento = valor ?? false),
+        ),
+        _campoTextoOpcional(_diabetesHba1cController, i18n.tr('nutricao.bloco_diabetes_hba1c_label')),
+      ],
+    );
+  }
+
+  Widget _buildBlocoRenal(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(i18n.tr('nutricao.bloco_renal_titulo'), style: Theme.of(context).textTheme.titleMedium),
+        _campoTextoOpcional(_renalEstagioController, i18n.tr('nutricao.bloco_renal_estagio_label')),
+        const SizedBox(height: 8),
+        _campoTextoOpcional(_renalTfgController, i18n.tr('nutricao.bloco_renal_tfg_label')),
+        CheckboxListTile(
+          contentPadding: EdgeInsets.zero,
+          controlAffinity: ListTileControlAffinity.leading,
+          value: _renalFazDialise,
+          title: Text(i18n.tr('nutricao.bloco_renal_dialise_label')),
+          onChanged: _indoParaConfirmacao ? null : (valor) => setState(() => _renalFazDialise = valor ?? false),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildBlocoRecomposicao(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(i18n.tr('nutricao.bloco_recomposicao_titulo'), style: Theme.of(context).textTheme.titleMedium),
+        _campoNumericoOpcional(_recomposicaoPercentualAtualController, i18n.tr('nutricao.bloco_recomposicao_percentual_atual_label')),
+        const SizedBox(height: 8),
+        _campoNumericoOpcional(_recomposicaoPercentualDesejadoController, i18n.tr('nutricao.bloco_recomposicao_percentual_desejado_label')),
+        CheckboxListTile(
+          contentPadding: EdgeInsets.zero,
+          controlAffinity: ListTileControlAffinity.leading,
+          value: _recomposicaoTreinamentoResistido,
+          title: Text(i18n.tr('nutricao.bloco_recomposicao_treinamento_resistido_label')),
+          onChanged: _indoParaConfirmacao ? null : (valor) => setState(() => _recomposicaoTreinamentoResistido = valor ?? false),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSecaoAlergias(BuildContext context) {
+    if (_alergias.isEmpty) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(i18n.tr('nutricao.alergias_label'), style: Theme.of(context).textTheme.titleMedium),
+          Text(i18n.tr('nutricao.alergias_empty'), style: Theme.of(context).textTheme.bodySmall),
+        ],
+      );
+    }
+    return ResumoSelecaoMultipla(
+      label: i18n.tr('nutricao.alergias_label'),
+      quantidadeSelecionada: _alergiasSelecionadas.length,
+      onEditar: () async {
+        final resultado = await abrirSeletorMultiplo(
+          context: context,
+          titulo: i18n.tr('nutricao.alergias_label'),
+          itens: _alergias,
+          selecionadosIniciais: _alergiasSelecionadas,
+        );
+        if (resultado != null) {
+          setState(() {
+            _alergiasSelecionadas
+              ..clear()
+              ..addAll(resultado);
+          });
+        }
+      },
+    );
+  }
+
+  Widget _campoTextoOpcional(TextEditingController controller, String label) {
+    return TextFormField(
+      controller: controller,
+      decoration: InputDecoration(labelText: label, border: const OutlineInputBorder()),
+      enabled: !_indoParaConfirmacao,
+    );
+  }
+
+  Widget _campoNumericoOpcional(TextEditingController controller, String label) {
+    return TextFormField(
+      controller: controller,
+      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+      inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]'))],
+      decoration: InputDecoration(labelText: label, border: const OutlineInputBorder()),
+      enabled: !_indoParaConfirmacao,
     );
   }
 
@@ -618,10 +1287,9 @@ class _AnamneseSelfServicePageState extends State<AnamneseSelfServicePage> {
   }
 }
 
-/// Modal "Adicionar Atividade" — dropdown de modalidade + input numérico de
-/// minutos, escopado a UM dia da semana. `StatefulWidget` próprio (não
-/// `StatefulBuilder` inline) só pra manter o `TextEditingController` com
-/// ciclo de vida correto (`dispose`), mesmo em um `showDialog`.
+/// Modal "Adicionar Atividade" — dropdown de modalidade (ALFABÉTICA — já
+/// vem ordenada de `buscarTiposAtividades`, `.order('nome_exibicao')`) com
+/// busca + Intensidade obrigatória (RESTRIÇÃO explícita da tarefa).
 class _ModalAdicionarAtividade extends StatefulWidget {
   const _ModalAdicionarAtividade({required this.opcoes, required this.diaSemana});
 
@@ -634,12 +1302,21 @@ class _ModalAdicionarAtividade extends StatefulWidget {
 
 class _ModalAdicionarAtividadeState extends State<_ModalAdicionarAtividade> {
   final _minutosController = TextEditingController();
+  final _buscaController = TextEditingController();
   TipoAtividadeItem? _tipoSelecionado;
+  String _intensidadeSelecionada = 'moderada';
   String? _erroMinutos;
+
+  List<TipoAtividadeItem> get _opcoesFiltradas {
+    final busca = _buscaController.text.trim().toLowerCase();
+    if (busca.isEmpty) return widget.opcoes;
+    return widget.opcoes.where((o) => o.nomeExibicao.toLowerCase().contains(busca)).toList();
+  }
 
   @override
   void dispose() {
     _minutosController.dispose();
+    _buscaController.dispose();
     super.dispose();
   }
 
@@ -658,6 +1335,7 @@ class _ModalAdicionarAtividadeState extends State<_ModalAdicionarAtividade> {
         nomeExibicao: tipo.nomeExibicao,
         minutos: minutos,
         diaSemana: widget.diaSemana,
+        intensidade: _intensidadeSelecionada,
       ),
     );
   }
@@ -665,49 +1343,73 @@ class _ModalAdicionarAtividadeState extends State<_ModalAdicionarAtividade> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Text(
-        i18n.tr('nutricao.atividades_modal_title_dia', params: {
-          'dia': i18n.tr('nutricao.dia_semana_${widget.diaSemana}'),
-        }),
-      ),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          DropdownButtonFormField<TipoAtividadeItem>(
-            initialValue: _tipoSelecionado,
-            decoration: InputDecoration(labelText: i18n.tr('nutricao.atividades_modal_tipo_label')),
-            items: [
-              for (final opcao in widget.opcoes)
-                DropdownMenuItem(value: opcao, child: Text(opcao.nomeExibicao)),
-            ],
-            onChanged: (valor) => setState(() => _tipoSelecionado = valor),
-          ),
-          const SizedBox(height: 16),
-          TextField(
-            controller: _minutosController,
-            keyboardType: TextInputType.number,
-            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-            decoration: InputDecoration(
-              labelText: i18n.tr('nutricao.atividades_modal_minutos_label'),
-              hintText: i18n.tr('nutricao.atividades_modal_minutos_hint'),
-              errorText: _erroMinutos,
+      title: Text(i18n.tr('nutricao.atividades_modal_title_dia', params: {'dia': i18n.tr('nutricao.dia_semana_${widget.diaSemana}')})),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            TextField(
+              controller: _buscaController,
+              decoration: InputDecoration(
+                labelText: i18n.tr('nutricao.atividades_modal_busca_hint'),
+                prefixIcon: const Icon(Icons.search),
+              ),
+              onChanged: (_) => setState(() {}),
             ),
-            onChanged: (_) {
-              if (_erroMinutos != null) setState(() => _erroMinutos = null);
-            },
-          ),
-        ],
+            const SizedBox(height: 12),
+            if (_opcoesFiltradas.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Text(i18n.tr('nutricao.atividades_modal_busca_vazio')),
+              )
+            else
+              DropdownButtonFormField<TipoAtividadeItem>(
+                initialValue: _opcoesFiltradas.contains(_tipoSelecionado) ? _tipoSelecionado : null,
+                decoration: InputDecoration(labelText: i18n.tr('nutricao.atividades_modal_tipo_label')),
+                items: [
+                  for (final opcao in _opcoesFiltradas) DropdownMenuItem(value: opcao, child: Text(opcao.nomeExibicao)),
+                ],
+                onChanged: (valor) => setState(() => _tipoSelecionado = valor),
+              ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _minutosController,
+              keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              decoration: InputDecoration(
+                labelText: i18n.tr('nutricao.atividades_modal_minutos_label'),
+                hintText: i18n.tr('nutricao.atividades_modal_minutos_hint'),
+                errorText: _erroMinutos,
+              ),
+              onChanged: (_) {
+                if (_erroMinutos != null) setState(() => _erroMinutos = null);
+              },
+            ),
+            const SizedBox(height: 16),
+            Text(i18n.tr('nutricao.atividades_modal_intensidade_label'), style: Theme.of(context).textTheme.bodyMedium),
+            RadioGroup<String>(
+              groupValue: _intensidadeSelecionada,
+              onChanged: (valor) => setState(() => _intensidadeSelecionada = valor ?? 'moderada'),
+              child: Row(
+                children: [
+                  for (final intensidade in _intensidades)
+                    Expanded(
+                      child: RadioListTile<String>(
+                        contentPadding: EdgeInsets.zero,
+                        value: intensidade,
+                        title: Text(i18n.tr('nutricao.intensidade_$intensidade')),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
       actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: Text(i18n.tr('nutricao.atividades_modal_cancel')),
-        ),
-        FilledButton(
-          onPressed: _confirmar,
-          child: Text(i18n.tr('nutricao.atividades_modal_confirm')),
-        ),
+        TextButton(onPressed: () => Navigator.of(context).pop(), child: Text(i18n.tr('nutricao.atividades_modal_cancel'))),
+        FilledButton(onPressed: _confirmar, child: Text(i18n.tr('nutricao.atividades_modal_confirm'))),
       ],
     );
   }
