@@ -39,16 +39,19 @@ void main() {
     when(() => repository.buscarTiposAtividades()).thenAnswer((_) async => tiposAtividades);
     when(() => repository.buscarAnamneseAtiva()).thenAnswer((_) async => null);
     when(() => repository.buscarDadosFisicosAtuais()).thenAnswer((_) async => dadosFisicosVazios);
+    // RELATÓRIO 20260917 — item 1, "Captura Inteligente": default "nada
+    // sincronizado ainda", testes específicos da sugestão sobrescrevem.
+    when(() => repository.buscarSugestaoBalanca()).thenAnswer((_) async => const SugestaoBalanca());
     // A tela pusha ResultadoMotorMetabolicoPage após salvar — stub padrão
     // pra testes que chegam a tocar "Salvar" não baterem no Supabase real
     // (a página de resultado é só mockada aqui, não é o foco destes
     // testes, que ficam em `resultado_motor_metabolico_page_test.dart`).
-    when(() => metaRepository.gerarSugestaoMeta()).thenAnswer(
-      (_) async => const SugestaoMetaResultado(
+    when(() => metaRepository.calcularMotorMetabolicoV1()).thenAnswer(
+      (_) async => const MotorMetabolicoV1Resultado(
         tmb: 1774,
         tdeeMedio: 2200,
-        tdeePorDia: {0: 2200, 1: 2200, 2: 2200, 3: 2200, 4: 2200, 5: 2200, 6: 2200},
-        formulaUsada: 'mifflin_st_jeor',
+        formulaCodigo: 'TMB-001',
+        estrategiaTdee: 'pal',
         avisos: [],
       ),
     );
@@ -164,6 +167,32 @@ void main() {
       find.widgetWithText(RadioListTile<String>, 'Masculino'),
     );
     expect(radioMasculino.value, 'M');
+  });
+
+  testWidgets('com peso recente da balança, mostra a sugestão e "Confirmar" preenche o campo de peso', (tester) async {
+    when(() => repository.buscarSugestaoBalanca()).thenAnswer(
+      (_) async => SugestaoBalanca(pesoKg: 82.4, dataReferencia: DateTime(2026, 9, 16)),
+    );
+
+    await configurarViewportAlto(tester);
+    await tester.pumpWidget(criarApp());
+    await tester.pumpAndSettle();
+
+    expect(find.text('Dado lido da balança'), findsOneWidget);
+    expect(find.text('Peso: 82.4 kg (registrado em 16/09/2026)'), findsOneWidget);
+
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Confirmar'));
+    await tester.pumpAndSettle();
+
+    expect(find.widgetWithText(TextFormField, '82.4'), findsOneWidget);
+  });
+
+  testWidgets('sem dado recente da balança, não mostra a sugestão', (tester) async {
+    await configurarViewportAlto(tester);
+    await tester.pumpWidget(criarApp());
+    await tester.pumpAndSettle();
+
+    expect(find.text('Dado lido da balança'), findsNothing);
   });
 
   testWidgets('salvar sem preencher altura/peso mostra erro de validação, não chama o repositório', (tester) async {

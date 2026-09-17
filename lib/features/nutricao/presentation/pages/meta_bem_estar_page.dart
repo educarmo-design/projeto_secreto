@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../../../../core/i18n/i18n_manager.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../data/repositories/meta_bem_estar_repository.dart';
+import '../widgets/meta_bloqueio_modal.dart';
 
 const _carenciaDias = 30;
 
@@ -171,7 +172,7 @@ class _MetaBemEstarPageState extends State<MetaBemEstarPage> {
       await _carregar();
     } on MetaBloqueadaException catch (erro) {
       if (!mounted) return;
-      await _mostrarModalBloqueio(erro);
+      await mostrarModalBloqueioMeta(context, erro);
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context)
@@ -185,40 +186,6 @@ class _MetaBemEstarPageState extends State<MetaBemEstarPage> {
     } finally {
       if (mounted) setState(() => _salvando = false);
     }
-  }
-
-  /// Trava ANVISA (Hard Block) — modal vermelho, mesmo pros casos de
-  /// corrida (`N08_PRIORIDADE_PROFISSIONAL`/`N08_CARENCIA_MENSAL` que a
-  /// tela já deveria ter barrado antes de mostrar o formulário, mas o
-  /// banco é sempre a fonte da verdade final).
-  Future<void> _mostrarModalBloqueio(MetaBloqueadaException erro) async {
-    final titulo = switch (erro.motivo) {
-      MotivoBloqueioN08.travaClinica => i18n.tr('nutricao.meta_bloqueio_clinico_titulo'),
-      MotivoBloqueioN08.prioridadeProfissional => i18n.tr('nutricao.meta_bloqueio_profissional_titulo'),
-      MotivoBloqueioN08.carenciaMensal => i18n.tr('nutricao.meta_bloqueio_carencia_titulo'),
-      MotivoBloqueioN08.outro => i18n.tr('nutricao.meta_save_error'),
-    };
-    final mensagem = switch (erro.motivo) {
-      MotivoBloqueioN08.travaClinica => i18n.tr('nutricao.meta_bloqueio_clinico_mensagem'),
-      MotivoBloqueioN08.prioridadeProfissional => i18n.tr('nutricao.meta_bloqueio_profissional_mensagem'),
-      MotivoBloqueioN08.carenciaMensal => i18n.tr('nutricao.meta_bloqueio_carencia_mensagem'),
-      MotivoBloqueioN08.outro => erro.mensagemOriginal,
-    };
-
-    await showDialog<void>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        icon: const Icon(Icons.block, color: AppColors.error, size: 32),
-        title: Text(titulo, style: const TextStyle(color: AppColors.error)),
-        content: Text(mensagem),
-        actions: [
-          FilledButton(
-            onPressed: () => Navigator.of(dialogContext).pop(),
-            child: Text(i18n.tr('nutricao.meta_bloqueio_confirmar')),
-          ),
-        ],
-      ),
-    );
   }
 
   @override

@@ -148,6 +148,55 @@ class AnamneseRepository {
     );
   }
 
+  /// RELATÓRIO 20260917 (item 1 — "Captura Inteligente e Confirmação
+  /// Obrigatória"): última leitura de `metricas_saude_diarias` (balança/
+  /// wearable) — mostrada na tela como SUGESTÃO ("Dado lido da balança:
+  /// X kg — Confirmar?"), NUNCA usada para preencher o campo sozinha. O
+  /// usuário sempre confirma/edita antes de virar o valor oficial gravado
+  /// em [salvarAnamnese] (docs/motor_metabolico.txt, Seção 1). `null` em
+  /// ambos os campos do resultado = nada sincronizado ainda, não erro.
+  Future<SugestaoBalanca> buscarSugestaoBalanca() async {
+    final usuarioId = _supabase.auth.currentUser?.id;
+    if (usuarioId == null) return const SugestaoBalanca();
+
+    final linha = await _supabase
+        .from('metricas_saude_diarias')
+        .select('peso_kg, percentual_gordura, data_referencia')
+        .eq('usuario_id_anonimo', usuarioId)
+        .or('peso_kg.not.is.null,percentual_gordura.not.is.null')
+        .order('data_referencia', ascending: false)
+        .limit(1)
+        .maybeSingle();
+
+    if (linha == null) return const SugestaoBalanca();
+    return SugestaoBalanca(
+      pesoKg: (linha['peso_kg'] as num?)?.toDouble(),
+      percentualGordura: (linha['percentual_gordura'] as num?)?.toDouble(),
+      dataReferencia: DateTime.parse(linha['data_referencia'] as String),
+    );
+  }
+
+  /// RELATÓRIO 20260917 (item 3 — "Histórico de Avaliações"): todas as
+  /// anamneses do usuário, de QUALQUER `status_vigencia`, mais recente
+  /// primeiro — nenhuma é sobrescrita (Restrição da tarefa), então a
+  /// lista inteira sempre existe intacta. Lista vazia (não erro) quando o
+  /// usuário nunca preencheu nenhuma.
+  Future<List<AnamneseHistoricoItem>> buscarHistoricoAnamneses() async {
+    final usuarioId = _supabase.auth.currentUser?.id;
+    if (usuarioId == null) return const [];
+
+    final linhas = await _supabase
+        .from('anamneses')
+        .select('id, data_preenchimento, objetivo_codigo, peso_kg, altura_cm, status_vigencia')
+        .eq('usuario_id', usuarioId)
+        .order('data_preenchimento', ascending: false);
+
+    return (linhas as List)
+        .cast<Map<String, dynamic>>()
+        .map(AnamneseHistoricoItem.fromJson)
+        .toList();
+  }
+
   /// Grava um preenchimento NOVO da anamnese: peso/altura confirmados vão
   /// DIRETO na própria linha de `anamneses` (RELATÓRIO 20260916_0001, SSOT
   /// — cada versão da anamnese é o snapshot oficial de peso/altura daquele

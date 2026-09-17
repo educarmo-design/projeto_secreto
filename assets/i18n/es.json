@@ -391,6 +391,7 @@
     "manual_food_search_item": "Búsqueda Manual de Alimentos",
     "favoritas_item": "Mis Favoritas",
     "anamnese_item": "Anamnesis Nutricional",
+    "anamnese_historico_item": "Historial de Evaluaciones",
     "meta_bem_estar_item": "Meta de Bienestar"
   },
 
@@ -510,6 +511,11 @@
     "peso_validation_invalid": "Introduce solo números",
     "peso_validation_range": "El peso debe estar entre 30 y 300 kg",
 
+    "sugestao_balanca_titulo": "Dato leído de la báscula",
+    "sugestao_balanca_peso": "Peso: {{peso}} kg (registrado el {{data}})",
+    "sugestao_balanca_percentual_gordura": "% de grasa: {{percentual}}% (registrado el {{data}})",
+    "sugestao_balanca_usar_button": "Confirmar",
+
     "rotina_dia_semana_label": "Rutina por Día de la Semana",
     "dia_semana_0": "Domingo",
     "dia_semana_1": "Lunes",
@@ -526,14 +532,20 @@
     "anamnese_carencia_titulo": "Anamnesis completada recientemente",
     "anamnese_carencia_mensagem": "Solo puedes rehacer la anamnesis 1 vez cada 30 días. Disponible de nuevo el {{data}}.",
 
-    "resultado_motor_title": "Sugerencia de Meta",
-    "resultado_motor_media_label": "Gasto Calórico Promedio (semana)",
+    "resultado_motor_title": "Resultado de la Evaluación",
+    "resultado_motor_media_label": "TDEE Promedio (semana)",
     "resultado_motor_tmb_label": "TMB (Tasa Metabólica Basal)",
-    "resultado_motor_detalhe_label": "Detalle por Día de la Semana",
     "resultado_motor_sem_dado": "—",
     "resultado_motor_aviso_disclaimer": "Esta información es meramente informativa; ante cualquier duda o información adicional, consulta a un profesional de la salud. Esta información no se guarda en tus metas de Calorías y Nutrientes.",
     "resultado_motor_concluir_button": "Finalizar",
-    "resultado_motor_erro": "No fue posible calcular tu sugerencia ahora. Inténtalo de nuevo.",
+    "resultado_motor_erro": "No fue posible calcular tu evaluación ahora. Inténtalo de nuevo.",
+
+    "resultado_motor_secao_calculo_titulo": "Resultados Calculados",
+    "resultado_motor_secao_calculo_aviso": "Valores informativos, calculados automáticamente por el Motor Metabólico a partir de tu Anamnesis — no son una meta.",
+    "resultado_motor_secao_meta_titulo": "Mi Meta Diaria",
+    "resultado_motor_secao_meta_aviso": "Define tú mismo tu meta diaria — la app nunca la completa sola. El valor se convierte en tu meta promedio para los 7 días de la semana.",
+    "resultado_motor_meta_salvar_button": "Guardar Mi Meta",
+    "resultado_motor_meta_definir_depois_button": "Definir más tarde",
 
     "save_button": "Guardar",
     "save_success": "Anamnesis guardada con éxito",
@@ -575,7 +587,17 @@
     "meta_proxima_revisao_label": "Próxima revisión disponible el {{data}}",
     "meta_proxima_revisao_disponivel": "Revisión disponible ahora",
     "meta_criar_nova_button": "Crear Nueva Meta",
-    "meta_flag_profissional_texto": "Tus metas son definidas y acompañadas por el profesional de la salud."
+    "meta_flag_profissional_texto": "Tus metas son definidas y acompañadas por el profesional de la salud.",
+
+    "historico_anamnese_title": "Historial de Evaluaciones",
+    "historico_anamnese_proxima_revisao_label": "Próxima revisión disponible el {{data}}",
+    "historico_anamnese_proxima_revisao_disponivel": "Revisión disponible ahora",
+    "historico_anamnese_vazio": "Todavía no has completado ninguna anamnesis.",
+    "historico_anamnese_item_ativo": "Actual",
+    "historico_anamnese_item_historico": "Anterior",
+    "historico_anamnese_peso_altura": "{{peso}} kg · {{altura}} cm",
+    "historico_anamnese_sem_peso_altura": "Sin peso/altura registrados",
+    "historico_anamnese_load_error": "Error al cargar tu historial. Inténtalo de nuevo."
   },
 
   "vinculos": {

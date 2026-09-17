@@ -5,6 +5,7 @@ import '../../../../core/router/ui_profile_switcher.dart';
 import '../../../../core/supabase/supabase_client.dart';
 import '../../../auth/models/auth_models.dart' show ProfileUsageType;
 import '../../../nutricao/presentation/pages/anamnese_self_service_page.dart';
+import '../../../nutricao/presentation/pages/historico_anamneses_page.dart';
 import '../../../nutricao/presentation/pages/meta_bem_estar_page.dart';
 import '../../../nutrition/presentation/pages/favoritas_page.dart';
 import '../../../nutrition/presentation/pages/manual_food_search_page.dart';
@@ -220,6 +221,19 @@ class _ConfiguracoesPerfilPageState extends State<ConfiguracoesPerfilPage> {
                   onTap: () => Navigator.of(context).push(
                     MaterialPageRoute<void>(
                       builder: (_) => const AnamneseSelfServicePage(),
+                    ),
+                  ),
+                ),
+                // RELATÓRIO 20260917 (item 3 — "Histórico de Anamnese e
+                // Próxima Revisão"), logo abaixo da Anamnese em si.
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.history_outlined),
+                  title: Text(i18n.tr('profile.anamnese_historico_item')),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const HistoricoAnamnesesPage(),
                     ),
                   ),
                 ),

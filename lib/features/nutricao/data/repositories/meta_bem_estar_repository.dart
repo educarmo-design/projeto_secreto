@@ -80,6 +80,39 @@ class SugestaoMetaResultado {
   }
 }
 
+/// RELATÓRIO 20260917 — resultado de `calcular_motor_metabolico_v1`
+/// (RELATÓRIO 20260916_0001, docs/motor_metabolico.txt): Motor Metabólico
+/// Centralizado V1, função PURA (nunca escreve nada — ME-005/ME-006). Só
+/// os campos que a Tela de Resultado mostra na Seção A (leitura): TMB e
+/// TDEE médio, ambos claramente rotulados como "calculado pelo motor",
+/// nunca uma meta.
+class MotorMetabolicoV1Resultado {
+  final double? tmb;
+  final double? tdeeMedio;
+  final String formulaCodigo;
+  final String estrategiaTdee;
+  final List<String> avisos;
+
+  const MotorMetabolicoV1Resultado({
+    required this.tmb,
+    required this.tdeeMedio,
+    required this.formulaCodigo,
+    required this.estrategiaTdee,
+    required this.avisos,
+  });
+
+  factory MotorMetabolicoV1Resultado.fromJson(Map<String, dynamic> json) {
+    final formula = json['formula_tmb'] as Map<String, dynamic>? ?? const {};
+    return MotorMetabolicoV1Resultado(
+      tmb: (json['tmb'] as num?)?.toDouble(),
+      tdeeMedio: (json['tdee_medio'] as num?)?.toDouble(),
+      formulaCodigo: formula['codigo'] as String? ?? '—',
+      estrategiaTdee: json['estrategia_tdee'] as String? ?? '—',
+      avisos: (json['avisos'] as List?)?.cast<String>() ?? const [],
+    );
+  }
+}
+
 /// Sinaliza qual das 3 travas de `validar_e_salvar_meta` (N08) recusou o
 /// salvamento — a tela usa isso pra escolher o texto certo do modal.
 enum MotivoBloqueioN08 { travaClinica, prioridadeProfissional, carenciaMensal, outro }
@@ -213,6 +246,29 @@ class MetaBemEstarRepository {
     ) as Map<String, dynamic>;
 
     return SugestaoMetaResultado.fromJson(resultado);
+  }
+
+  /// RELATÓRIO 20260917 (item 2 — "Tela Final: Separação de Cálculo vs
+  /// Meta") — chama o Motor Metabólico Centralizado V1
+  /// (`calcular_motor_metabolico_v1`, RELATÓRIO 20260916_0001), a RPC que
+  /// a Tela de Resultado da Anamnese passa a usar em vez de
+  /// `gerar_sugestao_meta` (mantida no banco por compatibilidade, mas sem
+  /// nenhuma tela chamando-a a partir desta tarefa). Função PURA no banco —
+  /// nunca escreve em `objetivos_alimentares`/`sugestao_meta`/`anamneses`
+  /// (ME-005/ME-006); só calcula e devolve. Lança [StateError] se ninguém
+  /// estiver logado.
+  Future<MotorMetabolicoV1Resultado> calcularMotorMetabolicoV1() async {
+    final usuarioId = _supabase.auth.currentUser?.id;
+    if (usuarioId == null) {
+      throw StateError('Nenhum usuário logado.');
+    }
+
+    final resultado = await _supabase.rpc(
+      'calcular_motor_metabolico_v1',
+      params: {'p_usuario_id': usuarioId},
+    ) as Map<String, dynamic>;
+
+    return MotorMetabolicoV1Resultado.fromJson(resultado);
   }
 
   /// Sugestão de calorias "baseada no TMB" — usa `gasto_sedentario`

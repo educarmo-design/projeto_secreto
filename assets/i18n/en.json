@@ -391,6 +391,7 @@
     "manual_food_search_item": "Manual Food Search",
     "favoritas_item": "My Favorites",
     "anamnese_item": "Nutrition Intake",
+    "anamnese_historico_item": "Assessment History",
     "meta_bem_estar_item": "Wellness Goal"
   },
 
@@ -510,6 +511,11 @@
     "peso_validation_invalid": "Enter numbers only",
     "peso_validation_range": "Weight must be between 30 and 300 kg",
 
+    "sugestao_balanca_titulo": "Data read from your scale",
+    "sugestao_balanca_peso": "Weight: {{peso}} kg (recorded on {{data}})",
+    "sugestao_balanca_percentual_gordura": "Body fat: {{percentual}}% (recorded on {{data}})",
+    "sugestao_balanca_usar_button": "Confirm",
+
     "rotina_dia_semana_label": "Weekly Routine",
     "dia_semana_0": "Sunday",
     "dia_semana_1": "Monday",
@@ -526,14 +532,20 @@
     "anamnese_carencia_titulo": "Intake recently completed",
     "anamnese_carencia_mensagem": "You can only redo the intake once every 30 days. Available again on {{data}}.",
 
-    "resultado_motor_title": "Goal Suggestion",
-    "resultado_motor_media_label": "Average Calorie Expenditure (week)",
+    "resultado_motor_title": "Assessment Result",
+    "resultado_motor_media_label": "Average TDEE (week)",
     "resultado_motor_tmb_label": "BMR (Basal Metabolic Rate)",
-    "resultado_motor_detalhe_label": "Detail by Day of Week",
     "resultado_motor_sem_dado": "—",
     "resultado_motor_aviso_disclaimer": "This information is for reference only; for any questions or additional information, please consult a health professional. This information is not saved to your Calorie and Nutrient goals.",
     "resultado_motor_concluir_button": "Done",
-    "resultado_motor_erro": "Couldn't calculate your suggestion right now. Please try again.",
+    "resultado_motor_erro": "Couldn't calculate your assessment right now. Please try again.",
+
+    "resultado_motor_secao_calculo_titulo": "Calculated Results",
+    "resultado_motor_secao_calculo_aviso": "Informational values, automatically calculated by the Metabolic Engine from your Intake — not a goal.",
+    "resultado_motor_secao_meta_titulo": "My Daily Goal",
+    "resultado_motor_secao_meta_aviso": "Set your own daily goal — the app never fills this in for you. The value becomes your average goal for all 7 days of the week.",
+    "resultado_motor_meta_salvar_button": "Save My Goal",
+    "resultado_motor_meta_definir_depois_button": "Set later",
 
     "save_button": "Save",
     "save_success": "Intake saved successfully",
@@ -575,7 +587,17 @@
     "meta_proxima_revisao_label": "Next review available on {{data}}",
     "meta_proxima_revisao_disponivel": "Review available now",
     "meta_criar_nova_button": "Create New Goal",
-    "meta_flag_profissional_texto": "Your goals are set and monitored by your health professional."
+    "meta_flag_profissional_texto": "Your goals are set and monitored by your health professional.",
+
+    "historico_anamnese_title": "Assessment History",
+    "historico_anamnese_proxima_revisao_label": "Next review available on {{data}}",
+    "historico_anamnese_proxima_revisao_disponivel": "Review available now",
+    "historico_anamnese_vazio": "You haven't filled out any intake yet.",
+    "historico_anamnese_item_ativo": "Current",
+    "historico_anamnese_item_historico": "Previous",
+    "historico_anamnese_peso_altura": "{{peso}} kg · {{altura}} cm",
+    "historico_anamnese_sem_peso_altura": "No weight/height on record",
+    "historico_anamnese_load_error": "Failed to load your history. Please try again."
   },
 
   "vinculos": {

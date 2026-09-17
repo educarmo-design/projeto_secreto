@@ -270,6 +270,40 @@ void main() {
     });
   });
 
+  // RELATÓRIO 20260917 (item 2 — "Tela Final") — Motor Metabólico
+  // Centralizado V1, RPC nova que a Tela de Resultado da Anamnese passa a
+  // chamar em vez de `gerar_sugestao_meta`.
+  group('calcularMotorMetabolicoV1', () {
+    test('chama a RPC calcular_motor_metabolico_v1 e mapeia tmb/tdee_medio/formula/estrategia', () async {
+      when(() => supabase.rpc('calcular_motor_metabolico_v1', params: any(named: 'params'))).thenAnswer(
+        (_) => _FakeQuery<Map<String, dynamic>>({
+          'motor_versao': 'v1',
+          'formula_tmb': {'codigo': 'TMB-001', 'nome': 'Mifflin-St Jeor', 'versao': '1.0'},
+          'estrategia_tdee': 'pal',
+          'tmb': 1655.5,
+          'tdee_medio': 1986.6,
+          'avisos': <String>[],
+        }),
+      );
+
+      final resultado = await repository.calcularMotorMetabolicoV1();
+
+      expect(resultado.tmb, 1655.5);
+      expect(resultado.tdeeMedio, 1986.6);
+      expect(resultado.formulaCodigo, 'TMB-001');
+      expect(resultado.estrategiaTdee, 'pal');
+      expect(resultado.avisos, isEmpty);
+      verify(() => supabase.rpc('calcular_motor_metabolico_v1', params: {'p_usuario_id': _usuarioId})).called(1);
+    });
+
+    test('lança StateError sem chamar o Supabase quando ninguém está logado', () async {
+      when(() => auth.currentUser).thenReturn(null);
+
+      expect(() => repository.calcularMotorMetabolicoV1(), throwsStateError);
+      verifyNever(() => supabase.rpc(any(), params: any(named: 'params')));
+    });
+  });
+
   group('buscarSugestaoCalorias', () {
     test('devolve gasto_sedentario do Motor N07', () async {
       when(() => supabase.rpc('calcular_motor_metabolico', params: any(named: 'params')))
