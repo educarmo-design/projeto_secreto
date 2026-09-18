@@ -1,11 +1,12 @@
 /**
- * RELATÓRIO 20260918_0001 — tabela de rastreabilidade de compliance entre
- * docs/motor_metabolico.txt e as 3 camadas do sistema (Backend/DB, App
- * Flutter, Painel Web). Conteúdo estático (não consulta o banco) —
- * reflete o estado do CÓDIGO na branch `feat/full-compliance-anamnese`,
- * mantido manualmente a cada tarefa que altera a Anamnese. A mesma tabela
- * também aparece no relatório da tarefa
- * (`docs/log_dev/20260918_0001_full_compliance_anamnese.md`).
+ * RELATÓRIO 20260918_0001, atualizada em 20260918_0002 — tabela de
+ * rastreabilidade de compliance entre docs/motor_metabolico.txt e as 3
+ * camadas do sistema (Backend/DB, App Flutter, Painel Web). Conteúdo
+ * estático (não consulta o banco) — reflete o estado do CÓDIGO em `main`,
+ * mantido manualmente a cada tarefa que altera a Anamnese/Motor. A mesma
+ * tabela também aparece no relatório de cada tarefa
+ * (`docs/log_dev/20260918_0001_full_compliance_anamnese.md`,
+ * `docs/log_dev/20260918_0002_anamnese_gaps_macros.md`).
  */
 type Status = 'implementado' | 'parcial' | 'pendente' | 'n/a';
 
@@ -24,25 +25,9 @@ const LINHAS: LinhaCompliance[] = [
   { bloco: 'Bloco 1', referencia: 'Seção 4', descricao: 'Contexto da avaliação / Motivo', backend: 'implementado', app: 'implementado', web: 'implementado' },
   { bloco: 'Bloco 2', referencia: 'Seção 4.1/4.2/5', descricao: 'Objetivos (lista exata + secundários + meta quantitativa)', backend: 'implementado', app: 'implementado', web: 'implementado' },
   { bloco: 'Bloco 3', referencia: 'Seção 6', descricao: 'Antropometria (composição corporal completa)', backend: 'implementado', app: 'implementado', web: 'implementado' },
-  {
-    bloco: 'Bloco 4',
-    referencia: 'Seção 7',
-    descricao: 'Histórico de peso',
-    backend: 'implementado',
-    app: 'implementado',
-    web: 'parcial',
-    planoOuNota: 'RPC anamnese_historico_peso existe e está tipada no Painel, mas nenhuma tela do Web a chama ainda (só mostra o peso da versão selecionada no histórico, não os marcos de 30/90/180/365 dias). Plano: card dedicado em PatientDetails.tsx.',
-  },
+  { bloco: 'Bloco 4', referencia: 'Seção 7', descricao: 'Histórico de peso', backend: 'implementado', app: 'implementado', web: 'implementado' },
   { bloco: 'Bloco 5', referencia: 'Seção 8', descricao: 'Alimentação (padrão alimentar, sem duplicar o diário já existente)', backend: 'implementado', app: 'implementado', web: 'implementado' },
-  {
-    bloco: 'Bloco 6',
-    referencia: 'Seção 9',
-    descricao: 'Atividades e rotina semanal (intensidade obrigatória, alfabético, busca)',
-    backend: 'implementado',
-    app: 'implementado',
-    web: 'parcial',
-    planoOuNota: 'Intensidade obrigatória e ordem alfabética presentes; falta a barra de busca (o <select> simples foi considerado suficiente pro tamanho atual do catálogo). Plano: adicionar busca se o catálogo crescer muito.',
-  },
+  { bloco: 'Bloco 6', referencia: 'Seção 9', descricao: 'Atividades e rotina semanal (intensidade obrigatória, alfabético, busca)', backend: 'implementado', app: 'implementado', web: 'implementado' },
   { bloco: 'Bloco 7', referencia: 'Seção 10', descricao: 'Sono e recuperação', backend: 'implementado', app: 'implementado', web: 'implementado' },
   { bloco: 'Bloco 8', referencia: 'Seção 11', descricao: 'Condições de saúde (Sim/Não explícito + lista exata)', backend: 'implementado', app: 'implementado', web: 'implementado' },
   { bloco: 'Alergias', referencia: '—', descricao: 'Catálogo com o padrão clínico pedido (Amendoim, Crustáceos, Glúten...)', backend: 'implementado', app: 'implementado', web: 'implementado' },
@@ -55,27 +40,35 @@ const LINHAS: LinhaCompliance[] = [
     descricao: 'Blocos condicionais — Idoso, Atleta, Recomposição, Diabetes, Doença Renal',
     backend: 'implementado',
     app: 'implementado',
-    web: 'parcial',
-    planoOuNota: 'App ativa os 5 blocos automaticamente (idade/condição/objetivo). Painel Web só tem toggle manual para Atleta/Diabetes/Doença Renal — Idoso e Recomposição ainda sem UI dedicada lá (o backend já suporta os 5 via JSONB). Plano: adicionar os 2 toggles restantes ao formulário profissional.',
+    web: 'implementado',
   },
   {
     bloco: 'Bloco 13',
-    referencia: 'Seção 21',
-    descricao: 'Resultados do Motor Metabólico (energia: TMB/TDEE por dia)',
-    backend: 'parcial',
-    app: 'implementado',
+    referencia: 'Seção 21 + Protocolos de Macronutrientes V1.0',
+    descricao: 'Resultados do Motor Metabólico (energia: TMB/TDEE por dia + macronutrientes MACRO-001/MACRO-002)',
+    backend: 'implementado',
+    app: 'pendente',
     web: 'implementado',
-    planoOuNota: 'Snapshot de energia (TMB/TDEE) 100% implementado desde tarefas anteriores. Macronutrientes calculados (proteína/carbo/gordura por dia) NÃO implementados — o documento não especifica nenhuma fórmula de cálculo automático de macros, e o projeto nunca arbitra número clínico sem fórmula explícita do fundador. Plano: aguardar definição da fórmula.',
+    planoOuNota: 'Backend calcula e devolve MACRO-001 (percentual energético) e MACRO-002 (g/kg + carboidrato residual), com validação "kcal proteína + kcal carboidrato + kcal gordura = energia-alvo" (Seção 16). Painel Web exibe os 2 protocolos lado a lado. App Flutter ainda não exibe (fora do ARQUIVOS/ENTREGÁVEL desta tarefa, que pediu só Web + Backend) — plano: exibir na Seção A de ResultadoMotorMetabolicoPage numa tarefa futura.',
   },
   { bloco: 'Bloco 14', referencia: 'Seção 22', descricao: 'Metas (resultado do sistema × meta profissional, nunca sobrescreve)', backend: 'implementado', app: 'implementado', web: 'implementado' },
   {
-    bloco: 'Bloco 15',
-    referencia: 'Seção 25',
-    descricao: 'Qualidade e exceções (score, dados faltantes/inconsistentes)',
-    backend: 'parcial',
+    bloco: 'Meta Energética',
+    referencia: 'Definição da Meta Energética V1.0, Seções 4/5',
+    descricao: 'Recomendação do sistema: manutenção = TDEE; perda de peso = TDEE − déficit parametrizado conservador (15%), replicando a média diária',
+    backend: 'implementado',
     app: 'pendente',
-    web: 'pendente',
-    planoOuNota: 'Coluna anamneses.qualidade_dados (jsonb) criada e pronta, mas nenhum algoritmo de scoring foi implementado — o documento não fornece a fórmula. Plano: definir o algoritmo com o fundador antes de expor isso em qualquer tela.',
+    web: 'implementado',
+    planoOuNota: 'Simplificação documentada: o texto pede uma "tabela parametrizada" considerando 6 fatores (objetivo/peso/TDEE/atividade/condições/qualidade dos dados) — implementado 1 parâmetro único versionado (DEFICIT-001-conservador-v1), não a tabela completa. Ganho de peso/massa/recomposição/performance ficam sem recomendação automática de propósito (o próprio documento diz que exigem avaliação profissional). App Flutter ainda não exibe — fora do escopo desta tarefa.',
+  },
+  {
+    bloco: 'Bloco 15',
+    referencia: 'Seção 25 + Regra 25',
+    descricao: 'Qualidade e exceções (score Alta/Média/Baixa)',
+    backend: 'implementado',
+    app: 'pendente',
+    web: 'implementado',
+    planoOuNota: 'Heurística explícita do fundador (o documento não define fórmula): Alta = decomposição (NEAT+EAT) + composição corporal confirmada; Média = fallback PAL ou sem composição corporal; Baixa = TMB não calculável. Painel Web mostra o badge com os motivos. App Flutter ainda não exibe — mesma razão do item acima (fora do escopo desta tarefa).',
   },
   { bloco: 'Bloco 16', referencia: 'Seção 26', descricao: 'Auditoria e versionamento (número de versão, dados confirmados)', backend: 'implementado', app: 'implementado', web: 'implementado' },
   {
