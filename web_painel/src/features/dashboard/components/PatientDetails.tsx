@@ -13,6 +13,7 @@ import {
 import { supabase, type ProfissionalAutenticado } from '@/core/supabase';
 import type { Database, SexoBiologico } from '@/core/types/database';
 import { Toast, type ToastMessage } from '@/components/Toast';
+import { AnamneseHistoricoView } from './AnamneseHistoricoView';
 import { AnamneseProfissionalView } from './AnamneseProfissionalView';
 import { InserirMedicaoModal } from './InserirMedicaoModal';
 import { MotorMetabolicoCard } from './MotorMetabolicoCard';
@@ -327,6 +328,10 @@ export function PatientDetails({ profissional }: PatientDetailsProps) {
           onSalvo={() => setGatilhoRecalculoMotorV1((atual) => atual + 1)}
         />
       )}
+      {/* RELATÓRIO 20260918_0001 (item 3) — histórico completo (todos os
+          Blocos 1-12) das anamneses do paciente, recarregado com o mesmo
+          gatilho da Anamnese Profissional acima. */}
+      {pacienteId && <AnamneseHistoricoView pacienteId={pacienteId} gatilhoRecarga={gatilhoRecalculoMotorV1} />}
       {pacienteId && <MotorMetabolicoV1Card pacienteId={pacienteId} gatilhoRecalculo={gatilhoRecalculoMotorV1} />}
 
       {/* N10 (RELATÓRIO 20260812_0010) — Prescrição de metas alimentares. */}

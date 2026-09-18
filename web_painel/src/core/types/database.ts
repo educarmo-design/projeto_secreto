@@ -441,12 +441,39 @@ export interface Database {
        * por isso `Insert`/`Update` ficam `never`, mesmo padrão de
        * `objetivos_alimentares` acima.
        */
+      /** N:N (`20260811240000`), estendida em `20260918100000` com detalhe por condição (Bloco 8). Só a RPC/o app (RLS own) escrevem. */
+      anamneses_problemas_saude: {
+        Row: {
+          anamnese_id: string;
+          problema_saude_id: string;
+          data_diagnostico: string | null;
+          status: 'ativo' | 'controlado' | 'resolvido' | 'em_investigacao' | null;
+          profissional_responsavel: string | null;
+          observacoes: string | null;
+          evidencias_relacionadas: string | null;
+        };
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
+
+      /** N:N (`20260811240000`) — alergias declaradas na anamnese. Só a RPC/o app (RLS own) escrevem. */
+      anamneses_alergias: {
+        Row: {
+          anamnese_id: string;
+          alergia_id: string;
+        };
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
+
       anamneses: {
         Row: {
           id: string;
           usuario_id: string;
           profissional_id: string | null;
-          objetivo_codigo: 'emagrecimento' | 'manutencao' | 'hipertrofia' | 'outro';
+          objetivo_codigo: ObjetivoCodigo;
           /** Só preenchido quando `objetivo_codigo = 'outro'` (item 2 — "Outros objetivos personalizados"). */
           objetivo_outro: string | null;
           data_preenchimento: string;
@@ -460,6 +487,58 @@ export interface Database {
           /** Gap Crítico (RELATÓRIO 20260917_0001, item 1) — JSON EXATO de `calcular_motor_metabolico_v1` no momento em que uma Meta foi salva para esta anamnese; `null` até a primeira meta ser salva. */
           resultado_motor_v1: MotorMetabolicoV1Resultado | null;
           resultado_motor_gravado_em: string | null;
+          // ---- RELATÓRIO 20260918_0001 (compliance total, Blocos 1-16) ----
+          numero_versao: number | null;
+          dados_confirmados: boolean;
+          confirmado_em: string | null;
+          motivo_avaliacao: string | null;
+          motivo_avaliacao_outro: string | null;
+          objetivos_secundarios: ObjetivoCodigo[];
+          meta_peso_desejado_kg: number | null;
+          meta_percentual_gordura_desejado: number | null;
+          meta_massa_desejada_kg: number | null;
+          meta_prazo: string | null;
+          meta_outro_indicador: string | null;
+          percentual_gordura: number | null;
+          massa_gorda_kg: number | null;
+          massa_magra_kg: number | null;
+          massa_muscular_kg: number | null;
+          circunferencia_cintura_cm: number | null;
+          circunferencia_abdominal_cm: number | null;
+          metodo_avaliacao_composicao: string | null;
+          fonte_composicao_corporal: string | null;
+          houve_alteracao_peso_nao_planejada: 'sim' | 'nao' | 'nao_sabe' | null;
+          numero_refeicoes_dia: number | null;
+          horarios_refeicoes_habituais: string | null;
+          regularidade_alimentar: string | null;
+          refeicoes_fora_de_casa: string | null;
+          consumo_ultraprocessados: string | null;
+          preferencias_alimentares: string | null;
+          alimentos_evitados: string | null;
+          restricoes_alimentares: string[];
+          intolerancias_alimentares: string[];
+          padrao_alimentar_habitual: string | null;
+          rotina_diaria:
+            | 'predominantemente_sentado'
+            | 'pouco_ativo'
+            | 'moderadamente_ativo'
+            | 'muito_ativo'
+            | 'trabalho_fisicamente_intenso'
+            | null;
+          atividade_ocupacional: string | null;
+          horas_sono_medias: number | null;
+          horario_dormir_habitual: string | null;
+          horario_acordar_habitual: string | null;
+          qualidade_sono_percebida: 'muito_ruim' | 'ruim' | 'regular' | 'boa' | 'muito_boa' | null;
+          despertares_noturnos: number | null;
+          sono_observacoes: string | null;
+          possui_condicao_saude: boolean | null;
+          bloco_idoso: Record<string, unknown> | null;
+          bloco_atleta: Record<string, unknown> | null;
+          bloco_recomposicao: Record<string, unknown> | null;
+          bloco_diabetes: Record<string, unknown> | null;
+          bloco_doenca_renal: Record<string, unknown> | null;
+          qualidade_dados: Record<string, unknown> | null;
         };
         Insert: never;
         Update: never;
@@ -482,8 +561,75 @@ export interface Database {
           /** 0 = domingo .. 6 = sábado (`extract(dow from date)`). */
           dia_semana: number;
           minutos: number;
+          /** Bloco 6 (RELATÓRIO 20260918_0001) — obrigatório, NOT NULL sem default no banco. */
+          intensidade: 'leve' | 'moderada' | 'alta';
+          horario: string | null;
+          distancia_km: number | null;
+          calorias_dispositivo: number | null;
+          fonte: string;
         };
         Insert: Database['public']['Tables']['anamneses_atividades_dias']['Row'];
+        Update: never;
+        Relationships: [];
+      };
+
+      /** Bloco 9 (RELATÓRIO 20260918_0001) — só a RPC `profissional_salvar_anamnese`/o app Flutter (RLS own) escrevem; sem `Insert` direto pelo Painel Web. */
+      anamneses_medicamentos: {
+        Row: {
+          id: string;
+          anamnese_id: string;
+          nome: string;
+          dose: number | null;
+          unidade: string | null;
+          frequencia: string | null;
+          horario: string | null;
+          indicacao: string | null;
+          data_inicio: string | null;
+          data_termino: string | null;
+          uso_atual: boolean;
+          prescritor: string | null;
+          criado_em: string;
+        };
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
+
+      /** Bloco 10 (RELATÓRIO 20260918_0001) — mesmo padrão de `anamneses_medicamentos`. */
+      anamneses_suplementos: {
+        Row: {
+          id: string;
+          anamnese_id: string;
+          nome: string;
+          dose: number | null;
+          unidade: string | null;
+          frequencia: string | null;
+          horario: string | null;
+          objetivo: string | null;
+          uso_atual: boolean;
+          orientacao_profissional: string | null;
+          criado_em: string;
+        };
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
+
+      /** Bloco 11 (RELATÓRIO 20260918_0001) — mesmo padrão de `anamneses_medicamentos`. */
+      anamneses_exames_laboratoriais: {
+        Row: {
+          id: string;
+          anamnese_id: string;
+          data_exame: string | null;
+          nome_exame: string;
+          resultado: string | null;
+          unidade: string | null;
+          referencia_laboratorio: string | null;
+          origem: string | null;
+          documento_origem: string | null;
+          criado_em: string;
+        };
+        Insert: never;
         Update: never;
         Relationships: [];
       };
@@ -687,19 +833,95 @@ export interface Database {
        * livre. `atividades` é opcional (default `[]`), cada item vira uma
        * linha em `anamneses_atividades_dias`.
        */
+      /**
+       * RELATÓRIO 20260917_0001 (item 2) + RELATÓRIO 20260918_0001
+       * (compliance total, Blocos 1-16) — payload espelha o mesmo conjunto
+       * de campos que `AnamneseRepository.salvarAnamnese` (Flutter) grava,
+       * ver a migration `20260918110000` para a lista completa de colunas.
+       * `dados_confirmados` é sempre gravado como `true` pela RPC (o
+       * submit do formulário profissional já É a confirmação — o Painel
+       * Web não tem uma 2ª tela de revisão como o app, Seção 11).
+       */
       profissional_salvar_anamnese: {
         Args: {
           p_paciente_id: string;
           p_payload: {
-            objetivo_codigo: 'emagrecimento' | 'manutencao' | 'hipertrofia' | 'outro';
+            objetivo_codigo: ObjetivoCodigo;
             objetivo_outro?: string | null;
             peso_kg?: number | null;
             altura_cm?: number | null;
             data_proxima_avaliacao?: string | null;
-            atividades?: { atividade_id: number; dia_semana: number; minutos: number }[];
+            motivo_avaliacao?: string | null;
+            motivo_avaliacao_outro?: string | null;
+            objetivos_secundarios?: ObjetivoCodigo[];
+            meta_peso_desejado_kg?: number | null;
+            meta_percentual_gordura_desejado?: number | null;
+            meta_massa_desejada_kg?: number | null;
+            meta_prazo?: string | null;
+            meta_outro_indicador?: string | null;
+            percentual_gordura?: number | null;
+            massa_gorda_kg?: number | null;
+            massa_magra_kg?: number | null;
+            massa_muscular_kg?: number | null;
+            circunferencia_cintura_cm?: number | null;
+            circunferencia_abdominal_cm?: number | null;
+            metodo_avaliacao_composicao?: string | null;
+            fonte_composicao_corporal?: string | null;
+            houve_alteracao_peso_nao_planejada?: 'sim' | 'nao' | 'nao_sabe' | null;
+            numero_refeicoes_dia?: number | null;
+            horarios_refeicoes_habituais?: string | null;
+            regularidade_alimentar?: string | null;
+            refeicoes_fora_de_casa?: string | null;
+            consumo_ultraprocessados?: string | null;
+            preferencias_alimentares?: string | null;
+            alimentos_evitados?: string | null;
+            restricoes_alimentares?: string[];
+            intolerancias_alimentares?: string[];
+            padrao_alimentar_habitual?: string | null;
+            rotina_diaria?: string | null;
+            atividade_ocupacional?: string | null;
+            horas_sono_medias?: number | null;
+            horario_dormir_habitual?: string | null;
+            horario_acordar_habitual?: string | null;
+            qualidade_sono_percebida?: string | null;
+            despertares_noturnos?: number | null;
+            sono_observacoes?: string | null;
+            possui_condicao_saude?: boolean | null;
+            bloco_idoso?: Record<string, unknown> | null;
+            bloco_atleta?: Record<string, unknown> | null;
+            bloco_recomposicao?: Record<string, unknown> | null;
+            bloco_diabetes?: Record<string, unknown> | null;
+            bloco_doenca_renal?: Record<string, unknown> | null;
+            atividades?: { atividade_id: number; dia_semana: number; minutos: number; intensidade?: 'leve' | 'moderada' | 'alta' }[];
+            condicoes_saude?: { problema_saude_id: string; data_diagnostico?: string | null; status?: string | null; observacoes?: string | null }[];
+            alergias?: string[];
+            medicamentos?: { nome: string; dose?: string | null; unidade?: string | null; frequencia?: string | null }[];
+            suplementos?: { nome: string; dose?: string | null; unidade?: string | null; objetivo?: string | null }[];
+            exames?: { nome_exame: string; resultado?: string | null; unidade?: string | null }[];
           };
         };
         Returns: { sucesso: true; anamnese_id: string };
+      };
+
+      /**
+       * Bloco 4 (RELATÓRIO 20260918_0001) — "recupera automaticamente
+       * informações históricas disponíveis". Função PURA (nunca persiste),
+       * reconstrói o histórico de peso a partir das anamneses já
+       * existentes.
+       */
+      anamnese_historico_peso: {
+        Args: { p_usuario_id: string };
+        Returns: {
+          peso_atual: number | null;
+          peso_anterior: number | null;
+          peso_30_dias: number | null;
+          peso_3_meses: number | null;
+          peso_6_meses: number | null;
+          peso_12_meses: number | null;
+          maior_peso: number | null;
+          menor_peso: number | null;
+          variacao_percentual: number | null;
+        };
       };
     };
     Enums: {
@@ -716,6 +938,22 @@ export interface Database {
  * RELATÓRIO 20260812_0008) — input do Motor Metabólico N07.
  */
 export type SexoBiologico = 'M' | 'F';
+
+/**
+ * Espelha o CHECK constraint `anamneses_objetivo_codigo_check`
+ * (RELATÓRIO 20260918_0001) — lista EXATA da Seção 4.1 do documento
+ * docs/motor_metabolico.txt. Antes desta tarefa era uma lista menor/
+ * divergente ('emagrecimento'/'manutencao'/'hipertrofia'/'outro').
+ */
+export type ObjetivoCodigo =
+  | 'perder_peso'
+  | 'manter_peso'
+  | 'ganhar_peso'
+  | 'reduzir_gordura_corporal'
+  | 'ganhar_massa_muscular'
+  | 'recomposicao_corporal'
+  | 'melhorar_desempenho_esportivo'
+  | 'outro';
 
 /** Formato do JSONB devolvido por `calcular_motor_metabolico` — ver comentário da função na migration `20260812100000` para a matemática completa. */
 export interface MotorMetabolicoResultado {
