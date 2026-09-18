@@ -140,6 +140,17 @@ const FORM_VAZIO = {
   ativarBlocoRenal: false,
   renalEstagio: '',
   renalTfg: '',
+  // RELATÓRIO 20260918_0002 — gap achado na tarefa anterior: Idoso e
+  // Recomposição Corporal ficaram sem toggle no Painel Web (só Atleta/
+  // Diabetes/Renal tinham).
+  ativarBlocoIdoso: false,
+  idosoPerdaPeso: false,
+  idosoReducaoForcaMobilidade: false,
+  idosoDificuldadeAlimentacao: false,
+  ativarBlocoRecomposicao: false,
+  recomposicaoPercentualAtual: '',
+  recomposicaoPercentualDesejado: '',
+  recomposicaoTreinamentoResistido: false,
 };
 
 /**
@@ -169,10 +180,21 @@ export function AnamneseProfissionalView({ pacienteId, onSalvo }: AnamneseProfis
   const [alergiasSelecionadas, setAlergiasSelecionadas] = useState<Set<string>>(new Set());
   const [salvando, setSalvando] = useState(false);
   const [toast, setToast] = useState<ToastMessage | null>(null);
+  // Bloco 6 — filtro de texto do seletor de atividades (RELATÓRIO
+  // 20260918_0002, gap achado na tarefa anterior: o app já tinha busca, o
+  // Painel Web não).
+  const [buscaAtividade, setBuscaAtividade] = useState('');
+  // Bloco 4 (Seção 7) — histórico de peso do paciente, só leitura, via a
+  // RPC pura `anamnese_historico_peso` (RELATÓRIO 20260918_0001) — gap
+  // achado na tarefa anterior: a RPC existia e estava tipada, mas nenhuma
+  // tela do Painel a chamava ainda.
+  const [historicoPeso, setHistoricoPeso] = useState<Database['public']['Functions']['anamnese_historico_peso']['Returns'] | null>(null);
 
   useEffect(() => {
     void carregarCatalogos();
-  }, []);
+    void carregarHistoricoPeso();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pacienteId]);
 
   async function carregarCatalogos() {
     const [atividadesResult, problemasResult, alergiasResult] = await Promise.all([
@@ -186,6 +208,14 @@ export function AnamneseProfissionalView({ pacienteId, onSalvo }: AnamneseProfis
     // Erro aqui não impede o resto da tela — os catálogos alimentam
     // seções opcionais (rotina/condições/alergias).
   }
+
+  async function carregarHistoricoPeso() {
+    const { data, error } = await supabase.rpc('anamnese_historico_peso', { p_usuario_id: pacienteId });
+    if (!error) setHistoricoPeso(data);
+    // Erro aqui não impede o resto da tela — é só uma seção informativa.
+  }
+
+  const atividadesFiltradas = atividades.filter((a) => a.nome_exibicao.toLowerCase().includes(buscaAtividade.trim().toLowerCase()));
 
   function adicionarLinhaAtividade() {
     setLinhasAtividade((atual) => [...atual, linhaAtividadeVazia()]);
@@ -281,6 +311,20 @@ export function AnamneseProfissionalView({ pacienteId, onSalvo }: AnamneseProfis
           : null,
         bloco_diabetes: form.ativarBlocoDiabetes ? { tipo: form.diabetesTipo, hba1c: form.diabetesHba1c } : null,
         bloco_doenca_renal: form.ativarBlocoRenal ? { estagio: form.renalEstagio, tfg_egfr: form.renalTfg } : null,
+        bloco_idoso: form.ativarBlocoIdoso
+          ? {
+              perda_involuntaria_peso: form.idosoPerdaPeso,
+              reducao_forca_mobilidade: form.idosoReducaoForcaMobilidade,
+              dificuldade_alimentacao: form.idosoDificuldadeAlimentacao,
+            }
+          : null,
+        bloco_recomposicao: form.ativarBlocoRecomposicao
+          ? {
+              percentual_gordura_atual: form.recomposicaoPercentualAtual,
+              percentual_desejado: form.recomposicaoPercentualDesejado,
+              treinamento_resistido: form.recomposicaoTreinamentoResistido,
+            }
+          : null,
         atividades: linhasAtividadeValidas.map((l) => ({
           atividade_id: Number(l.atividadeId),
           dia_semana: l.diaSemana,
@@ -311,6 +355,7 @@ export function AnamneseProfissionalView({ pacienteId, onSalvo }: AnamneseProfis
     setCondicoesSelecionadas(new Set());
     setAlergiasSelecionadas(new Set());
     void data; // { sucesso: true, anamnese_id }
+    void carregarHistoricoPeso();
     onSalvo?.();
   }
 
@@ -324,6 +369,8 @@ export function AnamneseProfissionalView({ pacienteId, onSalvo }: AnamneseProfis
           Sem trava de tempo — defina a próxima avaliação livremente. Sempre cria uma nova versão (histórico preservado).
         </p>
       </div>
+
+      <HistoricoPesoResumo historico={historicoPeso} />
 
       <form onSubmit={(event) => void handleSubmit(event)} className="space-y-4">
         {/* Bloco 1 — Contexto */}
@@ -536,6 +583,16 @@ export function AnamneseProfissionalView({ pacienteId, onSalvo }: AnamneseProfis
           <p className="mb-2 text-[10px] text-clinical-muted">
             Dias sem nenhuma linha usam o PAL padrão (sedentário) no Motor Metabólico — não é tratado como "sem atividade nenhuma".
           </p>
+          {atividades.length > 8 && (
+            <input
+              type="text"
+              placeholder="Buscar modalidade..."
+              disabled={salvando}
+              value={buscaAtividade}
+              onChange={(event) => setBuscaAtividade(event.target.value)}
+              className="mb-2 w-full max-w-xs rounded-lg border border-clinical-border bg-clinical-bg px-3 py-1.5 text-xs text-slate-100 outline-none focus:border-clinical-primary disabled:opacity-60"
+            />
+          )}
           {linhasAtividade.length === 0 ? (
             <p className="text-xs text-clinical-muted">Nenhuma linha adicionada.</p>
           ) : (
@@ -561,7 +618,7 @@ export function AnamneseProfissionalView({ pacienteId, onSalvo }: AnamneseProfis
                     className="min-w-[160px] flex-1 rounded-lg border border-clinical-border bg-clinical-bg px-2 py-1.5 text-xs text-slate-100 outline-none focus:border-clinical-primary disabled:opacity-60"
                   >
                     <option value="">Selecione a atividade...</option>
-                    {atividades.map((a) => (
+                    {atividadesFiltradas.map((a) => (
                       <option key={a.id} value={a.id}>
                         {a.nome_exibicao}
                       </option>
@@ -662,6 +719,8 @@ export function AnamneseProfissionalView({ pacienteId, onSalvo }: AnamneseProfis
         <BlocoCondicionalAtleta form={form} setForm={setForm} salvando={salvando} />
         <BlocoCondicionalDiabetes form={form} setForm={setForm} salvando={salvando} />
         <BlocoCondicionalRenal form={form} setForm={setForm} salvando={salvando} />
+        <BlocoCondicionalIdoso form={form} setForm={setForm} salvando={salvando} />
+        <BlocoCondicionalRecomposicao form={form} setForm={setForm} salvando={salvando} />
 
         {/* Blocos 9/10/11 — Medicamentos, Suplementos, Exames */}
         <LinhaRepetivel titulo="Medicamentos (opcional)" campo2Label="Dose" campo3Label="Unidade" linhas={linhasMedicamento} setLinhas={setLinhasMedicamento} disabled={salvando} />
@@ -761,6 +820,116 @@ function BlocoCondicionalRenal({
         </div>
       )}
     </details>
+  );
+}
+
+function BlocoCondicionalIdoso({
+  form,
+  setForm,
+  salvando,
+}: {
+  form: typeof FORM_VAZIO;
+  setForm: React.Dispatch<React.SetStateAction<typeof FORM_VAZIO>>;
+  salvando: boolean;
+}) {
+  return (
+    <details className="rounded-lg border border-clinical-border p-3" open={form.ativarBlocoIdoso}>
+      <summary className="cursor-pointer text-xs font-medium text-slate-300">
+        <label className="inline-flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+          <input type="checkbox" disabled={salvando} checked={form.ativarBlocoIdoso} onChange={(e) => setForm((a) => ({ ...a, ativarBlocoIdoso: e.target.checked }))} />
+          Bloco Idoso
+        </label>
+      </summary>
+      {form.ativarBlocoIdoso && (
+        <div className="mt-3 space-y-1">
+          <label className="flex items-center gap-2 text-xs text-slate-300">
+            <input type="checkbox" disabled={salvando} checked={form.idosoPerdaPeso} onChange={(e) => setForm((a) => ({ ...a, idosoPerdaPeso: e.target.checked }))} />
+            Houve perda involuntária de peso?
+          </label>
+          <label className="flex items-center gap-2 text-xs text-slate-300">
+            <input type="checkbox" disabled={salvando} checked={form.idosoReducaoForcaMobilidade} onChange={(e) => setForm((a) => ({ ...a, idosoReducaoForcaMobilidade: e.target.checked }))} />
+            Houve redução importante de força ou mobilidade?
+          </label>
+          <label className="flex items-center gap-2 text-xs text-slate-300">
+            <input type="checkbox" disabled={salvando} checked={form.idosoDificuldadeAlimentacao} onChange={(e) => setForm((a) => ({ ...a, idosoDificuldadeAlimentacao: e.target.checked }))} />
+            Existe dificuldade para alimentação?
+          </label>
+        </div>
+      )}
+    </details>
+  );
+}
+
+function BlocoCondicionalRecomposicao({
+  form,
+  setForm,
+  salvando,
+}: {
+  form: typeof FORM_VAZIO;
+  setForm: React.Dispatch<React.SetStateAction<typeof FORM_VAZIO>>;
+  salvando: boolean;
+}) {
+  return (
+    <details className="rounded-lg border border-clinical-border p-3" open={form.ativarBlocoRecomposicao}>
+      <summary className="cursor-pointer text-xs font-medium text-slate-300">
+        <label className="inline-flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+          <input type="checkbox" disabled={salvando} checked={form.ativarBlocoRecomposicao} onChange={(e) => setForm((a) => ({ ...a, ativarBlocoRecomposicao: e.target.checked }))} />
+          Bloco Recomposição Corporal
+        </label>
+      </summary>
+      {form.ativarBlocoRecomposicao && (
+        <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <CampoNumerico id="bloco-recomp-atual" label="% gordura atual" value={form.recomposicaoPercentualAtual} disabled={salvando} onChange={(v) => setForm((a) => ({ ...a, recomposicaoPercentualAtual: v }))} />
+          <CampoNumerico id="bloco-recomp-desejado" label="% gordura desejado" value={form.recomposicaoPercentualDesejado} disabled={salvando} onChange={(v) => setForm((a) => ({ ...a, recomposicaoPercentualDesejado: v }))} />
+          <label className="flex items-center gap-2 self-end text-xs text-slate-300">
+            <input
+              type="checkbox"
+              disabled={salvando}
+              checked={form.recomposicaoTreinamentoResistido}
+              onChange={(e) => setForm((a) => ({ ...a, recomposicaoTreinamentoResistido: e.target.checked }))}
+            />
+            Faz treinamento resistido?
+          </label>
+        </div>
+      )}
+    </details>
+  );
+}
+
+/** Bloco 4 (Seção 7, RELATÓRIO 20260918_0002) — histórico de peso do
+ * paciente, só leitura, via a RPC pura `anamnese_historico_peso`. */
+function HistoricoPesoResumo({ historico }: { historico: Database['public']['Functions']['anamnese_historico_peso']['Returns'] | null }) {
+  if (!historico || historico.peso_atual === null) return null;
+
+  const itens: { label: string; valor: number | null }[] = [
+    { label: 'Atual', valor: historico.peso_atual },
+    { label: 'Anterior', valor: historico.peso_anterior },
+    { label: 'Há 30 dias', valor: historico.peso_30_dias },
+    { label: 'Há 3 meses', valor: historico.peso_3_meses },
+    { label: 'Há 6 meses', valor: historico.peso_6_meses },
+    { label: 'Há 12 meses', valor: historico.peso_12_meses },
+    { label: 'Maior já registrado', valor: historico.maior_peso },
+    { label: 'Menor já registrado', valor: historico.menor_peso },
+  ];
+
+  return (
+    <div className="rounded-lg border border-clinical-border p-3">
+      <p className="mb-2 text-xs font-medium text-slate-300">Histórico de Peso</p>
+      <div className="flex flex-wrap gap-3">
+        {itens
+          .filter((item) => item.valor !== null)
+          .map((item) => (
+            <div key={item.label} className="text-xs text-clinical-muted">
+              <span className="text-slate-300">{item.label}:</span> {item.valor} kg
+            </div>
+          ))}
+        {historico.variacao_percentual !== null && (
+          <div className="text-xs text-clinical-muted">
+            <span className="text-slate-300">Variação:</span> {historico.variacao_percentual}%
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
