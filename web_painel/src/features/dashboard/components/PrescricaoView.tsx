@@ -81,6 +81,17 @@ export function PrescricaoView({ pacienteId }: PrescricaoViewProps) {
   const [modoMeta, setModoMeta] = useState<'unica' | 'por_dia'>('unica');
   const [caloriasPorDia, setCaloriasPorDia] = useState(caloriasPorDiaVazio);
 
+  // RELATÓRIO 20260920_0002 (MACRO-005, "personalizado pelo profissional",
+  // Seção 8) — validação matemática AO VIVO enquanto o profissional digita
+  // Calorias/Proteína/Carboidrato/Gordura manualmente, via a RPC pura
+  // `validar_macro_personalizado`. Só roda no modo "Meta única" (o único
+  // com uma única Calorias inequívoca pra comparar contra P/C/G — no modo
+  // "por dia" cada dia teria seu próprio alvo, fora do escopo desta
+  // tarefa). NUNCA bloqueia o salvamento — mesmo espírito de N08 pro
+  // profissional: o sistema avisa, o profissional decide.
+  const [validacaoMacro, setValidacaoMacro] = useState<{ valido: boolean; somaKcal: number; diferencaKcal: number } | null>(null);
+  const [validandoMacro, setValidandoMacro] = useState(false);
+
   useEffect(() => {
     void carregar();
     // `carregar` também é chamado de `handleSubmit` (não só aqui), então
@@ -89,6 +100,52 @@ export function PrescricaoView({ pacienteId }: PrescricaoViewProps) {
     // motivo já documentado lá.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pacienteId]);
+
+  useEffect(() => {
+    if (modoMeta !== 'unica') {
+      setValidacaoMacro(null);
+      setValidandoMacro(false);
+      return;
+    }
+
+    const caloriasPreenchida = form.caloriasAlvo.trim();
+    const todosPreenchidos = caloriasPreenchida && form.proteinaG.trim() && form.carboG.trim() && form.gorduraG.trim();
+    const calorias = Number(form.caloriasAlvo);
+
+    if (!todosPreenchidos || !Number.isFinite(calorias) || calorias <= 0) {
+      setValidacaoMacro(null);
+      setValidandoMacro(false);
+      return;
+    }
+
+    let cancelado = false;
+    setValidandoMacro(true);
+
+    // Debounce simples — evita 1 chamada por tecla enquanto o profissional digita.
+    const timer = setTimeout(() => {
+      void supabase
+        .rpc('validar_macro_personalizado', {
+          p_energia_alvo_kcal: calorias,
+          p_proteina_g: Number(form.proteinaG),
+          p_carboidrato_g: Number(form.carboG),
+          p_gordura_g: Number(form.gorduraG),
+        })
+        .then(({ data, error }) => {
+          if (cancelado) return;
+          setValidandoMacro(false);
+          if (error || !data) {
+            setValidacaoMacro(null);
+            return;
+          }
+          setValidacaoMacro({ valido: data.valido, somaKcal: data.soma_kcal_calculada, diferencaKcal: data.diferenca_kcal });
+        });
+    }, 400);
+
+    return () => {
+      cancelado = true;
+      clearTimeout(timer);
+    };
+  }, [modoMeta, form.caloriasAlvo, form.proteinaG, form.carboG, form.gorduraG]);
 
   async function carregar() {
     setEstado('carregando');
@@ -357,6 +414,31 @@ export function PrescricaoView({ pacienteId }: PrescricaoViewProps) {
               />
             </div>
 
+            {modoMeta === 'unica' && (validandoMacro || validacaoMacro) && (
+              <div
+                role={validacaoMacro && !validacaoMacro.valido ? 'alert' : undefined}
+                className={`rounded-xl border p-3 text-xs ${
+                  validandoMacro
+                    ? 'border-clinical-border bg-clinical-bg/60 text-clinical-muted'
+                    : validacaoMacro?.valido
+                      ? 'border-clinical-success/40 bg-clinical-success/10 text-clinical-success'
+                      : 'border-clinical-critical/40 bg-clinical-critical/10 text-clinical-critical'
+                }`}
+              >
+                {validandoMacro ? (
+                  'Validando consistência matemática (MACRO-005)...'
+                ) : validacaoMacro?.valido ? (
+                  <>✓ Consistente — {formatarNumero(validacaoMacro.somaKcal)} kcal (P+C+G) ≈ Calorias informadas (MACRO-005).</>
+                ) : (
+                  <>
+                    ✕ Inconsistente — P+C+G soma {formatarNumero(validacaoMacro?.somaKcal ?? 0)} kcal, mas Calorias é{' '}
+                    {form.caloriasAlvo} kcal (diferença de {formatarNumero(Math.abs(validacaoMacro?.diferencaKcal ?? 0))} kcal). A
+                    prescrição pode ser salva mesmo assim — revise os valores antes de confirmar.
+                  </>
+                )}
+              </div>
+            )}
+
             <div className="max-w-[200px]">
               <label htmlFor="prescricao-vencimento" className="block text-xs font-medium text-slate-300">
                 Vencimento
@@ -475,6 +557,10 @@ function CardMeta({ objetivo, onCopiar }: { objetivo: ObjetivoAlimentar; onCopia
       </button>
     </div>
   );
+}
+
+function formatarNumero(valor: number): string {
+  return valor.toLocaleString('pt-BR', { maximumFractionDigits: 0 });
 }
 
 function CampoNumerico({

@@ -923,6 +923,31 @@ export interface Database {
           variacao_percentual: number | null;
         };
       };
+
+      /**
+       * `20260920100000` (RELATÓRIO 20260920_0001) — MACRO-005
+       * ("personalizado pelo profissional", Seção 8 de "Protocolos de
+       * Macronutrientes V1.0"). Função PURA de validação matemática (kcal
+       * proteína + kcal carboidrato + kcal gordura = energia-alvo, Seção
+       * 16, tolerância de 2kcal); não grava nada e não substitui
+       * `validar_e_salvar_meta`.
+       */
+      validar_macro_personalizado: {
+        Args: {
+          p_energia_alvo_kcal: number;
+          p_proteina_g: number;
+          p_carboidrato_g: number;
+          p_gordura_g: number;
+        };
+        Returns: {
+          versao: 'MACRO-005-personalizado-v1';
+          energia_alvo_kcal: number;
+          soma_kcal_calculada: number;
+          diferenca_kcal: number;
+          tolerancia_kcal: number;
+          valido: boolean;
+        };
+      };
     };
     Enums: {
       tipo_profissional_saude: TipoProfissionalSaude;
@@ -1008,18 +1033,44 @@ export interface MotorMetabolicoV1Resultado {
   qualidade: { score: 'alta' | 'media' | 'baixa'; motivos: string[] };
   /**
    * "Motor Metabólico — Definição da Meta Energética V1.0" (RELATÓRIO
-   * 20260918_0002) — recomendação do SISTEMA, nunca a meta salva
-   * (ME-003/005/006). `null` quando o objetivo não tem estratégia
-   * automática na V1 (ganho de peso/massa/recomposição/performance
-   * exigem avaliação profissional, ver a migration).
+   * 20260918_0002, tabela multicritério em 20260920_0001) — recomendação
+   * do SISTEMA, nunca a meta salva (ME-003/005/006). `null` quando o
+   * objetivo não tem estratégia automática na V1 (ganho de peso/massa/
+   * recomposição/performance exigem avaliação profissional, ver a
+   * migration).
    */
   energia_recomendacao: {
     estrategia: 'manutencao' | 'deficit_conservador';
     deficit_percentual: number | null;
+    /** `'DEFICIT-002-multicriterio-v1'` desde 20260920_0001 (substituiu o `DEFICIT-001-conservador-v1`, parâmetro único fixo). */
     deficit_versao: string | null;
     recomendacao_media_diaria: number;
+    /**
+     * RELATÓRIO 20260920_0001 — os 6 fatores mínimos da Seção 5 e o
+     * ajuste/limite aplicado por cada um, só presente na estratégia
+     * `deficit_conservador` (`null` na manutenção). Existe pra dar
+     * transparência ao profissional sobre como o sistema chegou naquele
+     * percentual — nunca usado pra recalcular nada no cliente.
+     */
+    fatores_considerados: {
+      nivel_atividade: string;
+      deficit_base_percentual: number;
+      ajuste_tdee_percentual: number;
+      ajuste_condicao_relevante_percentual: number;
+      ajuste_qualidade_dados_percentual: number;
+      percentual_antes_dos_limites: number;
+      percentual_apos_limites_5_a_20: number;
+      teto_deficit_kcal_por_peso: number;
+      deficit_kcal_aplicado: number;
+      piso_tmb_acionado: boolean;
+    } | null;
   } | null;
-  /** "Motor Metabólico — Protocolos de Macronutrientes V1.0" (RELATÓRIO 20260918_0002) — MACRO-001/MACRO-002, informativo. `null` sem `energia_recomendacao`/peso. */
+  /**
+   * "Motor Metabólico — Protocolos de Macronutrientes V1.0" — catálogo
+   * completo dos 5 protocolos (RELATÓRIO 20260918_0002: MACRO-001/002;
+   * RELATÓRIO 20260920_0001: MACRO-003/004/005), informativo. `null` sem
+   * `energia_recomendacao`/peso.
+   */
   macros_recomendados: {
     energia_alvo: number;
     protocolo_principal: 'MACRO-002';
@@ -1038,6 +1089,45 @@ export interface MotorMetabolicoV1Resultado {
       carboidrato_g: number;
       gordura_g: number;
       validacao_soma_ok: boolean;
+    };
+    /**
+     * Seção 6 — proteína por massa livre de gordura (MLG). `disponivel:
+     * false` (com `proteina_g`/`carboidrato_g`/`gordura_g` nulos) quando
+     * `insumos.massa_magra_kg` não está preenchido na anamnese — o
+     * backend NUNCA cai num fallback silencioso; o card deve exibir esse
+     * estado, não escondê-lo.
+     */
+    macro_003: {
+      versao: string;
+      disponivel: boolean;
+      parametros: { proteina_g_por_kg_mlg: number; gordura_g_por_kg_peso: number } | Record<string, never>;
+      massa_magra_kg: number | null;
+      massa_magra_data_medicao: string | null;
+      proteina_g: number | null;
+      carboidrato_g: number | null;
+      gordura_g: number | null;
+      validacao_soma_ok: boolean;
+    };
+    /** Seção 7 — proteína prioritária (g/kg) + gordura como limite mínimo fixo (% da energia-alvo) + carboidrato variável (residual). */
+    macro_004: {
+      versao: string;
+      parametros: { proteina_g_por_kg: number; gordura_percentual_minimo: number };
+      proteina_g: number;
+      carboidrato_g: number;
+      gordura_g: number;
+      validacao_soma_ok: boolean;
+    };
+    /**
+     * Seção 8 — "personalizado pelo profissional". Por definição não tem
+     * gramas calculadas automaticamente (`calculo_automatico: false`) — é
+     * o profissional quem define os valores; a validação matemática deles
+     * é feita chamando a RPC `validar_macro_personalizado` separadamente.
+     */
+    macro_005: {
+      versao: 'MACRO-005-personalizado-v1';
+      disponivel: true;
+      calculo_automatico: false;
+      motivo: string;
     };
   } | null;
   avisos: string[];
