@@ -1000,7 +1000,46 @@ export interface MotorMetabolicoV1Resultado {
     peso_data_medicao: string | null;
     /** `null` quando não há anamnese com peso+altura preenchidos — é essa que `validar_e_salvar_meta` usa pra saber onde gravar o snapshot (RELATÓRIO 20260917_0001, item 1). */
     anamnese_id: string | null;
+    objetivo_codigo: ObjetivoCodigo | null;
+    massa_magra_kg: number | null;
+    percentual_gordura: number | null;
   };
+  /** Bloco 15/Regra 25 (RELATÓRIO 20260918_0002) — heurística explícita do fundador, o documento não define fórmula de score. */
+  qualidade: { score: 'alta' | 'media' | 'baixa'; motivos: string[] };
+  /**
+   * "Motor Metabólico — Definição da Meta Energética V1.0" (RELATÓRIO
+   * 20260918_0002) — recomendação do SISTEMA, nunca a meta salva
+   * (ME-003/005/006). `null` quando o objetivo não tem estratégia
+   * automática na V1 (ganho de peso/massa/recomposição/performance
+   * exigem avaliação profissional, ver a migration).
+   */
+  energia_recomendacao: {
+    estrategia: 'manutencao' | 'deficit_conservador';
+    deficit_percentual: number | null;
+    deficit_versao: string | null;
+    recomendacao_media_diaria: number;
+  } | null;
+  /** "Motor Metabólico — Protocolos de Macronutrientes V1.0" (RELATÓRIO 20260918_0002) — MACRO-001/MACRO-002, informativo. `null` sem `energia_recomendacao`/peso. */
+  macros_recomendados: {
+    energia_alvo: number;
+    protocolo_principal: 'MACRO-002';
+    macro_001: {
+      versao: string;
+      parametros: { percentual_proteina: number; percentual_carboidrato: number; percentual_gordura: number };
+      proteina_g: number;
+      carboidrato_g: number;
+      gordura_g: number;
+      validacao_soma_ok: boolean;
+    };
+    macro_002: {
+      versao: string;
+      parametros: { proteina_g_por_kg: number; gordura_g_por_kg: number };
+      proteina_g: number;
+      carboidrato_g: number;
+      gordura_g: number;
+      validacao_soma_ok: boolean;
+    };
+  } | null;
   avisos: string[];
   calculado_em: string;
 }

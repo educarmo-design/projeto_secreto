@@ -40,6 +40,19 @@ const ROTULO_AVISO: Record<string, string> = {
 
 const ROTULO_SEXO: Record<string, string> = { M: 'Masculino', F: 'Feminino' };
 
+const ROTULO_SCORE_QUALIDADE: Record<string, string> = { alta: 'Alta', media: 'Média', baixa: 'Baixa' };
+const COR_SCORE_QUALIDADE: Record<string, string> = {
+  alta: 'bg-clinical-success/15 text-clinical-success',
+  media: 'bg-clinical-warning/15 text-clinical-warning',
+  baixa: 'bg-clinical-critical/15 text-clinical-critical',
+};
+const ROTULO_MOTIVO_QUALIDADE: Record<string, string> = {
+  decomposicao_com_composicao_corporal_confirmada: 'Decomposição (NEAT+EAT) com composição corporal confirmada',
+  estrategia_fallback_pal: 'Usando PAL como fallback (sem decomposição por atividade)',
+  sem_composicao_corporal_confirmada: 'Sem composição corporal confirmada (% gordura/massa magra)',
+  dados_insuficientes_para_tmb: 'Dados insuficientes para calcular a TMB',
+};
+
 /**
  * RELATÓRIO 20260917_0001 (item 3, ME-007) — "Raio-X" do Motor Metabólico
  * V1 (`calcular_motor_metabolico_v1`, `20260916120000`): TMB + TDEE
@@ -107,11 +120,65 @@ export function MotorMetabolicoV1Card({ pacienteId, gatilhoRecalculo }: MotorMet
 
       {resultado && (
         <div className="space-y-4">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-medium text-clinical-muted">Qualidade dos dados:</span>
+            <span className={`inline-block rounded-full px-2 py-0.5 text-[11px] font-medium ${COR_SCORE_QUALIDADE[resultado.qualidade.score]}`}>
+              {ROTULO_SCORE_QUALIDADE[resultado.qualidade.score]}
+            </span>
+            <span className="text-[11px] text-clinical-muted">
+              {resultado.qualidade.motivos.map((m) => ROTULO_MOTIVO_QUALIDADE[m] ?? m).join(' · ')}
+            </span>
+          </div>
+
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             <Estatistica titulo="TMB" valor={resultado.tmb} unidade="kcal/dia" />
             <Estatistica titulo="TEF estimado" valor={resultado.tef_estimado} unidade="kcal/dia (informativo)" />
             <Estatistica titulo="TDEE médio (7 dias)" valor={resultado.tdee_medio} unidade="kcal/dia" destaque />
           </div>
+
+          {resultado.energia_recomendacao && (
+            <div className="rounded-xl border border-clinical-primary/40 bg-clinical-primary/10 p-3">
+              <p className="text-xs font-medium text-clinical-primary">
+                Recomendação do sistema ({resultado.energia_recomendacao.estrategia === 'manutencao' ? 'manutenção' : 'déficit conservador'})
+              </p>
+              <p className="mt-1 text-lg font-semibold text-slate-100">
+                {formatarNumero(resultado.energia_recomendacao.recomendacao_media_diaria)} <span className="text-xs font-normal text-clinical-muted">kcal/dia (média)</span>
+              </p>
+              {resultado.energia_recomendacao.deficit_percentual !== null && (
+                <p className="text-[10px] text-clinical-muted">
+                  Déficit de {(resultado.energia_recomendacao.deficit_percentual * 100).toFixed(0)}% sobre o TDEE médio ({resultado.energia_recomendacao.deficit_versao}).
+                </p>
+              )}
+              <p className="mt-1 text-[10px] text-clinical-muted">
+                Informativo — nunca é gravado automaticamente como meta. A meta continua sendo definida/confirmada separadamente.
+              </p>
+            </div>
+          )}
+
+          {resultado.macros_recomendados && (
+            <div>
+              <p className="mb-1.5 text-xs font-medium uppercase tracking-wide text-clinical-muted">
+                Macronutrientes recomendados (sobre {formatarNumero(resultado.macros_recomendados.energia_alvo)} kcal/dia)
+              </p>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <BlocoMacro
+                  titulo={`MACRO-002 (${resultado.macros_recomendados.macro_002.parametros.proteina_g_por_kg}g/kg proteína + ${resultado.macros_recomendados.macro_002.parametros.gordura_g_por_kg}g/kg gordura)`}
+                  destaque
+                  proteinaG={resultado.macros_recomendados.macro_002.proteina_g}
+                  carboidratoG={resultado.macros_recomendados.macro_002.carboidrato_g}
+                  gorduraG={resultado.macros_recomendados.macro_002.gordura_g}
+                  validacaoOk={resultado.macros_recomendados.macro_002.validacao_soma_ok}
+                />
+                <BlocoMacro
+                  titulo={`MACRO-001 (${(resultado.macros_recomendados.macro_001.parametros.percentual_proteina * 100).toFixed(0)}% P / ${(resultado.macros_recomendados.macro_001.parametros.percentual_carboidrato * 100).toFixed(0)}% C / ${(resultado.macros_recomendados.macro_001.parametros.percentual_gordura * 100).toFixed(0)}% G)`}
+                  proteinaG={resultado.macros_recomendados.macro_001.proteina_g}
+                  carboidratoG={resultado.macros_recomendados.macro_001.carboidrato_g}
+                  gorduraG={resultado.macros_recomendados.macro_001.gordura_g}
+                  validacaoOk={resultado.macros_recomendados.macro_001.validacao_soma_ok}
+                />
+              </div>
+            </div>
+          )}
 
           <div>
             <p className="mb-1.5 text-xs font-medium uppercase tracking-wide text-clinical-muted">TDEE por dia da semana</p>
@@ -181,6 +248,36 @@ function Estatistica({
         {valor !== null ? formatarNumero(valor) : '—'}
       </p>
       {valor !== null && <p className="text-[10px] text-clinical-muted">{unidade}</p>}
+    </div>
+  );
+}
+
+function BlocoMacro({
+  titulo,
+  proteinaG,
+  carboidratoG,
+  gorduraG,
+  validacaoOk,
+  destaque = false,
+}: {
+  titulo: string;
+  proteinaG: number;
+  carboidratoG: number;
+  gorduraG: number;
+  validacaoOk: boolean;
+  destaque?: boolean;
+}) {
+  return (
+    <div className={`rounded-xl border p-3 ${destaque ? 'border-clinical-primary/40 bg-clinical-primary/10' : 'border-clinical-border bg-clinical-bg/60'}`}>
+      <p className="text-[11px] font-medium text-clinical-muted">{titulo}</p>
+      <div className="mt-1 flex gap-4 text-sm text-slate-100">
+        <span>P {formatarNumero(proteinaG)}g</span>
+        <span>C {formatarNumero(carboidratoG)}g</span>
+        <span>G {formatarNumero(gorduraG)}g</span>
+      </div>
+      {!validacaoOk && (
+        <p className="mt-1 text-[10px] text-clinical-critical">Inconsistência na soma de kcal — resultado não deveria ser apresentado como final.</p>
+      )}
     </div>
   );
 }
