@@ -84,7 +84,7 @@ class AnamneseRepository {
       // de TreinosHistoricoRepository.buscarUltimosTreinos.
       _supabase
           .from('anamneses_atividades_dias')
-          .select('atividade_id, dia_semana, minutos, tipos_atividades_fisicas(nome_exibicao)')
+          .select('atividade_id, dia_semana, minutos, intensidade, tipos_atividades_fisicas(nome_exibicao)')
           .eq('anamnese_id', anamneseId),
     ]);
 
@@ -106,6 +106,7 @@ class AnamneseRepository {
               : '',
           minutos: linha['minutos'] as int,
           diaSemana: linha['dia_semana'] as int,
+          intensidade: linha['intensidade'] as String? ?? 'moderada',
         );
       }).toList(),
     );
@@ -126,7 +127,7 @@ class AnamneseRepository {
     if (usuarioId == null) return const DadosFisicosAtuais();
 
     final resultados = await Future.wait([
-      _supabase.from('perfis_usuarios').select('sexo_biologico').eq('id', usuarioId).maybeSingle(),
+      _supabase.from('perfis_usuarios').select('sexo_biologico, data_nascimento').eq('id', usuarioId).maybeSingle(),
       _supabase
           .from('anamneses')
           .select('peso_kg, altura_cm')
@@ -141,10 +142,12 @@ class AnamneseRepository {
     final perfil = resultados[0];
     final ultimaAnamneseComDados = resultados[1];
 
+    final dataNascimentoRaw = perfil?['data_nascimento'] as String?;
     return DadosFisicosAtuais(
       alturaCm: (ultimaAnamneseComDados?['altura_cm'] as num?)?.toDouble(),
       sexoBiologico: perfil?['sexo_biologico'] as String?,
       pesoKg: (ultimaAnamneseComDados?['peso_kg'] as num?)?.toDouble(),
+      dataNascimento: dataNascimentoRaw == null ? null : DateTime.parse(dataNascimentoRaw),
     );
   }
 
@@ -197,6 +200,19 @@ class AnamneseRepository {
         .toList();
   }
 
+  /// Bloco 4 (docs/motor_metabolico.txt, RELATÓRIO 20260918_0001) — "o
+  /// sistema deve recuperar automaticamente informações históricas
+  /// disponíveis". Chama a RPC pura `anamnese_historico_peso` (nunca
+  /// persiste, reconstrói a partir das anamneses já existentes) — `null`
+  /// em todos os campos quando o usuário nunca teve peso registrado antes.
+  Future<HistoricoPeso> buscarHistoricoPeso() async {
+    final usuarioId = _supabase.auth.currentUser?.id;
+    if (usuarioId == null) return const HistoricoPeso();
+
+    final resultado = await _supabase.rpc('anamnese_historico_peso', params: {'p_usuario_id': usuarioId});
+    return HistoricoPeso.fromJson(resultado as Map<String, dynamic>);
+  }
+
   /// Grava um preenchimento NOVO da anamnese: peso/altura confirmados vão
   /// DIRETO na própria linha de `anamneses` (RELATÓRIO 20260916_0001, SSOT
   /// — cada versão da anamnese é o snapshot oficial de peso/altura daquele
@@ -227,6 +243,12 @@ class AnamneseRepository {
   /// preencher de novo (o trigger versiona a tentativa anterior
   /// automaticamente); registrado como limitação conhecida, não corrigido
   /// nesta tarefa.
+  /// RELATÓRIO 20260918_0001 (compliance total, Blocos 1-16) — `complementares`
+  /// carrega os ~35 campos novos opcionais; todos viram colunas/tabelas
+  /// novas da migration `20260918100000`. `dadosConfirmados: true` sempre
+  /// (Seção 11 — "Confirme seus dados": esta função só é chamada a partir
+  /// de [ConfirmarAnamnesePage], depois da revisão final; não existe outro
+  /// caminho no app pra chegar aqui).
   Future<void> salvarAnamnese({
     required String objetivoCodigo,
     required double alturaCm,
@@ -235,6 +257,7 @@ class AnamneseRepository {
     required List<String> problemasSaudeIds,
     required List<String> alergiaIds,
     required List<AtividadeSelecionada> atividades,
+    DadosComplementaresAnamnese complementares = const DadosComplementaresAnamnese(),
   }) async {
     final usuarioId = _supabase.auth.currentUser?.id;
     if (usuarioId == null) {
@@ -246,8 +269,7 @@ class AnamneseRepository {
         .upsert({'id': usuarioId, 'sexo_biologico': sexoBiologico}, onConflict: 'id');
 
     final hoje = DateTime.now();
-    final dataReferencia =
-        '${hoje.year.toString().padLeft(4, '0')}-${hoje.month.toString().padLeft(2, '0')}-${hoje.day.toString().padLeft(2, '0')}';
+    final dataReferencia = _formatarDataIso(hoje);
 
     final anamneseInserida = await _supabase
         .from('anamneses')
@@ -258,6 +280,62 @@ class AnamneseRepository {
           'altura_cm': alturaCm,
           'peso_data_medicao': dataReferencia,
           'peso_origem': 'usuario',
+          'dados_confirmados': true,
+          'confirmado_em': hoje.toIso8601String(),
+          if (complementares.motivoAvaliacao != null) 'motivo_avaliacao': complementares.motivoAvaliacao,
+          if (complementares.motivoAvaliacaoOutro != null) 'motivo_avaliacao_outro': complementares.motivoAvaliacaoOutro,
+          if (complementares.objetivoOutro != null) 'objetivo_outro': complementares.objetivoOutro,
+          'objetivos_secundarios': complementares.objetivosSecundarios,
+          if (complementares.metaPesoDesejadoKg != null) 'meta_peso_desejado_kg': complementares.metaPesoDesejadoKg,
+          if (complementares.metaPercentualGorduraDesejado != null)
+            'meta_percentual_gordura_desejado': complementares.metaPercentualGorduraDesejado,
+          if (complementares.metaMassaDesejadaKg != null) 'meta_massa_desejada_kg': complementares.metaMassaDesejadaKg,
+          if (complementares.metaPrazo != null) 'meta_prazo': _formatarDataIso(complementares.metaPrazo!),
+          if (complementares.metaOutroIndicador != null) 'meta_outro_indicador': complementares.metaOutroIndicador,
+          if (complementares.percentualGordura != null) 'percentual_gordura': complementares.percentualGordura,
+          if (complementares.massaGordaKg != null) 'massa_gorda_kg': complementares.massaGordaKg,
+          if (complementares.massaMagraKg != null) 'massa_magra_kg': complementares.massaMagraKg,
+          if (complementares.massaMuscularKg != null) 'massa_muscular_kg': complementares.massaMuscularKg,
+          if (complementares.circunferenciaCinturaCm != null)
+            'circunferencia_cintura_cm': complementares.circunferenciaCinturaCm,
+          if (complementares.circunferenciaAbdominalCm != null)
+            'circunferencia_abdominal_cm': complementares.circunferenciaAbdominalCm,
+          if (complementares.metodoAvaliacaoComposicao != null)
+            'metodo_avaliacao_composicao': complementares.metodoAvaliacaoComposicao,
+          if (complementares.fonteComposicaoCorporal != null)
+            'fonte_composicao_corporal': complementares.fonteComposicaoCorporal,
+          if (complementares.houveAlteracaoPesoNaoPlanejada != null)
+            'houve_alteracao_peso_nao_planejada': complementares.houveAlteracaoPesoNaoPlanejada,
+          if (complementares.numeroRefeicoesDia != null) 'numero_refeicoes_dia': complementares.numeroRefeicoesDia,
+          if (complementares.horariosRefeicoesHabituais != null)
+            'horarios_refeicoes_habituais': complementares.horariosRefeicoesHabituais,
+          if (complementares.regularidadeAlimentar != null) 'regularidade_alimentar': complementares.regularidadeAlimentar,
+          if (complementares.refeicoesForaDeCasa != null) 'refeicoes_fora_de_casa': complementares.refeicoesForaDeCasa,
+          if (complementares.consumoUltraprocessados != null)
+            'consumo_ultraprocessados': complementares.consumoUltraprocessados,
+          if (complementares.preferenciasAlimentares != null)
+            'preferencias_alimentares': complementares.preferenciasAlimentares,
+          if (complementares.alimentosEvitados != null) 'alimentos_evitados': complementares.alimentosEvitados,
+          'restricoes_alimentares': complementares.restricoesAlimentares,
+          'intolerancias_alimentares': complementares.intolerancias,
+          if (complementares.padraoAlimentarHabitual != null)
+            'padrao_alimentar_habitual': complementares.padraoAlimentarHabitual,
+          if (complementares.rotinaDiaria != null) 'rotina_diaria': complementares.rotinaDiaria,
+          if (complementares.atividadeOcupacional != null) 'atividade_ocupacional': complementares.atividadeOcupacional,
+          if (complementares.horasSonoMedias != null) 'horas_sono_medias': complementares.horasSonoMedias,
+          if (complementares.horarioDormirHabitual != null) 'horario_dormir_habitual': complementares.horarioDormirHabitual,
+          if (complementares.horarioAcordarHabitual != null)
+            'horario_acordar_habitual': complementares.horarioAcordarHabitual,
+          if (complementares.qualidadeSonoPercebida != null)
+            'qualidade_sono_percebida': complementares.qualidadeSonoPercebida,
+          if (complementares.despertaresNoturnos != null) 'despertares_noturnos': complementares.despertaresNoturnos,
+          if (complementares.sonoObservacoes != null) 'sono_observacoes': complementares.sonoObservacoes,
+          if (complementares.possuiCondicaoSaude != null) 'possui_condicao_saude': complementares.possuiCondicaoSaude,
+          if (complementares.blocoIdoso != null) 'bloco_idoso': complementares.blocoIdoso,
+          if (complementares.blocoAtleta != null) 'bloco_atleta': complementares.blocoAtleta,
+          if (complementares.blocoRecomposicao != null) 'bloco_recomposicao': complementares.blocoRecomposicao,
+          if (complementares.blocoDiabetes != null) 'bloco_diabetes': complementares.blocoDiabetes,
+          if (complementares.blocoDoencaRenal != null) 'bloco_doenca_renal': complementares.blocoDoencaRenal,
         })
         .select('id')
         .single();
@@ -284,8 +362,51 @@ class AnamneseRepository {
             'atividade_id': atividade.atividadeId,
             'dia_semana': atividade.diaSemana,
             'minutos': atividade.minutos,
+            'intensidade': atividade.intensidade,
           },
       ]);
     }
+
+    if (complementares.medicamentos.isNotEmpty) {
+      await _supabase.from('anamneses_medicamentos').insert([
+        for (final item in complementares.medicamentos)
+          {
+            'anamnese_id': anamneseId,
+            'nome': item.nome,
+            if (item.campos['dose'] != null) 'dose': double.tryParse(item.campos['dose']!.replaceAll(',', '.')),
+            if (item.campos['unidade'] != null) 'unidade': item.campos['unidade'],
+            if (item.campos['frequencia'] != null) 'frequencia': item.campos['frequencia'],
+          },
+      ]);
+    }
+
+    if (complementares.suplementos.isNotEmpty) {
+      await _supabase.from('anamneses_suplementos').insert([
+        for (final item in complementares.suplementos)
+          {
+            'anamnese_id': anamneseId,
+            'nome': item.nome,
+            if (item.campos['dose'] != null) 'dose': double.tryParse(item.campos['dose']!.replaceAll(',', '.')),
+            if (item.campos['unidade'] != null) 'unidade': item.campos['unidade'],
+            if (item.campos['objetivo'] != null) 'objetivo': item.campos['objetivo'],
+          },
+      ]);
+    }
+
+    if (complementares.exames.isNotEmpty) {
+      await _supabase.from('anamneses_exames_laboratoriais').insert([
+        for (final item in complementares.exames)
+          {
+            'anamnese_id': anamneseId,
+            'nome_exame': item.nome,
+            if (item.campos['resultado'] != null) 'resultado': item.campos['resultado'],
+            if (item.campos['unidade'] != null) 'unidade': item.campos['unidade'],
+          },
+      ]);
+    }
+  }
+
+  static String _formatarDataIso(DateTime data) {
+    return '${data.year.toString().padLeft(4, '0')}-${data.month.toString().padLeft(2, '0')}-${data.day.toString().padLeft(2, '0')}';
   }
 }

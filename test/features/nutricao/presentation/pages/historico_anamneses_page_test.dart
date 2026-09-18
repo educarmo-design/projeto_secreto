@@ -52,7 +52,7 @@ void main() {
         AnamneseHistoricoItem(
           id: 'a2',
           dataPreenchimento: maisRecente,
-          objetivoCodigo: 'hipertrofia',
+          objetivoCodigo: 'ganhar_massa_muscular',
           pesoKg: 79.3,
           alturaCm: 178,
           statusVigencia: 'ativo',
@@ -60,7 +60,7 @@ void main() {
         AnamneseHistoricoItem(
           id: 'a1',
           dataPreenchimento: anterior,
-          objetivoCodigo: 'emagrecimento',
+          objetivoCodigo: 'perder_peso',
           statusVigencia: 'historico',
         ),
       ],
@@ -73,11 +73,11 @@ void main() {
     // há 35 dias) — "disponível agora".
     expect(find.text('Revisão disponível agora'), findsOneWidget);
 
-    expect(find.text('Hipertrofia'), findsOneWidget);
+    expect(find.text('Ganhar massa muscular'), findsOneWidget);
     expect(find.text('79.3 kg · 178 cm'), findsOneWidget);
     expect(find.text('Atual'), findsOneWidget);
 
-    expect(find.text('Emagrecimento'), findsOneWidget);
+    expect(find.text('Perder peso'), findsOneWidget);
     expect(find.text('Sem peso/altura registrados'), findsOneWidget);
     expect(find.text('Anterior'), findsOneWidget);
   });
@@ -89,7 +89,7 @@ void main() {
         AnamneseHistoricoItem(
           id: 'a1',
           dataPreenchimento: recente,
-          objetivoCodigo: 'manutencao',
+          objetivoCodigo: 'manter_peso',
           statusVigencia: 'ativo',
         ),
       ],

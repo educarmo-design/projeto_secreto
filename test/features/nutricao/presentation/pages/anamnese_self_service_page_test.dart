@@ -7,7 +7,8 @@ import 'package:atleta_gamificacao/features/nutricao/data/models/anamnese_models
 import 'package:atleta_gamificacao/features/nutricao/data/repositories/anamnese_repository.dart';
 import 'package:atleta_gamificacao/features/nutricao/data/repositories/meta_bem_estar_repository.dart';
 import 'package:atleta_gamificacao/features/nutricao/presentation/pages/anamnese_self_service_page.dart';
-import 'package:atleta_gamificacao/features/nutricao/presentation/pages/resultado_motor_metabolico_page.dart';
+import 'package:atleta_gamificacao/features/nutricao/presentation/pages/confirmar_anamnese_page.dart';
+import 'package:atleta_gamificacao/features/nutricao/presentation/widgets/seletor_multiplo_bottom_sheet.dart';
 
 class _MockRepository extends Mock implements AnamneseRepository {}
 
@@ -30,6 +31,7 @@ void main() {
     TipoAtividadeItem(id: 42, nomeExibicao: 'Natação'),
   ];
   const dadosFisicosVazios = DadosFisicosAtuais();
+  const historicoPesoVazio = HistoricoPeso();
 
   setUp(() {
     repository = _MockRepository();
@@ -39,31 +41,19 @@ void main() {
     when(() => repository.buscarTiposAtividades()).thenAnswer((_) async => tiposAtividades);
     when(() => repository.buscarAnamneseAtiva()).thenAnswer((_) async => null);
     when(() => repository.buscarDadosFisicosAtuais()).thenAnswer((_) async => dadosFisicosVazios);
+    when(() => repository.buscarHistoricoPeso()).thenAnswer((_) async => historicoPesoVazio);
     // RELATÓRIO 20260917 — item 1, "Captura Inteligente": default "nada
     // sincronizado ainda", testes específicos da sugestão sobrescrevem.
     when(() => repository.buscarSugestaoBalanca()).thenAnswer((_) async => const SugestaoBalanca());
-    // A tela pusha ResultadoMotorMetabolicoPage após salvar — stub padrão
-    // pra testes que chegam a tocar "Salvar" não baterem no Supabase real
-    // (a página de resultado é só mockada aqui, não é o foco destes
-    // testes, que ficam em `resultado_motor_metabolico_page_test.dart`).
-    when(() => metaRepository.calcularMotorMetabolicoV1()).thenAnswer(
-      (_) async => const MotorMetabolicoV1Resultado(
-        tmb: 1774,
-        tdeeMedio: 2200,
-        formulaCodigo: 'TMB-001',
-        estrategiaTdee: 'pal',
-        avisos: [],
-      ),
-    );
   });
 
-  // A tela é um ListView longo (Dados Físicos + Objetivo + catálogos +
-  // Rotina por Dia da Semana com 7 seções + botão Salvar) — no viewport
-  // padrão de teste (800×600) o fim da lista fica além do `cacheExtent` do
-  // Sliver e nem chega a ser montado. Aumentar o viewport evita ter que
-  // rolar manualmente em cada teste que precisa do botão Salvar/do modal.
+  // A tela é um ListView bem longo (RELATÓRIO 20260918_0001 — Blocos 1-12
+  // inteiros) — no viewport padrão de teste (800×600) o fim da lista fica
+  // além do `cacheExtent` do Sliver e nem chega a ser montado. Aumentar o
+  // viewport evita ter que rolar manualmente em cada teste que precisa do
+  // botão Salvar/de seções mais abaixo.
   Future<void> configurarViewportAlto(WidgetTester tester) async {
-    await tester.binding.setSurfaceSize(const Size(800, 4000));
+    await tester.binding.setSurfaceSize(const Size(800, 9000));
     addTearDown(() => tester.binding.setSurfaceSize(null));
   }
 
@@ -73,18 +63,21 @@ void main() {
     );
   }
 
-  testWidgets('carrega os catálogos e mostra as seções', (tester) async {
+  testWidgets('carrega os catálogos e mostra as seções principais', (tester) async {
     await configurarViewportAlto(tester);
     await tester.pumpWidget(criarApp());
     await tester.pumpAndSettle();
 
     expect(find.text('Seus Dados'), findsOneWidget);
     expect(find.text('Objetivo'), findsOneWidget);
-    expect(find.text('Diabetes Tipo 2'), findsOneWidget);
-    expect(find.text('Intolerância à Lactose'), findsOneWidget);
+    expect(find.text('Alergias'), findsOneWidget);
+    expect(find.text('Sono e Recuperação (opcional)'), findsOneWidget);
     expect(find.text('Rotina por Dia da Semana'), findsOneWidget);
     expect(find.text('Domingo'), findsOneWidget);
     expect(find.text('Sábado'), findsOneWidget);
+    expect(find.text('Medicamentos (opcional)'), findsOneWidget);
+    expect(find.text('Suplementos (opcional)'), findsOneWidget);
+    expect(find.text('Exames Laboratoriais (opcional)'), findsOneWidget);
   });
 
   testWidgets('erro ao carregar mostra mensagem de erro, não quebra a tela', (tester) async {
@@ -101,7 +94,7 @@ void main() {
     final preenchidaHa5Dias = DateTime.now().subtract(const Duration(days: 5));
     when(() => repository.buscarAnamneseAtiva()).thenAnswer(
       (_) async => AnamneseAtiva(
-        objetivoCodigo: 'hipertrofia',
+        objetivoCodigo: 'ganhar_massa_muscular',
         dataPreenchimento: preenchidaHa5Dias,
         problemasSaudeIds: const [],
         alergiaIds: const [],
@@ -120,12 +113,12 @@ void main() {
     final preenchidaHa40Dias = DateTime.now().subtract(const Duration(days: 40));
     when(() => repository.buscarAnamneseAtiva()).thenAnswer(
       (_) async => AnamneseAtiva(
-        objetivoCodigo: 'hipertrofia',
+        objetivoCodigo: 'ganhar_massa_muscular',
         dataPreenchimento: preenchidaHa40Dias,
         problemasSaudeIds: const ['p1'],
         alergiaIds: const ['a1'],
         atividades: const [
-          AtividadeSelecionada(atividadeId: 30, nomeExibicao: 'Corrida', minutos: 45, diaSemana: 1),
+          AtividadeSelecionada(atividadeId: 30, nomeExibicao: 'Corrida', minutos: 45, diaSemana: 1, intensidade: 'moderada'),
         ],
       ),
     );
@@ -134,22 +127,24 @@ void main() {
     await tester.pumpWidget(criarApp());
     await tester.pumpAndSettle();
 
-    final radioHipertrofia = tester.widget<RadioListTile<String>>(
-      find.widgetWithText(RadioListTile<String>, 'Hipertrofia'),
+    final radioObjetivo = tester.widget<RadioListTile<String>>(
+      find.widgetWithText(RadioListTile<String>, 'Ganhar massa muscular'),
     );
-    expect(radioHipertrofia.value, 'hipertrofia');
+    expect(radioObjetivo.value, 'ganhar_massa_muscular');
 
-    final checkboxDiabetes = tester.widget<CheckboxListTile>(
-      find.widgetWithText(CheckboxListTile, 'Diabetes Tipo 2'),
-    );
-    expect(checkboxDiabetes.value, isTrue);
+    // Condições: 1 problema de saúde pré-selecionado marca "possui
+    // condição" automaticamente e mostra o resumo com a contagem (a lista
+    // em si agora fica num bottom sheet, não mais inline — UX Global,
+    // RELATÓRIO 20260918_0001). A alergia pré-selecionada (1) também usa o
+    // mesmo texto genérico de resumo — por isso 2, não 1.
+    expect(find.text('1 selecionado(s)'), findsNWidgets(2));
 
     // A atividade pré-preenchida está no dia 1 (Segunda) — precisa expandir
     // a seção daquele dia pra aparecer.
     await tester.tap(find.text('Segunda'));
     await tester.pumpAndSettle();
     expect(find.text('Corrida'), findsOneWidget);
-    expect(find.text('45 min'), findsOneWidget);
+    expect(find.text('45 min · Moderada'), findsOneWidget);
   });
 
   testWidgets('pré-preenche altura/sexo/peso quando já existem', (tester) async {
@@ -195,7 +190,7 @@ void main() {
     expect(find.text('Dado lido da balança'), findsNothing);
   });
 
-  testWidgets('salvar sem preencher altura/peso mostra erro de validação, não chama o repositório', (tester) async {
+  testWidgets('salvar sem preencher altura/peso mostra erro de validação, não navega para a confirmação', (tester) async {
     await configurarViewportAlto(tester);
     await tester.pumpWidget(criarApp());
     await tester.pumpAndSettle();
@@ -205,6 +200,7 @@ void main() {
 
     expect(find.text('Informe sua altura'), findsOneWidget);
     expect(find.text('Informe seu peso'), findsOneWidget);
+    expect(find.byType(ConfirmarAnamnesePage), findsNothing);
     verifyNever(() => repository.salvarAnamnese(
           objetivoCodigo: any(named: 'objetivoCodigo'),
           alturaCm: any(named: 'alturaCm'),
@@ -216,99 +212,93 @@ void main() {
         ));
   });
 
-  testWidgets('preenchendo tudo, adicionando uma atividade num dia e salvando, chama o repositório e abre o resultado', (tester) async {
-    when(() => repository.salvarAnamnese(
-          objetivoCodigo: any(named: 'objetivoCodigo'),
-          alturaCm: any(named: 'alturaCm'),
-          sexoBiologico: any(named: 'sexoBiologico'),
-          pesoKg: any(named: 'pesoKg'),
-          problemasSaudeIds: any(named: 'problemasSaudeIds'),
-          alergiaIds: any(named: 'alergiaIds'),
-          atividades: any(named: 'atividades'),
-        )).thenAnswer((_) async {});
+  testWidgets(
+    'preenchendo tudo, adicionando uma atividade com intensidade e selecionando uma condição, '
+    '"Salvar" navega para a Confirmação com o rascunho correto (sem gravar nada ainda)',
+    (tester) async {
+      await configurarViewportAlto(tester);
+      await tester.pumpWidget(criarApp());
+      await tester.pumpAndSettle();
 
-    await configurarViewportAlto(tester);
-    await tester.pumpWidget(criarApp());
-    await tester.pumpAndSettle();
+      await tester.enterText(find.widgetWithText(TextFormField, 'Altura (cm)'), '179');
+      await tester.enterText(find.widgetWithText(TextFormField, 'Peso (kg)'), '78.5');
+      await tester.tap(find.widgetWithText(RadioListTile<String>, 'Masculino'));
+      await tester.pumpAndSettle();
 
-    await tester.enterText(find.widgetWithText(TextFormField, 'Altura (cm)'), '179');
-    await tester.enterText(find.widgetWithText(TextFormField, 'Peso (kg)'), '78.5');
-    await tester.tap(find.widgetWithText(RadioListTile<String>, 'Masculino'));
-    await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(RadioListTile<String>, 'Perder peso'));
+      await tester.pumpAndSettle();
 
-    await tester.tap(find.widgetWithText(RadioListTile<String>, 'Emagrecimento'));
-    await tester.pumpAndSettle();
+      // Bloco 8 — Condições: "Sim, tenho" abre o resumo, "Editar seleção"
+      // abre o bottom sheet, marca e confirma.
+      await tester.tap(find.widgetWithText(RadioListTile<bool>, 'Sim, tenho'));
+      await tester.pumpAndSettle();
+      // 3 seções usam "Editar seleção" nesta tela (objetivos secundários,
+      // condições, alergias) — mira especificamente a de condições via o
+      // `ResumoSelecaoMultipla` que tem esse rótulo.
+      await tester.tap(find.descendant(
+        of: find.widgetWithText(ResumoSelecaoMultipla, 'Selecionar condições'),
+        matching: find.widgetWithText(TextButton, 'Editar seleção'),
+      ));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(CheckboxListTile, 'Diabetes Tipo 2'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, 'Confirmar'));
+      await tester.pumpAndSettle();
 
-    await tester.tap(find.widgetWithText(CheckboxListTile, 'Diabetes Tipo 2'));
-    await tester.tap(find.widgetWithText(CheckboxListTile, 'Intolerância à Lactose'));
-    await tester.pumpAndSettle();
+      // Atividade no domingo (dia 0), com busca + intensidade alta.
+      await tester.tap(find.text('Domingo'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(TextButton, 'Adicionar'));
+      await tester.pumpAndSettle();
 
-    // Atividade no domingo (dia 0), via o botão "Adicionar" da 1ª seção.
-    await tester.tap(find.text('Domingo'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(TextButton, 'Adicionar'));
-    await tester.pumpAndSettle();
+      // 1º TextField do modal é a busca, 2º são os minutos — mais confiável
+      // que casar pelo hint (`find.widgetWithText` não garante achar
+      // hintText de forma consistente).
+      await tester.enterText(
+        find.descendant(of: find.byType(AlertDialog), matching: find.byType(TextField)).first,
+        'Corr',
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byType(DropdownButtonFormField<TipoAtividadeItem>));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Corrida').last);
+      await tester.pumpAndSettle();
 
-    await tester.tap(find.byType(DropdownButtonFormField<TipoAtividadeItem>));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Corrida').last);
-    await tester.pumpAndSettle();
+      await tester.enterText(
+        find.descendant(of: find.byType(AlertDialog), matching: find.byType(TextField)).last,
+        '45',
+      );
+      await tester.tap(find.widgetWithText(RadioListTile<String>, 'Alta'));
+      await tester.tap(find.widgetWithText(FilledButton, 'Adicionar'));
+      await tester.pumpAndSettle();
 
-    await tester.enterText(
-      find.descendant(of: find.byType(AlertDialog), matching: find.byType(TextField)),
-      '45',
-    );
-    await tester.tap(find.widgetWithText(FilledButton, 'Adicionar'));
-    await tester.pumpAndSettle();
+      expect(find.text('Corrida'), findsOneWidget);
+      expect(find.text('45 min · Alta'), findsOneWidget);
 
-    expect(find.text('Corrida'), findsOneWidget);
-    expect(find.text('45 min'), findsOneWidget);
+      await tester.tap(find.widgetWithText(FilledButton, 'Salvar'));
+      await tester.pumpAndSettle();
 
-    await tester.tap(find.widgetWithText(FilledButton, 'Salvar'));
-    await tester.pumpAndSettle();
+      // Nada foi gravado ainda — só navegou pra confirmação (Seção 11).
+      verifyNever(() => repository.salvarAnamnese(
+            objetivoCodigo: any(named: 'objetivoCodigo'),
+            alturaCm: any(named: 'alturaCm'),
+            sexoBiologico: any(named: 'sexoBiologico'),
+            pesoKg: any(named: 'pesoKg'),
+            problemasSaudeIds: any(named: 'problemasSaudeIds'),
+            alergiaIds: any(named: 'alergiaIds'),
+            atividades: any(named: 'atividades'),
+          ));
 
-    verify(() => repository.salvarAnamnese(
-          objetivoCodigo: 'emagrecimento',
-          alturaCm: 179,
-          sexoBiologico: 'M',
-          pesoKg: 78.5,
-          problemasSaudeIds: ['p1'],
-          alergiaIds: ['a1'],
-          atividades: [
-            const AtividadeSelecionada(atividadeId: 30, nomeExibicao: 'Corrida', minutos: 45, diaSemana: 0),
-          ],
-        )).called(1);
-
-    // Navegou para a Tela de Resultado do Motor Metabólico.
-    expect(find.byType(ResultadoMotorMetabolicoPage), findsOneWidget);
-  });
-
-  testWidgets('falha ao salvar mostra mensagem de erro, não navega', (tester) async {
-    when(() => repository.salvarAnamnese(
-          objetivoCodigo: any(named: 'objetivoCodigo'),
-          alturaCm: any(named: 'alturaCm'),
-          sexoBiologico: any(named: 'sexoBiologico'),
-          pesoKg: any(named: 'pesoKg'),
-          problemasSaudeIds: any(named: 'problemasSaudeIds'),
-          alergiaIds: any(named: 'alergiaIds'),
-          atividades: any(named: 'atividades'),
-        )).thenThrow(Exception('RLS negou'));
-
-    await configurarViewportAlto(tester);
-    await tester.pumpWidget(criarApp());
-    await tester.pumpAndSettle();
-
-    await tester.enterText(find.widgetWithText(TextFormField, 'Altura (cm)'), '179');
-    await tester.enterText(find.widgetWithText(TextFormField, 'Peso (kg)'), '78.5');
-    await tester.tap(find.widgetWithText(RadioListTile<String>, 'Feminino'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(RadioListTile<String>, 'Manutenção'));
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.widgetWithText(FilledButton, 'Salvar'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('Erro ao salvar. Tente novamente.'), findsOneWidget);
-    expect(find.byType(ResultadoMotorMetabolicoPage), findsNothing);
-  });
+      expect(find.byType(ConfirmarAnamnesePage), findsOneWidget);
+      final confirmarPage = tester.widget<ConfirmarAnamnesePage>(find.byType(ConfirmarAnamnesePage));
+      expect(confirmarPage.rascunho.objetivoCodigo, 'perder_peso');
+      expect(confirmarPage.rascunho.alturaCm, 179);
+      expect(confirmarPage.rascunho.pesoKg, 78.5);
+      expect(confirmarPage.rascunho.sexoBiologico, 'M');
+      expect(confirmarPage.rascunho.problemasSaudeSelecionados.map((e) => e.id), ['p1']);
+      expect(confirmarPage.rascunho.atividades, [
+        const AtividadeSelecionada(atividadeId: 30, nomeExibicao: 'Corrida', minutos: 45, diaSemana: 0, intensidade: 'alta'),
+      ]);
+    },
+  );
 }
