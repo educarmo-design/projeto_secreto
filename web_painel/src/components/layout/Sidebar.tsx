@@ -31,6 +31,8 @@ const ITENS_ADMIN: NavItem[] = [
   { to: '/admin/configuracoes', label: 'Configurações do Sistema' },
   // D3 (RELATÓRIO 20260811_0005) — Matriz de Permissões dinâmica.
   { to: '/admin/permissoes', label: 'Matriz de Permissões' },
+  // RELATÓRIO 20260918_0001 — rastreabilidade Anamnese × docs/motor_metabolico.txt.
+  { to: '/admin/compliance-anamnese', label: 'Compliance da Anamnese' },
 ];
 
 interface SidebarProps {

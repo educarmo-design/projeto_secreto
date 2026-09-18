@@ -26,6 +26,7 @@ import { AdminRevisaoAlimentos, AdminRevisaoMedidasCaseiras } from './features/a
 import { AdminConfiguracoes } from './features/admin/components/AdminConfiguracoes';
 import { AdminVinculos } from './features/admin/components/AdminVinculos';
 import { AdminProblemasSaude } from './features/admin/components/AdminProblemasSaude';
+import { AdminComplianceAnamnese } from './features/admin/components/AdminComplianceAnamnese';
 
 type EstadoAuth = 'carregando' | 'autenticado' | 'nao_autenticado';
 
@@ -211,6 +212,12 @@ export default function App() {
         <Route
           path="/admin/permissoes"
           element={profissional.isAdmin ? <AdminMatrizPermissoes /> : <Navigate to="/" replace />}
+        />
+        {/* RELATÓRIO 20260918_0001 — tabela de rastreabilidade de compliance
+            da Anamnese vs. docs/motor_metabolico.txt. */}
+        <Route
+          path="/admin/compliance-anamnese"
+          element={profissional.isAdmin ? <AdminComplianceAnamnese /> : <Navigate to="/" replace />}
         />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
