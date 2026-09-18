@@ -1,14 +1,14 @@
 /**
- * RELATÓRIO 20260918_0001, atualizada em 20260918_0002 e 20260920_0001 —
- * tabela de rastreabilidade de compliance entre docs/motor_metabolico.txt
- * e as 3 camadas do sistema (Backend/DB, App Flutter, Painel Web).
- * Conteúdo estático (não consulta o banco) — reflete o estado do CÓDIGO em
- * `main` (exceto a branch corrente, ainda não mesclada, que fecha os
- * últimos 2 itens "pendente" abaixo), mantido manualmente a cada tarefa
+ * RELATÓRIO 20260918_0001, atualizada em 20260918_0002, 20260920_0001 e
+ * 20260918_0003 — tabela de rastreabilidade de compliance entre
+ * docs/motor_metabolico.txt e as 3 camadas do sistema (Backend/DB, App
+ * Flutter, Painel Web). Conteúdo estático (não consulta o banco) —
+ * reflete o estado do CÓDIGO em `main`, mantido manualmente a cada tarefa
  * que altera a Anamnese/Motor. A mesma tabela também aparece no relatório
  * de cada tarefa (`docs/log_dev/20260918_0001_full_compliance_anamnese.md`,
  * `docs/log_dev/20260918_0002_anamnese_gaps_macros.md`,
- * `docs/log_dev/20260920_0001_motor_macros_deficit_final.md`).
+ * `docs/log_dev/20260920_0001_motor_macros_deficit_final.md`,
+ * `docs/log_dev/20260918_0003_web_motor_macros_final.md`).
  */
 type Status = 'implementado' | 'parcial' | 'pendente' | 'n/a';
 
@@ -50,8 +50,8 @@ const LINHAS: LinhaCompliance[] = [
     descricao: 'Resultados do Motor Metabólico (energia: TMB/TDEE por dia + macronutrientes MACRO-001 a MACRO-005)',
     backend: 'implementado',
     app: 'implementado',
-    web: 'parcial',
-    planoOuNota: 'RELATÓRIO 20260920_0001 (branch feat/motor-macros-deficit-final, ainda não mesclada): backend fecha os 5 protocolos — MACRO-003 (proteína por MLG, só quando `massa_magra_kg` disponível), MACRO-004 (proteína prioritária + limite de gordura + carboidrato variável) e a nova RPC `validar_macro_personalizado` (MACRO-005, validação matemática dos valores que o profissional definir). App Flutter (`ResultadoMotorMetabolicoPage`) agora exibe MACRO-001/002/003 num seletor que converte os parâmetros em gramas e pré-preenche a meta (campos continuam editáveis, ME-005). Painel Web fica "parcial": `MotorMetabolicoV1Card.tsx` ainda mostra só MACRO-001/002 (MACRO-003/004/005 fora do ARQUIVOS desta tarefa, que pediu só Backend + Flutter) — plano: estender o card numa tarefa futura.',
+    web: 'implementado',
+    planoOuNota: 'RELATÓRIO 20260920_0001 fechou o backend (5 protocolos, `validar_macro_personalizado`) e o App. RELATÓRIO 20260918_0003 fecha o Painel Web: `MotorMetabolicoV1Card.tsx` agora renderiza MACRO-003 (com aviso explícito quando indisponível por falta de massa magra) e MACRO-004 ao lado de MACRO-001/002; MACRO-005 aparece como card informativo ("defina na Prescrição"). `PrescricaoView.tsx` chama `validar_macro_personalizado` ao vivo (debounce) enquanto o profissional digita Calorias/Proteína/Carboidrato/Gordura manualmente, mostrando um banner verde/vermelho de consistência — nunca bloqueia o salvamento (mesmo espírito de N08: o sistema avisa, o profissional decide).',
   },
   { bloco: 'Bloco 14', referencia: 'Seção 22', descricao: 'Metas (resultado do sistema × meta profissional, nunca sobrescreve)', backend: 'implementado', app: 'implementado', web: 'implementado' },
   {
@@ -61,7 +61,7 @@ const LINHAS: LinhaCompliance[] = [
     backend: 'implementado',
     app: 'implementado',
     web: 'implementado',
-    planoOuNota: 'RELATÓRIO 20260920_0001 (branch feat/motor-macros-deficit-final): DEFICIT-001-conservador-v1 (1 parâmetro fixo) substituído por DEFICIT-002-multicriterio-v1, considerando os 6 fatores mínimos do texto — nível de atividade (`rotina_diaria`, define o percentual base 10-20%), TDEE (ajuste por faixa), presença de condição relevante (`possui_condicao_saude`, -5pp), qualidade dos dados (`qualidade.score`, -3pp se média), peso (teto de 10kcal/kg/dia) e objetivo (decide o ramo). Piso de segurança: nunca abaixo da TMB. `ResultadoMotorMetabolicoPage` (App) agora exibe o valor + a estratégia (déficit ou manutenção); Painel Web (`MotorMetabolicoV1Card.tsx`) segue mostrando o card "Recomendação do sistema" já entregue em 20260918_0002 (a exibição não muda, só a lógica por trás).',
+    planoOuNota: 'RELATÓRIO 20260920_0001: DEFICIT-001-conservador-v1 (1 parâmetro fixo) substituído por DEFICIT-002-multicriterio-v1, considerando os 6 fatores mínimos do texto — nível de atividade (`rotina_diaria`, define o percentual base 10-20%), TDEE (ajuste por faixa), presença de condição relevante (`possui_condicao_saude`, -5pp), qualidade dos dados (`qualidade.score`, -3pp se média), peso (teto de 10kcal/kg/dia) e objetivo (decide o ramo). Piso de segurança: nunca abaixo da TMB. `ResultadoMotorMetabolicoPage` (App) exibe o valor + a estratégia. RELATÓRIO 20260918_0003: `MotorMetabolicoV1Card.tsx` (Web) ganha um `<details>` "Como o sistema chegou nesse percentual" listando os 6 fatores/ajustes aplicados, pro profissional entender a conta.',
   },
   {
     bloco: 'Bloco 15',
