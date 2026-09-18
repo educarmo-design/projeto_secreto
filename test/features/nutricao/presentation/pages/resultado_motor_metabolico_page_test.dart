@@ -58,6 +58,11 @@ void main() {
         formulaCodigo: 'TMB-001',
         estrategiaTdee: 'pal',
         avisos: [],
+        qualidade: QualidadeMotorResultado(score: 'alta', motivos: []),
+        energiaRecomendacao: null,
+        macrosRecomendados: null,
+        pesoKg: null,
+        massaMagraKg: null,
       ),
     );
 
@@ -85,6 +90,11 @@ void main() {
         formulaCodigo: '—',
         estrategiaTdee: 'pal',
         avisos: ['sem_peso'],
+        qualidade: QualidadeMotorResultado(score: 'baixa', motivos: ['dados_insuficientes_para_tmb']),
+        energiaRecomendacao: null,
+        macrosRecomendados: null,
+        pesoKg: null,
+        massaMagraKg: null,
       ),
     );
 
@@ -112,6 +122,11 @@ void main() {
           formulaCodigo: 'TMB-001',
           estrategiaTdee: 'pal',
           avisos: [],
+          qualidade: QualidadeMotorResultado(score: 'alta', motivos: []),
+          energiaRecomendacao: null,
+          macrosRecomendados: null,
+          pesoKg: null,
+          massaMagraKg: null,
         ),
       );
     });
@@ -216,6 +231,171 @@ void main() {
             carboG: any(named: 'carboG'),
             gorduraG: any(named: 'gorduraG'),
           ));
+    });
+  });
+
+  group('Seção A — Qualidade e Recomendação Energética (RELATÓRIO 20260920)', () {
+    testWidgets('mostra o badge de qualidade com o motivo e a recomendação energética de déficit', (tester) async {
+      when(() => repository.calcularMotorMetabolicoV1()).thenAnswer(
+        (_) async => const MotorMetabolicoV1Resultado(
+          tmb: 1700,
+          tdeeMedio: 2000,
+          formulaCodigo: 'TMB-001',
+          estrategiaTdee: 'pal',
+          avisos: [],
+          qualidade: QualidadeMotorResultado(score: 'media', motivos: ['estrategia_fallback_pal']),
+          energiaRecomendacao: EnergiaRecomendacaoResultado(
+            estrategia: 'deficit_conservador',
+            deficitPercentual: 0.12,
+            deficitVersao: 'DEFICIT-002-multicriterio-v1',
+            recomendacaoMediaDiaria: 1760,
+          ),
+          macrosRecomendados: null,
+          pesoKg: 80,
+          massaMagraKg: null,
+        ),
+      );
+
+      await configurarViewportAlto(tester);
+      await abrirResultado(tester);
+
+      expect(find.text('Média'), findsOneWidget);
+      expect(find.textContaining('Sem detalhamento de atividades'), findsOneWidget);
+      expect(find.text('1760 kcal'), findsOneWidget);
+      expect(find.textContaining('Déficit de 12%'), findsOneWidget);
+
+      // "Usar este valor em Calorias" copia o valor pro campo — continua editável.
+      await tester.tap(find.widgetWithText(TextButton, 'Usar este valor em Calorias'));
+      await tester.pump();
+      final caloriasField = tester.widget<TextFormField>(find.byType(TextFormField).at(0));
+      expect(caloriasField.controller?.text, '1760');
+    });
+
+    testWidgets('manutenção mostra a descrição correta, sem percentual de déficit', (tester) async {
+      when(() => repository.calcularMotorMetabolicoV1()).thenAnswer(
+        (_) async => const MotorMetabolicoV1Resultado(
+          tmb: 1700,
+          tdeeMedio: 2000,
+          formulaCodigo: 'TMB-001',
+          estrategiaTdee: 'pal',
+          avisos: [],
+          qualidade: QualidadeMotorResultado(score: 'alta', motivos: []),
+          energiaRecomendacao: EnergiaRecomendacaoResultado(
+            estrategia: 'manutencao',
+            deficitPercentual: null,
+            deficitVersao: null,
+            recomendacaoMediaDiaria: 2000,
+          ),
+          macrosRecomendados: null,
+          pesoKg: 80,
+          massaMagraKg: null,
+        ),
+      );
+
+      await configurarViewportAlto(tester);
+      await abrirResultado(tester);
+
+      expect(find.textContaining('Manutenção'), findsOneWidget);
+    });
+  });
+
+  group('Seção B — Seletor de Protocolos de Macros (RELATÓRIO 20260920, item 3)', () {
+    MotorMetabolicoV1Resultado montarResultadoComProtocolos({required bool macro003Disponivel}) {
+      return MotorMetabolicoV1Resultado(
+        tmb: 1700,
+        tdeeMedio: 2000,
+        formulaCodigo: 'TMB-001',
+        estrategiaTdee: 'pal',
+        avisos: const [],
+        qualidade: const QualidadeMotorResultado(score: 'alta', motivos: []),
+        energiaRecomendacao: null,
+        pesoKg: 80,
+        massaMagraKg: macro003Disponivel ? 60 : null,
+        macrosRecomendados: MacrosRecomendadosResultado(
+          energiaAlvo: 2000,
+          macro001: const MacroProtocoloResultado(
+            versao: 'MACRO-001-default-v1',
+            disponivel: true,
+            parametros: {'percentual_proteina': 0.25, 'percentual_carboidrato': 0.45, 'percentual_gordura': 0.30},
+            proteinaG: 125,
+            carboidratoG: 225,
+            gorduraG: 66.7,
+            validacaoSomaOk: true,
+          ),
+          macro002: const MacroProtocoloResultado(
+            versao: 'MACRO-002-default-v1',
+            disponivel: true,
+            parametros: {'proteina_g_por_kg': 1.6, 'gordura_g_por_kg': 0.8},
+            proteinaG: 128,
+            carboidratoG: 228,
+            gorduraG: 64,
+            validacaoSomaOk: true,
+          ),
+          macro003: MacroProtocoloResultado(
+            versao: 'MACRO-003-default-v1',
+            disponivel: macro003Disponivel,
+            parametros: macro003Disponivel
+                ? const {'proteina_g_por_kg_mlg': 2.0, 'gordura_g_por_kg_peso': 0.8}
+                : const {},
+            proteinaG: macro003Disponivel ? 120 : null,
+            carboidratoG: macro003Disponivel ? 236 : null,
+            gorduraG: macro003Disponivel ? 64 : null,
+            validacaoSomaOk: macro003Disponivel,
+          ),
+        ),
+      );
+    }
+
+    testWidgets('selecionar MACRO-002 converte g/kg em gramas finais e preenche os 3 campos (editáveis)', (tester) async {
+      when(() => repository.calcularMotorMetabolicoV1())
+          .thenAnswer((_) async => montarResultadoComProtocolos(macro003Disponivel: true));
+
+      await configurarViewportAlto(tester);
+      await abrirResultado(tester);
+
+      await tester.enterText(find.byType(TextFormField).at(0), '2000');
+      await tester.tap(find.widgetWithText(ChoiceChip, 'MACRO-002 · Proteína/gordura g/kg'));
+      await tester.pump();
+
+      // Proteína = 80 × 1.6 = 128g; Gordura = 80 × 0.8 = 64g;
+      // Carboidrato = (2000 − 128×4 − 64×9) ÷ 4 = 228g.
+      expect(tester.widget<TextFormField>(find.byType(TextFormField).at(1)).controller?.text, '128');
+      expect(tester.widget<TextFormField>(find.byType(TextFormField).at(2)).controller?.text, '228');
+      expect(tester.widget<TextFormField>(find.byType(TextFormField).at(3)).controller?.text, '64');
+
+      // Os campos continuam editáveis — o usuário pode sobrescrever livremente.
+      await tester.enterText(find.byType(TextFormField).at(1), '999');
+      expect(tester.widget<TextFormField>(find.byType(TextFormField).at(1)).controller?.text, '999');
+    });
+
+    testWidgets('trocar Calorias com um protocolo já selecionado recalcula os gramas automaticamente', (tester) async {
+      when(() => repository.calcularMotorMetabolicoV1())
+          .thenAnswer((_) async => montarResultadoComProtocolos(macro003Disponivel: true));
+
+      await configurarViewportAlto(tester);
+      await abrirResultado(tester);
+
+      await tester.enterText(find.byType(TextFormField).at(0), '2000');
+      await tester.tap(find.widgetWithText(ChoiceChip, 'MACRO-001 · Percentual energético'));
+      await tester.pump();
+      // 2000 × 0.45 ÷ 4 = 225g de carboidrato.
+      expect(tester.widget<TextFormField>(find.byType(TextFormField).at(2)).controller?.text, '225');
+
+      await tester.enterText(find.byType(TextFormField).at(0), '2400');
+      await tester.pump();
+      // 2400 × 0.45 ÷ 4 = 270g.
+      expect(tester.widget<TextFormField>(find.byType(TextFormField).at(2)).controller?.text, '270');
+    });
+
+    testWidgets('MACRO-003 fica desabilitado quando a massa magra não está disponível', (tester) async {
+      when(() => repository.calcularMotorMetabolicoV1())
+          .thenAnswer((_) async => montarResultadoComProtocolos(macro003Disponivel: false));
+
+      await configurarViewportAlto(tester);
+      await abrirResultado(tester);
+
+      final chip = tester.widget<ChoiceChip>(find.widgetWithText(ChoiceChip, 'MACRO-003 · Proteína por massa magra'));
+      expect(chip.onSelected, isNull);
     });
   });
 }

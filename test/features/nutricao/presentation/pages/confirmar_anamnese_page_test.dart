@@ -48,6 +48,11 @@ void main() {
         formulaCodigo: 'TMB-001',
         estrategiaTdee: 'pal',
         avisos: [],
+        qualidade: QualidadeMotorResultado(score: 'alta', motivos: []),
+        energiaRecomendacao: null,
+        macrosRecomendados: null,
+        pesoKg: null,
+        massaMagraKg: null,
       ),
     );
   });

@@ -80,18 +80,143 @@ class SugestaoMetaResultado {
   }
 }
 
+/// Bloco 15/Regra 25 (RELATÓRIO 20260919_0001) — score de qualidade dos
+/// dados usados pelo motor (`'alta'|'media'|'baixa'`) + os motivos
+/// (códigos estáveis, traduzidos pela tela via i18n).
+class QualidadeMotorResultado {
+  final String score;
+  final List<String> motivos;
+
+  const QualidadeMotorResultado({required this.score, required this.motivos});
+
+  factory QualidadeMotorResultado.fromJson(Map<String, dynamic>? json) {
+    if (json == null) return const QualidadeMotorResultado(score: 'baixa', motivos: []);
+    return QualidadeMotorResultado(
+      score: json['score'] as String? ?? 'baixa',
+      motivos: (json['motivos'] as List?)?.cast<String>() ?? const [],
+    );
+  }
+}
+
+/// "Motor Metabólico — Definição da Meta Energética V1.0" (RELATÓRIO
+/// 20260919_0001, tabela multicritério em 20260920_0001) — a
+/// RECOMENDAÇÃO DO SISTEMA (nunca a meta salva — ME-005/ME-006): TDEE puro
+/// pra manutenção, ou TDEE − déficit multicritério parametrizado
+/// (DEFICIT-002-multicriterio-v1) pra perda de peso/redução de gordura.
+/// `null` quando o motor não tem objetivo/TDEE suficiente pra recomendar.
+class EnergiaRecomendacaoResultado {
+  final String estrategia;
+  final double? deficitPercentual;
+  final String? deficitVersao;
+  final double recomendacaoMediaDiaria;
+
+  const EnergiaRecomendacaoResultado({
+    required this.estrategia,
+    required this.deficitPercentual,
+    required this.deficitVersao,
+    required this.recomendacaoMediaDiaria,
+  });
+
+  factory EnergiaRecomendacaoResultado.fromJson(Map<String, dynamic> json) {
+    return EnergiaRecomendacaoResultado(
+      estrategia: json['estrategia'] as String? ?? '—',
+      deficitPercentual: (json['deficit_percentual'] as num?)?.toDouble(),
+      deficitVersao: json['deficit_versao'] as String?,
+      recomendacaoMediaDiaria: (json['recomendacao_media_diaria'] as num).toDouble(),
+    );
+  }
+}
+
+/// Um protocolo de macronutrientes (MACRO-001/002/003 — "Motor Metabólico
+/// — Protocolos de Macronutrientes V1.0"). `parametros` fica cru (o Dart
+/// nunca reinventa os percentuais/g-por-kg — usa exatamente os que o
+/// backend devolveu, versionados) pra recalcular os gramas na tela quando
+/// o usuário mudar o campo Calorias com o protocolo já selecionado.
+class MacroProtocoloResultado {
+  final String versao;
+  final bool disponivel;
+  final Map<String, dynamic> parametros;
+  final double? proteinaG;
+  final double? carboidratoG;
+  final double? gorduraG;
+  final bool validacaoSomaOk;
+
+  const MacroProtocoloResultado({
+    required this.versao,
+    required this.disponivel,
+    required this.parametros,
+    required this.proteinaG,
+    required this.carboidratoG,
+    required this.gorduraG,
+    required this.validacaoSomaOk,
+  });
+
+  factory MacroProtocoloResultado.fromJson(Map<String, dynamic>? json) {
+    if (json == null) {
+      return const MacroProtocoloResultado(
+        versao: '—',
+        disponivel: false,
+        parametros: {},
+        proteinaG: null,
+        carboidratoG: null,
+        gorduraG: null,
+        validacaoSomaOk: false,
+      );
+    }
+    return MacroProtocoloResultado(
+      versao: json['versao'] as String? ?? '—',
+      disponivel: json['disponivel'] as bool? ?? true,
+      parametros: (json['parametros'] as Map<String, dynamic>?) ?? const {},
+      proteinaG: (json['proteina_g'] as num?)?.toDouble(),
+      carboidratoG: (json['carboidrato_g'] as num?)?.toDouble(),
+      gorduraG: (json['gordura_g'] as num?)?.toDouble(),
+      validacaoSomaOk: json['validacao_soma_ok'] as bool? ?? false,
+    );
+  }
+}
+
+/// `macros_recomendados` inteiro — `null` quando o motor não tem energia-alvo
+/// (nenhuma recomendação energética) ou peso suficiente pra calcular.
+class MacrosRecomendadosResultado {
+  final double energiaAlvo;
+  final MacroProtocoloResultado macro001;
+  final MacroProtocoloResultado macro002;
+  final MacroProtocoloResultado macro003;
+
+  const MacrosRecomendadosResultado({
+    required this.energiaAlvo,
+    required this.macro001,
+    required this.macro002,
+    required this.macro003,
+  });
+
+  factory MacrosRecomendadosResultado.fromJson(Map<String, dynamic> json) {
+    return MacrosRecomendadosResultado(
+      energiaAlvo: (json['energia_alvo'] as num).toDouble(),
+      macro001: MacroProtocoloResultado.fromJson(json['macro_001'] as Map<String, dynamic>?),
+      macro002: MacroProtocoloResultado.fromJson(json['macro_002'] as Map<String, dynamic>?),
+      macro003: MacroProtocoloResultado.fromJson(json['macro_003'] as Map<String, dynamic>?),
+    );
+  }
+}
+
 /// RELATÓRIO 20260917 — resultado de `calcular_motor_metabolico_v1`
 /// (RELATÓRIO 20260916_0001, docs/motor_metabolico.txt): Motor Metabólico
-/// Centralizado V1, função PURA (nunca escreve nada — ME-005/ME-006). Só
-/// os campos que a Tela de Resultado mostra na Seção A (leitura): TMB e
-/// TDEE médio, ambos claramente rotulados como "calculado pelo motor",
-/// nunca uma meta.
+/// Centralizado V1, função PURA (nunca escreve nada — ME-005/ME-006).
+/// Ampliado em 20260919_0001/20260920_0001 com [qualidade],
+/// [energiaRecomendacao] e [macrosRecomendados] — todos informativos,
+/// nunca a meta salva.
 class MotorMetabolicoV1Resultado {
   final double? tmb;
   final double? tdeeMedio;
   final String formulaCodigo;
   final String estrategiaTdee;
   final List<String> avisos;
+  final QualidadeMotorResultado qualidade;
+  final EnergiaRecomendacaoResultado? energiaRecomendacao;
+  final MacrosRecomendadosResultado? macrosRecomendados;
+  final double? pesoKg;
+  final double? massaMagraKg;
 
   const MotorMetabolicoV1Resultado({
     required this.tmb,
@@ -99,16 +224,30 @@ class MotorMetabolicoV1Resultado {
     required this.formulaCodigo,
     required this.estrategiaTdee,
     required this.avisos,
+    required this.qualidade,
+    required this.energiaRecomendacao,
+    required this.macrosRecomendados,
+    required this.pesoKg,
+    required this.massaMagraKg,
   });
 
   factory MotorMetabolicoV1Resultado.fromJson(Map<String, dynamic> json) {
     final formula = json['formula_tmb'] as Map<String, dynamic>? ?? const {};
+    final insumos = json['insumos'] as Map<String, dynamic>? ?? const {};
+    final energiaRecomendacaoJson = json['energia_recomendacao'] as Map<String, dynamic>?;
+    final macrosJson = json['macros_recomendados'] as Map<String, dynamic>?;
     return MotorMetabolicoV1Resultado(
       tmb: (json['tmb'] as num?)?.toDouble(),
       tdeeMedio: (json['tdee_medio'] as num?)?.toDouble(),
       formulaCodigo: formula['codigo'] as String? ?? '—',
       estrategiaTdee: json['estrategia_tdee'] as String? ?? '—',
       avisos: (json['avisos'] as List?)?.cast<String>() ?? const [],
+      qualidade: QualidadeMotorResultado.fromJson(json['qualidade'] as Map<String, dynamic>?),
+      energiaRecomendacao:
+          energiaRecomendacaoJson == null ? null : EnergiaRecomendacaoResultado.fromJson(energiaRecomendacaoJson),
+      macrosRecomendados: macrosJson == null ? null : MacrosRecomendadosResultado.fromJson(macrosJson),
+      pesoKg: (insumos['peso_kg'] as num?)?.toDouble(),
+      massaMagraKg: (insumos['massa_magra_kg'] as num?)?.toDouble(),
     );
   }
 }

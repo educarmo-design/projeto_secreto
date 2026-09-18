@@ -1,12 +1,14 @@
 /**
- * RELATÓRIO 20260918_0001, atualizada em 20260918_0002 — tabela de
- * rastreabilidade de compliance entre docs/motor_metabolico.txt e as 3
- * camadas do sistema (Backend/DB, App Flutter, Painel Web). Conteúdo
- * estático (não consulta o banco) — reflete o estado do CÓDIGO em `main`,
- * mantido manualmente a cada tarefa que altera a Anamnese/Motor. A mesma
- * tabela também aparece no relatório de cada tarefa
- * (`docs/log_dev/20260918_0001_full_compliance_anamnese.md`,
- * `docs/log_dev/20260918_0002_anamnese_gaps_macros.md`).
+ * RELATÓRIO 20260918_0001, atualizada em 20260918_0002 e 20260920_0001 —
+ * tabela de rastreabilidade de compliance entre docs/motor_metabolico.txt
+ * e as 3 camadas do sistema (Backend/DB, App Flutter, Painel Web).
+ * Conteúdo estático (não consulta o banco) — reflete o estado do CÓDIGO em
+ * `main` (exceto a branch corrente, ainda não mesclada, que fecha os
+ * últimos 2 itens "pendente" abaixo), mantido manualmente a cada tarefa
+ * que altera a Anamnese/Motor. A mesma tabela também aparece no relatório
+ * de cada tarefa (`docs/log_dev/20260918_0001_full_compliance_anamnese.md`,
+ * `docs/log_dev/20260918_0002_anamnese_gaps_macros.md`,
+ * `docs/log_dev/20260920_0001_motor_macros_deficit_final.md`).
  */
 type Status = 'implementado' | 'parcial' | 'pendente' | 'n/a';
 
@@ -45,30 +47,30 @@ const LINHAS: LinhaCompliance[] = [
   {
     bloco: 'Bloco 13',
     referencia: 'Seção 21 + Protocolos de Macronutrientes V1.0',
-    descricao: 'Resultados do Motor Metabólico (energia: TMB/TDEE por dia + macronutrientes MACRO-001/MACRO-002)',
+    descricao: 'Resultados do Motor Metabólico (energia: TMB/TDEE por dia + macronutrientes MACRO-001 a MACRO-005)',
     backend: 'implementado',
-    app: 'pendente',
-    web: 'implementado',
-    planoOuNota: 'Backend calcula e devolve MACRO-001 (percentual energético) e MACRO-002 (g/kg + carboidrato residual), com validação "kcal proteína + kcal carboidrato + kcal gordura = energia-alvo" (Seção 16). Painel Web exibe os 2 protocolos lado a lado. App Flutter ainda não exibe (fora do ARQUIVOS/ENTREGÁVEL desta tarefa, que pediu só Web + Backend) — plano: exibir na Seção A de ResultadoMotorMetabolicoPage numa tarefa futura.',
+    app: 'implementado',
+    web: 'parcial',
+    planoOuNota: 'RELATÓRIO 20260920_0001 (branch feat/motor-macros-deficit-final, ainda não mesclada): backend fecha os 5 protocolos — MACRO-003 (proteína por MLG, só quando `massa_magra_kg` disponível), MACRO-004 (proteína prioritária + limite de gordura + carboidrato variável) e a nova RPC `validar_macro_personalizado` (MACRO-005, validação matemática dos valores que o profissional definir). App Flutter (`ResultadoMotorMetabolicoPage`) agora exibe MACRO-001/002/003 num seletor que converte os parâmetros em gramas e pré-preenche a meta (campos continuam editáveis, ME-005). Painel Web fica "parcial": `MotorMetabolicoV1Card.tsx` ainda mostra só MACRO-001/002 (MACRO-003/004/005 fora do ARQUIVOS desta tarefa, que pediu só Backend + Flutter) — plano: estender o card numa tarefa futura.',
   },
   { bloco: 'Bloco 14', referencia: 'Seção 22', descricao: 'Metas (resultado do sistema × meta profissional, nunca sobrescreve)', backend: 'implementado', app: 'implementado', web: 'implementado' },
   {
     bloco: 'Meta Energética',
     referencia: 'Definição da Meta Energética V1.0, Seções 4/5',
-    descricao: 'Recomendação do sistema: manutenção = TDEE; perda de peso = TDEE − déficit parametrizado conservador (15%), replicando a média diária',
+    descricao: 'Recomendação do sistema: manutenção = TDEE; perda de peso = TDEE − déficit multicritério parametrizado (tabela por perfil)',
     backend: 'implementado',
-    app: 'pendente',
+    app: 'implementado',
     web: 'implementado',
-    planoOuNota: 'Simplificação documentada: o texto pede uma "tabela parametrizada" considerando 6 fatores (objetivo/peso/TDEE/atividade/condições/qualidade dos dados) — implementado 1 parâmetro único versionado (DEFICIT-001-conservador-v1), não a tabela completa. Ganho de peso/massa/recomposição/performance ficam sem recomendação automática de propósito (o próprio documento diz que exigem avaliação profissional). App Flutter ainda não exibe — fora do escopo desta tarefa.',
+    planoOuNota: 'RELATÓRIO 20260920_0001 (branch feat/motor-macros-deficit-final): DEFICIT-001-conservador-v1 (1 parâmetro fixo) substituído por DEFICIT-002-multicriterio-v1, considerando os 6 fatores mínimos do texto — nível de atividade (`rotina_diaria`, define o percentual base 10-20%), TDEE (ajuste por faixa), presença de condição relevante (`possui_condicao_saude`, -5pp), qualidade dos dados (`qualidade.score`, -3pp se média), peso (teto de 10kcal/kg/dia) e objetivo (decide o ramo). Piso de segurança: nunca abaixo da TMB. `ResultadoMotorMetabolicoPage` (App) agora exibe o valor + a estratégia (déficit ou manutenção); Painel Web (`MotorMetabolicoV1Card.tsx`) segue mostrando o card "Recomendação do sistema" já entregue em 20260918_0002 (a exibição não muda, só a lógica por trás).',
   },
   {
     bloco: 'Bloco 15',
     referencia: 'Seção 25 + Regra 25',
     descricao: 'Qualidade e exceções (score Alta/Média/Baixa)',
     backend: 'implementado',
-    app: 'pendente',
+    app: 'implementado',
     web: 'implementado',
-    planoOuNota: 'Heurística explícita do fundador (o documento não define fórmula): Alta = decomposição (NEAT+EAT) + composição corporal confirmada; Média = fallback PAL ou sem composição corporal; Baixa = TMB não calculável. Painel Web mostra o badge com os motivos. App Flutter ainda não exibe — mesma razão do item acima (fora do escopo desta tarefa).',
+    planoOuNota: 'Heurística explícita do fundador (o documento não define fórmula): Alta = decomposição (NEAT+EAT) + composição corporal confirmada; Média = fallback PAL ou sem composição corporal; Baixa = TMB não calculável. Painel Web mostra o badge com os motivos desde 20260918_0002. App Flutter passa a exibir o mesmo badge (com os motivos traduzidos via i18n) na Seção A de ResultadoMotorMetabolicoPage a partir do RELATÓRIO 20260920_0001.',
   },
   { bloco: 'Bloco 16', referencia: 'Seção 26', descricao: 'Auditoria e versionamento (número de versão, dados confirmados)', backend: 'implementado', app: 'implementado', web: 'implementado' },
   {

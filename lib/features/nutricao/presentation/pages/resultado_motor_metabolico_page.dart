@@ -52,19 +52,103 @@ class _ResultadoMotorMetabolicoPageState extends State<ResultadoMotorMetabolicoP
   bool _salvandoMeta = false;
   MotorMetabolicoV1Resultado? _resultado;
 
+  /// RELATÓRIO 20260920 (item 3) — protocolo de macros escolhido pelo
+  /// usuário pra AJUDAR a preencher Proteína/Carboidrato/Gordura
+  /// (`'MACRO-001'|'MACRO-002'|'MACRO-003'|null`). Só um atalho de
+  /// preenchimento: os campos continuam editáveis e nada é salvo até o
+  /// usuário tocar em "Salvar Minha Meta" (ME-005).
+  String? _protocoloSelecionado;
+
   @override
   void initState() {
     super.initState();
     _carregar();
+    _caloriasController.addListener(_recalcularProtocoloSelecionado);
   }
 
   @override
   void dispose() {
+    _caloriasController.removeListener(_recalcularProtocoloSelecionado);
     _caloriasController.dispose();
     _proteinaController.dispose();
     _carboController.dispose();
     _gorduraController.dispose();
     super.dispose();
+  }
+
+  /// RELATÓRIO 20260920 (item 3) — converte os percentuais/g-por-kg do
+  /// protocolo selecionado ([_protocoloSelecionado]) em gramas finais,
+  /// usando exatamente os `parametros` versionados que a RPC devolveu
+  /// (nunca um número reinventado no app) aplicados sobre o que estiver
+  /// digitado em Calorias agora. `null` quando falta um pré-requisito
+  /// (protocolo indisponível, Calorias vazio/inválido, peso/massa magra
+  /// ausentes) — nesse caso os campos de macro não são tocados.
+  Map<String, double>? _calcularGramasProtocolo(String protocolo, double caloriasAlvo) {
+    final macros = _resultado?.macrosRecomendados;
+    if (macros == null) return null;
+    final pesoKg = _resultado?.pesoKg;
+    final massaMagraKg = _resultado?.massaMagraKg;
+
+    switch (protocolo) {
+      case 'MACRO-001':
+        final p = macros.macro001.parametros;
+        final pctProteina = (p['percentual_proteina'] as num?)?.toDouble();
+        final pctCarboidrato = (p['percentual_carboidrato'] as num?)?.toDouble();
+        final pctGordura = (p['percentual_gordura'] as num?)?.toDouble();
+        if (pctProteina == null || pctCarboidrato == null || pctGordura == null) return null;
+        return {
+          'proteina': caloriasAlvo * pctProteina / 4,
+          'carboidrato': caloriasAlvo * pctCarboidrato / 4,
+          'gordura': caloriasAlvo * pctGordura / 9,
+        };
+      case 'MACRO-002':
+        if (pesoKg == null) return null;
+        final p = macros.macro002.parametros;
+        final gPorKgProteina = (p['proteina_g_por_kg'] as num?)?.toDouble();
+        final gPorKgGordura = (p['gordura_g_por_kg'] as num?)?.toDouble();
+        if (gPorKgProteina == null || gPorKgGordura == null) return null;
+        final proteinaG = pesoKg * gPorKgProteina;
+        final gorduraG = pesoKg * gPorKgGordura;
+        return {
+          'proteina': proteinaG,
+          'carboidrato': (caloriasAlvo - proteinaG * 4 - gorduraG * 9) / 4,
+          'gordura': gorduraG,
+        };
+      case 'MACRO-003':
+        if (!macros.macro003.disponivel || pesoKg == null || massaMagraKg == null) return null;
+        final p = macros.macro003.parametros;
+        final gPorKgMlg = (p['proteina_g_por_kg_mlg'] as num?)?.toDouble();
+        final gPorKgGordura = (p['gordura_g_por_kg_peso'] as num?)?.toDouble();
+        if (gPorKgMlg == null || gPorKgGordura == null) return null;
+        final proteinaG = massaMagraKg * gPorKgMlg;
+        final gorduraG = pesoKg * gPorKgGordura;
+        return {
+          'proteina': proteinaG,
+          'carboidrato': (caloriasAlvo - proteinaG * 4 - gorduraG * 9) / 4,
+          'gordura': gorduraG,
+        };
+      default:
+        return null;
+    }
+  }
+
+  void _recalcularProtocoloSelecionado() {
+    final protocolo = _protocoloSelecionado;
+    if (protocolo == null) return;
+    final calorias = double.tryParse(_caloriasController.text.trim());
+    if (calorias == null || calorias <= 0) return;
+
+    final gramas = _calcularGramasProtocolo(protocolo, calorias);
+    if (gramas == null) return;
+
+    _proteinaController.text = gramas['proteina']!.round().toString();
+    _carboController.text = gramas['carboidrato']!.round().toString();
+    _gorduraController.text = gramas['gordura']!.round().toString();
+  }
+
+  void _selecionarProtocolo(String? protocolo) {
+    setState(() => _protocoloSelecionado = protocolo);
+    if (protocolo != null) _recalcularProtocoloSelecionado();
   }
 
   Future<void> _carregar() async {
@@ -213,6 +297,12 @@ class _ResultadoMotorMetabolicoPageState extends State<ResultadoMotorMetabolicoP
             Text(i18n.tr('nutricao.resultado_motor_tmb_label'), style: Theme.of(context).textTheme.titleSmall),
             Text('${resultado.tmb!.round()} kcal', style: Theme.of(context).textTheme.bodyMedium),
           ],
+          const SizedBox(height: 16),
+          _buildQualidade(context, resultado.qualidade),
+          if (resultado.energiaRecomendacao != null) ...[
+            const SizedBox(height: 16),
+            _buildEnergiaRecomendacao(context, resultado.energiaRecomendacao!),
+          ],
           if (resultado.avisos.isNotEmpty) ...[
             const SizedBox(height: 12),
             for (final aviso in resultado.avisos)
@@ -262,6 +352,10 @@ class _ResultadoMotorMetabolicoPageState extends State<ResultadoMotorMetabolicoP
             validator: _validarCalorias,
             enabled: !_salvandoMeta,
           ),
+          if (resultado.macrosRecomendados != null) ...[
+            const SizedBox(height: 16),
+            _buildProtocoloSelector(context, resultado.macrosRecomendados!),
+          ],
           const SizedBox(height: 16),
           TextFormField(
             controller: _proteinaController,
@@ -312,6 +406,152 @@ class _ResultadoMotorMetabolicoPageState extends State<ResultadoMotorMetabolicoP
           ),
         ],
       ),
+    );
+  }
+
+  /// Bloco 15/Regra 25 (RELATÓRIO 20260919_0001/20260920_0001) — badge de
+  /// score (Alta/Média/Baixa) + os motivos, na Seção A (só leitura).
+  Widget _buildQualidade(BuildContext context, QualidadeMotorResultado qualidade) {
+    final cor = switch (qualidade.score) {
+      'alta' => AppColors.success,
+      'media' => AppColors.warning,
+      _ => AppColors.error,
+    };
+    final rotulo = i18n.tr('nutricao.resultado_motor_qualidade_score_${qualidade.score}');
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: cor.withValues(alpha: 0.08),
+        border: Border.all(color: cor),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(i18n.tr('nutricao.resultado_motor_qualidade_titulo'), style: Theme.of(context).textTheme.titleSmall),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(color: cor, borderRadius: BorderRadius.circular(12)),
+                child: Text(
+                  rotulo,
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(color: Colors.white),
+                ),
+              ),
+            ],
+          ),
+          for (final motivo in qualidade.motivos)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                '• ${i18n.tr('nutricao.resultado_motor_qualidade_motivo_$motivo')}',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// "Definição da Meta Energética V1.0" (RELATÓRIO 20260919_0001/
+  /// 20260920_0001) — manutenção ou déficit calculado pela tabela
+  /// multicritério, na Seção A (só leitura). O botão só COPIA o valor pro
+  /// campo Calorias, editável — nunca salva sozinho (ME-005).
+  Widget _buildEnergiaRecomendacao(BuildContext context, EnergiaRecomendacaoResultado energia) {
+    final descricao = energia.estrategia == 'manutencao'
+        ? i18n.tr('nutricao.resultado_motor_energia_manutencao')
+        : i18n.tr(
+            'nutricao.resultado_motor_energia_deficit',
+            params: {'percentual': ((energia.deficitPercentual ?? 0) * 100).round().toString()},
+          );
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        border: Border.all(color: AppColors.mutedText.withValues(alpha: 0.4)),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(i18n.tr('nutricao.resultado_motor_energia_titulo'), style: Theme.of(context).textTheme.titleSmall),
+          const SizedBox(height: 4),
+          Text('${energia.recomendacaoMediaDiaria.round()} kcal', style: Theme.of(context).textTheme.headlineSmall),
+          const SizedBox(height: 4),
+          Text(descricao, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.mutedText)),
+          const SizedBox(height: 8),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton(
+              onPressed: _salvandoMeta
+                  ? null
+                  : () {
+                      _caloriasController.text = energia.recomendacaoMediaDiaria.round().toString();
+                      _recalcularProtocoloSelecionado();
+                    },
+              child: Text(i18n.tr('nutricao.resultado_motor_energia_usar_button')),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// RELATÓRIO 20260920 (item 3, ACEITE) — seletor de MACRO-001/002/003
+  /// na Seção B: ao escolher, converte os percentuais/g-por-kg em gramas
+  /// finais e preenche Proteína/Carboidrato/Gordura — só um atalho de
+  /// preenchimento, os campos continuam editáveis (ME-005).
+  Widget _buildProtocoloSelector(BuildContext context, MacrosRecomendadosResultado macros) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(i18n.tr('nutricao.resultado_motor_protocolo_titulo'), style: Theme.of(context).textTheme.titleSmall),
+        const SizedBox(height: 4),
+        Text(
+          i18n.tr('nutricao.resultado_motor_protocolo_aviso'),
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.mutedText),
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            ChoiceChip(
+              label: Text(i18n.tr('nutricao.resultado_motor_protocolo_nenhum')),
+              selected: _protocoloSelecionado == null,
+              onSelected: _salvandoMeta ? null : (_) => _selecionarProtocolo(null),
+            ),
+            ChoiceChip(
+              label: Text(i18n.tr('nutricao.resultado_motor_protocolo_001')),
+              selected: _protocoloSelecionado == 'MACRO-001',
+              onSelected: _salvandoMeta ? null : (_) => _selecionarProtocolo('MACRO-001'),
+            ),
+            ChoiceChip(
+              label: Text(i18n.tr('nutricao.resultado_motor_protocolo_002')),
+              selected: _protocoloSelecionado == 'MACRO-002',
+              onSelected: _salvandoMeta ? null : (_) => _selecionarProtocolo('MACRO-002'),
+            ),
+            Tooltip(
+              message: macros.macro003.disponivel ? '' : i18n.tr('nutricao.resultado_motor_protocolo_003_indisponivel'),
+              child: ChoiceChip(
+                label: Text(i18n.tr('nutricao.resultado_motor_protocolo_003')),
+                selected: _protocoloSelecionado == 'MACRO-003',
+                onSelected: (_salvandoMeta || !macros.macro003.disponivel)
+                    ? null
+                    : (_) => _selecionarProtocolo('MACRO-003'),
+              ),
+            ),
+          ],
+        ),
+        if (_protocoloSelecionado != null && double.tryParse(_caloriasController.text.trim()) == null) ...[
+          const SizedBox(height: 4),
+          Text(
+            i18n.tr('nutricao.resultado_motor_protocolo_calorias_necessarias'),
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.warning),
+          ),
+        ],
+      ],
     );
   }
 }
