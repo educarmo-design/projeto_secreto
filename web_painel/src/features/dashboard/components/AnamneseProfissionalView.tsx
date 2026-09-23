@@ -7,6 +7,49 @@ type TipoAtividade = Database['public']['Tables']['tipos_atividades_fisicas']['R
 type ProblemaSaude = Database['public']['Tables']['problemas_saude']['Row'];
 type Alergia = Database['public']['Tables']['alergias']['Row'];
 
+/** RELATÓRIO 20260922_0002 (Item 1) — mesmo catálogo estático do App
+ * Flutter (`_restricoesCulturaisCodigos`/`restricao_cultural_*`, sem
+ * tabela-catálogo no banco: `restricoes_culturais_religiosas` é `text[]`
+ * livre). */
+const ROTULO_RESTRICAO_CULTURAL: Record<string, string> = {
+  vegano: 'Vegano',
+  vegetariano: 'Vegetariano',
+  kosher: 'Kosher',
+  halal: 'Halal',
+  jejum_intermitente: 'Jejum intermitente',
+  outros: 'Outros',
+};
+
+interface LinhaRefeicaoHabitual {
+  chave: string;
+  numeroRefeicao: number;
+  horario: string;
+  foraDeCasa: boolean;
+  descricaoTexto: string;
+  kcal: number | null;
+  proteinaG: number | null;
+  carboidratoG: number | null;
+  gorduraG: number | null;
+  interpretando: boolean;
+  erroIa: string | null;
+}
+
+function linhaRefeicaoVazia(numero: number): LinhaRefeicaoHabitual {
+  return {
+    chave: crypto.randomUUID(),
+    numeroRefeicao: numero,
+    horario: '',
+    foraDeCasa: false,
+    descricaoTexto: '',
+    kcal: null,
+    proteinaG: null,
+    carboidratoG: null,
+    gorduraG: null,
+    interpretando: false,
+    erroIa: null,
+  };
+}
+
 interface AnamneseProfissionalViewProps {
   pacienteId: string;
   /** Chamado após salvar com sucesso — o pai (`PatientDetails`) usa isto
@@ -190,11 +233,72 @@ export function AnamneseProfissionalView({ pacienteId, onSalvo }: AnamneseProfis
   // tela do Painel a chamava ainda.
   const [historicoPeso, setHistoricoPeso] = useState<Database['public']['Functions']['anamnese_historico_peso']['Returns'] | null>(null);
 
+  // RELATÓRIO 20260922_0002 (Item 1) — Sexo Biológico exibido ANTES do
+  // Motivo (pedido explícito), lido do perfil do paciente — mesma view
+  // `perfis_pacientes_vinculados` que `PatientDetails.tsx` já usa.
+  const [sexoBiologico, setSexoBiologico] = useState<string | null>(null);
+
+  // RELATÓRIO 20260922_0002 (Item 1) — Restrições Culturais/Religiosas,
+  // mesma mecânica visual de Alergias (chips + seleção múltipla).
+  const [restricoesCulturaisSelecionadas, setRestricoesCulturaisSelecionadas] = useState<Set<string>>(new Set());
+  const [restricaoCulturalOutroTexto, setRestricaoCulturalOutroTexto] = useState('');
+
+  // RELATÓRIO 20260922_0002 (Item 2) — Motor de Agregação de Smartwatch.
+  const [janelaSmartwatch, setJanelaSmartwatch] = useState<{ data_inicio: string; data_fim: string } | null>(null);
+  const [buscandoSmartwatch, setBuscandoSmartwatch] = useState(false);
+  const [revisaoSmartwatch, setRevisaoSmartwatch] = useState<Database['public']['Functions']['processar_medias_smartwatch']['Returns'] | null>(null);
+
+  // RELATÓRIO 20260922_0002 (Item 3) — Refeições Diárias Habituais + IA.
+  const [refeicoesHabituais, setRefeicoesHabituais] = useState<LinhaRefeicaoHabitual[]>([]);
+
   useEffect(() => {
     void carregarCatalogos();
     void carregarHistoricoPeso();
+    void carregarSexoBiologico();
+    void carregarJanelaSmartwatch();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pacienteId]);
+
+  async function carregarSexoBiologico() {
+    const { data, error } = await supabase.from('perfis_pacientes_vinculados').select('sexo_biologico').eq('id', pacienteId).maybeSingle();
+    if (!error) setSexoBiologico(data?.sexo_biologico ?? null);
+  }
+
+  async function carregarJanelaSmartwatch() {
+    const { data, error } = await supabase.rpc('iniciar_rascunho_anamnese', { p_usuario_id: pacienteId });
+    if (!error && data) setJanelaSmartwatch(data.janela);
+    // Erro aqui só some com o botão "Buscar dados do relógio" — nunca trava o resto da tela.
+  }
+
+  async function buscarDadosRelogio() {
+    if (!janelaSmartwatch) return;
+    setBuscandoSmartwatch(true);
+    const { data, error } = await supabase.rpc('processar_medias_smartwatch', {
+      p_usuario_id: pacienteId,
+      p_data_inicio: janelaSmartwatch.data_inicio,
+      p_data_fim: janelaSmartwatch.data_fim,
+    });
+    setBuscandoSmartwatch(false);
+    if (error) {
+      setToast({ variant: 'error', text: `Não foi possível buscar os dados do relógio: ${error.message}` });
+      return;
+    }
+    setRevisaoSmartwatch(data);
+  }
+
+  function aplicarRevisaoSmartwatch(aceitos: {
+    atividades: LinhaAtividade[];
+    horasSono: string | null;
+    horasCarga: string | null;
+  }) {
+    setLinhasAtividade((atual) => [...atual, ...aceitos.atividades]);
+    setForm((atual) => ({
+      ...atual,
+      ...(aceitos.horasSono ? { horasSonoMedias: aceitos.horasSono } : {}),
+      ...(aceitos.horasCarga ? { ativarBlocoAtleta: true, atletaHorasSemana: aceitos.horasCarga } : {}),
+    }));
+    setRevisaoSmartwatch(null);
+  }
 
   async function carregarCatalogos() {
     const [atividadesResult, problemasResult, alergiasResult] = await Promise.all([
@@ -242,6 +346,77 @@ export function AnamneseProfissionalView({ pacienteId, onSalvo }: AnamneseProfis
       if (novo.has(id)) novo.delete(id);
       else novo.add(id);
       return novo;
+    });
+  }
+
+  function toggleRestricaoCultural(codigo: string) {
+    setRestricoesCulturaisSelecionadas((atual) => {
+      const novo = new Set(atual);
+      if (novo.has(codigo)) novo.delete(codigo);
+      else novo.add(codigo);
+      return novo;
+    });
+  }
+
+  /** RELATÓRIO 20260922_0002 (Item 3) — reutiliza o MESMO Edge Function/
+   * contrato que o App já usa pro Método 1 (texto) do Registro de Refeição
+   * (RELATÓRIO 20260824_0003, `RegistroRefeicaoIaService.interpretarTexto`)
+   * — RESTRIÇÃO explícita: "não invente integrações novas do zero". */
+  async function interpretarRefeicaoComIa(chave: string) {
+    const linha = refeicoesHabituais.find((l) => l.chave === chave);
+    if (!linha || !linha.descricaoTexto.trim()) return;
+
+    setRefeicoesHabituais((atual) => atual.map((l) => (l.chave === chave ? { ...l, interpretando: true, erroIa: null } : l)));
+
+    try {
+      const { data: sessao } = await supabase.auth.getSession();
+      const resposta = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/extract-metric-photo`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'text/plain; charset=utf-8',
+          'X-Tipo-Aparelho': 'pratoRefeicaoTexto',
+          apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+          ...(sessao.session ? { Authorization: `Bearer ${sessao.session.access_token}` } : {}),
+        },
+        body: linha.descricaoTexto.trim(),
+      });
+
+      if (!resposta.ok) {
+        const corpo = await resposta.json().catch(() => null);
+        throw new Error(corpo?.error ?? corpo?.message ?? `HTTP ${resposta.status}`);
+      }
+
+      const extracao = (await resposta.json()) as { itens: { calorias: number; proteinas_g: number; carboidratos_g: number; gorduras_g: number }[] };
+      const somar = (selecionar: (i: (typeof extracao.itens)[number]) => number) =>
+        extracao.itens.length === 0 ? null : Math.round(extracao.itens.reduce((soma, i) => soma + selecionar(i), 0) * 10) / 10;
+
+      setRefeicoesHabituais((atual) =>
+        atual.map((l) =>
+          l.chave === chave
+            ? {
+                ...l,
+                interpretando: false,
+                kcal: somar((i) => i.calorias),
+                proteinaG: somar((i) => i.proteinas_g),
+                carboidratoG: somar((i) => i.carboidratos_g),
+                gorduraG: somar((i) => i.gorduras_g),
+              }
+            : l,
+        ),
+      );
+    } catch (e) {
+      setRefeicoesHabituais((atual) =>
+        atual.map((l) => (l.chave === chave ? { ...l, interpretando: false, erroIa: e instanceof Error ? e.message : 'Erro ao interpretar.' } : l)),
+      );
+    }
+  }
+
+  function ajustarQuantidadeRefeicoes(quantidade: number) {
+    setRefeicoesHabituais((atual) => {
+      const alvo = Math.max(0, Math.min(12, quantidade));
+      if (alvo === atual.length) return atual;
+      if (alvo < atual.length) return atual.slice(0, alvo);
+      return [...atual, ...Array.from({ length: alvo - atual.length }, (_, i) => linhaRefeicaoVazia(atual.length + i + 1))];
     });
   }
 
@@ -297,6 +472,21 @@ export function AnamneseProfissionalView({ pacienteId, onSalvo }: AnamneseProfis
         restricoes_alimentares: listaDeTexto(form.restricoesAlimentares),
         intolerancias_alimentares: listaDeTexto(form.intolerancias),
         padrao_alimentar_habitual: form.padraoAlimentar.trim() || null,
+        restricoes_culturais_religiosas: Array.from(restricoesCulturaisSelecionadas).map((codigo) =>
+          codigo === 'outros' ? restricaoCulturalOutroTexto.trim() : ROTULO_RESTRICAO_CULTURAL[codigo],
+        ).filter((texto): texto is string => Boolean(texto)),
+        refeicoes_diarias_habituais: refeicoesHabituais
+          .filter((l) => l.horario.trim() || l.descricaoTexto.trim())
+          .map((l) => ({
+            numero_refeicao: l.numeroRefeicao,
+            ...(l.horario.trim() ? { horario: l.horario.trim() } : {}),
+            fora_de_casa: l.foraDeCasa,
+            ...(l.descricaoTexto.trim() ? { descricao_texto: l.descricaoTexto.trim() } : {}),
+            ...(l.kcal !== null ? { kcal: l.kcal } : {}),
+            ...(l.proteinaG !== null ? { proteina_g: l.proteinaG } : {}),
+            ...(l.carboidratoG !== null ? { carboidrato_g: l.carboidratoG } : {}),
+            ...(l.gorduraG !== null ? { gordura_g: l.gorduraG } : {}),
+          })),
         rotina_diaria: form.rotinaDiaria || null,
         atividade_ocupacional: form.atividadeOcupacional.trim() || null,
         horas_sono_medias: form.horasSonoMedias.trim() ? Number(form.horasSonoMedias) : null,
@@ -354,6 +544,9 @@ export function AnamneseProfissionalView({ pacienteId, onSalvo }: AnamneseProfis
     setLinhasExame([]);
     setCondicoesSelecionadas(new Set());
     setAlergiasSelecionadas(new Set());
+    setRestricoesCulturaisSelecionadas(new Set());
+    setRestricaoCulturalOutroTexto('');
+    setRefeicoesHabituais([]);
     void data; // { sucesso: true, anamnese_id }
     void carregarHistoricoPeso();
     onSalvo?.();
@@ -373,6 +566,17 @@ export function AnamneseProfissionalView({ pacienteId, onSalvo }: AnamneseProfis
       <HistoricoPesoResumo historico={historicoPeso} />
 
       <form onSubmit={(event) => void handleSubmit(event)} className="space-y-4">
+        {/* RELATÓRIO 20260922_0002 (Item 1) — Sexo Biológico, movido pra
+            ANTES do Motivo da Avaliação (pedido explícito), só leitura —
+            "deve exibir a informação que já vem do Perfil do Usuário".
+            Edição continua em `PatientDetails.tsx` (profissional_atualizar_sexo_biologico), não duplicada aqui. */}
+        <div>
+          <p className="text-xs font-medium text-slate-300">Sexo biológico</p>
+          <p className="mt-1 text-sm text-slate-100">
+            {sexoBiologico === 'M' ? 'Masculino' : sexoBiologico === 'F' ? 'Feminino' : 'Não informado no perfil'}
+          </p>
+        </div>
+
         {/* Bloco 1 — Contexto */}
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <div className="col-span-2">
@@ -515,7 +719,16 @@ export function AnamneseProfissionalView({ pacienteId, onSalvo }: AnamneseProfis
         <details className="rounded-lg border border-clinical-border p-3">
           <summary className="cursor-pointer text-xs font-medium text-slate-300">Alimentação (opcional)</summary>
           <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
-            <CampoNumerico id="anamnese-prof-refeicoes" label="Refeições/dia" value={form.numeroRefeicoes} disabled={salvando} onChange={(v) => setForm((a) => ({ ...a, numeroRefeicoes: v }))} />
+            <CampoNumerico
+              id="anamnese-prof-refeicoes"
+              label="Refeições/dia"
+              value={form.numeroRefeicoes}
+              disabled={salvando}
+              onChange={(v) => {
+                setForm((a) => ({ ...a, numeroRefeicoes: v }));
+                ajustarQuantidadeRefeicoes(Number(v) || 0);
+              }}
+            />
             <CampoTexto id="anamnese-prof-horarios" label="Horários habituais" value={form.horariosRefeicoes} disabled={salvando} onChange={(v) => setForm((a) => ({ ...a, horariosRefeicoes: v }))} />
             <CampoTexto id="anamnese-prof-regularidade" label="Regularidade" value={form.regularidadeAlimentar} disabled={salvando} onChange={(v) => setForm((a) => ({ ...a, regularidadeAlimentar: v }))} />
             <CampoTexto id="anamnese-prof-fora" label="Refeições fora de casa" value={form.refeicoesFora} disabled={salvando} onChange={(v) => setForm((a) => ({ ...a, refeicoesFora: v }))} />
@@ -527,6 +740,102 @@ export function AnamneseProfissionalView({ pacienteId, onSalvo }: AnamneseProfis
             <CampoTexto id="anamnese-prof-padrao" label="Padrão alimentar habitual" value={form.padraoAlimentar} disabled={salvando} onChange={(v) => setForm((a) => ({ ...a, padraoAlimentar: v }))} />
           </div>
         </details>
+
+        {/* RELATÓRIO 20260922_0002 (Item 1) — Restrições Culturais/
+            Religiosas, mesma mecânica visual da Alergias (chips), catálogo
+            ESTÁTICO (o banco guarda text[] livre, sem tabela-catálogo). */}
+        <div>
+          <p className="mb-1.5 text-xs font-medium text-slate-300">Restrições culturais/religiosas</p>
+          <div className="flex flex-wrap gap-2">
+            {Object.entries(ROTULO_RESTRICAO_CULTURAL).map(([codigo, rotulo]) => (
+              <label
+                key={codigo}
+                className={`cursor-pointer rounded-lg border px-2.5 py-1 text-xs transition ${
+                  restricoesCulturaisSelecionadas.has(codigo)
+                    ? 'border-clinical-primary bg-clinical-primary/15 text-clinical-primary'
+                    : 'border-clinical-border text-clinical-muted hover:text-slate-100'
+                }`}
+              >
+                <input type="checkbox" className="sr-only" disabled={salvando} checked={restricoesCulturaisSelecionadas.has(codigo)} onChange={() => toggleRestricaoCultural(codigo)} />
+                {rotulo}
+              </label>
+            ))}
+          </div>
+          {restricoesCulturaisSelecionadas.has('outros') && (
+            <div className="mt-2">
+              <CampoTexto
+                id="anamnese-prof-restricao-cultural-outros"
+                label="Descreva a restrição cultural/religiosa"
+                value={restricaoCulturalOutroTexto}
+                disabled={salvando}
+                onChange={setRestricaoCulturalOutroTexto}
+              />
+            </div>
+          )}
+        </div>
+
+        {/* RELATÓRIO 20260922_0002 (Item 3) — Refeições Diárias Habituais +
+            IA. Reaproveita o mesmo Edge Function que o App já usa (ver
+            `interpretarRefeicaoComIa`) — o texto livre vira calorias/macros,
+            gravados em `refeicoes_diarias_habituais` (jsonb). */}
+        <div>
+          <p className="mb-1.5 text-xs font-medium text-slate-300">Refeições diárias habituais</p>
+          <p className="mb-2 text-[10px] text-clinical-muted">
+            Defina "Refeições/dia" acima pra abrir os campos de cada refeição. A IA interpreta o texto livre e calcula calorias/macros.
+          </p>
+          {refeicoesHabituais.length === 0 ? (
+            <p className="text-xs text-clinical-muted">Informe o número de refeições por dia para começar.</p>
+          ) : (
+            <div className="space-y-2">
+              {refeicoesHabituais.map((linha, indice) => (
+                <div key={linha.chave} className="rounded-lg border border-clinical-border p-3">
+                  <p className="mb-2 text-xs font-medium text-slate-300">Refeição {indice + 1}</p>
+                  <div className="flex flex-wrap items-end gap-2">
+                    <input
+                      type="text"
+                      placeholder="HH:mm"
+                      disabled={salvando}
+                      value={linha.horario}
+                      onChange={(e) => setRefeicoesHabituais((a) => a.map((l) => (l.chave === linha.chave ? { ...l, horario: e.target.value } : l)))}
+                      className="w-24 rounded-lg border border-clinical-border bg-clinical-bg px-2 py-1.5 text-xs text-slate-100 outline-none focus:border-clinical-primary disabled:opacity-60"
+                    />
+                    <label className="flex items-center gap-1.5 text-xs text-slate-300">
+                      <input
+                        type="checkbox"
+                        disabled={salvando}
+                        checked={linha.foraDeCasa}
+                        onChange={(e) => setRefeicoesHabituais((a) => a.map((l) => (l.chave === linha.chave ? { ...l, foraDeCasa: e.target.checked } : l)))}
+                      />
+                      Fora de casa
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Descreva a refeição (ex.: 2 fatias de pão, 1 ovo, café com leite)"
+                      disabled={salvando}
+                      value={linha.descricaoTexto}
+                      onChange={(e) => setRefeicoesHabituais((a) => a.map((l) => (l.chave === linha.chave ? { ...l, descricaoTexto: e.target.value } : l)))}
+                      className="min-w-[220px] flex-1 rounded-lg border border-clinical-border bg-clinical-bg px-2 py-1.5 text-xs text-slate-100 outline-none focus:border-clinical-primary disabled:opacity-60"
+                    />
+                    <button
+                      type="button"
+                      disabled={salvando || linha.interpretando || !linha.descricaoTexto.trim()}
+                      onClick={() => void interpretarRefeicaoComIa(linha.chave)}
+                      className="rounded-lg border border-clinical-primary/40 px-2.5 py-1.5 text-[11px] font-medium text-clinical-primary transition hover:bg-clinical-primary/10 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {linha.interpretando ? 'Interpretando...' : '✨ Interpretar com IA'}
+                    </button>
+                  </div>
+                  {linha.erroIa && <p className="mt-1 text-[10px] text-clinical-critical">{linha.erroIa}</p>}
+                  {linha.kcal !== null && (
+                    <p className="mt-1 text-[10px] font-medium text-clinical-success">
+                      {linha.kcal} kcal · P {linha.proteinaG}g · C {linha.carboidratoG}g · G {linha.gorduraG}g
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
 
         {/* Bloco 5 — Alergias (padrão clínico, catálogo curado no banco) */}
         <div>
@@ -566,6 +875,26 @@ export function AnamneseProfissionalView({ pacienteId, onSalvo }: AnamneseProfis
             <CampoTexto id="anamnese-prof-ocupacional" label="Atividade ocupacional (opcional)" value={form.atividadeOcupacional} disabled={salvando} onChange={(v) => setForm((a) => ({ ...a, atividadeOcupacional: v }))} />
           </div>
         </div>
+
+        {/* RELATÓRIO 20260922_0002 (Item 2) — botão único cobrindo Atividade/
+            Sono/Carga de Treino (processar_medias_smartwatch devolve as 3
+            numa chamada só; o modal de revisão tem uma seção pra cada). */}
+        {janelaSmartwatch && (
+          <div className="rounded-lg border border-clinical-primary/40 bg-clinical-primary/10 p-3">
+            <p className="text-xs font-medium text-clinical-primary">Buscar dados do relógio</p>
+            <p className="mt-1 text-[10px] text-clinical-muted">
+              Traz as médias de atividade, sono e carga de treino do smartwatch do paciente — você revisa e escolhe o que aceitar antes de qualquer coisa ser usada.
+            </p>
+            <button
+              type="button"
+              disabled={salvando || buscandoSmartwatch}
+              onClick={() => void buscarDadosRelogio()}
+              className="mt-2 rounded-lg border border-clinical-primary px-3 py-1.5 text-xs font-medium text-clinical-primary transition hover:bg-clinical-primary/10 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {buscandoSmartwatch ? 'Buscando...' : '⌚ Buscar dados do relógio'}
+            </button>
+          </div>
+        )}
 
         {/* Bloco 6 — Rotina de atividades por dia da semana, com Intensidade */}
         <div>
@@ -737,8 +1066,209 @@ export function AnamneseProfissionalView({ pacienteId, onSalvo }: AnamneseProfis
           </button>
         </div>
       </form>
+
+      {revisaoSmartwatch && (
+        <RevisaoSmartwatchModal
+          resultado={revisaoSmartwatch}
+          atividadesCatalogo={atividades}
+          onFechar={() => setRevisaoSmartwatch(null)}
+          onAplicar={aplicarRevisaoSmartwatch}
+        />
+      )}
     </div>
   );
+}
+
+const DIAS_SEMANA_ROTULO: Record<string, string> = { '0': 'Domingo', '1': 'Segunda', '2': 'Terça', '3': 'Quarta', '4': 'Quinta', '5': 'Sexta', '6': 'Sábado' };
+
+/** RELATÓRIO 20260922_0002 (Item 2) — UX de Revisão: NADA aplicado até o
+ * profissional clicar "Aplicar itens aceitos" — cada item pode ser
+ * aceito/editado/excluído (checkbox + campo editável) antes disso. Sem %
+ * de confiabilidade pra Atividades/Carga de Treino (o backend só calcula
+ * isso pras métricas diárias, ver `processar_medias_smartwatch`) — não se
+ * inventa um número que o backend não devolveu. */
+function RevisaoSmartwatchModal({
+  resultado,
+  atividadesCatalogo,
+  onFechar,
+  onAplicar,
+}: {
+  resultado: Database['public']['Functions']['processar_medias_smartwatch']['Returns'];
+  atividadesCatalogo: TipoAtividade[];
+  onFechar: () => void;
+  onAplicar: (aceitos: { atividades: LinhaAtividade[]; horasSono: string | null; horasCarga: string | null }) => void;
+}) {
+  const minutosSono = resultado.metricas_diarias.minutos_sono;
+  const [aceitarSono, setAceitarSono] = useState(false);
+  const [horasSono, setHorasSono] = useState(minutosSono.media !== null ? (minutosSono.media / 60).toFixed(1) : '');
+
+  const [aceitarCarga, setAceitarCarga] = useState(false);
+  const [horasCarga, setHorasCarga] = useState(resultado.carga_atleta.media_semanal_horas > 0 ? resultado.carga_atleta.media_semanal_horas.toFixed(1) : '');
+
+  const itensAtividade = Object.entries(resultado.atividades_por_dia_semana).flatMap(([dia, itens]) =>
+    itens
+      .map((item) => ({ dia, item, tipo: atividadesCatalogo.find((a) => a.nome_codigo === item.modalidade) }))
+      .filter((x): x is { dia: string; item: (typeof itens)[number]; tipo: TipoAtividade } => x.tipo !== undefined),
+  );
+
+  const [aceites, setAceites] = useState<Record<string, boolean>>(() =>
+    Object.fromEntries(itensAtividade.map(({ dia, tipo }) => [`${dia}-${tipo.id}`, true])),
+  );
+  const [minutosEditados, setMinutosEditados] = useState<Record<string, string>>(() =>
+    Object.fromEntries(itensAtividade.map(({ dia, item, tipo }) => [`${dia}-${tipo.id}`, Math.round(item.media_duracao_minutos_por_semana).toString()])),
+  );
+  const [intensidades, setIntensidades] = useState<Record<string, 'leve' | 'moderada' | 'alta'>>(() =>
+    Object.fromEntries(itensAtividade.map(({ dia, tipo }) => [`${dia}-${tipo.id}`, 'moderada' as const])),
+  );
+
+  function aplicar() {
+    const atividadesAceitas: LinhaAtividade[] = itensAtividade
+      .filter(({ dia, tipo }) => aceites[`${dia}-${tipo.id}`])
+      .map(({ dia, tipo }) => ({
+        chave: crypto.randomUUID(),
+        diaSemana: Number(dia),
+        atividadeId: String(tipo.id),
+        minutos: minutosEditados[`${dia}-${tipo.id}`] ?? '0',
+        intensidade: intensidades[`${dia}-${tipo.id}`] ?? 'moderada',
+      }));
+
+    onAplicar({
+      atividades: atividadesAceitas,
+      horasSono: aceitarSono ? horasSono : null,
+      horasCarga: aceitarCarga ? horasCarga : null,
+    });
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+      <div className="max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-clinical-border bg-clinical-surface p-5">
+        <h3 className="text-sm font-semibold text-slate-100">Revisar dados do relógio</h3>
+        <p className="mt-1 text-xs text-clinical-muted">
+          Nada aqui é salvo automaticamente. Marque "Aceitar" só no que quiser usar, edite se precisar, e clique em "Aplicar itens aceitos".
+        </p>
+
+        {/* Sono */}
+        <div className="mt-4">
+          <p className="text-xs font-medium text-slate-300">Sono e Recuperação</p>
+          {minutosSono.media === null ? (
+            <p className="mt-1 text-xs text-clinical-muted">Sem dados suficientes neste período.</p>
+          ) : (
+            <div className="mt-1 rounded-lg border border-clinical-border p-3">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] text-clinical-muted">
+                  Confiabilidade:{' '}
+                  <span className={confiabilidadeCor(minutosSono.percentual_confiabilidade)}>{minutosSono.percentual_confiabilidade.toFixed(0)}%</span>
+                </span>
+                <label className="flex items-center gap-1.5 text-xs text-slate-300">
+                  Aceitar <input type="checkbox" checked={aceitarSono} onChange={(e) => setAceitarSono(e.target.checked)} />
+                </label>
+              </div>
+              <input
+                type="number"
+                step="0.1"
+                disabled={!aceitarSono}
+                value={horasSono}
+                onChange={(e) => setHorasSono(e.target.value)}
+                className="mt-2 w-28 rounded-lg border border-clinical-border bg-clinical-bg px-2 py-1 text-xs text-slate-100 outline-none disabled:opacity-50"
+              />{' '}
+              <span className="text-xs text-clinical-muted">horas médias de sono</span>
+            </div>
+          )}
+        </div>
+
+        {/* Carga de Treino */}
+        <div className="mt-4">
+          <p className="text-xs font-medium text-slate-300">Carga de Treino</p>
+          <p className="text-[10px] text-clinical-muted">O backend não calcula % de confiabilidade pra isto (só pras métricas diárias).</p>
+          {resultado.carga_atleta.media_semanal_horas <= 0 ? (
+            <p className="mt-1 text-xs text-clinical-muted">Sem dados suficientes neste período.</p>
+          ) : (
+            <div className="mt-1 rounded-lg border border-clinical-border p-3">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] text-clinical-muted">Média sobre {resultado.carga_atleta.semanas_no_periodo.toFixed(1)} semana(s) do período.</span>
+                <label className="flex items-center gap-1.5 text-xs text-slate-300">
+                  Aceitar <input type="checkbox" checked={aceitarCarga} onChange={(e) => setAceitarCarga(e.target.checked)} />
+                </label>
+              </div>
+              <input
+                type="number"
+                step="0.1"
+                disabled={!aceitarCarga}
+                value={horasCarga}
+                onChange={(e) => setHorasCarga(e.target.value)}
+                className="mt-2 w-28 rounded-lg border border-clinical-border bg-clinical-bg px-2 py-1 text-xs text-slate-100 outline-none disabled:opacity-50"
+              />{' '}
+              <span className="text-xs text-clinical-muted">horas de treino/semana</span>
+            </div>
+          )}
+        </div>
+
+        {/* Atividades por dia da semana */}
+        <div className="mt-4">
+          <p className="text-xs font-medium text-slate-300">Atividades por dia da semana</p>
+          <p className="text-[10px] text-clinical-muted">O backend não calcula % de confiabilidade pra isto (só pras métricas diárias).</p>
+          {itensAtividade.length === 0 ? (
+            <p className="mt-1 text-xs text-clinical-muted">Sem dados suficientes neste período.</p>
+          ) : (
+            <div className="mt-1 space-y-2">
+              {itensAtividade.map(({ dia, item, tipo }) => {
+                const chave = `${dia}-${tipo.id}`;
+                return (
+                  <div key={chave} className="rounded-lg border border-clinical-border p-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-medium text-slate-200">
+                        {DIAS_SEMANA_ROTULO[dia]} · {tipo.nome_exibicao}
+                      </span>
+                      <label className="flex items-center gap-1.5 text-xs text-slate-300">
+                        Aceitar <input type="checkbox" checked={aceites[chave] ?? false} onChange={(e) => setAceites((a) => ({ ...a, [chave]: e.target.checked }))} />
+                      </label>
+                    </div>
+                    <p className="text-[10px] text-clinical-muted">
+                      {item.ocorrencias_totais} ocorrência(s) em {item.semanas_do_periodo} semana(s) do período.
+                    </p>
+                    {aceites[chave] && (
+                      <div className="mt-2 flex gap-2">
+                        <input
+                          type="number"
+                          value={minutosEditados[chave] ?? ''}
+                          onChange={(e) => setMinutosEditados((a) => ({ ...a, [chave]: e.target.value }))}
+                          className="w-20 rounded-lg border border-clinical-border bg-clinical-bg px-2 py-1 text-xs text-slate-100 outline-none"
+                        />
+                        <select
+                          value={intensidades[chave] ?? 'moderada'}
+                          onChange={(e) => setIntensidades((a) => ({ ...a, [chave]: e.target.value as 'leve' | 'moderada' | 'alta' }))}
+                          className="rounded-lg border border-clinical-border bg-clinical-bg px-2 py-1 text-xs text-slate-100 outline-none"
+                        >
+                          <option value="leve">Leve</option>
+                          <option value="moderada">Moderada</option>
+                          <option value="alta">Alta</option>
+                        </select>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        <div className="mt-5 flex justify-end gap-2">
+          <button type="button" onClick={onFechar} className="rounded-lg border border-clinical-border px-3 py-1.5 text-xs font-medium text-clinical-muted">
+            Preencher manualmente
+          </button>
+          <button type="button" onClick={aplicar} className="rounded-lg bg-clinical-primary px-3 py-1.5 text-xs font-medium text-white">
+            Aplicar itens aceitos
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function confiabilidadeCor(percentual: number): string {
+  if (percentual > 70) return 'text-clinical-success';
+  if (percentual >= 30) return 'text-clinical-warning';
+  return 'text-clinical-critical';
 }
 
 function BlocoCondicionalAtleta({

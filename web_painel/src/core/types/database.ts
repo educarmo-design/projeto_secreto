@@ -539,6 +539,10 @@ export interface Database {
           bloco_diabetes: Record<string, unknown> | null;
           bloco_doenca_renal: Record<string, unknown> | null;
           qualidade_dados: Record<string, unknown> | null;
+          // ---- RELATÓRIO 20260922_0001 (Motor de Agregação de Smartwatch/IA/Validade) ----
+          restricoes_culturais_religiosas: string[];
+          refeicoes_diarias_habituais: { numero_refeicao: number; horario?: string; fora_de_casa: boolean; descricao_texto?: string; kcal?: number; proteina_g?: number; carboidrato_g?: number; gordura_g?: number }[] | null;
+          data_validade: string | null;
         };
         Insert: never;
         Update: never;
@@ -946,6 +950,72 @@ export interface Database {
           diferenca_kcal: number;
           tolerancia_kcal: number;
           valido: boolean;
+        };
+      };
+
+      /**
+       * `20260922100000` (RELATÓRIO 20260922_0001, Item 1) — Motor de
+       * Inicialização e Histórico. Função PURA (só leitura). Só o campo
+       * `janela` é consumido no Painel Web hoje (alimenta
+       * `processar_medias_smartwatch`) — `rascunho` (sexo/condições/
+       * alergias/restrições da última anamnese) fica tipado por
+       * completude, mas não é usado nesta tarefa (o profissional já
+       * preenche o formulário do zero, sem pré-preenchimento automático).
+       */
+      iniciar_rascunho_anamnese: {
+        Args: { p_usuario_id: string };
+        Returns: {
+          janela: {
+            data_inicio: string;
+            data_fim: string;
+            anamnese_anterior_id: string | null;
+            anamnese_anterior_data: string | null;
+            dias_totais: number;
+          };
+          rascunho: {
+            sexo_biologico: SexoBiologico | null;
+            possui_condicao_saude: boolean | null;
+            condicoes_saude: { problema_saude_id: string; nome: string; data_diagnostico: string | null; status: string | null; profissional_responsavel: string | null; observacoes: string | null }[];
+            alergias: { alergia_id: string; nome_exibicao: string }[];
+            restricoes_alimentares: string[];
+            intolerancias_alimentares: string[];
+            restricoes_culturais_religiosas: string[];
+          };
+        };
+      };
+
+      /**
+       * `20260922100000` (RELATÓRIO 20260922_0001, Item 2) — Motor de
+       * Agregação de Smartwatch. Função PURA (só leitura). Médias diárias
+       * (`metricas_diarias`) vêm com `percentual_confiabilidade`
+       * (dias com dado ÷ dias do período); atividades por dia da semana
+       * (`atividades_por_dia_semana`, chaves '0'..'6') e `carga_atleta`
+       * NÃO têm essa % (só as métricas diárias) — ver
+       * `RevisaoSmartwatchModal` em `AnamneseProfissionalView.tsx`.
+       */
+      processar_medias_smartwatch: {
+        Args: { p_usuario_id: string; p_data_inicio: string; p_data_fim: string };
+        Returns: {
+          fonte: 'smartwatch';
+          janela: { data_inicio: string; data_fim: string; dias_totais: number };
+          metricas_diarias: Record<
+            'passos' | 'distancia_metros' | 'fc_repouso' | 'hrv_medio' | 'calorias_ativas' | 'calorias_basais' | 'calorias_totais' | 'minutos_sono' | 'peso_kg' | 'percentual_gordura',
+            { media: number | null; dias_com_dado: number; percentual_confiabilidade: number }
+          >;
+          atividades_por_dia_semana: Record<
+            string,
+            {
+              modalidade: string;
+              ocorrencias_totais: number;
+              duracao_total_minutos: number;
+              semanas_do_periodo: number;
+              media_ocorrencias_por_semana: number;
+              media_duracao_minutos_por_semana: number;
+              duracao_media_por_sessao_minutos: number;
+            }[]
+          >;
+          carga_atleta: { horas_totais_periodo: number; semanas_no_periodo: number; media_semanal_horas: number };
+          calculado_em: string;
         };
       };
     };
