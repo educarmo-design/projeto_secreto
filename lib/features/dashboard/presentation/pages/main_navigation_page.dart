@@ -10,6 +10,7 @@ import '../../../gamification/models/gamification_models.dart';
 import '../../../gamification/repositories/gamification_repository.dart';
 import '../../../intelligence/data/repositories/recommendations_repository.dart';
 import '../../../nutricao/data/repositories/meta_bem_estar_repository.dart';
+import '../../../nutricao/presentation/widgets/anamnese_validade_banner.dart';
 import '../../../nutrition/data/repositories/coleta_diaria_repository.dart';
 import '../../../nutrition/presentation/pages/escolher_metodo_refeicao_page.dart';
 import '../../../nutrition/presentation/pages/registro_hidratacao_page.dart';
@@ -403,10 +404,27 @@ class _AthleteShell extends StatelessWidget {
         body: IndexedStack(
           index: currentIndex,
           children: [
-            _DynamicDashboardHome(
-              layout: layout,
-              data: cardData,
-              onReorder: onReorder,
+            Column(
+              children: [
+                // RELATÓRIO 20260922_0002 (Item 5) — Widget de Notificação e
+                // Bloqueio de Validade. Fixo no topo do Dashboard, FORA do
+                // catálogo de widgets arrastáveis/customizáveis
+                // (`DashboardWidgetFactory`/`WidgetLayoutModel`) — decisão de
+                // escopo documentada no relatório: integrá-lo ao catálogo
+                // exigiria migration nova pro layout persistido, fora do
+                // pedido desta tarefa ("Crie o Widget no Dashboard").
+                const Padding(
+                  padding: EdgeInsets.fromLTRB(16, 12, 16, 0),
+                  child: AnamneseValidadeBanner(),
+                ),
+                Expanded(
+                  child: _DynamicDashboardHome(
+                    layout: layout,
+                    data: cardData,
+                    onReorder: onReorder,
+                  ),
+                ),
+              ],
             ),
             const _CompetitiveSectionPlaceholder(
               icon: Icons.emoji_events,
