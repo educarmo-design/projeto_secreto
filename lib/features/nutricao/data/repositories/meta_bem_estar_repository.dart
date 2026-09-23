@@ -289,6 +289,28 @@ class MetaBemEstarRepository {
 
   static const _tipoDia = 'PADRAO';
 
+  /// RELATÓRIO 20260922_0002 (Item 5, Widget de Validade) — `data_validade`
+  /// da anamnese vigente (`status_vigencia = 'ativo'`), pra
+  /// [AnamneseValidadeBanner]/o bloqueio de 40 dias desta própria tela.
+  /// Duplica uma consulta simples que também existe em `AnamneseRepository`
+  /// de propósito — mesmo espírito de baixo acoplamento já usado no resto
+  /// do app (evitar uma 2ª dependência de repositório só por um SELECT).
+  /// `null` = sem anamnese vigente OU sem `data_validade` calculada.
+  Future<DateTime?> buscarDataValidadeAnamnese() async {
+    final usuarioId = _supabase.auth.currentUser?.id;
+    if (usuarioId == null) return null;
+
+    final linha = await _supabase
+        .from('anamneses')
+        .select('data_validade')
+        .eq('usuario_id', usuarioId)
+        .eq('status_vigencia', 'ativo')
+        .maybeSingle();
+
+    final bruto = linha?['data_validade'] as String?;
+    return bruto == null ? null : DateTime.parse(bruto);
+  }
+
   /// A meta AUTO-criada (`profissional_id is null`) mais recente do
   /// usuário, de QUALQUER status_vigencia — a carência de 30 dias no banco
   /// (`validar_e_salvar_meta`) conta a partir de `data_criacao`, não do

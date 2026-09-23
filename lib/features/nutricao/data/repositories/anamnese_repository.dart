@@ -43,13 +43,52 @@ class AnamneseRepository {
   Future<List<TipoAtividadeItem>> buscarTiposAtividades() async {
     final linhas = await _supabase
         .from('tipos_atividades_fisicas')
-        .select('id, nome_exibicao')
+        // `nome_codigo` (RELATÓRIO 20260922_0002) — necessário pra casar a
+        // modalidade (texto) que `processar_medias_smartwatch` devolve com
+        // o `id` (smallint) do catálogo.
+        .select('id, nome_exibicao, nome_codigo')
         .order('nome_exibicao');
 
     return (linhas as List)
         .cast<Map<String, dynamic>>()
         .map(TipoAtividadeItem.fromJson)
         .toList();
+  }
+
+  /// RELATÓRIO 20260922_0002 (Item 1 da tarefa de UI) — chama a RPC pura
+  /// `iniciar_rascunho_anamnese` (RELATÓRIO 20260922_0001) só pela janela
+  /// de tempo (sem anamnese anterior → últimos 30 dias; com anterior →
+  /// desde a data dela), que alimenta [buscarMediasSmartwatch]. O
+  /// "rascunho" (sexo/condições/alergias/restrições da última anamnese)
+  /// não é consumido aqui — esta tela já pré-preenche esses campos por
+  /// outras chamadas já existentes ([buscarAnamneseAtiva]/
+  /// [buscarDadosFisicosAtuais]).
+  Future<JanelaAnamnese> buscarJanelaSmartwatch() async {
+    final usuarioId = _supabase.auth.currentUser?.id;
+    if (usuarioId == null) throw StateError('Nenhum usuário logado.');
+
+    final resultado = await _supabase.rpc('iniciar_rascunho_anamnese', params: {'p_usuario_id': usuarioId});
+    return JanelaAnamnese.fromJson((resultado as Map<String, dynamic>)['janela'] as Map<String, dynamic>);
+  }
+
+  /// RELATÓRIO 20260922_0002 (Item 2 da tarefa de UI) — chama a RPC pura
+  /// `processar_medias_smartwatch` (RELATÓRIO 20260922_0001). Nunca grava
+  /// nada — o botão "Buscar dados do relógio" só abre a tela de revisão
+  /// com o resultado; a gravação de verdade só acontece quando o usuário
+  /// aceita itens específicos lá.
+  Future<MediasSmartwatchResultado> buscarMediasSmartwatch({
+    required DateTime dataInicio,
+    required DateTime dataFim,
+  }) async {
+    final usuarioId = _supabase.auth.currentUser?.id;
+    if (usuarioId == null) throw StateError('Nenhum usuário logado.');
+
+    final resultado = await _supabase.rpc('processar_medias_smartwatch', params: {
+      'p_usuario_id': usuarioId,
+      'p_data_inicio': dataInicio.toIso8601String(),
+      'p_data_fim': dataFim.toIso8601String(),
+    });
+    return MediasSmartwatchResultado.fromJson(resultado as Map<String, dynamic>);
   }
 
   /// A anamnese vigente do usuário logado (`status_vigencia = 'ativo'`),
@@ -177,6 +216,24 @@ class AnamneseRepository {
       percentualGordura: (linha['percentual_gordura'] as num?)?.toDouble(),
       dataReferencia: DateTime.parse(linha['data_referencia'] as String),
     );
+  }
+
+  /// RELATÓRIO 20260922_0002 (Item 5, Widget de Validade do Dashboard) —
+  /// `data_validade` da anamnese vigente (`status_vigencia = 'ativo'`).
+  /// `null` = sem anamnese vigente ainda (widget de validade não aparece).
+  Future<DateTime?> buscarDataValidadeAnamnese() async {
+    final usuarioId = _supabase.auth.currentUser?.id;
+    if (usuarioId == null) return null;
+
+    final linha = await _supabase
+        .from('anamneses')
+        .select('data_validade')
+        .eq('usuario_id', usuarioId)
+        .eq('status_vigencia', 'ativo')
+        .maybeSingle();
+
+    final bruto = linha?['data_validade'] as String?;
+    return bruto == null ? null : DateTime.parse(bruto);
   }
 
   /// RELATÓRIO 20260917 (item 3 — "Histórico de Avaliações"): todas as
@@ -320,6 +377,9 @@ class AnamneseRepository {
           'intolerancias_alimentares': complementares.intolerancias,
           if (complementares.padraoAlimentarHabitual != null)
             'padrao_alimentar_habitual': complementares.padraoAlimentarHabitual,
+          'restricoes_culturais_religiosas': complementares.restricoesCulturaisReligiosas,
+          if (complementares.refeicoesDiariasHabituais.isNotEmpty)
+            'refeicoes_diarias_habituais': complementares.refeicoesDiariasHabituais,
           if (complementares.rotinaDiaria != null) 'rotina_diaria': complementares.rotinaDiaria,
           if (complementares.atividadeOcupacional != null) 'atividade_ocupacional': complementares.atividadeOcupacional,
           if (complementares.horasSonoMedias != null) 'horas_sono_medias': complementares.horasSonoMedias,

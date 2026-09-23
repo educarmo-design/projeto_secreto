@@ -25,6 +25,9 @@ void main() {
     when(() => repository.buscarMinhaUltimaMetaPropria()).thenAnswer((_) async => null);
     when(() => repository.buscarSugestaoCalorias()).thenAnswer((_) async => null);
     when(() => repository.buscarHistoricoMetas()).thenAnswer((_) async => const []);
+    // RELATÓRIO 20260922_0002 (Item 5) — `null` = sem anamnese vigente,
+    // nunca bloqueia por validade nos testes que não são o foco dela.
+    when(() => repository.buscarDataValidadeAnamnese()).thenAnswer((_) async => null);
   });
 
   Widget criarApp() {
@@ -94,6 +97,31 @@ void main() {
 
     expect(find.text('Meta já definida este mês'), findsOneWidget);
     expect(find.widgetWithText(FilledButton, 'Salvar Meta'), findsNothing);
+  });
+
+  testWidgets('RELATÓRIO 20260922_0002: anamnese vencida há 40+ dias bloqueia a tela, mesmo sem meta prescrita/carência', (tester) async {
+    when(() => repository.buscarDataValidadeAnamnese())
+        .thenAnswer((_) async => DateTime.now().subtract(const Duration(days: 41)));
+
+    await tester.pumpWidget(criarApp());
+    await tester.pumpAndSettle();
+
+    expect(find.text('Reavaliação vital para sua saúde'), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, 'Salvar Meta'), findsNothing);
+    // Nunca chega a consultar as travas de carência/profissional — o
+    // bloqueio de validade é checado ANTES (RELATÓRIO 20260922_0002).
+    verifyNever(() => repository.buscarMetaAtivaDoProfissional());
+  });
+
+  testWidgets('RELATÓRIO 20260922_0002: anamnese vencida há só 10 dias NÃO bloqueia — mostra o formulário', (tester) async {
+    await configurarViewportAlto(tester);
+    when(() => repository.buscarDataValidadeAnamnese())
+        .thenAnswer((_) async => DateTime.now().subtract(const Duration(days: 10)));
+
+    await tester.pumpWidget(criarApp());
+    await tester.pumpAndSettle();
+
+    expect(find.widgetWithText(FilledButton, 'Salvar Meta'), findsOneWidget);
   });
 
   testWidgets('meta própria criada há mais de 30 dias NÃO bloqueia — mostra o formulário', (tester) async {

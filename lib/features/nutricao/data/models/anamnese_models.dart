@@ -23,14 +23,147 @@ class TipoAtividadeItem {
   final int id;
   final String nomeExibicao;
 
-  const TipoAtividadeItem({required this.id, required this.nomeExibicao});
+  /// RELATÓRIO 20260922_0002 — `nome_codigo` (ex.: "RUNNING"), o mesmo
+  /// valor que `atividades_fisicas_treinos.tipo_atividade_codigo` usa —
+  /// necessário pra casar a modalidade que `processar_medias_smartwatch`
+  /// devolve (texto) com o `id` (smallint) que `AtividadeSelecionada`
+  /// exige pra gravar em `anamneses_atividades_dias`.
+  final String nomeCodigo;
+
+  const TipoAtividadeItem({required this.id, required this.nomeExibicao, required this.nomeCodigo});
 
   factory TipoAtividadeItem.fromJson(Map<String, dynamic> json) {
     return TipoAtividadeItem(
       id: json['id'] as int,
       nomeExibicao: json['nome_exibicao'] as String,
+      nomeCodigo: json['nome_codigo'] as String? ?? '',
     );
   }
+}
+
+/// RELATÓRIO 20260922_0002 (Item 1 da tarefa de UI) — janela de tempo
+/// devolvida por `iniciar_rascunho_anamnese` (RELATÓRIO 20260922_0001):
+/// alimenta o botão "Buscar dados do relógio" (`processar_medias_smartwatch`
+/// usa exatamente esse período).
+class JanelaAnamnese {
+  final DateTime dataInicio;
+  final DateTime dataFim;
+
+  const JanelaAnamnese({required this.dataInicio, required this.dataFim});
+
+  factory JanelaAnamnese.fromJson(Map<String, dynamic> json) {
+    return JanelaAnamnese(
+      dataInicio: DateTime.parse(json['data_inicio'] as String),
+      dataFim: DateTime.parse(json['data_fim'] as String),
+    );
+  }
+}
+
+/// Uma métrica diária agregada (`processar_medias_smartwatch.metricas_diarias.*`)
+/// — média calculada só com os dias que tiveram dado + a % de
+/// confiabilidade (dias com dado ÷ dias do período) que o backend calcula.
+/// `null` em [media] = nenhum dia do período teve esse dado.
+class MetricaConfiabilidade {
+  final double? media;
+  final int diasComDado;
+  final double percentualConfiabilidade;
+
+  const MetricaConfiabilidade({required this.media, required this.diasComDado, required this.percentualConfiabilidade});
+
+  factory MetricaConfiabilidade.fromJson(Map<String, dynamic> json) {
+    return MetricaConfiabilidade(
+      media: (json['media'] as num?)?.toDouble(),
+      diasComDado: json['dias_com_dado'] as int? ?? 0,
+      percentualConfiabilidade: (json['percentual_confiabilidade'] as num?)?.toDouble() ?? 0,
+    );
+  }
+}
+
+/// Uma modalidade agregada num dia da semana específico
+/// (`atividades_por_dia_semana[dow][]`) — o backend NÃO devolve uma % de
+/// confiabilidade pra isto (só as métricas diárias têm; ver
+/// [MetricaConfiabilidade]) — [semanasDoPeriodo]/[ocorrenciasTotais] ficam
+/// visíveis como contexto de suporte estatístico, sem inventar uma
+/// porcentagem que o backend não calculou.
+class AtividadeSmartwatch {
+  final String modalidadeCodigo;
+  final int diaSemana;
+  final int ocorrenciasTotais;
+  final double duracaoTotalMinutos;
+  final int semanasDoPeriodo;
+  final double mediaDuracaoMinutosPorSemana;
+
+  const AtividadeSmartwatch({
+    required this.modalidadeCodigo,
+    required this.diaSemana,
+    required this.ocorrenciasTotais,
+    required this.duracaoTotalMinutos,
+    required this.semanasDoPeriodo,
+    required this.mediaDuracaoMinutosPorSemana,
+  });
+
+  factory AtividadeSmartwatch.fromJson(Map<String, dynamic> json, int diaSemana) {
+    return AtividadeSmartwatch(
+      modalidadeCodigo: json['modalidade'] as String,
+      diaSemana: diaSemana,
+      ocorrenciasTotais: json['ocorrencias_totais'] as int? ?? 0,
+      duracaoTotalMinutos: (json['duracao_total_minutos'] as num?)?.toDouble() ?? 0,
+      semanasDoPeriodo: json['semanas_do_periodo'] as int? ?? 0,
+      mediaDuracaoMinutosPorSemana: (json['media_duracao_minutos_por_semana'] as num?)?.toDouble() ?? 0,
+    );
+  }
+}
+
+/// `processar_medias_smartwatch.carga_atleta` — mesma observação de
+/// [AtividadeSmartwatch]: sem % de confiabilidade própria no backend.
+class CargaAtletaSmartwatch {
+  final double horasTotaisPeriodo;
+  final double semanasNoPeriodo;
+  final double mediaSemanalHoras;
+
+  const CargaAtletaSmartwatch({required this.horasTotaisPeriodo, required this.semanasNoPeriodo, required this.mediaSemanalHoras});
+
+  factory CargaAtletaSmartwatch.fromJson(Map<String, dynamic> json) {
+    return CargaAtletaSmartwatch(
+      horasTotaisPeriodo: (json['horas_totais_periodo'] as num?)?.toDouble() ?? 0,
+      semanasNoPeriodo: (json['semanas_no_periodo'] as num?)?.toDouble() ?? 0,
+      mediaSemanalHoras: (json['media_semanal_horas'] as num?)?.toDouble() ?? 0,
+    );
+  }
+}
+
+/// Resultado completo de `processar_medias_smartwatch` (RELATÓRIO
+/// 20260922_0001) — Item 2 da tarefa de UI: alimenta a tela de revisão
+/// (`RevisaoSmartwatchPage`), nunca grava nada sozinho.
+class MediasSmartwatchResultado {
+  final Map<String, MetricaConfiabilidade> metricas;
+  final Map<int, List<AtividadeSmartwatch>> atividadesPorDiaSemana;
+  final CargaAtletaSmartwatch cargaAtleta;
+
+  const MediasSmartwatchResultado({
+    required this.metricas,
+    required this.atividadesPorDiaSemana,
+    required this.cargaAtleta,
+  });
+
+  factory MediasSmartwatchResultado.fromJson(Map<String, dynamic> json) {
+    final metricasBrutas = (json['metricas_diarias'] as Map<String, dynamic>?) ?? const {};
+    final atividadesBrutas = (json['atividades_por_dia_semana'] as Map<String, dynamic>?) ?? const {};
+
+    return MediasSmartwatchResultado(
+      metricas: metricasBrutas.map((chave, valor) => MapEntry(chave, MetricaConfiabilidade.fromJson(valor as Map<String, dynamic>))),
+      atividadesPorDiaSemana: {
+        for (var dia = 0; dia <= 6; dia++)
+          dia: ((atividadesBrutas['$dia'] as List?) ?? const [])
+              .map((item) => AtividadeSmartwatch.fromJson(item as Map<String, dynamic>, dia))
+              .toList(),
+      },
+      cargaAtleta: CargaAtletaSmartwatch.fromJson((json['carga_atleta'] as Map<String, dynamic>?) ?? const {}),
+    );
+  }
+
+  bool get temAlgumDado =>
+      metricas.values.any((m) => m.media != null) || atividadesPorDiaSemana.values.any((lista) => lista.isNotEmpty);
 }
 
 /// Uma atividade escolhida na Rotina de Atividades da anamnese, já
@@ -198,6 +331,19 @@ class DadosComplementaresAnamnese {
   final List<String> intolerancias;
   final String? padraoAlimentarHabitual;
 
+  /// RELATÓRIO 20260922_0002 (Item 1 da tarefa de UI) — mesma mecânica
+  /// visual/de preenchimento da lista de Alergias, gravada como `text[]`
+  /// livre (não há tabela-catálogo, ao contrário de Alergias).
+  final List<String> restricoesCulturaisReligiosas;
+
+  /// RELATÓRIO 20260922_0002 (Item 3) — array de refeições habituais,
+  /// grava direto em `anamneses.refeicoes_diarias_habituais` (jsonb).
+  /// Cada mapa: `{numero_refeicao, horario, fora_de_casa, descricao_texto,
+  /// kcal?, proteina_g?, carboidrato_g?, gordura_g?}` — os 4 últimos só
+  /// presentes quando a IA de refeições (reutilizada, RELATÓRIO
+  /// 20260824_0003) conseguiu interpretar o texto livre.
+  final List<Map<String, dynamic>> refeicoesDiariasHabituais;
+
   // Seção 5 + Bloco 6 (atividade não estruturada)
   final String? rotinaDiaria;
   final String? atividadeOcupacional;
@@ -254,6 +400,8 @@ class DadosComplementaresAnamnese {
     this.restricoesAlimentares = const [],
     this.intolerancias = const [],
     this.padraoAlimentarHabitual,
+    this.restricoesCulturaisReligiosas = const [],
+    this.refeicoesDiariasHabituais = const [],
     this.rotinaDiaria,
     this.atividadeOcupacional,
     this.horasSonoMedias,

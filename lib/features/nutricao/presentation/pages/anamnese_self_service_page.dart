@@ -7,6 +7,8 @@ import '../../data/models/anamnese_models.dart';
 import '../../data/repositories/anamnese_repository.dart';
 import '../../data/repositories/meta_bem_estar_repository.dart';
 import '../widgets/lista_repetivel_widget.dart';
+import '../widgets/refeicoes_habituais_widget.dart';
+import '../widgets/revisao_smartwatch_page.dart';
 import '../widgets/seletor_multiplo_bottom_sheet.dart';
 import 'confirmar_anamnese_page.dart';
 
@@ -82,6 +84,22 @@ const _rotinasDiarias = [
 const _qualidadesSono = ['muito_ruim', 'ruim', 'regular', 'boa', 'muito_boa'];
 const _intensidades = ['leve', 'moderada', 'alta'];
 
+/// RELATÓRIO 20260922_0002 (Item 1) — catálogo de Restrições Culturais/
+/// Religiosas. `restricoes_culturais_religiosas` é `text[]` LIVRE no banco
+/// (sem tabela-catálogo, diferente de Alergias) — os `id`s aqui só
+/// existem pra alimentar a MESMA mecânica visual de [abrirSeletorMultiplo]
+/// (checkbox + busca implícita da lista curta); ao salvar, cada `id`
+/// selecionado vira o texto traduzido correspondente (ver
+/// `_restricoesCulturaisComoTexto`).
+const _restricoesCulturaisCodigos = [
+  'vegano',
+  'vegetariano',
+  'kosher',
+  'halal',
+  'jejum_intermitente',
+  'outros',
+];
+
 class _AnamneseSelfServicePageState extends State<AnamneseSelfServicePage> {
   late final AnamneseRepository _repository = widget._repository ?? AnamneseRepository();
 
@@ -144,6 +162,17 @@ class _AnamneseSelfServicePageState extends State<AnamneseSelfServicePage> {
   final Set<String> _problemasSaudeSelecionados = {};
   final Set<String> _alergiasSelecionadas = {};
   final List<AtividadeSelecionada> _atividadesSelecionadas = [];
+
+  // RELATÓRIO 20260922_0002 (Item 1) — Restrições Culturais/Religiosas.
+  final Set<String> _restricoesCulturaisSelecionadas = {};
+  final _restricoesCulturaisOutroController = TextEditingController();
+
+  // RELATÓRIO 20260922_0002 (Item 2) — Motor de Agregação de Smartwatch.
+  JanelaAnamnese? _janelaSmartwatch;
+  bool _buscandoSmartwatch = false;
+
+  // RELATÓRIO 20260922_0002 (Item 3) — Refeições Diárias Habituais + IA.
+  final ValueNotifier<List<Map<String, dynamic>>> _refeicoesHabituaisNotifier = ValueNotifier(const []);
 
   bool _praticaEsporteEstruturado = false;
   final _atletaModalidadeController = TextEditingController();
@@ -216,6 +245,8 @@ class _AnamneseSelfServicePageState extends State<AnamneseSelfServicePage> {
     _renalTfgController.dispose();
     _recomposicaoPercentualAtualController.dispose();
     _recomposicaoPercentualDesejadoController.dispose();
+    _restricoesCulturaisOutroController.dispose();
+    _refeicoesHabituaisNotifier.dispose();
     super.dispose();
   }
 
@@ -277,6 +308,19 @@ class _AnamneseSelfServicePageState extends State<AnamneseSelfServicePage> {
       if (!mounted) return;
       setState(() => _status = _CargaStatus.erro);
     }
+
+    // RELATÓRIO 20260922_0002 (Item 2) — janela de tempo do botão "Buscar
+    // dados do relógio". Best-effort, isolado do try/catch acima de
+    // propósito: uma falha aqui NUNCA deve travar a tela inteira (o botão
+    // simplesmente fica indisponível, o preenchimento manual continua 100%
+    // funcional).
+    try {
+      final janela = await _repository.buscarJanelaSmartwatch();
+      if (mounted) setState(() => _janelaSmartwatch = janela);
+    } catch (_) {
+      // Sem janela = botão "Buscar dados do relógio" some da tela (ver
+      // `_janelaSmartwatch == null` nos pontos de uso).
+    }
   }
 
   static String _formatarNumero(double valor) {
@@ -336,6 +380,60 @@ class _AnamneseSelfServicePageState extends State<AnamneseSelfServicePage> {
     setState(() => _atividadesSelecionadas.add(resultado));
   }
 
+  /// RELATÓRIO 20260922_0002 (Item 2) — "Buscar dados do relógio": chama
+  /// `processar_medias_smartwatch` (janela calculada por
+  /// `iniciar_rascunho_anamnese` no carregamento da tela) e abre a UX de
+  /// Revisão ([RevisaoSmartwatchPage]) — NUNCA aplica nada automaticamente
+  /// (RESTRIÇÃO explícita da tarefa); só o que o usuário marcar "Aceitar"
+  /// lá volta aqui, ainda como rascunho em memória (o Salvar/Confirmar de
+  /// sempre continua sendo o único jeito de gravar).
+  Future<void> _buscarDadosRelogio() async {
+    final janela = _janelaSmartwatch;
+    if (janela == null) return;
+
+    setState(() => _buscandoSmartwatch = true);
+    MediasSmartwatchResultado resultado;
+    try {
+      resultado = await _repository.buscarMediasSmartwatch(dataInicio: janela.dataInicio, dataFim: janela.dataFim);
+    } catch (_) {
+      if (mounted) {
+        setState(() => _buscandoSmartwatch = false);
+        _mostrarErro(i18n.tr('nutricao.smartwatch_erro'));
+      }
+      return;
+    }
+    if (!mounted) return;
+    setState(() => _buscandoSmartwatch = false);
+
+    final revisao = await Navigator.of(context).push<RevisaoSmartwatchResultado>(
+      MaterialPageRoute(
+        builder: (_) => RevisaoSmartwatchPage(
+          resultado: resultado,
+          catalogoAtividades: _tiposAtividades,
+          atividadesJaAdicionadas: _atividadesSelecionadas,
+        ),
+      ),
+    );
+    if (revisao == null || !mounted) return;
+
+    setState(() {
+      for (final atividade in revisao.atividadesAceitas) {
+        // Evita duplicar se o usuário já tinha essa mesma atividade+dia
+        // adicionada manualmente antes de abrir a revisão.
+        if (!_atividadesSelecionadas.contains(atividade)) {
+          _atividadesSelecionadas.add(atividade);
+        }
+      }
+      if (revisao.horasSonoAceitas != null) {
+        _horasSonoController.text = _formatarNumero(revisao.horasSonoAceitas!);
+      }
+      if (revisao.horasTreinoSemanaAceitas != null) {
+        _praticaEsporteEstruturado = true;
+        _atletaHorasSemanaController.text = _formatarNumero(revisao.horasTreinoSemanaAceitas!);
+      }
+    });
+  }
+
   void _irParaConfirmacao() {
     if (!(_formKey.currentState?.validate() ?? false)) return;
 
@@ -372,6 +470,8 @@ class _AnamneseSelfServicePageState extends State<AnamneseSelfServicePage> {
       restricoesAlimentares: _listaDeTexto(_restricoesController),
       intolerancias: _listaDeTexto(_intolerenciasController),
       padraoAlimentarHabitual: _textoOuNulo(_padraoAlimentarController),
+      restricoesCulturaisReligiosas: _restricoesCulturaisComoTexto(),
+      refeicoesDiariasHabituais: _refeicoesHabituaisNotifier.value,
       rotinaDiaria: _rotinaDiariaSelecionada,
       atividadeOcupacional: _textoOuNulo(_atividadeOcupacionalController),
       horasSonoMedias: double.tryParse(_horasSonoController.text.trim().replaceAll(',', '.')),
@@ -526,6 +626,13 @@ class _AnamneseSelfServicePageState extends State<AnamneseSelfServicePage> {
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppColors.mutedText),
               ),
               const SizedBox(height: 24),
+              // RELATÓRIO 20260922_0002 (Item 1) — Sexo Biológico movido pra
+              // ANTES do Motivo da Avaliação (pedido explícito do
+              // fundador); continua exibindo o valor que já vem do Perfil
+              // ([_sexoSelecionado], preenchido em [_carregar] a partir de
+              // [DadosFisicosAtuais.sexoBiologico]).
+              _buildSecaoSexoBiologico(context),
+              const SizedBox(height: 24),
               _buildSecaoMotivoAvaliacao(context),
               const SizedBox(height: 24),
               _buildSecaoDadosFisicos(context),
@@ -539,6 +646,8 @@ class _AnamneseSelfServicePageState extends State<AnamneseSelfServicePage> {
               _buildSecaoAlimentacao(context),
               const SizedBox(height: 24),
               _buildSecaoRotinaDiaria(context),
+              const SizedBox(height: 24),
+              _buildBotaoBuscarSmartwatch(context),
               const SizedBox(height: 24),
               _buildSecaoRotina(context),
               const SizedBox(height: 24),
@@ -679,8 +788,20 @@ class _AnamneseSelfServicePageState extends State<AnamneseSelfServicePage> {
           validator: _validarPeso,
           enabled: !_indoParaConfirmacao,
         ),
-        const SizedBox(height: 16),
-        Text(i18n.tr('perfil_fisico.sexo_biologico_label'), style: Theme.of(context).textTheme.bodyMedium),
+      ],
+    );
+  }
+
+  /// RELATÓRIO 20260922_0002 (Item 1) — "Esse campo deve exibir a
+  /// informação que já vem do Perfil do Usuário": [_sexoSelecionado] é
+  /// preenchido em [_carregar] a partir de `perfis_usuarios` (via
+  /// [DadosFisicosAtuais.sexoBiologico]), o mesmo valor de sempre — só a
+  /// POSIÇÃO na tela mudou (antes do Motivo da Avaliação agora).
+  Widget _buildSecaoSexoBiologico(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(i18n.tr('perfil_fisico.sexo_biologico_label'), style: Theme.of(context).textTheme.titleMedium),
         RadioGroup<String>(
           groupValue: _sexoSelecionado,
           onChanged: (valor) {
@@ -923,8 +1044,96 @@ class _AnamneseSelfServicePageState extends State<AnamneseSelfServicePage> {
         _campoTextoOpcional(_intolerenciasController, i18n.tr('nutricao.intolerancias_label')),
         const SizedBox(height: 8),
         _campoTextoOpcional(_padraoAlimentarController, i18n.tr('nutricao.padrao_alimentar_label')),
+        const SizedBox(height: 16),
+        _buildSecaoRestricoesCulturais(context),
+        const SizedBox(height: 16),
+        Text(i18n.tr('nutricao.refeicoes_habituais_label'), style: Theme.of(context).textTheme.titleSmall),
+        const SizedBox(height: 4),
+        Text(
+          i18n.tr('nutricao.refeicoes_habituais_aviso'),
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.mutedText),
+        ),
+        const SizedBox(height: 8),
+        // `AnimatedBuilder` sobre o próprio controller (que já é um
+        // `Listenable`) — reconstrói o número de linhas de refeição
+        // automaticamente conforme o usuário digita em "Refeições/dia",
+        // sem precisar de um `ValueNotifier` paralelo.
+        AnimatedBuilder(
+          animation: _numeroRefeicoesController,
+          builder: (context, _) {
+            final numero = int.tryParse(_numeroRefeicoesController.text.trim()) ?? 0;
+            return RefeicoesHabituaisWidget(
+              numeroRefeicoes: numero,
+              resultadoNotifier: _refeicoesHabituaisNotifier,
+              habilitado: !_indoParaConfirmacao,
+            );
+          },
+        ),
       ],
     );
+  }
+
+  /// RELATÓRIO 20260922_0002 (Item 1) — "mesma mecânica visual e de
+  /// preenchimento da lista de Alergias": mesmos widgets
+  /// ([ResumoSelecaoMultipla]/[abrirSeletorMultiplo]), catálogo estático
+  /// (o backend guarda `text[]` livre, sem tabela-catálogo) — ao confirmar
+  /// a seleção, os `id`s viram o texto traduzido correspondente.
+  Widget _buildSecaoRestricoesCulturais(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        ResumoSelecaoMultipla(
+          label: i18n.tr('nutricao.restricoes_culturais_label'),
+          quantidadeSelecionada: _restricoesCulturaisSelecionadas.length,
+          onEditar: () async {
+            final resultado = await abrirSeletorMultiplo(
+              context: context,
+              titulo: i18n.tr('nutricao.restricoes_culturais_label'),
+              itens: [
+                for (final codigo in _restricoesCulturaisCodigos)
+                  CatalogoItem(id: codigo, nome: i18n.tr('nutricao.restricao_cultural_$codigo')),
+              ],
+              selecionadosIniciais: _restricoesCulturaisSelecionadas,
+            );
+            if (resultado != null) {
+              setState(() {
+                _restricoesCulturaisSelecionadas
+                  ..clear()
+                  ..addAll(resultado);
+              });
+            }
+          },
+        ),
+        if (_restricoesCulturaisSelecionadas.contains('outros'))
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: TextFormField(
+              controller: _restricoesCulturaisOutroController,
+              decoration: InputDecoration(
+                labelText: i18n.tr('nutricao.restricao_cultural_outros_hint'),
+                border: const OutlineInputBorder(),
+              ),
+              enabled: !_indoParaConfirmacao,
+            ),
+          ),
+      ],
+    );
+  }
+
+  /// Converte os `id`s selecionados em texto pro `text[]` que o backend
+  /// espera — "outros" vira o texto livre digitado (se houver), nunca a
+  /// palavra literal "outros".
+  List<String> _restricoesCulturaisComoTexto() {
+    final resultado = <String>[];
+    for (final codigo in _restricoesCulturaisSelecionadas) {
+      if (codigo == 'outros') {
+        final texto = _restricoesCulturaisOutroController.text.trim();
+        if (texto.isNotEmpty) resultado.add(texto);
+      } else {
+        resultado.add(i18n.tr('nutricao.restricao_cultural_$codigo'));
+      }
+    }
+    return resultado;
   }
 
   /// Seção 5 — rotina diária (pergunta única, complementar ao NEAT) +
@@ -950,6 +1159,44 @@ class _AnamneseSelfServicePageState extends State<AnamneseSelfServicePage> {
         const SizedBox(height: 8),
         _campoTextoOpcional(_atividadeOcupacionalController, i18n.tr('nutricao.atividade_ocupacional_label')),
       ],
+    );
+  }
+
+  /// RELATÓRIO 20260922_0002 (Item 2) — um único botão cobrindo as 3 seções
+  /// pedidas na tarefa (Atividade/Sono/Carga de Treino), já que
+  /// `processar_medias_smartwatch` devolve as 3 numa chamada só — a tela de
+  /// revisão que abre em seguida ([RevisaoSmartwatchPage]) tem uma seção
+  /// dedicada pra cada uma. Some da tela quando a janela não pôde ser
+  /// calculada (ver [_carregar]) — nunca trava o preenchimento manual.
+  Widget _buildBotaoBuscarSmartwatch(BuildContext context) {
+    if (_janelaSmartwatch == null) return const SizedBox.shrink();
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.primaryGold.withValues(alpha: 0.08),
+        border: Border.all(color: AppColors.primaryGold.withValues(alpha: 0.5)),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(i18n.tr('nutricao.smartwatch_botao_titulo'), style: Theme.of(context).textTheme.titleSmall),
+          const SizedBox(height: 4),
+          Text(
+            i18n.tr('nutricao.smartwatch_botao_aviso'),
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.mutedText),
+          ),
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            onPressed: (_indoParaConfirmacao || _buscandoSmartwatch) ? null : _buscarDadosRelogio,
+            icon: _buscandoSmartwatch
+                ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                : const Icon(Icons.watch_outlined),
+            label: Text(i18n.tr('nutricao.smartwatch_botao_label')),
+          ),
+        ],
+      ),
     );
   }
 
