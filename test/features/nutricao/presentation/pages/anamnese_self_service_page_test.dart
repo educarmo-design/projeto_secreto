@@ -27,8 +27,8 @@ void main() {
   const problemasSaude = [CatalogoItem(id: 'p1', nome: 'Diabetes Tipo 2')];
   const alergias = [CatalogoItem(id: 'a1', nome: 'Intolerância à Lactose')];
   const tiposAtividades = [
-    TipoAtividadeItem(id: 30, nomeExibicao: 'Corrida'),
-    TipoAtividadeItem(id: 42, nomeExibicao: 'Natação'),
+    TipoAtividadeItem(id: 30, nomeExibicao: 'Corrida', nomeCodigo: 'RUNNING'),
+    TipoAtividadeItem(id: 42, nomeExibicao: 'Natação', nomeCodigo: 'SWIMMING'),
   ];
   const dadosFisicosVazios = DadosFisicosAtuais();
   const historicoPesoVazio = HistoricoPeso();

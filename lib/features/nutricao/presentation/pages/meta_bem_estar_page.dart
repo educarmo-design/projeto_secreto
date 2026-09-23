@@ -4,11 +4,23 @@ import 'package:flutter/services.dart';
 import '../../../../core/i18n/i18n_manager.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../data/repositories/meta_bem_estar_repository.dart';
+import '../../domain/anamnese_validade_status.dart';
 import '../widgets/meta_bloqueio_modal.dart';
 
 const _carenciaDias = 30;
 
-enum _CargaStatus { carregando, erro, bloqueadaCarencia, bloqueadaProfissional, formulario }
+enum _CargaStatus {
+  carregando,
+  erro,
+  bloqueadaCarencia,
+  bloqueadaProfissional,
+  // RELATÓRIO 20260922_0002 (Item 5) — "Bloqueio Severo (40 dias): ...
+  // BLOQUEAR o acesso às metas nutricionais". Checado ANTES das outras 2
+  // travas (ver [_carregar]) — anamnese severamente vencida é mais
+  // fundamental que qualquer meta já definida.
+  bloqueadaValidadeAnamnese,
+  formulario,
+}
 
 /// N11 (RELATÓRIO 20260812_0010) — Meta de Bem-Estar self-service. Toda
 /// gravação passa pelo Motor de Exceções (N08, RPC `validar_e_salvar_meta`
@@ -56,6 +68,7 @@ class _MetaBemEstarPageState extends State<MetaBemEstarPage> {
   // sobreviver fora do escopo de `_carregar`.
   MetaResumo? _ultimaMetaPropria;
   List<MetaResumo> _historico = const [];
+  int? _diasAtrasoValidade;
 
   @override
   void initState() {
@@ -75,6 +88,19 @@ class _MetaBemEstarPageState extends State<MetaBemEstarPage> {
   Future<void> _carregar() async {
     setState(() => _status = _CargaStatus.carregando);
     try {
+      // RELATÓRIO 20260922_0002 (Item 5) — checado ANTES de tudo: 40+ dias
+      // de atraso bloqueia mesmo que exista meta profissional/própria.
+      final dataValidade = await _repository.buscarDataValidadeAnamnese();
+      final statusValidade = AnamneseValidadeStatus.calcular(dataValidade);
+      if (statusValidade.nivel == AnamneseValidadeNivel.bloqueada) {
+        if (!mounted) return;
+        setState(() {
+          _diasAtrasoValidade = statusValidade.dias;
+          _status = _CargaStatus.bloqueadaValidadeAnamnese;
+        });
+        return;
+      }
+
       // Prioridade B2B primeiro — se o profissional tem uma meta ativa,
       // nem importa a carência: a tela trava do mesmo jeito.
       final metaProfissional = await _repository.buscarMetaAtivaDoProfissional();
@@ -223,6 +249,13 @@ class _MetaBemEstarPageState extends State<MetaBemEstarPage> {
               ],
             ),
           ),
+        );
+      case _CargaStatus.bloqueadaValidadeAnamnese:
+        return _buildBloqueio(
+          context,
+          icone: Icons.event_busy_outlined,
+          titulo: i18n.tr('nutricao.validade_bloqueada_titulo'),
+          mensagem: i18n.tr('nutricao.validade_bloqueada_mensagem', params: {'dias': '${_diasAtrasoValidade ?? AnamneseValidadeStatus.diasBloqueio}'}),
         );
       case _CargaStatus.bloqueadaCarencia:
         return _buildBloqueio(
