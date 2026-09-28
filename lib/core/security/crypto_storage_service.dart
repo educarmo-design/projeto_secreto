@@ -27,7 +27,14 @@ class CryptoStorageService {
     LocalAuthentication? localAuth,
   })  : _secureStorage = secureStorage ??
             const FlutterSecureStorage(
-              aOptions: AndroidOptions(encryptedSharedPreferences: true),
+              // `AndroidOptions(encryptedSharedPreferences: true)` foi
+              // removido em flutter_secure_storage 10.0.0 — a Jetpack
+              // Security que esse parâmetro ligava está deprecada; o
+              // `AndroidOptions()` padrão (sem parâmetro nenhum) agora já
+              // usa a implementação de cifra própria do plugin por padrão,
+              // com migração automática de dados gravados na cifra antiga
+              // (`migrateOnAlgorithmChange: true`, ligado por padrão).
+              aOptions: AndroidOptions(),
               iOptions: IOSOptions(
                 accessibility: KeychainAccessibility.first_unlock_this_device,
                 synchronizable: false,
