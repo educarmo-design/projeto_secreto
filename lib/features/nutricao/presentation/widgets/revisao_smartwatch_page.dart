@@ -283,6 +283,16 @@ class _RevisaoSmartwatchPageState extends State<RevisaoSmartwatchPage> {
             }),
             style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.mutedText),
           ),
+          // RELATÓRIO 20260927_0001 (Item 1c/4) — duração média por
+          // sessão desta modalidade (tempo total ÷ nº de ocorrências),
+          // já calculada pelo backend desde 20260922_0001 mas nunca
+          // exibida em nenhuma tela até esta tarefa.
+          Text(
+            i18n.tr('nutricao.smartwatch_duracao_media_sessao', params: {
+              'minutos': item.atividade.duracaoMediaPorSessaoMinutos.round().toString(),
+            }),
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.mutedText),
+          ),
           if (item.aceitar) ...[
             const SizedBox(height: 8),
             Row(

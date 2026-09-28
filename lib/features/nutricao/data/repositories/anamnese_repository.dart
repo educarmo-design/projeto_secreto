@@ -55,6 +55,36 @@ class AnamneseRepository {
         .toList();
   }
 
+  /// RELATÓRIO 20260927_0001 (Item 4) — série de peso ao longo do tempo pro
+  /// Gráfico de Linha do Histórico de Peso: [dataInicio]/[dataFim] são a
+  /// MESMA janela de [buscarJanelaSmartwatch] (Anamnese Inicial → últimos
+  /// 30 dias; Reavaliação → desde a última anamnese) — reaproveitada aqui
+  /// em vez de uma 2ª regra de janela duplicada. Fonte: `metricas_saude_diarias`
+  /// (1 leitura de peso por dia sincronizado do wearable/balança), NÃO as
+  /// anamneses anteriores (que só têm 1 peso por avaliação, não uma série
+  /// diária). Lista vazia (não erro) quando não há nenhuma leitura no período.
+  Future<List<PontoPesoSerie>> buscarSeriePeso({required DateTime dataInicio, required DateTime dataFim}) async {
+    final usuarioId = _supabase.auth.currentUser?.id;
+    if (usuarioId == null) return const [];
+
+    final linhas = await _supabase
+        .from('metricas_saude_diarias')
+        .select('data_referencia, peso_kg')
+        .eq('usuario_id_anonimo', usuarioId)
+        .not('peso_kg', 'is', null)
+        .gte('data_referencia', _formatarDataIso(dataInicio))
+        .lte('data_referencia', _formatarDataIso(dataFim))
+        .order('data_referencia');
+
+    return (linhas as List)
+        .cast<Map<String, dynamic>>()
+        .map((linha) => PontoPesoSerie(
+              data: DateTime.parse(linha['data_referencia'] as String),
+              pesoKg: (linha['peso_kg'] as num).toDouble(),
+            ))
+        .toList();
+  }
+
   /// RELATÓRIO 20260922_0002 (Item 1 da tarefa de UI) — chama a RPC pura
   /// `iniciar_rascunho_anamnese` (RELATÓRIO 20260922_0001) só pela janela
   /// de tempo (sem anamnese anterior → últimos 30 dias; com anterior →
@@ -364,10 +394,7 @@ class AnamneseRepository {
           if (complementares.houveAlteracaoPesoNaoPlanejada != null)
             'houve_alteracao_peso_nao_planejada': complementares.houveAlteracaoPesoNaoPlanejada,
           if (complementares.numeroRefeicoesDia != null) 'numero_refeicoes_dia': complementares.numeroRefeicoesDia,
-          if (complementares.horariosRefeicoesHabituais != null)
-            'horarios_refeicoes_habituais': complementares.horariosRefeicoesHabituais,
           if (complementares.regularidadeAlimentar != null) 'regularidade_alimentar': complementares.regularidadeAlimentar,
-          if (complementares.refeicoesForaDeCasa != null) 'refeicoes_fora_de_casa': complementares.refeicoesForaDeCasa,
           if (complementares.consumoUltraprocessados != null)
             'consumo_ultraprocessados': complementares.consumoUltraprocessados,
           if (complementares.preferenciasAlimentares != null)

@@ -57,19 +57,29 @@ Future<Set<String>?> abrirSeletorMultiplo({
                         ],
                       ),
                     ),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        TextButton(
-                          onPressed: () => Navigator.of(context).pop(),
-                          child: Text(i18n.tr('nutricao.seletor_multiplo_cancelar')),
-                        ),
-                        const SizedBox(width: 8),
-                        FilledButton(
-                          onPressed: () => Navigator.of(context).pop(selecionados),
-                          child: Text(i18n.tr('nutricao.seletor_multiplo_confirmar')),
-                        ),
-                      ],
+                    // RELATÓRIO 20260927_0001 (Item 3, QA) — "Suba o botão
+                    // Confirmar em ~5mm (16-20px)" pra melhorar o toque perto
+                    // da borda inferior. Este rodapé é compartilhado por
+                    // TODAS as listas que usam este bottom sheet (Alergias,
+                    // Restrições Culturais/Religiosas, Intolerâncias,
+                    // Condições, Objetivos secundários) — o ajuste beneficia
+                    // todas de uma vez, não só a que o QA testou.
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 18),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          TextButton(
+                            onPressed: () => Navigator.of(context).pop(),
+                            child: Text(i18n.tr('nutricao.seletor_multiplo_cancelar')),
+                          ),
+                          const SizedBox(width: 8),
+                          FilledButton(
+                            onPressed: () => Navigator.of(context).pop(selecionados),
+                            child: Text(i18n.tr('nutricao.seletor_multiplo_confirmar')),
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
