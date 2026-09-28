@@ -46,8 +46,20 @@ dependencies:
   health: ^13.3.1
   camera: ^0.12.0+1
 
-  # Background Sync (Onda 1.5 - sync_diario_wearables)
-  workmanager: ^0.9.0+3
+  # RELATÓRIO 20260928_0001 — atualizado (0.9.0+3 → 0.10.10) pra resolver o
+  # warning "apply Kotlin Gradle Plugin (KGP)" (Flutter vai parar de
+  # aceitar isso em versões futuras) — 0.10.6 corrige exatamente isso
+  # ("build with AGP 9 and android.builtInKotlin=false"). Verificado
+  # seguro: nenhuma mudança de API Dart entre 0.9.0+3 e 0.10.10 (a única
+  # breaking real nesse intervalo é o Flutter mínimo subir pra 3.38, já
+  # satisfeito pela versão instalada). health/device_info_plus/file_picker
+  # NÃO foram atualizados junto — convergem todos em exigir win32 ^6.x,
+  # incompatível com o flutter_secure_storage ^9.0.0 atual (que guarda o
+  # token de sessão); resolver isso exigiria também subir
+  # flutter_secure_storage pra 10.2.0+, uma mudança separada e maior
+  # (rewrite da implementação Android, mudança de cifra padrão) que não
+  # foi autorizada nesta tarefa — ver o relatório de dev-log.
+  workmanager: ^0.10.10
   connectivity_plus: ^6.0.0
   file_picker: ^11.0.2
   device_info_plus: ^12.4.0

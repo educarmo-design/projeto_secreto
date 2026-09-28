@@ -4,7 +4,7 @@ import 'package:workmanager/workmanager.dart';
 import 'package:atleta_gamificacao/features/dashboard/data/services/background_sync_manager.dart';
 
 /// Exercises [BackgroundSyncManager] through a fake [WorkmanagerPlatform] —
-/// `workmanager: ^0.9.0+3` is a federated plugin (workmanager +
+/// `workmanager` is a federated plugin (workmanager +
 /// workmanager_platform_interface + workmanager_android/_apple); `Workmanager()`
 /// now dispatches through `WorkmanagerPlatform.instance` instead of a raw,
 /// hard-coded native `MethodChannel`, so intercepting a channel name (the
@@ -40,6 +40,7 @@ class _FakeWorkmanagerPlatform extends WorkmanagerPlatform {
     ExistingPeriodicWorkPolicy? existingWorkPolicy,
     BackoffPolicy? backoffPolicy,
     Duration? backoffPolicyDelay,
+    ForegroundServiceConfig? foregroundServiceConfig,
     String? tag,
   }) async {
     chamadas.add((
