@@ -54,6 +54,12 @@ dependencies:
   record: ^7.1.1
   path_provider: ^2.1.6
 
+  # Charts (RELATÓRIO 20260927_0001 — Gráfico de Histórico de Peso; nenhuma
+  # biblioteca de gráficos existia no Flutter antes desta tarefa, ao
+  # contrário do Painel Web, que já usa `recharts`; `fl_chart` é a opção
+  # citada explicitamente na RESTRIÇÃO da tarefa).
+  fl_chart: ^0.69.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

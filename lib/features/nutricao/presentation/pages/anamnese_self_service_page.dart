@@ -1,3 +1,4 @@
+import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -100,6 +101,19 @@ const _restricoesCulturaisCodigos = [
   'outros',
 ];
 
+/// RELATÓRIO 20260927_0001 (Item 3) — catálogo de Intolerâncias, mesma
+/// mecânica de Restrições Culturais/Religiosas (`intolerancias_alimentares`
+/// já era `text[]` livre desde `20260918100000` — só a MECÂNICA de seleção
+/// mudou de texto livre pra chips).
+const _intoleranciasCodigos = [
+  'lactose',
+  'gluten',
+  'frutose',
+  'cafeina',
+  'histamina',
+  'outros',
+];
+
 class _AnamneseSelfServicePageState extends State<AnamneseSelfServicePage> {
   late final AnamneseRepository _repository = widget._repository ?? AnamneseRepository();
 
@@ -114,6 +128,9 @@ class _AnamneseSelfServicePageState extends State<AnamneseSelfServicePage> {
   SugestaoBalanca? _sugestaoBalanca;
   HistoricoPeso? _historicoPeso;
   int? _idade;
+
+  // RELATÓRIO 20260927_0001 (Item 4) — série de peso pro Gráfico de Linha.
+  List<PontoPesoSerie> _seriePeso = const [];
 
   List<CatalogoItem> _problemasSaude = const [];
   List<CatalogoItem> _alergias = const [];
@@ -141,12 +158,9 @@ class _AnamneseSelfServicePageState extends State<AnamneseSelfServicePage> {
   String? _houveAlteracaoPeso;
 
   final _numeroRefeicoesController = TextEditingController();
-  final _horariosRefeicoesController = TextEditingController();
-  final _refeicoesForaController = TextEditingController();
   final _preferenciasController = TextEditingController();
   final _alimentosEvitadosController = TextEditingController();
   final _restricoesController = TextEditingController();
-  final _intolerenciasController = TextEditingController();
   final _padraoAlimentarController = TextEditingController();
 
   String? _rotinaDiariaSelecionada;
@@ -156,7 +170,12 @@ class _AnamneseSelfServicePageState extends State<AnamneseSelfServicePage> {
   final _horarioDormirController = TextEditingController();
   final _horarioAcordarController = TextEditingController();
   String? _qualidadeSonoSelecionada;
-  final _despertaresController = TextEditingController();
+  // RELATÓRIO 20260927_0001 (Item 3) — "Altere a entrada de dados de
+  // Despertares Noturnos para um simples Sim/Não". `null` = não respondeu.
+  // Mapeado pra 1 (Sim) / 0 (Não) na coluna smallint existente
+  // (`anamneses.despertares_noturnos`) — sem migration nova, só simplifica
+  // a PERGUNTA na tela (a coluna nunca precisou de mais que isso na prática).
+  bool? _despertaresNoturnosSimNao;
 
   bool? _possuiCondicaoSaude;
   final Set<String> _problemasSaudeSelecionados = {};
@@ -166,6 +185,10 @@ class _AnamneseSelfServicePageState extends State<AnamneseSelfServicePage> {
   // RELATÓRIO 20260922_0002 (Item 1) — Restrições Culturais/Religiosas.
   final Set<String> _restricoesCulturaisSelecionadas = {};
   final _restricoesCulturaisOutroController = TextEditingController();
+
+  // RELATÓRIO 20260927_0001 (Item 3) — Intolerâncias, mesma mecânica.
+  final Set<String> _intoleranciasSelecionadas = {};
+  final _intoleranciasOutroController = TextEditingController();
 
   // RELATÓRIO 20260922_0002 (Item 2) — Motor de Agregação de Smartwatch.
   JanelaAnamnese? _janelaSmartwatch;
@@ -224,18 +247,15 @@ class _AnamneseSelfServicePageState extends State<AnamneseSelfServicePage> {
     _circCinturaController.dispose();
     _circAbdominalController.dispose();
     _numeroRefeicoesController.dispose();
-    _horariosRefeicoesController.dispose();
-    _refeicoesForaController.dispose();
     _preferenciasController.dispose();
     _alimentosEvitadosController.dispose();
     _restricoesController.dispose();
-    _intolerenciasController.dispose();
+    _intoleranciasOutroController.dispose();
     _padraoAlimentarController.dispose();
     _atividadeOcupacionalController.dispose();
     _horasSonoController.dispose();
     _horarioDormirController.dispose();
     _horarioAcordarController.dispose();
-    _despertaresController.dispose();
     _atletaModalidadeController.dispose();
     _atletaHorasSemanaController.dispose();
     _atletaObjetivoEsportivoController.dispose();
@@ -316,10 +336,17 @@ class _AnamneseSelfServicePageState extends State<AnamneseSelfServicePage> {
     // funcional).
     try {
       final janela = await _repository.buscarJanelaSmartwatch();
-      if (mounted) setState(() => _janelaSmartwatch = janela);
+      if (!mounted) return;
+      setState(() => _janelaSmartwatch = janela);
+
+      // RELATÓRIO 20260927_0001 (Item 4) — mesma janela: Anamnese Inicial
+      // (sem anterior) → últimos 30 dias; Reavaliação → desde a última
+      // anamnese. Best-effort também — sem série, o gráfico só não aparece.
+      final serie = await _repository.buscarSeriePeso(dataInicio: janela.dataInicio, dataFim: janela.dataFim);
+      if (mounted) setState(() => _seriePeso = serie);
     } catch (_) {
-      // Sem janela = botão "Buscar dados do relógio" some da tela (ver
-      // `_janelaSmartwatch == null` nos pontos de uso).
+      // Sem janela = botão "Buscar dados do relógio" e o gráfico de peso
+      // somem da tela (ver `_janelaSmartwatch == null` nos pontos de uso).
     }
   }
 
@@ -463,12 +490,10 @@ class _AnamneseSelfServicePageState extends State<AnamneseSelfServicePage> {
       circunferenciaAbdominalCm: double.tryParse(_circAbdominalController.text.trim().replaceAll(',', '.')),
       houveAlteracaoPesoNaoPlanejada: _houveAlteracaoPeso,
       numeroRefeicoesDia: int.tryParse(_numeroRefeicoesController.text.trim()),
-      horariosRefeicoesHabituais: _textoOuNulo(_horariosRefeicoesController),
-      refeicoesForaDeCasa: _textoOuNulo(_refeicoesForaController),
       preferenciasAlimentares: _textoOuNulo(_preferenciasController),
       alimentosEvitados: _textoOuNulo(_alimentosEvitadosController),
       restricoesAlimentares: _listaDeTexto(_restricoesController),
-      intolerancias: _listaDeTexto(_intolerenciasController),
+      intolerancias: _intoleranciasComoTexto(),
       padraoAlimentarHabitual: _textoOuNulo(_padraoAlimentarController),
       restricoesCulturaisReligiosas: _restricoesCulturaisComoTexto(),
       refeicoesDiariasHabituais: _refeicoesHabituaisNotifier.value,
@@ -478,7 +503,7 @@ class _AnamneseSelfServicePageState extends State<AnamneseSelfServicePage> {
       horarioDormirHabitual: _textoOuNulo(_horarioDormirController),
       horarioAcordarHabitual: _textoOuNulo(_horarioAcordarController),
       qualidadeSonoPercebida: _qualidadeSonoSelecionada,
-      despertaresNoturnos: int.tryParse(_despertaresController.text.trim()),
+      despertaresNoturnos: _despertaresNoturnosSimNao == null ? null : (_despertaresNoturnosSimNao! ? 1 : 0),
       possuiCondicaoSaude: _possuiCondicaoSaude,
       blocoAtleta: !_praticaEsporteEstruturado
           ? null
@@ -707,8 +732,6 @@ class _AnamneseSelfServicePageState extends State<AnamneseSelfServicePage> {
                 onAdicionar: (item) => setState(() => _exames.add(item)),
                 onRemover: (item) => setState(() => _exames.remove(item)),
               ),
-              const SizedBox(height: 24),
-              _buildSecaoAlergias(context),
               const SizedBox(height: 32),
               FilledButton(
                 onPressed: _indoParaConfirmacao ? null : _irParaConfirmacao,
@@ -859,9 +882,7 @@ class _AnamneseSelfServicePageState extends State<AnamneseSelfServicePage> {
             Align(
               alignment: Alignment.centerLeft,
               child: OutlinedButton(
-                onPressed: _indoParaConfirmacao
-                    ? null
-                    : () => setState(() => _pesoController.text = _formatarNumero(sugestao.pesoKg!)),
+                onPressed: _indoParaConfirmacao ? null : () => _confirmarSugestaoBalanca(sugestao),
                 child: Text(i18n.tr('nutricao.sugestao_balanca_usar_button')),
               ),
             ),
@@ -869,6 +890,31 @@ class _AnamneseSelfServicePageState extends State<AnamneseSelfServicePage> {
         ],
       ),
     );
+  }
+
+  /// RELATÓRIO 20260927_0001 (Item 2, bug de QA) — o botão "Usar" só
+  /// preenchia Peso; %Gordura nunca era copiado, e Massa Gorda/Magra nunca
+  /// eram recalculadas — o usuário confirmava a balança e via a seção de
+  /// Composição Corporal continuar vazia. Corrigido pra preencher/recalcular
+  /// os 3 campos na hora, usando a MESMA fórmula do trigger
+  /// `anamneses_trg_computar_campos_automaticos` (peso × %gordura ÷ 100 =
+  /// massa gorda; peso − massa gorda = massa magra) — só uma prévia visual
+  /// editável, o backend recalcula de novo (e não sobrescreve se o usuário
+  /// editar aqui) no momento de salvar.
+  void _confirmarSugestaoBalanca(SugestaoBalanca sugestao) {
+    setState(() {
+      final peso = sugestao.pesoKg;
+      final percentualGordura = sugestao.percentualGordura;
+      if (peso != null) _pesoController.text = _formatarNumero(peso);
+      if (percentualGordura != null) {
+        _percentualGorduraController.text = _formatarNumero(percentualGordura);
+        if (peso != null) {
+          final massaGorda = peso * (percentualGordura / 100);
+          _massaGordaController.text = _formatarNumero(massaGorda);
+          _massaMagraController.text = _formatarNumero(peso - massaGorda);
+        }
+      }
+    });
   }
 
   /// Bloco 3 (docs/motor_metabolico.txt) — composição corporal, todos
@@ -919,6 +965,8 @@ class _AnamneseSelfServicePageState extends State<AnamneseSelfServicePage> {
             Text(i18n.tr('nutricao.historico_peso_variacao', params: {'percentual': '${historico.variacaoPercentual}'})),
         ],
         const SizedBox(height: 12),
+        _buildGraficoHistoricoPeso(context),
+        const SizedBox(height: 12),
         Text(i18n.tr('nutricao.alteracao_peso_pergunta'), style: Theme.of(context).textTheme.bodyMedium),
         RadioGroup<String>(
           groupValue: _houveAlteracaoPeso,
@@ -935,6 +983,78 @@ class _AnamneseSelfServicePageState extends State<AnamneseSelfServicePage> {
                   title: Text(i18n.tr('nutricao.alteracao_peso_$opcao')),
                 ),
             ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// RELATÓRIO 20260927_0001 (Item 4) — Gráfico de Linha do Histórico de
+  /// Peso, usando `fl_chart` (RESTRIÇÃO: "utilize uma biblioteca já
+  /// existente... como fl_chart" — não havia nenhuma lib de gráficos no
+  /// Flutter antes desta tarefa, adicionada agora). Dados: Anamnese
+  /// Inicial (sem anamnese anterior) → últimos 30 dias; Reavaliação →
+  /// desde a última anamnese até agora ([_janelaSmartwatch], a MESMA janela
+  /// de `iniciar_rascunho_anamnese`, reaproveitada em vez de duplicar a
+  /// regra). `null`/vazio = sem leituras suficientes no período — não
+  /// desenha um gráfico vazio/enganoso.
+  Widget _buildGraficoHistoricoPeso(BuildContext context) {
+    if (_seriePeso.length < 2) {
+      return Text(
+        i18n.tr('nutricao.historico_peso_grafico_sem_dados'),
+        style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.mutedText),
+      );
+    }
+
+    final media = _seriePeso.map((p) => p.pesoKg).reduce((a, b) => a + b) / _seriePeso.length;
+    final pesos = _seriePeso.map((p) => p.pesoKg).toList();
+    final minY = pesos.reduce((a, b) => a < b ? a : b) - 1;
+    final maxY = pesos.reduce((a, b) => a > b ? a : b) + 1;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(i18n.tr('nutricao.historico_peso_grafico_titulo'), style: Theme.of(context).textTheme.titleSmall),
+        Text(
+          i18n.tr('nutricao.historico_peso_grafico_media', params: {'media': media.toStringAsFixed(1)}),
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.mutedText),
+        ),
+        const SizedBox(height: 8),
+        SizedBox(
+          height: 180,
+          child: LineChart(
+            LineChartData(
+              minY: minY,
+              maxY: maxY,
+              gridData: const FlGridData(show: true, drawVerticalLine: false),
+              borderData: FlBorderData(show: false),
+              titlesData: FlTitlesData(
+                topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                bottomTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                leftTitles: AxisTitles(
+                  sideTitles: SideTitles(showTitles: true, reservedSize: 36, getTitlesWidget: (valor, meta) => Text(valor.toStringAsFixed(0))),
+                ),
+              ),
+              lineTouchData: LineTouchData(
+                touchTooltipData: LineTouchTooltipData(
+                  getTooltipItems: (spots) => spots.map((spot) {
+                    final ponto = _seriePeso[spot.x.toInt()];
+                    return LineTooltipItem('${ponto.pesoKg.toStringAsFixed(1)} kg\n${_formatarData(ponto.data)}', const TextStyle(color: Colors.white, fontSize: 11));
+                  }).toList(),
+                ),
+              ),
+              lineBarsData: [
+                LineChartBarData(
+                  spots: [for (var i = 0; i < _seriePeso.length; i++) FlSpot(i.toDouble(), _seriePeso[i].pesoKg)],
+                  isCurved: true,
+                  color: AppColors.primaryGold,
+                  barWidth: 2,
+                  dotData: const FlDotData(show: false),
+                  belowBarData: BarAreaData(show: true, color: AppColors.primaryGold.withValues(alpha: 0.15)),
+                ),
+              ],
+            ),
           ),
         ),
       ],
@@ -1031,21 +1151,23 @@ class _AnamneseSelfServicePageState extends State<AnamneseSelfServicePage> {
           enabled: !_indoParaConfirmacao,
         ),
         const SizedBox(height: 8),
-        _campoTextoOpcional(_horariosRefeicoesController, i18n.tr('nutricao.horarios_refeicoes_label')),
-        const SizedBox(height: 8),
-        _campoTextoOpcional(_refeicoesForaController, i18n.tr('nutricao.refeicoes_fora_label')),
-        const SizedBox(height: 8),
         _campoTextoOpcional(_preferenciasController, i18n.tr('nutricao.preferencias_alimentares_label')),
         const SizedBox(height: 8),
         _campoTextoOpcional(_alimentosEvitadosController, i18n.tr('nutricao.alimentos_evitados_label')),
         const SizedBox(height: 8),
         _campoTextoOpcional(_restricoesController, i18n.tr('nutricao.restricoes_alimentares_label')),
         const SizedBox(height: 8),
-        _campoTextoOpcional(_intolerenciasController, i18n.tr('nutricao.intolerancias_label')),
-        const SizedBox(height: 8),
         _campoTextoOpcional(_padraoAlimentarController, i18n.tr('nutricao.padrao_alimentar_label')),
         const SizedBox(height: 16),
+        // RELATÓRIO 20260927_0001 (Item 3) — ordem exata pedida no QA:
+        // 1º Restrições Culturais/Religiosas, 2º Alergias, 3º Intolerâncias
+        // (as 3 usam a MESMA mecânica visual, agrupadas juntas em vez de
+        // Alergias ficar isolada no fim do formulário como antes).
         _buildSecaoRestricoesCulturais(context),
+        const SizedBox(height: 16),
+        _buildSecaoAlergias(context),
+        const SizedBox(height: 16),
+        _buildSecaoIntolerancias(context),
         const SizedBox(height: 16),
         Text(i18n.tr('nutricao.refeicoes_habituais_label'), style: Theme.of(context).textTheme.titleSmall),
         const SizedBox(height: 4),
@@ -1131,6 +1253,66 @@ class _AnamneseSelfServicePageState extends State<AnamneseSelfServicePage> {
         if (texto.isNotEmpty) resultado.add(texto);
       } else {
         resultado.add(i18n.tr('nutricao.restricao_cultural_$codigo'));
+      }
+    }
+    return resultado;
+  }
+
+  /// RELATÓRIO 20260927_0001 (Item 3) — "Implemente a seleção de
+  /// Intolerâncias com a mesma tabela e mecânica visual usada em Alergias e
+  /// Restrições" — mesmo padrão de [_buildSecaoRestricoesCulturais]
+  /// (catálogo estático, já que `intolerancias_alimentares` é `text[]`
+  /// livre, sem tabela-catálogo).
+  Widget _buildSecaoIntolerancias(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        ResumoSelecaoMultipla(
+          label: i18n.tr('nutricao.intolerancias_label'),
+          quantidadeSelecionada: _intoleranciasSelecionadas.length,
+          onEditar: () async {
+            final resultado = await abrirSeletorMultiplo(
+              context: context,
+              titulo: i18n.tr('nutricao.intolerancias_label'),
+              itens: [
+                for (final codigo in _intoleranciasCodigos)
+                  CatalogoItem(id: codigo, nome: i18n.tr('nutricao.intolerancia_$codigo')),
+              ],
+              selecionadosIniciais: _intoleranciasSelecionadas,
+            );
+            if (resultado != null) {
+              setState(() {
+                _intoleranciasSelecionadas
+                  ..clear()
+                  ..addAll(resultado);
+              });
+            }
+          },
+        ),
+        if (_intoleranciasSelecionadas.contains('outros'))
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: TextFormField(
+              controller: _intoleranciasOutroController,
+              decoration: InputDecoration(
+                labelText: i18n.tr('nutricao.intolerancia_outros_hint'),
+                border: const OutlineInputBorder(),
+              ),
+              enabled: !_indoParaConfirmacao,
+            ),
+          ),
+      ],
+    );
+  }
+
+  List<String> _intoleranciasComoTexto() {
+    final resultado = <String>[];
+    for (final codigo in _intoleranciasSelecionadas) {
+      if (codigo == 'outros') {
+        final texto = _intoleranciasOutroController.text.trim();
+        if (texto.isNotEmpty) resultado.add(texto);
+      } else {
+        resultado.add(i18n.tr('nutricao.intolerancia_$codigo'));
       }
     }
     return resultado;
@@ -1289,12 +1471,19 @@ class _AnamneseSelfServicePageState extends State<AnamneseSelfServicePage> {
           ),
         ),
         const SizedBox(height: 8),
-        TextFormField(
-          controller: _despertaresController,
-          keyboardType: TextInputType.number,
-          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-          decoration: InputDecoration(labelText: i18n.tr('nutricao.sono_despertares_label'), border: const OutlineInputBorder()),
-          enabled: !_indoParaConfirmacao,
+        Text(i18n.tr('nutricao.sono_despertares_label'), style: Theme.of(context).textTheme.bodyMedium),
+        RadioGroup<bool>(
+          groupValue: _despertaresNoturnosSimNao,
+          onChanged: (valor) {
+            if (_indoParaConfirmacao) return;
+            setState(() => _despertaresNoturnosSimNao = valor);
+          },
+          child: Row(
+            children: [
+              Expanded(child: RadioListTile<bool>(contentPadding: EdgeInsets.zero, value: true, title: Text(i18n.tr('nutricao.sim')))),
+              Expanded(child: RadioListTile<bool>(contentPadding: EdgeInsets.zero, value: false, title: Text(i18n.tr('nutricao.nao')))),
+            ],
+          ),
         ),
       ],
     );

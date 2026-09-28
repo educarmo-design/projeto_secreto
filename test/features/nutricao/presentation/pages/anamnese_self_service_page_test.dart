@@ -182,12 +182,82 @@ void main() {
     expect(find.widgetWithText(TextFormField, '82.4'), findsOneWidget);
   });
 
+  testWidgets('RELATÓRIO 20260927_0001 (bug de QA): "Confirmar" com peso+%gordura recalcula Massa Gorda/Magra na hora', (tester) async {
+    when(() => repository.buscarSugestaoBalanca()).thenAnswer(
+      (_) async => SugestaoBalanca(pesoKg: 80, percentualGordura: 20, dataReferencia: DateTime(2026, 9, 16)),
+    );
+
+    await configurarViewportAlto(tester);
+    await tester.pumpWidget(criarApp());
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Confirmar'));
+    await tester.pumpAndSettle();
+
+    expect(find.widgetWithText(TextFormField, '80'), findsOneWidget);
+    expect(find.widgetWithText(TextFormField, '20'), findsOneWidget);
+    // Massa gorda = 80 × 20% = 16; Massa magra = 80 − 16 = 64 — antes deste
+    // fix, os dois campos ficavam vazios mesmo depois de "Confirmar".
+    expect(find.widgetWithText(TextFormField, '16'), findsOneWidget);
+    expect(find.widgetWithText(TextFormField, '64'), findsOneWidget);
+  });
+
   testWidgets('sem dado recente da balança, não mostra a sugestão', (tester) async {
     await configurarViewportAlto(tester);
     await tester.pumpWidget(criarApp());
     await tester.pumpAndSettle();
 
     expect(find.text('Dado lido da balança'), findsNothing);
+  });
+
+  testWidgets('RELATÓRIO 20260927_0001 (QA, Item 3): ordem Restrições Culturais -> Alergias -> Intolerâncias, mecânica de chips nas 3, campos antigos removidos', (tester) async {
+    await configurarViewportAlto(tester);
+    await tester.pumpWidget(criarApp());
+    await tester.pumpAndSettle();
+
+    final yRestricoesCulturais = tester.getTopLeft(find.text('Restrições culturais/religiosas')).dy;
+    final yAlergias = tester.getTopLeft(find.text('Alergias')).dy;
+    final yIntolerancias = tester.getTopLeft(find.text('Intolerâncias')).dy;
+    expect(yRestricoesCulturais, lessThan(yAlergias));
+    expect(yAlergias, lessThan(yIntolerancias));
+
+    // Intolerâncias agora é a MESMA mecânica de Alergias/Restrições
+    // Culturais (ResumoSelecaoMultipla + bottom sheet), não mais um campo
+    // de texto livre separado por vírgula.
+    expect(find.widgetWithText(TextFormField, 'Intolerâncias'), findsNothing);
+    expect(find.text('Nenhum selecionado'), findsWidgets);
+
+    // Campos obsoletos removidos (viraram parte de cada refeição em
+    // "Refeições diárias habituais").
+    expect(find.widgetWithText(TextFormField, 'Horários habituais das refeições'), findsNothing);
+    expect(find.widgetWithText(TextFormField, 'Refeições fora de casa'), findsNothing);
+  });
+
+  testWidgets('RELATÓRIO 20260927_0001 (bug de QA, i18n): Qualidade do Sono mostra texto traduzido, nunca a chave crua', (tester) async {
+    await configurarViewportAlto(tester);
+    await tester.pumpWidget(criarApp());
+    await tester.pumpAndSettle();
+
+    for (final rotulo in ['Muito ruim', 'Ruim', 'Regular', 'Boa', 'Muito boa']) {
+      expect(find.text(rotulo), findsOneWidget, reason: '"$rotulo" deveria aparecer traduzido');
+    }
+    expect(find.textContaining('nutricao.sono_qualidade_'), findsNothing);
+  });
+
+  testWidgets('RELATÓRIO 20260927_0001 (Item 3): Despertares Noturnos vira Sim/Não (não mais um número digitado)', (tester) async {
+    await configurarViewportAlto(tester);
+    await tester.pumpWidget(criarApp());
+    await tester.pumpAndSettle();
+
+    // Rótulo antigo era "Despertares noturnos" (TextFormField numérico);
+    // o novo é uma pergunta Sim/Não.
+    expect(find.widgetWithText(TextFormField, 'Despertares noturnos'), findsNothing);
+    expect(find.text('Teve despertares noturnos?'), findsOneWidget);
+    final radioSimNaSecaoDespertares = find.descendant(
+      of: find.ancestor(of: find.text('Teve despertares noturnos?'), matching: find.byType(Column)).first,
+      matching: find.byType(RadioListTile<bool>),
+    );
+    expect(radioSimNaSecaoDespertares, findsNWidgets(2));
   });
 
   testWidgets('salvar sem preencher altura/peso mostra erro de validação, não navega para a confirmação', (tester) async {

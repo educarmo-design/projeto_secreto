@@ -93,6 +93,12 @@ class AtividadeSmartwatch {
   final int semanasDoPeriodo;
   final double mediaDuracaoMinutosPorSemana;
 
+  /// RELATÓRIO 20260927_0001 (Item 1c) — "tempo total ÷ nº de ocorrências
+  /// daquela modalidade naquele dia" (fórmula literal do QA). Já existia no
+  /// backend desde `20260922_0001`, mas nunca tinha sido parseada/exibida
+  /// em nenhuma tela — achado real desta tarefa, corrigido aqui.
+  final double duracaoMediaPorSessaoMinutos;
+
   const AtividadeSmartwatch({
     required this.modalidadeCodigo,
     required this.diaSemana,
@@ -100,6 +106,7 @@ class AtividadeSmartwatch {
     required this.duracaoTotalMinutos,
     required this.semanasDoPeriodo,
     required this.mediaDuracaoMinutosPorSemana,
+    required this.duracaoMediaPorSessaoMinutos,
   });
 
   factory AtividadeSmartwatch.fromJson(Map<String, dynamic> json, int diaSemana) {
@@ -110,6 +117,7 @@ class AtividadeSmartwatch {
       duracaoTotalMinutos: (json['duracao_total_minutos'] as num?)?.toDouble() ?? 0,
       semanasDoPeriodo: json['semanas_do_periodo'] as int? ?? 0,
       mediaDuracaoMinutosPorSemana: (json['media_duracao_minutos_por_semana'] as num?)?.toDouble() ?? 0,
+      duracaoMediaPorSessaoMinutos: (json['duracao_media_por_sessao_minutos'] as num?)?.toDouble() ?? 0,
     );
   }
 }
@@ -138,17 +146,26 @@ class CargaAtletaSmartwatch {
 class MediasSmartwatchResultado {
   final Map<String, MetricaConfiabilidade> metricas;
   final Map<int, List<AtividadeSmartwatch>> atividadesPorDiaSemana;
+
+  /// RELATÓRIO 20260927_0001 (Item 1c) — "tempo total do dia ÷ nº de
+  /// ocorrências daquele dia", agregado somando TODAS as modalidades do
+  /// dia da semana (complementar a [AtividadeSmartwatch.duracaoMediaPorSessaoMinutos],
+  /// que é por modalidade). `null` = nenhuma atividade naquele dia da semana.
+  final Map<int, double?> duracaoMediaPorSessaoDia;
+
   final CargaAtletaSmartwatch cargaAtleta;
 
   const MediasSmartwatchResultado({
     required this.metricas,
     required this.atividadesPorDiaSemana,
+    required this.duracaoMediaPorSessaoDia,
     required this.cargaAtleta,
   });
 
   factory MediasSmartwatchResultado.fromJson(Map<String, dynamic> json) {
     final metricasBrutas = (json['metricas_diarias'] as Map<String, dynamic>?) ?? const {};
     final atividadesBrutas = (json['atividades_por_dia_semana'] as Map<String, dynamic>?) ?? const {};
+    final duracaoDiaBruta = (json['duracao_media_por_sessao_dia'] as Map<String, dynamic>?) ?? const {};
 
     return MediasSmartwatchResultado(
       metricas: metricasBrutas.map((chave, valor) => MapEntry(chave, MetricaConfiabilidade.fromJson(valor as Map<String, dynamic>))),
@@ -157,6 +174,9 @@ class MediasSmartwatchResultado {
           dia: ((atividadesBrutas['$dia'] as List?) ?? const [])
               .map((item) => AtividadeSmartwatch.fromJson(item as Map<String, dynamic>, dia))
               .toList(),
+      },
+      duracaoMediaPorSessaoDia: {
+        for (var dia = 0; dia <= 6; dia++) dia: (duracaoDiaBruta['$dia'] as num?)?.toDouble(),
       },
       cargaAtleta: CargaAtletaSmartwatch.fromJson((json['carga_atleta'] as Map<String, dynamic>?) ?? const {}),
     );
@@ -241,6 +261,18 @@ class ItemRepetivel {
   int get hashCode => Object.hash(nome, Object.hashAllUnordered(campos.entries.map((e) => Object.hash(e.key, e.value))));
 }
 
+/// RELATÓRIO 20260927_0001 (Item 4) — um ponto da série de peso ao longo do
+/// tempo (`metricas_saude_diarias.peso_kg`, um por dia sincronizado),
+/// usado só pelo Gráfico de Linha do Histórico de Peso — diferente de
+/// [HistoricoPeso] (agregados pontuais tipo "peso há 30 dias"), que
+/// continua vindo da RPC `anamnese_historico_peso`.
+class PontoPesoSerie {
+  final DateTime data;
+  final double pesoKg;
+
+  const PontoPesoSerie({required this.data, required this.pesoKg});
+}
+
 /// Bloco 4 (docs/motor_metabolico.txt) — resultado da RPC
 /// `anamnese_historico_peso`, só leitura, nunca editável pela tela ("esses
 /// dados são históricos e não devem ser confundidos com o peso oficial da
@@ -320,10 +352,15 @@ class DadosComplementaresAnamnese {
   final String? houveAlteracaoPesoNaoPlanejada;
 
   // Bloco 5 — Alimentação
+  //
+  // RELATÓRIO 20260927_0001 (Item 1a) — `horariosRefeicoesHabituais`/
+  // `refeicoesForaDeCasa` REMOVIDOS (não só descontinuados): viraram
+  // redundantes com `horario`/`foraDeCasa` DENTRO de cada elemento de
+  // [refeicoesDiariasHabituais] (RELATÓRIO 20260922_0001) — dois lugares
+  // pra dizer a mesma coisa. As colunas correspondentes em `anamneses`
+  // também foram removidas (migration `20260927100000`).
   final int? numeroRefeicoesDia;
-  final String? horariosRefeicoesHabituais;
   final String? regularidadeAlimentar;
-  final String? refeicoesForaDeCasa;
   final String? consumoUltraprocessados;
   final String? preferenciasAlimentares;
   final String? alimentosEvitados;
@@ -391,9 +428,7 @@ class DadosComplementaresAnamnese {
     this.fonteComposicaoCorporal,
     this.houveAlteracaoPesoNaoPlanejada,
     this.numeroRefeicoesDia,
-    this.horariosRefeicoesHabituais,
     this.regularidadeAlimentar,
-    this.refeicoesForaDeCasa,
     this.consumoUltraprocessados,
     this.preferenciasAlimentares,
     this.alimentosEvitados,
