@@ -1014,6 +1014,14 @@ export interface Database {
               duracao_media_por_sessao_minutos: number;
             }[]
           >;
+          /**
+           * `20260927100000` (RELATÓRIO 20260927_0001, Item 1c) — "tempo
+           * total do dia ÷ nº de ocorrências daquele dia", agregado somando
+           * TODAS as modalidades do dia da semana (chaves '0'..'6').
+           * Complementar a `duracao_media_por_sessao_minutos` (por
+           * modalidade, acima). `null` = nenhuma atividade naquele dia.
+           */
+          duracao_media_por_sessao_dia: Record<string, number | null>;
           carga_atleta: { horas_totais_periodo: number; semanas_no_periodo: number; media_semanal_horas: number };
           calculado_em: string;
         };

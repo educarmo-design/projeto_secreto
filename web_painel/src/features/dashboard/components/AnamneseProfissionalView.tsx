@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
+import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { supabase } from '@/core/supabase';
 import type { Database, ObjetivoCodigo } from '@/core/types/database';
 import { Toast, type ToastMessage } from '@/components/Toast';
@@ -17,6 +18,19 @@ const ROTULO_RESTRICAO_CULTURAL: Record<string, string> = {
   kosher: 'Kosher',
   halal: 'Halal',
   jejum_intermitente: 'Jejum intermitente',
+  outros: 'Outros',
+};
+
+/** RELATÓRIO 20260927_0001 (Item 3) — mesmo catálogo do App Flutter
+ * (`_intoleranciasCodigos`) — "mesma tabela e mecânica visual usada em
+ * Alergias e Restrições". `intolerancias_alimentares` já era `text[]`
+ * livre desde `20260918100000` — só a mecânica de seleção mudou. */
+const ROTULO_INTOLERANCIA: Record<string, string> = {
+  lactose: 'Lactose',
+  gluten: 'Glúten',
+  frutose: 'Frutose',
+  cafeina: 'Cafeína',
+  histamina: 'Histamina',
   outros: 'Outros',
 };
 
@@ -155,14 +169,11 @@ const FORM_VAZIO = {
   circAbdominal: '',
   houveAlteracaoPeso: '',
   numeroRefeicoes: '',
-  horariosRefeicoes: '',
   regularidadeAlimentar: '',
-  refeicoesFora: '',
   consumoUltraprocessados: '',
   preferenciasAlimentares: '',
   alimentosEvitados: '',
   restricoesAlimentares: '',
-  intolerancias: '',
   padraoAlimentar: '',
   rotinaDiaria: '',
   atividadeOcupacional: '',
@@ -170,7 +181,9 @@ const FORM_VAZIO = {
   horarioDormir: '',
   horarioAcordar: '',
   qualidadeSono: '',
-  despertaresNoturnos: '',
+  // RELATÓRIO 20260927_0001 (Item 3) — "Sim/Não" em vez de um número
+  // digitado; `null` = não respondeu.
+  despertaresNoturnos: null as boolean | null,
   sonoObservacoes: '',
   possuiCondicaoSaude: null as boolean | null,
   ativarBlocoAtleta: false,
@@ -242,6 +255,10 @@ export function AnamneseProfissionalView({ pacienteId, onSalvo }: AnamneseProfis
   // mesma mecânica visual de Alergias (chips + seleção múltipla).
   const [restricoesCulturaisSelecionadas, setRestricoesCulturaisSelecionadas] = useState<Set<string>>(new Set());
   const [restricaoCulturalOutroTexto, setRestricaoCulturalOutroTexto] = useState('');
+
+  // RELATÓRIO 20260927_0001 (Item 3) — Intolerâncias, mesma mecânica.
+  const [intoleranciasSelecionadas, setIntoleranciasSelecionadas] = useState<Set<string>>(new Set());
+  const [intoleranciaOutroTexto, setIntoleranciaOutroTexto] = useState('');
 
   // RELATÓRIO 20260922_0002 (Item 2) — Motor de Agregação de Smartwatch.
   const [janelaSmartwatch, setJanelaSmartwatch] = useState<{ data_inicio: string; data_fim: string } | null>(null);
@@ -358,6 +375,15 @@ export function AnamneseProfissionalView({ pacienteId, onSalvo }: AnamneseProfis
     });
   }
 
+  function toggleIntolerancia(codigo: string) {
+    setIntoleranciasSelecionadas((atual) => {
+      const novo = new Set(atual);
+      if (novo.has(codigo)) novo.delete(codigo);
+      else novo.add(codigo);
+      return novo;
+    });
+  }
+
   /** RELATÓRIO 20260922_0002 (Item 3) — reutiliza o MESMO Edge Function/
    * contrato que o App já usa pro Método 1 (texto) do Registro de Refeição
    * (RELATÓRIO 20260824_0003, `RegistroRefeicaoIaService.interpretarTexto`)
@@ -463,14 +489,14 @@ export function AnamneseProfissionalView({ pacienteId, onSalvo }: AnamneseProfis
         circunferencia_abdominal_cm: form.circAbdominal.trim() ? Number(form.circAbdominal) : null,
         houve_alteracao_peso_nao_planejada: (form.houveAlteracaoPeso || null) as 'sim' | 'nao' | 'nao_sabe' | null,
         numero_refeicoes_dia: form.numeroRefeicoes.trim() ? Number(form.numeroRefeicoes) : null,
-        horarios_refeicoes_habituais: form.horariosRefeicoes.trim() || null,
         regularidade_alimentar: form.regularidadeAlimentar.trim() || null,
-        refeicoes_fora_de_casa: form.refeicoesFora.trim() || null,
         consumo_ultraprocessados: form.consumoUltraprocessados.trim() || null,
         preferencias_alimentares: form.preferenciasAlimentares.trim() || null,
         alimentos_evitados: form.alimentosEvitados.trim() || null,
         restricoes_alimentares: listaDeTexto(form.restricoesAlimentares),
-        intolerancias_alimentares: listaDeTexto(form.intolerancias),
+        intolerancias_alimentares: Array.from(intoleranciasSelecionadas).map((codigo) =>
+          codigo === 'outros' ? intoleranciaOutroTexto.trim() : ROTULO_INTOLERANCIA[codigo],
+        ).filter((texto): texto is string => Boolean(texto)),
         padrao_alimentar_habitual: form.padraoAlimentar.trim() || null,
         restricoes_culturais_religiosas: Array.from(restricoesCulturaisSelecionadas).map((codigo) =>
           codigo === 'outros' ? restricaoCulturalOutroTexto.trim() : ROTULO_RESTRICAO_CULTURAL[codigo],
@@ -493,7 +519,7 @@ export function AnamneseProfissionalView({ pacienteId, onSalvo }: AnamneseProfis
         horario_dormir_habitual: form.horarioDormir || null,
         horario_acordar_habitual: form.horarioAcordar || null,
         qualidade_sono_percebida: form.qualidadeSono || null,
-        despertares_noturnos: form.despertaresNoturnos.trim() ? Number(form.despertaresNoturnos) : null,
+        despertares_noturnos: form.despertaresNoturnos === null ? null : form.despertaresNoturnos ? 1 : 0,
         sono_observacoes: form.sonoObservacoes.trim() || null,
         possui_condicao_saude: form.possuiCondicaoSaude,
         bloco_atleta: form.ativarBlocoAtleta
@@ -546,6 +572,8 @@ export function AnamneseProfissionalView({ pacienteId, onSalvo }: AnamneseProfis
     setAlergiasSelecionadas(new Set());
     setRestricoesCulturaisSelecionadas(new Set());
     setRestricaoCulturalOutroTexto('');
+    setIntoleranciasSelecionadas(new Set());
+    setIntoleranciaOutroTexto('');
     setRefeicoesHabituais([]);
     void data; // { sucesso: true, anamnese_id }
     void carregarHistoricoPeso();
@@ -563,7 +591,7 @@ export function AnamneseProfissionalView({ pacienteId, onSalvo }: AnamneseProfis
         </p>
       </div>
 
-      <HistoricoPesoResumo historico={historicoPeso} />
+      <HistoricoPesoResumo historico={historicoPeso} pacienteId={pacienteId} janela={janelaSmartwatch} />
 
       <form onSubmit={(event) => void handleSubmit(event)} className="space-y-4">
         {/* RELATÓRIO 20260922_0002 (Item 1) — Sexo Biológico, movido pra
@@ -729,21 +757,21 @@ export function AnamneseProfissionalView({ pacienteId, onSalvo }: AnamneseProfis
                 ajustarQuantidadeRefeicoes(Number(v) || 0);
               }}
             />
-            <CampoTexto id="anamnese-prof-horarios" label="Horários habituais" value={form.horariosRefeicoes} disabled={salvando} onChange={(v) => setForm((a) => ({ ...a, horariosRefeicoes: v }))} />
             <CampoTexto id="anamnese-prof-regularidade" label="Regularidade" value={form.regularidadeAlimentar} disabled={salvando} onChange={(v) => setForm((a) => ({ ...a, regularidadeAlimentar: v }))} />
-            <CampoTexto id="anamnese-prof-fora" label="Refeições fora de casa" value={form.refeicoesFora} disabled={salvando} onChange={(v) => setForm((a) => ({ ...a, refeicoesFora: v }))} />
             <CampoTexto id="anamnese-prof-ultraprocessados" label="Consumo de ultraprocessados" value={form.consumoUltraprocessados} disabled={salvando} onChange={(v) => setForm((a) => ({ ...a, consumoUltraprocessados: v }))} />
             <CampoTexto id="anamnese-prof-preferencias" label="Preferências alimentares" value={form.preferenciasAlimentares} disabled={salvando} onChange={(v) => setForm((a) => ({ ...a, preferenciasAlimentares: v }))} />
             <CampoTexto id="anamnese-prof-evitados" label="Alimentos evitados" value={form.alimentosEvitados} disabled={salvando} onChange={(v) => setForm((a) => ({ ...a, alimentosEvitados: v }))} />
             <CampoTexto id="anamnese-prof-restricoes" label="Restrições (separe por vírgula)" value={form.restricoesAlimentares} disabled={salvando} onChange={(v) => setForm((a) => ({ ...a, restricoesAlimentares: v }))} />
-            <CampoTexto id="anamnese-prof-intolerancias" label="Intolerâncias (separe por vírgula)" value={form.intolerancias} disabled={salvando} onChange={(v) => setForm((a) => ({ ...a, intolerancias: v }))} />
             <CampoTexto id="anamnese-prof-padrao" label="Padrão alimentar habitual" value={form.padraoAlimentar} disabled={salvando} onChange={(v) => setForm((a) => ({ ...a, padraoAlimentar: v }))} />
           </div>
         </details>
 
-        {/* RELATÓRIO 20260922_0002 (Item 1) — Restrições Culturais/
-            Religiosas, mesma mecânica visual da Alergias (chips), catálogo
-            ESTÁTICO (o banco guarda text[] livre, sem tabela-catálogo). */}
+        {/*
+          RELATÓRIO 20260927_0001 (Item 3, QA) — ordem exata pedida:
+          1º Restrições Culturais/Religiosas, 2º Alergias, 3º Intolerâncias
+          (as 3 usam a MESMA mecânica visual — chips —, agrupadas juntas em
+          vez de Alergias ficar isolada mais abaixo como antes).
+        */}
         <div>
           <p className="mb-1.5 text-xs font-medium text-slate-300">Restrições culturais/religiosas</p>
           <div className="flex flex-wrap gap-2">
@@ -769,6 +797,62 @@ export function AnamneseProfissionalView({ pacienteId, onSalvo }: AnamneseProfis
                 value={restricaoCulturalOutroTexto}
                 disabled={salvando}
                 onChange={setRestricaoCulturalOutroTexto}
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Bloco 5 — Alergias (padrão clínico, catálogo curado no banco) */}
+        <div>
+          <p className="mb-1.5 text-xs font-medium text-slate-300">Alergias</p>
+          {alergiasCatalogo.length === 0 ? (
+            <p className="text-xs text-clinical-muted">Nenhuma alergia cadastrada no sistema ainda.</p>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {alergiasCatalogo.map((item) => (
+                <label
+                  key={item.id}
+                  className={`cursor-pointer rounded-lg border px-2.5 py-1 text-xs transition ${
+                    alergiasSelecionadas.has(item.id)
+                      ? 'border-clinical-primary bg-clinical-primary/15 text-clinical-primary'
+                      : 'border-clinical-border text-clinical-muted hover:text-slate-100'
+                  }`}
+                >
+                  <input type="checkbox" className="sr-only" disabled={salvando} checked={alergiasSelecionadas.has(item.id)} onChange={() => toggleAlergia(item.id)} />
+                  {item.nome_exibicao}
+                </label>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* RELATÓRIO 20260927_0001 (Item 3) — Intolerâncias, mesma
+            mecânica de Alergias/Restrições Culturais. */}
+        <div>
+          <p className="mb-1.5 text-xs font-medium text-slate-300">Intolerâncias</p>
+          <div className="flex flex-wrap gap-2">
+            {Object.entries(ROTULO_INTOLERANCIA).map(([codigo, rotulo]) => (
+              <label
+                key={codigo}
+                className={`cursor-pointer rounded-lg border px-2.5 py-1 text-xs transition ${
+                  intoleranciasSelecionadas.has(codigo)
+                    ? 'border-clinical-primary bg-clinical-primary/15 text-clinical-primary'
+                    : 'border-clinical-border text-clinical-muted hover:text-slate-100'
+                }`}
+              >
+                <input type="checkbox" className="sr-only" disabled={salvando} checked={intoleranciasSelecionadas.has(codigo)} onChange={() => toggleIntolerancia(codigo)} />
+                {rotulo}
+              </label>
+            ))}
+          </div>
+          {intoleranciasSelecionadas.has('outros') && (
+            <div className="mt-2">
+              <CampoTexto
+                id="anamnese-prof-intolerancia-outros"
+                label="Descreva a intolerância"
+                value={intoleranciaOutroTexto}
+                disabled={salvando}
+                onChange={setIntoleranciaOutroTexto}
               />
             </div>
           )}
@@ -832,30 +916,6 @@ export function AnamneseProfissionalView({ pacienteId, onSalvo }: AnamneseProfis
                     </p>
                   )}
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Bloco 5 — Alergias (padrão clínico, catálogo curado no banco) */}
-        <div>
-          <p className="mb-1.5 text-xs font-medium text-slate-300">Alergias</p>
-          {alergiasCatalogo.length === 0 ? (
-            <p className="text-xs text-clinical-muted">Nenhuma alergia cadastrada no sistema ainda.</p>
-          ) : (
-            <div className="flex flex-wrap gap-2">
-              {alergiasCatalogo.map((item) => (
-                <label
-                  key={item.id}
-                  className={`cursor-pointer rounded-lg border px-2.5 py-1 text-xs transition ${
-                    alergiasSelecionadas.has(item.id)
-                      ? 'border-clinical-primary bg-clinical-primary/15 text-clinical-primary'
-                      : 'border-clinical-border text-clinical-muted hover:text-slate-100'
-                  }`}
-                >
-                  <input type="checkbox" className="sr-only" disabled={salvando} checked={alergiasSelecionadas.has(item.id)} onChange={() => toggleAlergia(item.id)} />
-                  {item.nome_exibicao}
-                </label>
               ))}
             </div>
           )}
@@ -1012,7 +1072,19 @@ export function AnamneseProfissionalView({ pacienteId, onSalvo }: AnamneseProfis
                 ))}
               </select>
             </div>
-            <CampoNumerico id="anamnese-prof-despertares" label="Despertares noturnos" value={form.despertaresNoturnos} disabled={salvando} onChange={(v) => setForm((a) => ({ ...a, despertaresNoturnos: v }))} />
+            <div>
+              {/* RELATÓRIO 20260927_0001 (Item 3, QA) — "Sim/Não" em vez de
+                  um número digitado. */}
+              <p className="mb-1 block text-xs font-medium text-slate-300">Teve despertares noturnos?</p>
+              <div className="flex gap-2">
+                <PillRadio selecionado={form.despertaresNoturnos === true} disabled={salvando} onClick={() => setForm((a) => ({ ...a, despertaresNoturnos: true }))}>
+                  Sim
+                </PillRadio>
+                <PillRadio selecionado={form.despertaresNoturnos === false} disabled={salvando} onClick={() => setForm((a) => ({ ...a, despertaresNoturnos: false }))}>
+                  Não
+                </PillRadio>
+              </div>
+            </div>
             <CampoTexto id="anamnese-prof-sono-obs" label="Outras observações" value={form.sonoObservacoes} disabled={salvando} onChange={(v) => setForm((a) => ({ ...a, sonoObservacoes: v }))} />
           </div>
         </details>
@@ -1226,6 +1298,13 @@ function RevisaoSmartwatchModal({
                     <p className="text-[10px] text-clinical-muted">
                       {item.ocorrencias_totais} ocorrência(s) em {item.semanas_do_periodo} semana(s) do período.
                     </p>
+                    {/* RELATÓRIO 20260927_0001 (Item 1c/4) — duração média
+                        por sessão desta modalidade, já calculada pelo
+                        backend desde 20260922_0001 mas nunca exibida em
+                        nenhuma tela até esta tarefa. */}
+                    <p className="text-[10px] text-clinical-muted">
+                      Duração média por sessão: {item.duracao_media_por_sessao_minutos} min.
+                    </p>
                     {aceites[chave] && (
                       <div className="mt-2 flex gap-2">
                         <input
@@ -1428,7 +1507,56 @@ function BlocoCondicionalRecomposicao({
 
 /** Bloco 4 (Seção 7, RELATÓRIO 20260918_0002) — histórico de peso do
  * paciente, só leitura, via a RPC pura `anamnese_historico_peso`. */
-function HistoricoPesoResumo({ historico }: { historico: Database['public']['Functions']['anamnese_historico_peso']['Returns'] | null }) {
+/** RELATÓRIO 20260927_0001 (Item 4) — um ponto de `metricas_saude_diarias.peso_kg`. */
+interface PontoPesoSerie {
+  data: string;
+  peso: number;
+}
+
+/**
+ * RELATÓRIO 20260927_0001 (Item 4) — Gráfico de Linha do Histórico de Peso,
+ * usando `recharts` (RESTRIÇÃO: "utilize uma biblioteca já existente...
+ * como... recharts" — já usada em `PatientDetails.tsx`). Dados: Anamnese
+ * Inicial (sem anamnese anterior) → últimos 30 dias; Reavaliação → desde a
+ * última anamnese até agora ([janela], a MESMA janela de
+ * `iniciar_rascunho_anamnese`, reaproveitada em vez de duplicar a regra).
+ * Fonte: `metricas_saude_diarias` (1 leitura por dia sincronizado), não as
+ * anamneses anteriores (só 1 peso por avaliação, não uma série diária).
+ */
+function HistoricoPesoResumo({
+  historico,
+  pacienteId,
+  janela,
+}: {
+  historico: Database['public']['Functions']['anamnese_historico_peso']['Returns'] | null;
+  pacienteId: string;
+  janela: { data_inicio: string; data_fim: string } | null;
+}) {
+  const [serie, setSerie] = useState<PontoPesoSerie[]>([]);
+
+  useEffect(() => {
+    if (!janela) {
+      setSerie([]);
+      return;
+    }
+    let cancelado = false;
+    void (async () => {
+      const { data, error } = await supabase
+        .from('metricas_saude_diarias')
+        .select('data_referencia, peso_kg')
+        .eq('usuario_id_anonimo', pacienteId)
+        .not('peso_kg', 'is', null)
+        .gte('data_referencia', janela.data_inicio.slice(0, 10))
+        .lte('data_referencia', janela.data_fim.slice(0, 10))
+        .order('data_referencia');
+      if (cancelado || error || !data) return;
+      setSerie(data.map((linha) => ({ data: new Date(linha.data_referencia).toLocaleDateString('pt-BR'), peso: linha.peso_kg as number })));
+    })();
+    return () => {
+      cancelado = true;
+    };
+  }, [pacienteId, janela]);
+
   if (!historico || historico.peso_atual === null) return null;
 
   const itens: { label: string; valor: number | null }[] = [
@@ -1441,6 +1569,8 @@ function HistoricoPesoResumo({ historico }: { historico: Database['public']['Fun
     { label: 'Maior já registrado', valor: historico.maior_peso },
     { label: 'Menor já registrado', valor: historico.menor_peso },
   ];
+
+  const mediaPeriodo = serie.length > 0 ? serie.reduce((soma, p) => soma + p.peso, 0) / serie.length : null;
 
   return (
     <div className="rounded-lg border border-clinical-border p-3">
@@ -1459,6 +1589,25 @@ function HistoricoPesoResumo({ historico }: { historico: Database['public']['Fun
           </div>
         )}
       </div>
+
+      {serie.length < 2 ? (
+        <p className="mt-3 text-[10px] text-clinical-muted">Sem leituras de peso suficientes no período para desenhar o gráfico.</p>
+      ) : (
+        <div className="mt-3">
+          <p className="text-[10px] text-clinical-muted">
+            Gráfico de peso no período — Média: <span className="text-slate-300">{mediaPeriodo!.toFixed(1)} kg</span>
+          </p>
+          <ResponsiveContainer width="100%" height={160}>
+            <LineChart data={serie}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#1F2937" />
+              <XAxis dataKey="data" stroke="#94A3B8" fontSize={10} />
+              <YAxis stroke="#94A3B8" fontSize={10} domain={['auto', 'auto']} />
+              <Tooltip contentStyle={{ backgroundColor: '#111827', border: '1px solid #1F2937', borderRadius: 8, fontSize: 12 }} />
+              <Line type="monotone" dataKey="peso" stroke="#D4A017" strokeWidth={2} dot={false} name="Peso (kg)" />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      )}
     </div>
   );
 }
