@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
-import 'package:cross_file/cross_file.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -50,7 +49,7 @@ void main() {
 
   PlatformFile arquivoFalso({String nome = 'hemograma.pdf'}) {
     final bytes = Uint8List.fromList([1, 2, 3, 4]);
-    return _PlatformFileFalso(name: nome, bytes: bytes);
+    return PlatformFile(name: nome, size: bytes.length, bytes: bytes);
   }
 
   Future<void> pumpPagina(
@@ -167,37 +166,4 @@ void main() {
     );
     expect(find.text('Anexar PDF'), findsOneWidget);
   });
-}
-
-/// Dublê de [PlatformFile] pra testes — a classe real virou `abstract base
-/// class` em `file_picker` 13.x (backed por [XFile] do `cross_file`, com
-/// `readAsBytes()` em vez do antigo construtor literal com `bytes`). `base`
-/// exige que qualquer subtipo fora do pacote também seja `base`/`final`/
-/// `sealed`.
-base class _PlatformFileFalso extends PlatformFile {
-  _PlatformFileFalso({required this.name, required Uint8List bytes})
-      : _bytes = bytes;
-
-  @override
-  final String name;
-
-  final Uint8List _bytes;
-
-  @override
-  Uri get uri => Uri(scheme: 'memory', path: name);
-
-  @override
-  XFile get xFile => XFile.fromData(_bytes, name: name);
-
-  @override
-  int? lengthSync() => _bytes.length;
-
-  @override
-  Future<int?> length() async => _bytes.length;
-
-  @override
-  Future<Uint8List> readAsBytes() async => _bytes;
-
-  @override
-  Stream<Uint8List> readAsByteStream() => Stream.value(_bytes);
 }

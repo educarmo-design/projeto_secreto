@@ -113,22 +113,21 @@ class _MissoesExamesPageState extends State<MissoesExamesPage> {
     super.dispose();
   }
 
-  static Future<PlatformFile?> _selecionarArquivoPadrao() {
-    return FilePicker.pickFile(
+  static Future<PlatformFile?> _selecionarArquivoPadrao() async {
+    final resultado = await FilePicker.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['pdf'],
+      withData: true,
     );
+    return resultado != null && resultado.files.isNotEmpty
+        ? resultado.files.first
+        : null;
   }
 
-  /// Fluxo RAM volátil (Zero Storage Pipeline): `readAsBytes()` (API do
-  /// `file_picker` 13.x, substitui o antigo `withData: true`) carrega o PDF
-  /// pra memória sob demanda; os bytes vivem só na variável local [bytes] e
-  /// são descartados assim que o upload termina — sucesso ou falha. Nota:
-  /// o cache com escopo do próprio seletor nativo do Android (arquivo
-  /// temporário gerenciado pelo SO/plugin, não por este código) é uma
-  /// característica do `file_picker` já existente antes desta migração,
-  /// fora do controle desta camada — [bytes] em si nunca é persistido por
-  /// este arquivo.
+  /// Fluxo RAM volátil (Zero Storage Pipeline): `file_picker` com
+  /// `withData: true` entrega os bytes do PDF direto na memória, sem
+  /// gravar nada em disco; os bytes vivem só na variável local [bytes] e
+  /// são descartados assim que o upload termina — sucesso ou falha.
   Future<void> _anexarExame(int dia) async {
     if (_enviando[dia] == true) return;
 
@@ -140,7 +139,7 @@ class _MissoesExamesPageState extends State<MissoesExamesPage> {
     Uint8List? bytes;
     try {
       final arquivo = await _selecionarArquivo();
-      bytes = await arquivo?.readAsBytes();
+      bytes = arquivo?.bytes;
 
       if (bytes == null) {
         // Usuário cancelou o seletor de arquivos.
