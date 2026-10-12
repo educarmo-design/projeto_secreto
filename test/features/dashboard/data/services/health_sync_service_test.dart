@@ -2282,6 +2282,116 @@ void main() {
       expect(linhaGravada['fc_minima'], 150);
     });
 
+    test(
+      'RCA 20261012_0001/correção 20261012_0002 — distância do treino vem da Hierarquia de Fontes '
+      '(DISTANCE_DELTA), nunca de workout.totalDistance (que soma TODAS as fontes do Health Connect sem filtro)',
+      () async {
+        final inicioTreino = DateTime(2026, 7, 8, 7, 0);
+        final fimTreino = DateTime(2026, 7, 8, 8, 0);
+        when(
+          () => health.getHealthDataFromTypes(
+            types: any(named: 'types'),
+            startTime: any(named: 'startTime'),
+            endTime: any(named: 'endTime'),
+          ),
+        ).thenAnswer(
+          (_) async => [
+            // Valor que o plugin devolveria pro treino inteiro — 20000m,
+            // o "produto cartesiano" do RCA (soma Garmin + celular). Se a
+            // correção falhar e isto for usado, o teste abaixo pega.
+            _pontoTreino(
+              tipo: HealthWorkoutActivityType.RUNNING,
+              dateFrom: inicioTreino,
+              dateTo: fimTreino,
+              totalDistance: 20000,
+            ),
+            // Fonte de alta prioridade (não é pedômetro nativo) — 2
+            // pontos DENTRO do treino, soma 8000m. Esta é a fonte que
+            // deveria vencer.
+            _ponto(
+              type: HealthDataType.DISTANCE_DELTA,
+              value: 5000,
+              dateFrom: inicioTreino,
+              sourceName: 'com.garmin.android.apps.connectmobile',
+            ),
+            _ponto(
+              type: HealthDataType.DISTANCE_DELTA,
+              value: 3000,
+              dateFrom: inicioTreino.add(const Duration(minutes: 30)),
+              sourceName: 'com.garmin.android.apps.connectmobile',
+            ),
+            // Pedômetro nativo do próprio Health Connect, MESMA janela —
+            // a 2ª fonte que o plugin soma sem filtrar (achado do RCA).
+            // Prioridade baixa: nunca pode ganhar nem ser somada à do
+            // Garmin.
+            _ponto(
+              type: HealthDataType.DISTANCE_DELTA,
+              value: 7000,
+              dateFrom: inicioTreino.add(const Duration(minutes: 15)),
+              sourceName: 'com.android.healthconnect.phone.abc123',
+            ),
+            // FORA do intervalo do treino — não pode entrar na conta de
+            // nenhuma fonte (mesma regra já testada pra FC acima).
+            _ponto(
+              type: HealthDataType.DISTANCE_DELTA,
+              value: 9999,
+              dateFrom: inicioTreino.subtract(const Duration(minutes: 5)),
+              sourceName: 'com.garmin.android.apps.connectmobile',
+            ),
+          ],
+        );
+
+        await service.sincronizarDeltaDiario();
+
+        final linhaGravada = verify(
+          () => treinosBuilder.upsert(
+            captureAny(),
+            onConflict: 'usuario_id,inicio_atividade',
+          ),
+        ).captured.single as Map<String, dynamic>;
+
+        // Nem o valor cru do plugin (20000), nem a soma das 2 fontes
+        // (8000+7000=15000) — só a fonte vencedora (Garmin, 8000).
+        expect(linhaGravada['distancia_metros'], 8000);
+      },
+    );
+
+    test(
+      'distância do treino cai pra workout.totalDistance quando não há NENHUM ponto DISTANCE_DELTA na janela '
+      '(ex. esteira, sem amostra granular de GPS)',
+      () async {
+        final inicioTreino = DateTime(2026, 7, 8, 7, 0);
+        final fimTreino = DateTime(2026, 7, 8, 8, 0);
+        when(
+          () => health.getHealthDataFromTypes(
+            types: any(named: 'types'),
+            startTime: any(named: 'startTime'),
+            endTime: any(named: 'endTime'),
+          ),
+        ).thenAnswer(
+          (_) async => [
+            _pontoTreino(
+              tipo: HealthWorkoutActivityType.RUNNING_TREADMILL,
+              dateFrom: inicioTreino,
+              dateTo: fimTreino,
+              totalDistance: 10029,
+            ),
+          ],
+        );
+
+        await service.sincronizarDeltaDiario();
+
+        final linhaGravada = verify(
+          () => treinosBuilder.upsert(
+            captureAny(),
+            onConflict: 'usuario_id,inicio_atividade',
+          ),
+        ).captured.single as Map<String, dynamic>;
+
+        expect(linhaGravada['distancia_metros'], 10029);
+      },
+    );
+
     test('RELATÓRIO 20260819_0020 — velocidade do treino: média/máxima só das leituras DENTRO do intervalo, mesmo tratamento de FC', () async {
       final inicioTreino = DateTime(2026, 7, 8, 7, 0);
       final fimTreino = DateTime(2026, 7, 8, 8, 0);
