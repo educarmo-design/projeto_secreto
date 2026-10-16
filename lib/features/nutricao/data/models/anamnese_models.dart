@@ -591,3 +591,99 @@ class AnamneseHistoricoItem {
     );
   }
 }
+
+/// RELATÓRIO 20261016_0005 (item 2 — "Visualização do Histórico de
+/// Anamnese") — leitura completa, SOMENTE LEITURA, de UMA anamnese
+/// específica (qualquer `status_vigencia`), via [AnamneseRepository.buscarAnamnesePorId].
+/// As colunas espelham exatamente o que [AnamneseRepository.salvarAnamnese]
+/// grava (mesmos nomes de coluna — ver aquele método para a lista
+/// completa) — nenhum campo novo inventado, nenhum cálculo: é o snapshot
+/// cru daquela avaliação. `problemasSaude`/`alergias`/`atividades` já vêm
+/// com nome de exibição resolvido (mesmo padrão de [AnamneseAtiva]), não
+/// só o id.
+class AnamneseDetalheModel {
+  final String id;
+  final DateTime dataPreenchimento;
+  final String statusVigencia;
+  final String objetivoCodigo;
+  final double pesoKg;
+  final double alturaCm;
+
+  final List<String> problemasSaudeNomes;
+  final List<String> alergiasNomes;
+  final List<AtividadeSelecionada> atividades;
+  final List<ItemRepetivel> medicamentos;
+  final List<ItemRepetivel> suplementos;
+  final List<ItemRepetivel> exames;
+
+  final DadosComplementaresAnamnese complementares;
+
+  const AnamneseDetalheModel({
+    required this.id,
+    required this.dataPreenchimento,
+    required this.statusVigencia,
+    required this.objetivoCodigo,
+    required this.pesoKg,
+    required this.alturaCm,
+    required this.problemasSaudeNomes,
+    required this.alergiasNomes,
+    required this.atividades,
+    required this.medicamentos,
+    required this.suplementos,
+    required this.exames,
+    required this.complementares,
+  });
+}
+
+/// Leitura inversa de [AnamneseRepository.salvarAnamnese] — os mesmos
+/// nomes de coluna daquele `.insert()`, agora lidos de volta (esta classe
+/// nunca precisou disso antes: era só um carregador de payload de
+/// escrita, nunca lida de volta do banco até esta tarefa).
+DadosComplementaresAnamnese dadosComplementaresDeJson(Map<String, dynamic> json) {
+  List<String> listaDeTexto(String chave) => (json[chave] as List?)?.cast<String>() ?? const [];
+
+  return DadosComplementaresAnamnese(
+      motivoAvaliacao: json['motivo_avaliacao'] as String?,
+      motivoAvaliacaoOutro: json['motivo_avaliacao_outro'] as String?,
+      objetivoOutro: json['objetivo_outro'] as String?,
+      objetivosSecundarios: listaDeTexto('objetivos_secundarios'),
+      metaPesoDesejadoKg: (json['meta_peso_desejado_kg'] as num?)?.toDouble(),
+      metaPercentualGorduraDesejado: (json['meta_percentual_gordura_desejado'] as num?)?.toDouble(),
+      metaMassaDesejadaKg: (json['meta_massa_desejada_kg'] as num?)?.toDouble(),
+      metaPrazo: json['meta_prazo'] == null ? null : DateTime.parse(json['meta_prazo'] as String),
+      metaOutroIndicador: json['meta_outro_indicador'] as String?,
+      percentualGordura: (json['percentual_gordura'] as num?)?.toDouble(),
+      massaGordaKg: (json['massa_gorda_kg'] as num?)?.toDouble(),
+      massaMagraKg: (json['massa_magra_kg'] as num?)?.toDouble(),
+      massaMuscularKg: (json['massa_muscular_kg'] as num?)?.toDouble(),
+      circunferenciaCinturaCm: (json['circunferencia_cintura_cm'] as num?)?.toDouble(),
+      circunferenciaAbdominalCm: (json['circunferencia_abdominal_cm'] as num?)?.toDouble(),
+      metodoAvaliacaoComposicao: json['metodo_avaliacao_composicao'] as String?,
+      fonteComposicaoCorporal: json['fonte_composicao_corporal'] as String?,
+      houveAlteracaoPesoNaoPlanejada: json['houve_alteracao_peso_nao_planejada'] as String?,
+      numeroRefeicoesDia: json['numero_refeicoes_dia'] as int?,
+      regularidadeAlimentar: json['regularidade_alimentar'] as String?,
+      consumoUltraprocessados: json['consumo_ultraprocessados'] as String?,
+      preferenciasAlimentares: json['preferencias_alimentares'] as String?,
+      alimentosEvitados: json['alimentos_evitados'] as String?,
+      restricoesAlimentares: listaDeTexto('restricoes_alimentares'),
+      intolerancias: listaDeTexto('intolerancias_alimentares'),
+      padraoAlimentarHabitual: json['padrao_alimentar_habitual'] as String?,
+      restricoesCulturaisReligiosas: listaDeTexto('restricoes_culturais_religiosas'),
+      refeicoesDiariasHabituais: (json['refeicoes_diarias_habituais'] as List?)?.cast<Map<String, dynamic>>() ?? const [],
+      rotinaDiaria: json['rotina_diaria'] as String?,
+      atividadeOcupacional: json['atividade_ocupacional'] as String?,
+      horasSonoMedias: (json['horas_sono_medias'] as num?)?.toDouble(),
+      horarioDormirHabitual: json['horario_dormir_habitual'] as String?,
+      horarioAcordarHabitual: json['horario_acordar_habitual'] as String?,
+      qualidadeSonoPercebida: json['qualidade_sono_percebida'] as String?,
+      despertaresNoturnos: json['despertares_noturnos'] as int?,
+      sonoObservacoes: json['sono_observacoes'] as String?,
+      possuiCondicaoSaude: json['possui_condicao_saude'] as bool?,
+      blocoIdoso: json['bloco_idoso'] as Map<String, dynamic>?,
+      blocoAtleta: json['bloco_atleta'] as Map<String, dynamic>?,
+      blocoRecomposicao: json['bloco_recomposicao'] as Map<String, dynamic>?,
+      blocoDiabetes: json['bloco_diabetes'] as Map<String, dynamic>?,
+      blocoDoencaRenal: json['bloco_doenca_renal'] as Map<String, dynamic>?,
+  );
+}

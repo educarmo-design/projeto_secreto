@@ -858,6 +858,19 @@
     "historico_anamnese_load_error": "Erro ao carregar seu histórico. Tente novamente."
   },
 
+  "anamnese_detalhe": {
+    "title": "Detalhes da Avaliação",
+    "load_error": "Erro ao carregar os detalhes desta avaliação.",
+    "tentar_novamente": "Tentar novamente",
+    "nao_encontrada": "Avaliação não encontrada.",
+    "secao_dados_fisicos": "Dados Físicos",
+    "secao_condicoes_saude": "Condições de Saúde",
+    "secao_alimentacao": "Alimentação",
+    "secao_atividade": "Atividade Física e Rotina",
+    "secao_sono": "Sono",
+    "secao_metas": "Metas e Objetivos"
+  },
+
   "vinculos": {
     "title": "Convites de Profissionais",
     "empty_state": "Você não tem convites pendentes.",
@@ -881,6 +894,30 @@
       "Personal_Trainer": "Personal Trainer",
       "Auditoria_Seguradora": "Auditoria de Seguradora"
     }
+  },
+
+  "meu_perfil": {
+    "menu_item": "Meu Perfil",
+    "title": "Meu Perfil",
+    "load_error": "Erro ao carregar seu perfil. Tente novamente.",
+    "identificacao_label": "Identificação",
+    "email_label": "E-mail",
+    "email_vazio": "Não informado",
+    "tipo_perfil_label": "Tipo de Perfil",
+    "tipo_perfil_paciente": "Paciente",
+    "tipo_perfil_profissional": "Profissional de Saúde",
+    "vinculos_label": "Profissionais que acompanham você",
+    "vinculos_vazio": "Nenhum profissional acompanhando você no momento.",
+    "editar_label": "Editar Dados",
+    "nome_label": "Nome",
+    "nome_validation_empty": "Informe seu nome",
+    "cep_label": "CEP",
+    "cep_hint": "Somente números",
+    "cep_validation_empty": "Informe seu CEP",
+    "cep_validation_invalid": "CEP deve ter 8 números",
+    "save_button": "Salvar",
+    "save_success": "Dados salvos com sucesso",
+    "save_error": "Erro ao salvar. Tente novamente."
   },
 
   "food_search": {
