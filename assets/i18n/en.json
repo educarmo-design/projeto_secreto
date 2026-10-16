@@ -926,7 +926,8 @@
     "motivo": {
       "alimento_nao_encontrado": "Food not found in the catalog",
       "medida_nao_encontrada": "No home measure registered for this food",
-      "quantidade_nao_informada": "Quantity not identified — confirm how much was consumed"
+      "quantidade_nao_informada": "Quantity not identified — confirm how much was consumed",
+      "categoria_incompativel": "Identified as a liquid — confirm the amount in ml"
     }
   },
 

@@ -767,7 +767,13 @@ export interface ItemPratoNaoReconhecido {
   medida: string;
   quantidade: number;
   confianca: number;
-  motivo: 'alimento_nao_encontrado' | 'medida_nao_encontrada' | 'quantidade_nao_informada';
+  motivo:
+    | 'alimento_nao_encontrado'
+    | 'medida_nao_encontrada'
+    | 'quantidade_nao_informada'
+    // RELATÓRIO 20261015_0003 (RCA bugs de registro alimentar, Bug 1) —
+    // ver doc de `categoriaIncompativel`/`categoriaEfetiva` abaixo.
+    | 'categoria_incompativel';
   /// Nome canônico do `alimentos_referencia` já casado — só presente
   /// quando `motivo === 'medida_nao_encontrada'`.
   alimentoCasado?: string;
@@ -1488,6 +1494,81 @@ function arredondar(valor: number, casas: number): number {
   return Math.round(valor * fator) / fator;
 }
 
+/// RELATÓRIO 20261015_0003 (RCA bugs de registro alimentar, Bug 1 —
+/// "copo de suco de manga/abacaxi") — achado real confirmado no catálogo
+/// de produção: sucos de frutas específicas (manga, abacaxi) não têm
+/// entrada dedicada em `alimentos_referencia`. O casamento (léxico ou
+/// semântico) cai na fruta CRUA ou na polpa congelada mais parecida
+/// (`categoria_consumo: 'peso_livre'`) — mesmo quando o PRÓPRIO alias
+/// dessa linha já diz "suco de manga congelado" ("Manga, polpa,
+/// congelada"). O catálogo tem centenas de linhas; outra fruta/suco
+/// faltando no futuro reproduziria o mesmo bug — por isso a correção é
+/// uma rede de segurança em TEMPO DE EXECUÇÃO, não uma migration pontual
+/// (ver RELATÓRIO para a recomendação de curadoria de dados complementar).
+///
+/// Termos de recipiente ("copo"/"taça"/"xícara") NÃO entram nesta lista
+/// de propósito — sozinhos eles não distinguem "copo de suco" de "xícara
+/// de arroz"/"copo de farinha" (medidas sólidas reais, pedido explícito
+/// do fundador pra não quebrar) — só o nome/descrição do ALIMENTO decide.
+const TERMOS_LIQUIDO = [
+  'suco', 'leite', 'agua', 'refrigerante', 'cafe', 'cha', 'smoothie',
+  'achocolatado', 'caldo de cana', 'cerveja', 'vinho', 'vitamina de fruta',
+];
+
+/// `normalizarTexto` já tira acento/caixa — a lista acima só precisa das
+/// formas sem acento ("agua", não "água") pra casar as duas.
+function pareceLiquido(texto: string): boolean {
+  const normalizado = normalizarTexto(texto);
+  return TERMOS_LIQUIDO.some((termo) => normalizado.includes(termo));
+}
+
+function ehCategoriaLiquida(categoria: string | undefined): boolean {
+  return categoria === 'liquido_frio' || categoria === 'liquido_quente';
+}
+
+/// Regra 23 (N27, "falhar visível, nunca arbitrar"): detecta quando o
+/// texto que o usuário/IA descreveu ("suco de abacaxi") indica líquido mas
+/// o alimento que CASOU não é classificado como líquido pelo catálogo
+/// (ex.: casou com "Abacaxi, cru", `peso_livre`) — uma INCOMPATIBILIDADE
+/// de categoria, não uma classificação faltando. Deliberadamente olha só
+/// para o texto DESCRITO pelo usuário, nunca para os aliases do próprio
+/// alimento (ao contrário de `categoriaEfetiva` abaixo) — um alias como
+/// "suco de manga congelado" embutido numa linha de POLPA sólida não pode
+/// fazer "100g de manga" (sem nenhum termo de líquido no que o usuário
+/// disse) ser tratado como incompatível por engano.
+///
+/// Quando `true`, o item NUNCA deve ser calculado com as macros do
+/// alimento casado (seria uma fruta crua/polpa fazendo as vezes de suco,
+/// densidade e calorias por 100g diferentes de verdade) — vira
+/// `itensNaoReconhecidos` (`motivo: 'categoria_incompativel'`) em vez de
+/// um item calculado, mesmo que `encontrarMedida` teria achado uma medida
+/// cadastrada. O usuário resolve manualmente (mesmo caminho N27 que já
+/// existe), com a unidade certa (`categoriaEfetiva` abaixo garante 'ml').
+function categoriaIncompativel(alimento: AlimentoCatalogo, nomeDescrito: string): boolean {
+  return !ehCategoriaLiquida(alimento.categoriaConsumo) && pareceLiquido(nomeDescrito);
+}
+
+/// Categoria/unidade a USAR (nunca a sobrescrever no catálogo): se o
+/// alimento já é líquido pelo DB, usa como está — nunca rebaixa um
+/// líquido confirmado a sólido por engano de palavra. Senão, promove a
+/// líquido/ml quando o texto descrito OU os aliases do próprio alimento
+/// mencionam um termo de líquido (aqui sim vale olhar os aliases — este
+/// caminho só é chamado quando o item JÁ vai pra resolução manual, nunca
+/// pra um cálculo silencioso, então o risco de arbitrar não se aplica).
+function categoriaEfetiva(
+  alimento: AlimentoCatalogo,
+  nomeDescrito: string,
+): { categoriaConsumo?: string; unidadeMedidaPadrao?: string } {
+  if (ehCategoriaLiquida(alimento.categoriaConsumo)) {
+    return { categoriaConsumo: alimento.categoriaConsumo, unidadeMedidaPadrao: alimento.unidadeMedidaPadrao };
+  }
+  const textoDoAlimento = [alimento.nomeTaco, ...alimento.aliases].join(' ');
+  if (pareceLiquido(nomeDescrito) || pareceLiquido(textoDoAlimento)) {
+    return { categoriaConsumo: 'liquido_frio', unidadeMedidaPadrao: 'ml' };
+  }
+  return { categoriaConsumo: alimento.categoriaConsumo, unidadeMedidaPadrao: alimento.unidadeMedidaPadrao };
+}
+
 /// A regra de três em si — `gramas = medida.gramas * quantidade`, depois
 /// `macro = (macro_por_100g / 100) * gramas` — extraída para ser reusada
 /// tanto por `calcularPrato` (casamento léxico) quanto por
@@ -1600,10 +1681,51 @@ export function calcularPrato(
         gordurasG100g: alimento.gordurasG100g,
         medidasDisponiveis: alimento.medidas,
         // RELATÓRIO 20260902_0002 — ver doc de `ItemPratoNaoReconhecido`.
-        categoriaConsumo: alimento.categoriaConsumo,
-        unidadeMedidaPadrao: alimento.unidadeMedidaPadrao,
+        // RELATÓRIO 20261015_0003 (Bug 1) — `categoriaEfetiva`, não mais o
+        // valor cru do catálogo: promove a líquido/ml quando o texto
+        // descrito ou os aliases do alimento casado indicam líquido,
+        // mesmo que o catálogo tenha guardado `peso_livre`/`g` (achado
+        // real: "suco de manga" casa com "Manga, polpa, congelada").
+        ...categoriaEfetiva(alimento, item.nome),
         medidaPadraoNome: alimento.medidaPadraoNome,
         medidaPadraoQtd: alimento.medidaPadraoQtd,
+      });
+      continue;
+    }
+
+    // RELATÓRIO 20261015_0003 (RCA bugs de registro alimentar, Bug 1) —
+    // "copo de suco de abacaxi" casava com "Abacaxi, cru"/"Abacaxi, polpa,
+    // congelada" (não existe entrada de suco dedicada) e CALCULAVA como se
+    // fosse a fruta sólida — nenhuma pergunta ao usuário, dosagem errada
+    // em gramas sem aviso nenhum (achado real, confirmado no catálogo de
+    // produção). Regra 23 (N27, "falhar visível, nunca arbitrar"): uma
+    // incompatibilidade de CATEGORIA (usuário descreveu líquido, alimento
+    // casado é sólido) nunca deve ser calculada silenciosamente — vira
+    // item não reconhecido, igual qualquer outra incerteza real deste
+    // arquivo, ANTES de sequer tentar achar uma medida cadastrada (mesmo
+    // que "copo" estivesse cadastrado para essa fruta sólida, calcular com
+    // as macros da fruta crua pra uma dose de suco estaria errado).
+    if (categoriaIncompativel(alimento, item.nome)) {
+      itensNaoReconhecidos.push({
+        nome: item.nome,
+        medida: item.medida,
+        quantidade: item.quantidade,
+        confianca: item.confianca,
+        motivo: 'categoria_incompativel',
+        alimentoCasado: alimento.nomeTaco,
+        caloriasKcal100g: alimento.caloriasKcal100g,
+        proteinasG100g: alimento.proteinasG100g,
+        carboidratosG100g: alimento.carboidratosG100g,
+        gordurasG100g: alimento.gordurasG100g,
+        // Deliberadamente SEM `medidasDisponiveis`/`medidaPadraoNome`/
+        // `medidaPadraoQtd` — são calibradas pro alimento SÓLIDO casado
+        // (ex.: "copo" de fruta em pedaços, 165g), não pra uma dose de
+        // líquido; oferecê-las aqui deixaria o usuário escolher um botão
+        // pronto e reproduzir o mesmo cálculo errado que este fix existe
+        // pra evitar. Só a entrada manual em ml (`resolverComPesoManual`,
+        // já existente) fica disponível — o usuário informa o volume de
+        // verdade.
+        ...categoriaEfetiva(alimento, item.nome),
       });
       continue;
     }
@@ -1626,8 +1748,9 @@ export function calcularPrato(
         gordurasG100g: alimento.gordurasG100g,
         medidasDisponiveis: alimento.medidas,
         // RELATÓRIO 20260902_0002 — ver doc de `ItemPratoNaoReconhecido`.
-        categoriaConsumo: alimento.categoriaConsumo,
-        unidadeMedidaPadrao: alimento.unidadeMedidaPadrao,
+        // RELATÓRIO 20261015_0003 (Bug 1) — ver comentário equivalente
+        // acima, no bloco de `quantidade_nao_informada`.
+        ...categoriaEfetiva(alimento, item.nome),
         medidaPadraoNome: alimento.medidaPadraoNome,
         medidaPadraoQtd: alimento.medidaPadraoQtd,
       });
@@ -1728,10 +1851,39 @@ export async function resolverComBuscaSemantica(
               gordurasG100g: alimento.gordurasG100g,
               medidasDisponiveis: alimento.medidas,
               // RELATÓRIO 20260902_0002 — ver doc de `ItemPratoNaoReconhecido`.
-              categoriaConsumo: alimento.categoriaConsumo,
-              unidadeMedidaPadrao: alimento.unidadeMedidaPadrao,
+              // RELATÓRIO 20261015_0003 (Bug 1) — ver doc de
+              // `categoriaEfetiva` (bloco equivalente em `calcularPrato`).
+              ...categoriaEfetiva(alimento, item.nome),
               medidaPadraoNome: alimento.medidaPadraoNome,
               medidaPadraoQtd: alimento.medidaPadraoQtd,
+            },
+          };
+        }
+
+        // RELATÓRIO 20261015_0003 (RCA bugs de registro alimentar, Bug 1)
+        // — mesma checagem/doc de `calcularPrato`: um casamento SEMÂNTICO
+        // pode achar uma fruta sólida pra uma descrição de suco com a
+        // mesma certeza que o léxico (ex.: "suco de abacaxi" -> "Abacaxi,
+        // cru") — a incompatibilidade de categoria vale igual nos dois
+        // caminhos, ANTES de tentar achar uma medida cadastrada.
+        if (categoriaIncompativel(alimento, item.nome)) {
+          console.log(
+            `[resolverComBuscaSemantica] Alimento achado ("${alimento.nomeTaco}") mas categoria incompatível (descrito como líquido, alimento é sólido) — item fica não resolvido (Regra 23, não arbitra)`,
+          );
+          return {
+            resolvido: null,
+            naoReconhecido: {
+              ...item,
+              motivo: 'categoria_incompativel',
+              alimentoCasado: alimento.nomeTaco,
+              caloriasKcal100g: alimento.caloriasKcal100g,
+              proteinasG100g: alimento.proteinasG100g,
+              carboidratosG100g: alimento.carboidratosG100g,
+              gordurasG100g: alimento.gordurasG100g,
+              // Ver doc equivalente em `calcularPrato` — sem
+              // `medidasDisponiveis`/`medidaPadraoNome`/`medidaPadraoQtd`
+              // de propósito (calibradas pro alimento sólido casado).
+              ...categoriaEfetiva(alimento, item.nome),
             },
           };
         }
@@ -1765,8 +1917,9 @@ export async function resolverComBuscaSemantica(
               gordurasG100g: alimento.gordurasG100g,
               medidasDisponiveis: alimento.medidas,
               // RELATÓRIO 20260902_0002 — ver doc de `ItemPratoNaoReconhecido`.
-              categoriaConsumo: alimento.categoriaConsumo,
-              unidadeMedidaPadrao: alimento.unidadeMedidaPadrao,
+              // RELATÓRIO 20261015_0003 (Bug 1) — ver doc de
+              // `categoriaEfetiva` (bloco equivalente em `calcularPrato`).
+              ...categoriaEfetiva(alimento, item.nome),
               medidaPadraoNome: alimento.medidaPadraoNome,
               medidaPadraoQtd: alimento.medidaPadraoQtd,
             },

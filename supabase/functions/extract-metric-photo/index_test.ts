@@ -922,6 +922,150 @@ Deno.test('calcularPrato: unidade bruta em kg também aplica a regra de três um
 });
 
 // ============================================================================
+// (b.1.1) categoria_incompativel — RELATÓRIO 20261015_0003 (RCA bugs de
+// registro alimentar, Bug 1): "copo de suco de manga/abacaxi" casava com a
+// fruta CRUA/polpa congelada (categoria_consumo='peso_livre' no catálogo
+// real de produção, confirmado por consulta direta) — nenhuma entrada de
+// suco dedicada existe para essas frutas. Fixture abaixo reproduz
+// exatamente o catálogo real: "Manga, polpa, congelada" tem o alias "suco
+// de manga congelado" mas é classificada como peso_livre/g (achado real);
+// "Abacaxi, cru" não tem nenhum alias de suco, só casa por semântica.
+// ============================================================================
+const CATALOGO_LIQUIDOS_TESTE: AlimentoCatalogo[] = [
+  // Espelha "Manga, polpa, congelada" do catálogo real: categoria_consumo
+  // ausente (peso_livre), MAS o próprio alias já diz "suco de manga
+  // congelado" — `categoriaEfetiva` deve achar isso nos aliases do
+  // alimento, não só no texto que o usuário descreveu.
+  {
+    id: 'manga-polpa-id',
+    nomeTaco: 'Manga, polpa, congelada',
+    aliases: ['polpa de manga', 'manga congelada', 'suco de manga congelado'],
+    caloriasKcal100g: 60,
+    proteinasG100g: 0.5,
+    carboidratosG100g: 15,
+    gordurasG100g: 0.1,
+    medidas: [{ medida: 'xícara', gramas: 120 }], // nunca tem "copo" cadastrado
+  },
+  // Espelha "Abacaxi, cru": sólido, SEM nenhum alias de suco — o sinal de
+  // líquido só pode vir do texto que o usuário/IA descreveu ("suco de
+  // abacaxi"), nunca do nome do alimento casado.
+  {
+    id: 'abacaxi-cru-id',
+    nomeTaco: 'Abacaxi, cru',
+    aliases: ['abacaxi', 'abacaxi fresco'],
+    caloriasKcal100g: 50,
+    proteinasG100g: 0.5,
+    carboidratosG100g: 13,
+    gordurasG100g: 0.1,
+    medidas: [{ medida: 'copo', gramas: 165 }], // "copo" EXISTE — passaria direto sem a correção
+  },
+  // Já corretamente classificado como líquido pelo catálogo — controle
+  // negativo: nunca deve ser desviado para itensNaoReconhecidos.
+  {
+    id: 'suco-laranja-id',
+    nomeTaco: 'Suco de laranja, natural',
+    aliases: ['suco de laranja', 'suco natural'],
+    categoriaConsumo: 'liquido_frio',
+    unidadeMedidaPadrao: 'ml',
+    caloriasKcal100g: 37,
+    proteinasG100g: 0.5,
+    carboidratosG100g: 8.7,
+    gordurasG100g: 0.1,
+    medidas: [{ medida: 'copo', gramas: 250 }],
+  },
+];
+
+Deno.test('calcularPrato: "suco de manga" (casado com polpa congelada, alias diz "suco") vira categoria_incompativel, nunca calcula como fruta sólida', () => {
+  const r = calcularPrato(
+    [{ nome: 'suco de manga', medida: 'copo', quantidade: 1, confianca: 0.9 }],
+    CATALOGO_LIQUIDOS_TESTE,
+  );
+  assertEquals(r.itens.length, 0); // NUNCA calculado com as macros da polpa sólida
+  assertEquals(r.itensNaoReconhecidos.length, 1);
+  const item = r.itensNaoReconhecidos[0];
+  assertEquals(item.motivo, 'categoria_incompativel');
+  assertEquals(item.alimentoCasado, 'Manga, polpa, congelada');
+  // A tela de resolução manual precisa oferecer "ml", não "g".
+  assertEquals(item.categoriaConsumo, 'liquido_frio');
+  assertEquals(item.unidadeMedidaPadrao, 'ml');
+  // Nunca oferece a medida "xícara" cadastrada pra fruta SÓLIDA (120g) —
+  // escolhê-la reproduziria o mesmo cálculo errado que este fix evita.
+  assertEquals(item.medidasDisponiveis, undefined);
+  assertEquals(r.totais.calorias, 0);
+});
+
+Deno.test('calcularPrato: "suco de abacaxi fresco" (casado por substring com fruta crua, SEM alias de suco) também vira categoria_incompativel, mesmo com "copo" cadastrado', () => {
+  // "abacaxi fresco" (alias de 2+ palavras, elegível a substring desde a
+  // correção anti-sequestro de ae2722b) precisa estar no texto descrito
+  // pra casar léxico — "suco de abacaxi" sozinho (sem alias nenhum de
+  // suco em "Abacaxi, cru") fica genuinamente `alimento_nao_encontrado`
+  // no passo léxico, igual confirmado em producao (RELATÓRIO 20260908_0001);
+  // esse mesmo caso via busca SEMÂNTICA está coberto no teste de
+  // `resolverComBuscaSemantica` abaixo.
+  const r = calcularPrato(
+    [{ nome: 'suco de abacaxi fresco', medida: 'copo', quantidade: 1, confianca: 0.9 }],
+    CATALOGO_LIQUIDOS_TESTE,
+  );
+  // ACHADO REAL antes desta correção: "copo" bate (165g cadastrados) e o
+  // item passava direto, calculado com as macros do abacaxi CRU — dosagem
+  // errada em gramas sem aviso nenhum. Agora nunca chega a tentar casar a
+  // medida: a incompatibilidade de categoria é checada ANTES.
+  assertEquals(r.itens.length, 0);
+  assertEquals(r.itensNaoReconhecidos.length, 1);
+  const item = r.itensNaoReconhecidos[0];
+  assertEquals(item.motivo, 'categoria_incompativel');
+  assertEquals(item.alimentoCasado, 'Abacaxi, cru');
+  assertEquals(item.categoriaConsumo, 'liquido_frio');
+  assertEquals(item.unidadeMedidaPadrao, 'ml');
+  // "copo" (165g) é calibrado pra pedaços sólidos de abacaxi — nunca
+  // oferecido aqui, mesmo estando cadastrado para esse alimento.
+  assertEquals(item.medidasDisponiveis, undefined);
+});
+
+Deno.test('calcularPrato: alimento JÁ classificado como líquido pelo catálogo calcula normalmente, nunca vira categoria_incompativel', () => {
+  const r = calcularPrato(
+    [{ nome: 'suco de laranja', medida: 'copo', quantidade: 1, confianca: 0.9 }],
+    CATALOGO_LIQUIDOS_TESTE,
+  );
+  assertEquals(r.itensNaoReconhecidos.length, 0);
+  assertEquals(r.itens.length, 1);
+  assertEquals(r.itens[0].categoriaConsumo, 'liquido_frio');
+  assertEquals(r.itens[0].unidadeMedidaPadrao, 'ml');
+  assertEquals(r.itens[0].gramasEstimados, 250);
+});
+
+Deno.test('calcularPrato: alimento sólido descrito sem termo de líquido continua em gramas (restrição — não quebrar sólidos)', () => {
+  // "xícara de manga" (fruta/polpa, sem "suco" no texto descrito) não deve
+  // ser desviado — mesmo a xícara sendo um recipiente, sem termo de
+  // líquido no nome descrito a classificação sólida do catálogo prevalece.
+  const r = calcularPrato(
+    [{ nome: 'manga congelada', medida: 'xícara', quantidade: 1, confianca: 0.9 }],
+    CATALOGO_LIQUIDOS_TESTE,
+  );
+  assertEquals(r.itensNaoReconhecidos.length, 0);
+  assertEquals(r.itens.length, 1);
+  assertEquals(r.itens[0].categoriaConsumo, undefined);
+  assertEquals(r.itens[0].unidadeMedidaPadrao, undefined);
+});
+
+Deno.test('calcularPrato: "medida_nao_encontrada" também promove a líquido/ml quando o alimento casado é líquido (sem alias de suco no texto)', () => {
+  // "suco de manga" sem "copo"/"xícara" cadastrado hipotético: usa uma
+  // medida que não existe pra forçar medida_nao_encontrada DEPOIS da
+  // checagem de categoria (aqui a categoria já é compatível — alimento é
+  // explicitamente líquido — então o fluxo chega até `encontrarMedida`).
+  const r = calcularPrato(
+    [{ nome: 'suco de laranja', medida: 'garrafa', quantidade: 1, confianca: 0.9 }],
+    CATALOGO_LIQUIDOS_TESTE,
+  );
+  assertEquals(r.itens.length, 0);
+  assertEquals(r.itensNaoReconhecidos.length, 1);
+  const item = r.itensNaoReconhecidos[0];
+  assertEquals(item.motivo, 'medida_nao_encontrada');
+  assertEquals(item.categoriaConsumo, 'liquido_frio');
+  assertEquals(item.unidadeMedidaPadrao, 'ml');
+});
+
+// ============================================================================
 // (b.2) resolverComBuscaSemantica — fallback do casamento léxico (Missão F45)
 // ============================================================================
 function naoReconhecido(
@@ -1033,6 +1177,33 @@ Deno.test('resolverComBuscaSemantica: medida vazia -> fica não resolvido, com o
   assertEquals(r.aindaNaoReconhecidos[0].motivo, 'medida_nao_encontrada');
   assertEquals(r.aindaNaoReconhecidos[0].alimentoCasado, 'Feijão, carioca, cozido');
 });
+
+Deno.test(
+  'resolverComBuscaSemantica: "suco de abacaxi" casado por similaridade com a fruta CRUA vira categoria_incompativel, nunca calcula',
+  async () => {
+    // ACHADO REAL (RELATÓRIO 20261015_0003): "suco de abacaxi" não bate
+    // por léxico (sem alias de suco em "Abacaxi, cru") — exatamente o
+    // cenário em que a busca semântica assume, achando a fruta por
+    // similaridade pura. Antes desta correção, isso calculava macros da
+    // fruta crua pra uma dose de suco, sem avisar nada.
+    const abacaxiMatch: BuscaSemanticaLike = {
+      buscar: () => Promise.resolve([{ id: 'abacaxi-cru-id', similarity: 0.74 }]),
+    };
+    const r = await resolverComBuscaSemantica(
+      [naoReconhecido({ nome: 'suco de abacaxi', medida: 'copo', quantidade: 1 })],
+      CATALOGO_LIQUIDOS_TESTE,
+      chamadorEmbeddingFixo(),
+      abacaxiMatch,
+    );
+    assertEquals(r.resolvidos.length, 0); // NUNCA calculado com as macros da fruta sólida
+    assertEquals(r.aindaNaoReconhecidos.length, 1);
+    const item = r.aindaNaoReconhecidos[0];
+    assertEquals(item.motivo, 'categoria_incompativel');
+    assertEquals(item.alimentoCasado, 'Abacaxi, cru');
+    assertEquals(item.categoriaConsumo, 'liquido_frio');
+    assertEquals(item.unidadeMedidaPadrao, 'ml');
+  },
+);
 
 Deno.test('resolverComBuscaSemantica: item com motivo medida_nao_encontrada nunca tenta busca semântica', async () => {
   let chamou = false;
