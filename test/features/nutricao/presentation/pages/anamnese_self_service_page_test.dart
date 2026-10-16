@@ -270,6 +270,13 @@ void main() {
 
     expect(find.text('Informe sua altura'), findsOneWidget);
     expect(find.text('Informe seu peso'), findsOneWidget);
+    // RELATÓRIO 20261015_0002 — ACHADO REAL: "Sexo Biológico" e
+    // "Objetivo" são `RadioGroup` cru, sem `FormField`/`validator` —
+    // `validate()` nunca os pegava, só o SnackBar genérico avisava que
+    // ALGUMA coisa estava faltando, sem apontar ONDE. Agora os 2 mostram
+    // o texto de erro embaixo do componente, igual altura/peso.
+    expect(find.text('Escolha o sexo biológico antes de salvar'), findsOneWidget);
+    expect(find.text('Escolha um objetivo antes de salvar'), findsOneWidget);
     // RELATÓRIO 20261015_0001 — ACHADO REAL: antes desta correção, nada
     // além dos próprios campos (fora da área visível, formulário longo)
     // avisava o usuário — "nada acontecia" na prática. Agora um SnackBar
@@ -318,6 +325,69 @@ void main() {
       await tester.enterText(find.widgetWithText(TextFormField, 'Altura (cm)'), '');
       await tester.pumpAndSettle();
       expect(find.text('Informe sua altura'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'RELATÓRIO 20261015_0002 — Sexo Biológico e Objetivo (RadioGroup, não TextFormField) também '
+    'limpam o erro na hora depois de escolhidos, mesmo comportamento do autovalidate dos campos de texto',
+    (tester) async {
+      await configurarViewportAlto(tester);
+      await tester.pumpWidget(criarApp());
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.widgetWithText(FilledButton, 'Salvar'));
+      await tester.pumpAndSettle();
+      expect(find.text('Escolha o sexo biológico antes de salvar'), findsOneWidget);
+      expect(find.text('Escolha um objetivo antes de salvar'), findsOneWidget);
+
+      await tester.tap(find.widgetWithText(RadioListTile<String>, 'Masculino'));
+      await tester.pumpAndSettle();
+      expect(find.text('Escolha o sexo biológico antes de salvar'), findsNothing);
+      // Objetivo ainda não foi escolhido — continua com erro.
+      expect(find.text('Escolha um objetivo antes de salvar'), findsOneWidget);
+
+      await tester.tap(find.widgetWithText(RadioListTile<String>, 'Perder peso'));
+      await tester.pumpAndSettle();
+      expect(find.text('Escolha um objetivo antes de salvar'), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'RELATÓRIO 20261015_0002 — ao salvar faltando só o Objetivo (fora da área visível), '
+    'a tela rola automaticamente até o campo com erro',
+    (tester) async {
+      // Preenche com o viewport alto (confiável, mesmo padrão dos outros
+      // testes) e só DEPOIS encolhe pro tamanho padrão de teste (800×600)
+      // — é isso que faz "Objetivo" ficar fora da área visível quando o
+      // botão "Salvar" (no fim da lista) for alcançado a seguir, o mesmo
+      // cenário real do bug original (formulário longo, botão no fim).
+      await configurarViewportAlto(tester);
+      await tester.pumpWidget(criarApp());
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.widgetWithText(TextFormField, 'Altura (cm)'), '179');
+      await tester.enterText(find.widgetWithText(TextFormField, 'Peso (kg)'), '78.5');
+      await tester.tap(find.widgetWithText(RadioListTile<String>, 'Masculino'));
+      await tester.pumpAndSettle();
+
+      await tester.binding.setSurfaceSize(const Size(800, 600));
+      await tester.pumpAndSettle();
+
+      await tester.dragUntilVisible(
+        find.widgetWithText(FilledButton, 'Salvar'),
+        find.byType(ListView),
+        const Offset(0, -300),
+      );
+      expect(find.text('Escolha um objetivo antes de salvar'), findsNothing);
+
+      await tester.tap(find.widgetWithText(FilledButton, 'Salvar'));
+      await tester.pumpAndSettle();
+
+      // Se a tela não tivesse rolado de volta, este texto nem teria sido
+      // CONSTRUÍDO (fora do cacheExtent do ListView) — encontrá-lo aqui
+      // prova que [_rolarParaPrimeiroErro] de fato moveu o scroll.
+      expect(find.text('Escolha um objetivo antes de salvar'), findsOneWidget);
     },
   );
 
