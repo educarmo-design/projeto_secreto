@@ -934,7 +934,8 @@
     "motivo": {
       "alimento_nao_encontrado": "Alimento não encontrado no catálogo",
       "medida_nao_encontrada": "Medida não cadastrada para este alimento",
-      "quantidade_nao_informada": "Quantidade não identificada — confirme quanto foi consumido"
+      "quantidade_nao_informada": "Quantidade não identificada — confirme quanto foi consumido",
+      "categoria_incompativel": "Identificado como líquido — confirme a quantidade em ml"
     }
   },
 

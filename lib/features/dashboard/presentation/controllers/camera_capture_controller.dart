@@ -203,6 +203,31 @@ class CameraCaptureController extends ValueNotifier<CameraCaptureState> {
       );
       await controller.initialize();
 
+      // RELATÓRIO 20261015_0003 (RCA bugs de registro alimentar, Bug 2 —
+      // "foto do rótulo sai branca e não extrai nada") — achado real lendo
+      // o código-fonte do pacote `camera` instalado: todo `CameraController`
+      // nasce com `FlashMode.auto` (`CameraValue.uninitialized`,
+      // camera-0.12.0+1/lib/src/camera_controller.dart:64) e este código
+      // nunca mudava isso. Flash automático disparando de perto contra uma
+      // embalagem glossy/reflexiva (rótulo nutricional) ou a tela de um
+      // aparelho (glicosímetro/balança/pressão) estoura em glare — a foto
+      // (e o preview em tempo real) saem genuinamente BRANCOS/lavados, não
+      // é um bug de arquivo/caminho perdido (não existe `image_picker`
+      // nem qualquer caminho de galeria neste fluxo — câmera 100% ao vivo,
+      // zero storage, confirmado nenhum `Image.file`/`Image.memory` em todo
+      // o projeto). Um glare assim também explica "não extrai as
+      // informações": a IA não lê texto/números num frame estourado de
+      // branco. `setFlashMode` best-effort — alguns devices/emuladores não
+      // suportam controle de flash; uma falha aqui nunca deve impedir a
+      // câmera de funcionar (ela já inicializou com sucesso acima), só
+      // significa que o flash pode continuar automático nesse aparelho
+      // específico.
+      try {
+        await controller.setFlashMode(FlashMode.off);
+      } catch (e) {
+        debugPrint('CameraCaptureController.initializeCamera: falha ao desligar o flash (best-effort, câmera segue funcionando): $e');
+      }
+
       _cameraController = controller;
       value = const CameraCaptureState(status: CameraCaptureStatus.ready);
     } on CameraException catch (e) {
