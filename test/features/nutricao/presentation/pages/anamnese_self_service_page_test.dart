@@ -80,6 +80,22 @@ void main() {
     expect(find.text('Exames Laboratoriais (opcional)'), findsOneWidget);
   });
 
+  testWidgets(
+    'RELATÓRIO 20261016_0002 — seção de peso/%gordura/massa desejados usa "Objetivo de Composição Corporal" '
+    '(nunca mais "Meta" solta) e explica que isso não é a meta de calorias/macros real',
+    (tester) async {
+      await configurarViewportAlto(tester);
+      await tester.pumpWidget(criarApp());
+      await tester.pumpAndSettle();
+
+      expect(find.text('Objetivo de Composição Corporal (opcional)'), findsOneWidget);
+      expect(find.textContaining('A sua meta real de ingestão diária'), findsOneWidget);
+      // ACEITE do RCA 20261016_0001: a tela para de usar a palavra solta
+      // "Meta" pra esta seção.
+      expect(find.text('Meta quantitativa (opcional)'), findsNothing);
+    },
+  );
+
   testWidgets('erro ao carregar mostra mensagem de erro, não quebra a tela', (tester) async {
     when(() => repository.buscarProblemasSaude()).thenThrow(Exception('sem rede'));
 
