@@ -182,6 +182,8 @@
     "camera_rotulo_gorduras_label": "Gorduras",
     "camera_rotulo_ingredientes_label": "Ingredientes principais",
     "camera_rotulo_possivel_foto_tela": "Isto pode ser uma foto de tela, não do produto físico — confira os valores com atenção antes de confirmar.",
+    "camera_rotulo_macros_incompletos": "Este rótulo não imprime todos os valores nutricionais (ou algum ficou ilegível) — complete manualmente o que faltar antes de confirmar.",
+    "camera_rotulo_campo_nao_impresso": "não impresso no rótulo",
     "health_permission_denied": "Permissão de saúde negada. Habilite o acesso em Configurações.",
     "health_connect_unavailable": "Health Connect não está instalado neste dispositivo",
     "health_connect_install_button": "Instalar Health Connect",

@@ -18,6 +18,15 @@ class RotuloExtracaoModel {
   final List<String> ingredientesPrincipais;
   final bool possivelFotoDeTela;
 
+  /// RELATÓRIO 20261016_0004 (hotfix OCR de rótulos) — Regra 23 ("falhar
+  /// visível, nunca arbitrar/esconder"): o card de macros do
+  /// [CameraCaptureView] usava campo vazio e silencioso pra "este número
+  /// não veio do rótulo" — indistinguível, pra quem olha a tela, de "a
+  /// extração quebrou". Usado pra decidir se mostra um aviso explícito em
+  /// vez de deixar o usuário adivinhar.
+  bool get todosMacrosPresentes =>
+      caloriasKcal != null && proteinasG != null && carboidratosG != null && gordurasG != null;
+
   const RotuloExtracaoModel({
     this.porcaoDescricao,
     this.caloriasKcal,
