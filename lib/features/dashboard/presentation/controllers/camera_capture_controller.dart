@@ -125,6 +125,35 @@ class CameraCaptureController extends ValueNotifier<CameraCaptureState> {
   /// [CameraCaptureStatus.ready]. Never null while ready.
   CameraController? get cameraController => _cameraController;
 
+  /// RELATÓRIO 20261016_0003 (RCA foto branca/OCR não extrai, 2ª rodada) —
+  /// ACHADO REAL: o próprio README do pacote `camera` documenta que, desde
+  /// a versão 0.5.0, "lifecycle changes are no longer handled by the
+  /// plugin" — quem usa `CameraController` é responsável por liberar o
+  /// recurso nativo em `AppLifecycleState.inactive`/`paused` e reinicializar
+  /// em `resumed`, ou "failure to do so might lead to unexpected behavior"
+  /// (link pro issue oficial do Flutter no README). Esta tela nunca
+  /// implementava isso — nenhum `WidgetsBindingObserver`,
+  /// `didChangeAppLifecycleState` nunca existiu. Em device físico real, o
+  /// próprio Android pode pausar/retomar a Activity sem o usuário notar
+  /// (ex.: o diálogo de permissão de câmera na 1ª vez, uma notificação, o
+  /// sistema liberando a câmera pra outro app por um instante) — sem este
+  /// tratamento, o `CameraController` nativo pode ficar "preso" num estado
+  /// inválido: a prévia (e a foto capturada a partir dela) sai branca/em
+  /// branco, porque a câmera de verdade não está mais entregando frames
+  /// novos, só o Flutter não sabe disso. Isto explica o bug persistir
+  /// mesmo com o flash corretamente desligado (achado da 1ª rodada, não
+  /// descartado — só não era a causa inteira).
+  ///
+  /// Libera SÓ o recurso nativo da câmera (nunca o `httpClient` nem o
+  /// estado da tela) — [CameraCaptureView] chama isto em `inactive`/
+  /// `paused` e [initializeCamera] de novo em `resumed`, mesmo padrão
+  /// oficial documentado no README do pacote.
+  Future<void> pausarCamera() async {
+    final controller = _cameraController;
+    _cameraController = null;
+    await controller?.dispose();
+  }
+
   // RELATÓRIO 20260824_0001 — achado real em device: fotografar um prato
   // batia `TimeoutException` aos 30s (screenshot em docs/bugs/) porque o
   // servidor não tinha NENHUM retry num 503 transitório do Gemini. 45s
