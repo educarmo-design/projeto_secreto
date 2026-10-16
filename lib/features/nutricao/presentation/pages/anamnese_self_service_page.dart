@@ -1,5 +1,6 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 import 'package:flutter/services.dart';
 
 import '../../../../core/i18n/i18n_manager.dart';
@@ -120,6 +121,21 @@ class _AnamneseSelfServicePageState extends State<AnamneseSelfServicePage> {
   final _formKey = GlobalKey<FormState>();
   final _alturaController = TextEditingController();
   final _pesoController = TextEditingController();
+
+  // RELATÓRIO 20261015_0002 — achado real: "Sexo Biológico" e "Objetivo"
+  // são `RadioGroup` cru, sem nenhum `FormField`/`validator` — `validate()`
+  // nunca os tocava, então ficavam "mudos" (nenhuma borda vermelha, nenhum
+  // texto de erro) mesmo sendo obrigatórios (checados manualmente só DEPOIS
+  // de `validate()`, em [_irParaConfirmacao]). Chaves usadas por 2 coisas:
+  // (1) o `FormField<String>` que agora envolve cada um (ver
+  // [_buildSecaoSexoBiologico]/[_buildSecaoObjetivo]); (2) rolar a tela até
+  // o 1º campo com erro depois de uma tentativa de salvar falhar (ver
+  // [_rolarParaPrimeiroErro]). Altura/peso já eram `TextFormField` com
+  // `validator` de verdade — só precisam da chave pro item (2).
+  final _sexoFieldKey = GlobalKey();
+  final _alturaFieldKey = GlobalKey();
+  final _pesoFieldKey = GlobalKey();
+  final _objetivoFieldKey = GlobalKey();
 
   _CargaStatus _status = _CargaStatus.carregando;
   bool _indoParaConfirmacao = false;
@@ -478,18 +494,45 @@ class _AnamneseSelfServicePageState extends State<AnamneseSelfServicePage> {
     // partir desta 1ª tentativa) pra os campos ficarem vermelhos
     // imediatamente conforme o usuário for preenchendo, sem precisar
     // tentar salvar de novo pra descobrir se já corrigiu.
+    //
+    // RELATÓRIO 20261015_0002 — ACHADO REAL (continuação): "Sexo
+    // Biológico" e "Objetivo" eram checados manualmente só AQUI, depois
+    // de `validate()` — `validate()` nunca sabia que eles podiam estar
+    // vazios, e eles nunca ficavam vermelhos (os checks só mostravam
+    // SnackBar, sem apontar o campo). Corrigido envolvendo os 2 num
+    // `FormField<String>` próprio (ver [_buildSecaoSexoBiologico]/
+    // [_buildSecaoObjetivo]) — `validate()` passa a pegá-los igual a
+    // qualquer `TextFormField`.
     if (!(_formKey.currentState?.validate() ?? false)) {
       setState(() => _autovalidarForm = true);
       _mostrarErro(i18n.tr('nutricao.anamnese_validacao_pendente'));
+      WidgetsBinding.instance.addPostFrameCallback((_) => _rolarParaPrimeiroErro());
       return;
     }
 
+    // RELATÓRIO 20261015_0002 — ACHADO REAL #2, mais sutil: `ListView`
+    // virtualiza mesmo com `children:` fixo — um `FormField` rolado além
+    // do `cacheExtent` é DESMONTADO, e `Form.validate()` simplesmente não
+    // o vê (nem válido nem inválido — como se não existisse), podendo
+    // devolver `true` com Objetivo/Sexo vazios escondidos fora da tela
+    // (ex.: usuário pula direto pro fim do formulário). Aumentar o
+    // `cacheExtent` do `ListView` (abaixo, em [_buildCorpo]) resolve a
+    // causa raiz, mas esta checagem fica como 2ª camada de defesa — nunca
+    // confiar num mecanismo só pra algo que decide se o dado é salvo ou
+    // não. Sem isto, cair nesse buraco faria `_montarRascunho()` quebrar
+    // no `!` de `_objetivoSelecionado!`/`_sexoSelecionado!` (pego pelo
+    // try/catch abaixo, mas mostrando o SnackBar genérico de erro
+    // inesperado em vez do aviso específico e certo).
     if (_objetivoSelecionado == null) {
+      setState(() => _autovalidarForm = true);
       _mostrarErro(i18n.tr('nutricao.objetivo_obrigatorio'));
+      WidgetsBinding.instance.addPostFrameCallback((_) => _rolarParaPrimeiroErro());
       return;
     }
     if (_sexoSelecionado == null) {
+      setState(() => _autovalidarForm = true);
       _mostrarErro(i18n.tr('nutricao.sexo_obrigatorio'));
+      WidgetsBinding.instance.addPostFrameCallback((_) => _rolarParaPrimeiroErro());
       return;
     }
 
@@ -628,6 +671,38 @@ class _AnamneseSelfServicePageState extends State<AnamneseSelfServicePage> {
       ..showSnackBar(SnackBar(content: Text(mensagem), backgroundColor: AppColors.error));
   }
 
+  /// RELATÓRIO 20261015_0002 — depois de `validate()` falhar, rola a tela
+  /// até o PRIMEIRO campo obrigatório com erro, na mesma ordem em que
+  /// aparecem na tela (Sexo Biológico → Altura → Peso → Objetivo — as 4
+  /// únicas chaves que existem, porque são os 4 únicos campos realmente
+  /// obrigatórios no modelo, ver doc das chaves acima). Sem isto, o
+  /// `SnackBar`/autovalidate já avisam que ALGO está errado, mas o
+  /// usuário ainda precisaria rolar a tela inteira (20+ seções) procurando
+  /// qual campo é — exatamente o problema original, só que menor.
+  ///
+  /// Chamado dentro de um `addPostFrameCallback` (nunca direto) — os
+  /// textos de erro só aparecem DEPOIS do rebuild que o `setState` do
+  /// autovalidate/`validate()` dispara; rolar antes desse frame mediria
+  /// posições de um layout que ainda não existe (campo sem erro ainda
+  /// não ocupa o espaço extra do texto vermelho abaixo dele).
+  void _rolarParaPrimeiroErro() {
+    final candidatos = <GlobalKey>[
+      if (_sexoSelecionado == null) _sexoFieldKey,
+      if (_validarAltura(_alturaController.text) != null) _alturaFieldKey,
+      if (_validarPeso(_pesoController.text) != null) _pesoFieldKey,
+      if (_objetivoSelecionado == null) _objetivoFieldKey,
+    ];
+    if (candidatos.isEmpty) return;
+    final contextoDoErro = candidatos.first.currentContext;
+    if (contextoDoErro == null) return;
+    Scrollable.ensureVisible(
+      contextoDoErro,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
+      alignment: 0.2,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -689,6 +764,22 @@ class _AnamneseSelfServicePageState extends State<AnamneseSelfServicePage> {
               _autovalidarForm ? AutovalidateMode.onUserInteraction : AutovalidateMode.disabled,
           child: ListView(
             padding: const EdgeInsets.all(24),
+            // RELATÓRIO 20261015_0002 — ACHADO REAL: um `ListView` (mesmo
+            // construído com `children:`, não `.builder`) ainda virtualiza
+            // — widgets rolados além do `cacheExtent` padrão (~250px) são
+            // DESMONTADOS. Um `FormField` desmontado não existe mais na
+            // árvore quando `Form.validate()` roda, então é simplesmente
+            // ignorado (nem conta como válido nem inválido — como se não
+            // existisse) e `validate()` pode devolver `true` com um campo
+            // obrigatório vazio escondido fora da área visível. Num
+            // formulário deste tamanho, isso é alcançável de verdade (ex.
+            // usuário pula direto pro fim). `cacheExtent` grande o
+            // suficiente pra cobrir a tela inteira elimina a causa raiz —
+            // nenhum campo nunca é desmontado, `validate()` sempre vê
+            // todos. Custo aceito de propósito (form preenchido 1x, não
+            // uma lista infinita — construir tudo de uma vez não pesa
+            // como pesaria num feed).
+            scrollCacheExtent: const ScrollCacheExtent.pixels(10000),
             children: [
               Text(
                 i18n.tr('nutricao.anamnese_subtitle'),
@@ -829,6 +920,7 @@ class _AnamneseSelfServicePageState extends State<AnamneseSelfServicePage> {
           const SizedBox(height: 16),
         ],
         TextFormField(
+          key: _alturaFieldKey,
           controller: _alturaController,
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
           inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]'))],
@@ -843,6 +935,7 @@ class _AnamneseSelfServicePageState extends State<AnamneseSelfServicePage> {
         ),
         const SizedBox(height: 16),
         TextFormField(
+          key: _pesoFieldKey,
           controller: _pesoController,
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
           inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]'))],
@@ -864,36 +957,87 @@ class _AnamneseSelfServicePageState extends State<AnamneseSelfServicePage> {
   /// preenchido em [_carregar] a partir de `perfis_usuarios` (via
   /// [DadosFisicosAtuais.sexoBiologico]), o mesmo valor de sempre — só a
   /// POSIÇÃO na tela mudou (antes do Motivo da Avaliação agora).
+  ///
+  /// RELATÓRIO 20261015_0002 — ACHADO REAL: este campo é obrigatório
+  /// (checado manualmente em [_irParaConfirmacao] antes desta correção),
+  /// mas por ser um `RadioGroup` cru (não um `TextFormField`), `validate()`
+  /// nunca sabia que ele existia — ficava "mudo": nenhuma borda vermelha,
+  /// nenhum texto de erro, só o `SnackBar` genérico avisando que ALGUMA
+  /// coisa estava faltando. Envolvido num `FormField<String>` próprio —
+  /// agora `validate()` o pega igual a qualquer campo de texto.
   Widget _buildSecaoSexoBiologico(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(i18n.tr('perfil_fisico.sexo_biologico_label'), style: Theme.of(context).textTheme.titleMedium),
-        RadioGroup<String>(
-          groupValue: _sexoSelecionado,
-          onChanged: (valor) {
-            if (_indoParaConfirmacao) return;
-            setState(() => _sexoSelecionado = valor);
+        FormField<String>(
+          key: _sexoFieldKey,
+          initialValue: _sexoSelecionado,
+          validator: (_) => _sexoSelecionado == null ? i18n.tr('nutricao.sexo_obrigatorio') : null,
+          builder: (state) {
+            return _caixaComErro(
+              temErro: state.hasError,
+              textoErro: state.errorText,
+              child: RadioGroup<String>(
+                groupValue: _sexoSelecionado,
+                onChanged: (valor) {
+                  if (_indoParaConfirmacao) return;
+                  setState(() => _sexoSelecionado = valor);
+                  state.didChange(valor);
+                },
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: RadioListTile<String>(
+                        contentPadding: EdgeInsets.zero,
+                        value: 'M',
+                        title: Text(i18n.tr('perfil_fisico.sexo_biologico_masculino')),
+                      ),
+                    ),
+                    Expanded(
+                      child: RadioListTile<String>(
+                        contentPadding: EdgeInsets.zero,
+                        value: 'F',
+                        title: Text(i18n.tr('perfil_fisico.sexo_biologico_feminino')),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
           },
-          child: Row(
-            children: [
-              Expanded(
-                child: RadioListTile<String>(
-                  contentPadding: EdgeInsets.zero,
-                  value: 'M',
-                  title: Text(i18n.tr('perfil_fisico.sexo_biologico_masculino')),
-                ),
-              ),
-              Expanded(
-                child: RadioListTile<String>(
-                  contentPadding: EdgeInsets.zero,
-                  value: 'F',
-                  title: Text(i18n.tr('perfil_fisico.sexo_biologico_feminino')),
-                ),
-              ),
-            ],
-          ),
         ),
+      ],
+    );
+  }
+
+  /// RELATÓRIO 20261015_0002 — destaque visual compartilhado por todo
+  /// `FormField` customizado desta tela (widgets que não são
+  /// `TextFormField`/`DropdownButtonFormField` nativos, então não ganham
+  /// borda/texto de erro de graça): borda vermelha + texto vermelho
+  /// (`state.errorText`) logo abaixo, mesmo padrão visual que um
+  /// `TextFormField` já usa nativamente — só pra ficar consistente, nunca
+  /// decide o que é ou não obrigatório (isso é do `validator` de cada
+  /// `FormField`).
+  Widget _caixaComErro({required bool temErro, required String? textoErro, required Widget child}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          decoration: temErro
+              ? BoxDecoration(
+                  border: Border.all(color: AppColors.error, width: 1.5),
+                  borderRadius: BorderRadius.circular(8),
+                )
+              : null,
+          padding: temErro ? const EdgeInsets.all(8) : EdgeInsets.zero,
+          child: child,
+        ),
+        if (temErro && textoErro != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 4, left: 4),
+            child: Text(textoErro, style: const TextStyle(color: AppColors.error, fontSize: 12)),
+          ),
       ],
     );
   }
@@ -1105,27 +1249,42 @@ class _AnamneseSelfServicePageState extends State<AnamneseSelfServicePage> {
     );
   }
 
+  /// RELATÓRIO 20261015_0002 — mesmo achado/correção de
+  /// [_buildSecaoSexoBiologico]: "Objetivo" é obrigatório, mas era um
+  /// `RadioGroup` cru — `validate()` nunca o pegava, ficava "mudo".
   Widget _buildSecaoObjetivo(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(i18n.tr('nutricao.objetivo_label'), style: Theme.of(context).textTheme.titleMedium),
-        RadioGroup<String>(
-          groupValue: _objetivoSelecionado,
-          onChanged: (valor) {
-            if (_indoParaConfirmacao) return;
-            setState(() => _objetivoSelecionado = valor);
-          },
-          child: Column(
-            children: [
-              for (final objetivo in _objetivos)
-                RadioListTile<String>(
-                  contentPadding: EdgeInsets.zero,
-                  value: objetivo,
-                  title: Text(i18n.tr('nutricao.objetivo_$objetivo')),
+        FormField<String>(
+          key: _objetivoFieldKey,
+          initialValue: _objetivoSelecionado,
+          validator: (_) => _objetivoSelecionado == null ? i18n.tr('nutricao.objetivo_obrigatorio') : null,
+          builder: (state) {
+            return _caixaComErro(
+              temErro: state.hasError,
+              textoErro: state.errorText,
+              child: RadioGroup<String>(
+                groupValue: _objetivoSelecionado,
+                onChanged: (valor) {
+                  if (_indoParaConfirmacao) return;
+                  setState(() => _objetivoSelecionado = valor);
+                  state.didChange(valor);
+                },
+                child: Column(
+                  children: [
+                    for (final objetivo in _objetivos)
+                      RadioListTile<String>(
+                        contentPadding: EdgeInsets.zero,
+                        value: objetivo,
+                        title: Text(i18n.tr('nutricao.objetivo_$objetivo')),
+                      ),
+                  ],
                 ),
-            ],
-          ),
+              ),
+            );
+          },
         ),
         if (_objetivoSelecionado == 'outro')
           TextFormField(
