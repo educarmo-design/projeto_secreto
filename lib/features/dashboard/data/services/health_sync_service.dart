@@ -1499,6 +1499,58 @@ class HealthSyncService {
       _prefixosPedometrosNativos
           .any((prefixo) => identificadorFonte.startsWith(prefixo));
 
+  /// RCA 20261012_0001 — `workout.totalDistance` (o campo agregado que o
+  /// pacote `health` devolve pra sessão de treino inteira) soma CEGAMENTE
+  /// todos os `DistanceRecord` que o Health Connect tem na janela do
+  /// treino, de QUALQUER fonte/app, sem filtrar por origem (confirmado
+  /// lendo o código-fonte do plugin, `HealthDataReader.kt::
+  /// handleWorkoutData`). Quando existe mais de uma fonte de distância por
+  /// GPS cobrindo a mesma corrida (ex.: o relógio + o celular), o plugin
+  /// trata as duas como complementares e soma — valor real confirmado
+  /// ~1,8x inflado contra o Garmin desde 28/set/2026.
+  ///
+  /// Correção: nunca usar `workout.totalDistance`. Recalcula a distância
+  /// do treino a partir dos pontos granulares `DISTANCE_DELTA`/
+  /// `DISTANCE_WALKING_RUNNING` do mesmo lote, filtrados pelo INTERVALO
+  /// exato do treino (mesmo padrão de [dentroDoIntervalo] já usado pra
+  /// FC/velocidade), agrupados por [HealthMetricPoint.identificadorFonte] —
+  /// e aplica a MESMA Hierarquia de Fontes da distância diária
+  /// ([_ehPedometroNativo]: prioridade pra quem não é pedômetro nativo,
+  /// desempate pelo maior valor dentro da mesma prioridade). Nunca soma
+  /// fontes diferentes entre si — pega a fonte vencedora e usa só ela.
+  ///
+  /// Retorna `null` quando a janela do treino não tem NENHUM ponto de
+  /// distância granular (algumas modalidades não publicam amostras GPS —
+  /// ex. esteira, calculada internamente por cadência) — quem chama cai
+  /// pro `workout.totalDistance` como estava antes, best-effort, pra não
+  /// perder o dado só porque a fonte granular não existe pra essa
+  /// modalidade.
+  static double? _distanciaTreinoPorHierarquiaDeFontes(
+    List<HealthMetricPoint> pontosDistancia,
+    HealthMetricPoint treino,
+    bool Function(HealthMetricPoint, HealthMetricPoint) dentroDoIntervalo,
+  ) {
+    final porFonte = <String, double>{};
+    for (final ponto in pontosDistancia) {
+      if (!dentroDoIntervalo(ponto, treino)) continue;
+      final fonte = ponto.identificadorFonte.isEmpty
+          ? '(fonte desconhecida)'
+          : ponto.identificadorFonte;
+      porFonte[fonte] = (porFonte[fonte] ?? 0) + ponto.value;
+    }
+    if (porFonte.isEmpty) return null;
+
+    final vencedora = porFonte.entries.reduce((a, b) {
+      final aPrioridadeAlta = !_ehPedometroNativo(a.key);
+      final bPrioridadeAlta = !_ehPedometroNativo(b.key);
+      if (aPrioridadeAlta != bPrioridadeAlta) {
+        return aPrioridadeAlta ? a : b;
+      }
+      return a.value >= b.value ? a : b;
+    });
+    return vencedora.value;
+  }
+
   List<Map<String, dynamic>> _mesclarPorDia(
     String usuarioId,
     List<HealthPayloadModel> payloads,
@@ -1788,6 +1840,15 @@ class HealthSyncService {
         points.where((p) => p.type == HealthDataType.SPEED).toList();
     final rotas =
         points.where((p) => p.type == HealthDataType.WORKOUT_ROUTE).toList();
+    // RELATÓRIO 20261012_0002 (correção do RCA 20261012_0001) — distância
+    // granular do mesmo lote, pra recalcular a distância do treino nós
+    // mesmos em vez de confiar em `workout.totalDistance` (ver doc de
+    // [_distanciaTreinoPorHierarquiaDeFontes] abaixo pro porquê).
+    final pontosDistancia = points
+        .where((p) =>
+            p.type == HealthDataType.DISTANCE_DELTA ||
+            p.type == HealthDataType.DISTANCE_WALKING_RUNNING)
+        .toList();
 
     bool dentroDoIntervalo(HealthMetricPoint ponto, HealthMetricPoint treino) =>
         !ponto.dateFrom.isBefore(treino.dateFrom) &&
@@ -1811,6 +1872,16 @@ class HealthSyncService {
             .where((p) => dentroDoIntervalo(p, treino))
             .map((p) => p.value)
             .toList();
+        // RELATÓRIO 20261012_0002 — NUNCA usar `workout.totalDistance` cru
+        // (ver [_distanciaTreinoPorHierarquiaDeFontes]); fallback pro valor
+        // do plugin só quando a janela do treino não tem ponto granular
+        // nenhum (ex. esteira, sem amostras de GPS).
+        final distanciaTreino = _distanciaTreinoPorHierarquiaDeFontes(
+              pontosDistancia,
+              treino,
+              dentroDoIntervalo,
+            ) ??
+            workout.totalDistance;
 
         final linhaTreino = <String, dynamic>{
           'usuario_id': usuarioId,
@@ -1822,8 +1893,7 @@ class HealthSyncService {
               : treino.identificadorFonte,
           if (workout.totalEnergyBurned != null)
             'energia_queimada_kcal': workout.totalEnergyBurned,
-          if (workout.totalDistance != null)
-            'distancia_metros': workout.totalDistance,
+          if (distanciaTreino != null) 'distancia_metros': distanciaTreino,
           if (workout.totalSteps != null) 'passos_totais': workout.totalSteps,
           if (fcDoTreino.isNotEmpty) ...{
             'fc_media':
