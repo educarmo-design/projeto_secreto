@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'package:atleta_gamificacao/core/i18n/i18n_manager.dart';
 import 'package:atleta_gamificacao/features/nutricao/data/models/anamnese_models.dart';
@@ -145,6 +146,33 @@ void main() {
     expect(find.text('Erro ao salvar. Tente novamente.'), findsOneWidget);
     expect(find.byType(ResultadoMotorMetabolicoPage), findsNothing);
   });
+
+  testWidgets(
+    'RELATÓRIO 20261015_0001 — falha ao gravar com PostgrestException mostra a mensagem REAL do backend, não o texto genérico',
+    (tester) async {
+      when(() => repository.salvarAnamnese(
+            objetivoCodigo: any(named: 'objetivoCodigo'),
+            alturaCm: any(named: 'alturaCm'),
+            sexoBiologico: any(named: 'sexoBiologico'),
+            pesoKg: any(named: 'pesoKg'),
+            problemasSaudeIds: any(named: 'problemasSaudeIds'),
+            alergiaIds: any(named: 'alergiaIds'),
+            atividades: any(named: 'atividades'),
+            complementares: any(named: 'complementares'),
+          )).thenThrow(const PostgrestException(message: 'N09_PAYLOAD_INVALIDO: objetivo_codigo é obrigatório.'));
+
+      await configurarViewportAlto(tester);
+      await tester.pumpWidget(criarApp());
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.widgetWithText(FilledButton, 'Confirmar e Enviar'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('N09_PAYLOAD_INVALIDO: objetivo_codigo é obrigatório.'), findsOneWidget);
+      expect(find.text('Erro ao salvar. Tente novamente.'), findsNothing);
+      expect(find.byType(ResultadoMotorMetabolicoPage), findsNothing);
+    },
+  );
 
   testWidgets('"Voltar e Editar" fecha a tela sem gravar', (tester) async {
     // Precisa de uma tela anterior de verdade na pilha pra `pop()` ter

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/i18n/i18n_manager.dart';
 import '../../../../core/theme/app_theme.dart';
@@ -60,13 +61,24 @@ class _ConfirmarAnamnesePageState extends State<ConfirmarAnamnesePage> {
           builder: (_) => ResultadoMotorMetabolicoPage(repository: widget._metaRepository),
         ),
       );
-    } catch (_) {
+    } catch (e) {
       if (!mounted) return;
       setState(() => _enviando = false);
+      // RELATÓRIO 20261015_0001 — ACHADO REAL: isto descartava a exceção
+      // (`catch (_)`) e sempre mostrava o mesmo texto genérico, mesmo
+      // quando o backend (RPC/insert no Supabase) devolvia um motivo
+      // específico (ex. payload rejeitado, violação de constraint). Nunca
+      // deve falhar silenciosamente nem esconder um erro que ajudaria o
+      // usuário a entender o que corrigir — mostra a mensagem real do
+      // Postgrest quando disponível, só cai pro texto genérico quando não
+      // tem uma mensagem útil (ex. erro de rede/timeout).
+      final mensagem = e is PostgrestException && e.message.isNotEmpty
+          ? e.message
+          : i18n.tr('nutricao.save_error');
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
         ..showSnackBar(
-          SnackBar(content: Text(i18n.tr('nutricao.save_error')), backgroundColor: AppColors.error),
+          SnackBar(content: Text(mensagem), backgroundColor: AppColors.error),
         );
     }
   }

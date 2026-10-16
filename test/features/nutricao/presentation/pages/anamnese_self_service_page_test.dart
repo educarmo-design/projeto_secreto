@@ -270,6 +270,14 @@ void main() {
 
     expect(find.text('Informe sua altura'), findsOneWidget);
     expect(find.text('Informe seu peso'), findsOneWidget);
+    // RELATÓRIO 20261015_0001 — ACHADO REAL: antes desta correção, nada
+    // além dos próprios campos (fora da área visível, formulário longo)
+    // avisava o usuário — "nada acontecia" na prática. Agora um SnackBar
+    // explícito aparece sempre que a validação falha.
+    expect(
+      find.text('Por favor, preencha os campos obrigatórios em vermelho.'),
+      findsOneWidget,
+    );
     expect(find.byType(ConfirmarAnamnesePage), findsNothing);
     verifyNever(() => repository.salvarAnamnese(
           objetivoCodigo: any(named: 'objetivoCodigo'),
@@ -281,6 +289,37 @@ void main() {
           atividades: any(named: 'atividades'),
         ));
   });
+
+  testWidgets(
+    'RELATÓRIO 20261015_0001 — depois da 1ª tentativa de salvar falhar, o autovalidate liga: '
+    'digitar e apagar um campo obrigatório mostra o erro na hora, sem precisar tocar em "Salvar" de novo',
+    (tester) async {
+      await configurarViewportAlto(tester);
+      await tester.pumpWidget(criarApp());
+      await tester.pumpAndSettle();
+
+      // Antes da 1ª tentativa de salvar: autovalidate ainda desligado — só
+      // digitar e apagar NÃO deve mostrar erro nenhum (comportamento
+      // intencional, não assusta o usuário antes da hora).
+      await tester.enterText(find.widgetWithText(TextFormField, 'Altura (cm)'), '179');
+      await tester.enterText(find.widgetWithText(TextFormField, 'Altura (cm)'), '');
+      await tester.pumpAndSettle();
+      expect(find.text('Informe sua altura'), findsNothing);
+
+      await tester.tap(find.widgetWithText(FilledButton, 'Salvar'));
+      await tester.pumpAndSettle();
+      expect(find.text('Informe sua altura'), findsOneWidget);
+
+      // Agora com autovalidate ligado: digitar um valor válido e apagar de
+      // novo já mostra o erro na hora, sem precisar tocar em "Salvar".
+      await tester.enterText(find.widgetWithText(TextFormField, 'Altura (cm)'), '179');
+      await tester.pumpAndSettle();
+      expect(find.text('Informe sua altura'), findsNothing);
+      await tester.enterText(find.widgetWithText(TextFormField, 'Altura (cm)'), '');
+      await tester.pumpAndSettle();
+      expect(find.text('Informe sua altura'), findsOneWidget);
+    },
+  );
 
   testWidgets(
     'preenchendo tudo, adicionando uma atividade com intensidade e selecionando uma condição, '

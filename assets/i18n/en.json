@@ -501,6 +501,8 @@
     "meta_prazo_label": "Desired timeframe",
     "meta_outro_indicador_label": "Other parameter",
     "sexo_obrigatorio": "Choose your biological sex before saving",
+    "anamnese_validacao_pendente": "Please fill in the required fields highlighted in red.",
+    "anamnese_erro_inesperado": "We couldn't prepare your health assessment with the information provided. Please review the fields and try again.",
 
     "motivo_avaliacao_label": "Reason for the assessment",
     "motivo_avaliacao_avaliacao_inicial": "Initial assessment",
