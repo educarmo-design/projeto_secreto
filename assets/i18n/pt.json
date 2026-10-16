@@ -506,6 +506,8 @@
     "meta_prazo_label": "Prazo desejado",
     "meta_outro_indicador_label": "Outro parâmetro",
     "sexo_obrigatorio": "Escolha o sexo biológico antes de salvar",
+    "anamnese_validacao_pendente": "Por favor, preencha os campos obrigatórios em vermelho.",
+    "anamnese_erro_inesperado": "Não foi possível preparar sua anamnese com os dados informados. Revise os campos e tente novamente.",
 
     "motivo_avaliacao_label": "Motivo da avaliação",
     "motivo_avaliacao_avaliacao_inicial": "Avaliação inicial",

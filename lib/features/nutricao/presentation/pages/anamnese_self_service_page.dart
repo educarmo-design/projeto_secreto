@@ -123,6 +123,13 @@ class _AnamneseSelfServicePageState extends State<AnamneseSelfServicePage> {
 
   _CargaStatus _status = _CargaStatus.carregando;
   bool _indoParaConfirmacao = false;
+  // RELATÓRIO 20261015_0001 — "falha silenciosa" no botão Salvar: o Form
+  // nasce com AutovalidateMode.disabled (padrão do Flutter) de propósito,
+  // pra não pintar os campos de vermelho antes do usuário tentar salvar
+  // pela 1ª vez (mau UX, assusta antes da hora). Só liga depois da 1ª
+  // tentativa que falhou — [_irParaConfirmacao] abaixo é quem vira isto
+  // pra `true`.
+  bool _autovalidarForm = false;
   DateTime? _dataProximaLiberacao;
 
   SugestaoBalanca? _sugestaoBalanca;
@@ -462,7 +469,20 @@ class _AnamneseSelfServicePageState extends State<AnamneseSelfServicePage> {
   }
 
   void _irParaConfirmacao() {
-    if (!(_formKey.currentState?.validate() ?? false)) return;
+    // RELATÓRIO 20261015_0001 — ACHADO REAL: isto só fazia `return` sem
+    // avisar nada. `validate()` já pinta o campo com erro individualmente,
+    // mas num formulário deste tamanho (20+ seções) o campo inválido quase
+    // sempre está fora da área visível perto do botão "Salvar" — pro
+    // usuário, na prática, "não acontece nada". Corrigido com 2 camadas:
+    // SnackBar explícito avisando AGORA, e liga o autovalidate (só a
+    // partir desta 1ª tentativa) pra os campos ficarem vermelhos
+    // imediatamente conforme o usuário for preenchendo, sem precisar
+    // tentar salvar de novo pra descobrir se já corrigiu.
+    if (!(_formKey.currentState?.validate() ?? false)) {
+      setState(() => _autovalidarForm = true);
+      _mostrarErro(i18n.tr('nutricao.anamnese_validacao_pendente'));
+      return;
+    }
 
     if (_objetivoSelecionado == null) {
       _mostrarErro(i18n.tr('nutricao.objetivo_obrigatorio'));
@@ -473,6 +493,37 @@ class _AnamneseSelfServicePageState extends State<AnamneseSelfServicePage> {
       return;
     }
 
+    // RELATÓRIO 20261015_0001 — montagem do payload (parsing numérico dos
+    // campos opcionais, blocos condicionais) nunca tinha proteção nenhuma:
+    // qualquer exceção aqui (ex. um campo numérico com formato que o
+    // validator não cobriu) derrubava o método inteiro em silêncio — o
+    // app ficava "travado" no mesmo lugar sem explicar por quê. Nunca
+    // deve quebrar silenciosamente; se quebrar, o usuário precisa saber.
+    AnamneseRascunho rascunho;
+    try {
+      rascunho = _montarRascunho();
+    } catch (e) {
+      debugPrint('AnamneseSelfServicePage: falha ao montar o rascunho da anamnese: $e');
+      _mostrarErro(i18n.tr('nutricao.anamnese_erro_inesperado'));
+      return;
+    }
+
+    setState(() => _indoParaConfirmacao = true);
+    Navigator.of(context)
+        .push(MaterialPageRoute<void>(
+          builder: (_) => ConfirmarAnamnesePage(rascunho: rascunho, repository: _repository, metaRepository: widget._metaRepository),
+        ))
+        .whenComplete(() {
+      if (mounted) setState(() => _indoParaConfirmacao = false);
+    });
+  }
+
+  /// Extraído de [_irParaConfirmacao] (RELATÓRIO 20261015_0001) só pra
+  /// poder envolver a montagem inteira do payload num try/catch sem
+  /// misturar o controle de fluxo (validação/navegação) com a construção
+  /// de dados — nenhuma regra de negócio mudou, é o mesmo literal de
+  /// antes, só isolado numa função própria.
+  AnamneseRascunho _montarRascunho() {
     final complementares = DadosComplementaresAnamnese(
       motivoAvaliacao: _motivoAvaliacaoSelecionado,
       motivoAvaliacaoOutro: _textoOuNulo(_motivoAvaliacaoOutroController),
@@ -547,7 +598,7 @@ class _AnamneseSelfServicePageState extends State<AnamneseSelfServicePage> {
       exames: _exames,
     );
 
-    final rascunho = AnamneseRascunho(
+    return AnamneseRascunho(
       objetivoCodigo: _objetivoSelecionado!,
       alturaCm: double.parse(_alturaController.text.trim().replaceAll(',', '.')),
       sexoBiologico: _sexoSelecionado!,
@@ -558,15 +609,6 @@ class _AnamneseSelfServicePageState extends State<AnamneseSelfServicePage> {
       atividades: _atividadesSelecionadas,
       complementares: complementares,
     );
-
-    setState(() => _indoParaConfirmacao = true);
-    Navigator.of(context)
-        .push(MaterialPageRoute<void>(
-          builder: (_) => ConfirmarAnamnesePage(rascunho: rascunho, repository: _repository, metaRepository: widget._metaRepository),
-        ))
-        .whenComplete(() {
-      if (mounted) setState(() => _indoParaConfirmacao = false);
-    });
   }
 
   String? _textoOuNulo(TextEditingController controller) {
@@ -643,6 +685,8 @@ class _AnamneseSelfServicePageState extends State<AnamneseSelfServicePage> {
       case _CargaStatus.sucesso:
         return Form(
           key: _formKey,
+          autovalidateMode:
+              _autovalidarForm ? AutovalidateMode.onUserInteraction : AutovalidateMode.disabled,
           child: ListView(
             padding: const EdgeInsets.all(24),
             children: [
