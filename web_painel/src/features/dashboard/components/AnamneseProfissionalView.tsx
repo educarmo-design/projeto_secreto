@@ -723,9 +723,18 @@ export function AnamneseProfissionalView({ pacienteId, onSalvo }: AnamneseProfis
           )}
         </div>
 
+        {/* RELATÓRIO 20261016_0001 (RCA cross-platform de Meta) — ACHADO: estes
+            campos (peso/%gordura/massa DESEJADOS) nunca são lidos pelo Motor
+            Metabólico/`objetivos_alimentares` — são só um registro informativo
+            na própria Anamnese, mas esta seção chamava isso de "Meta", o mesmo
+            nome usado pela meta calórica/macros REAL (aba de Prescrição) —
+            confundia o profissional a achar que preencher aqui prescrevia a
+            meta diária do paciente. Opção A do RCA (esclarecer a UX, sem tocar
+            em schema/RPC): título renomeado + nota explícita abaixo. */}
         <details className="rounded-lg border border-clinical-border p-3">
-          <summary className="cursor-pointer text-xs font-medium text-slate-300">Meta quantitativa (opcional)</summary>
-          <p className="mt-1 text-[10px] text-clinical-muted">Informar uma meta não significa que ela seja automaticamente considerada clinicamente adequada.</p>
+          <summary className="cursor-pointer text-xs font-medium text-slate-300">Objetivo de Composição Corporal do Paciente (opcional)</summary>
+          <p className="mt-1 text-[10px] text-clinical-muted">Informar um objetivo não significa que ele seja automaticamente considerado clinicamente adequado.</p>
+          <p className="mt-1 text-xs text-clinical-accent">Campos informativos. A prescrição calórica/macros real que afeta o aplicativo do paciente deve ser feita na aba de Prescrição (Motor Metabólico).</p>
           <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
             <CampoNumerico id="anamnese-prof-meta-peso" label="Peso desejado (kg)" value={form.metaPesoDesejado} disabled={salvando} onChange={(v) => setForm((a) => ({ ...a, metaPesoDesejado: v }))} />
             <CampoNumerico id="anamnese-prof-meta-gordura" label="% gordura desejado" value={form.metaPercentualGorduraDesejado} disabled={salvando} onChange={(v) => setForm((a) => ({ ...a, metaPercentualGorduraDesejado: v }))} />

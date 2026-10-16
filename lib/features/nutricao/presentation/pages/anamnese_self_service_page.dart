@@ -1316,10 +1316,33 @@ class _AnamneseSelfServicePageState extends State<AnamneseSelfServicePage> {
           },
         ),
         const SizedBox(height: 16),
+        // RELATÓRIO 20261016_0001 (RCA cross-platform de Meta) — ACHADO:
+        // estes campos (peso/%gordura/massa DESEJADOS) nunca são lidos pelo
+        // Motor Metabólico/`objetivos_alimentares` — são só um registro
+        // informativo na própria Anamnese, mas a tela antiga chamava isso
+        // de "Meta", o mesmo nome usado pela meta calórica/macros REAL (tela
+        // de Meta de Bem-Estar) — confundia o usuário a achar que preencher
+        // aqui mudava sua prescrição diária. Opção A do RCA (esclarecer a
+        // UX, sem tocar em schema/RPC): título renomeado + nota explícita
+        // abaixo deixando claro que isto não afeta o cálculo de calorias.
         Text(i18n.tr('nutricao.meta_quantitativa_label'), style: Theme.of(context).textTheme.titleSmall),
         Text(
           i18n.tr('nutricao.meta_quantitativa_aviso'),
           style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.mutedText),
+        ),
+        const SizedBox(height: 4),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Icon(Icons.info_outline, size: 16, color: AppColors.info),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(
+                i18n.tr('nutricao.meta_quantitativa_nota_bem_estar'),
+                style: const TextStyle(color: AppColors.info, fontSize: 12),
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: 8),
         _campoNumericoOpcional(_metaPesoController, i18n.tr('nutricao.meta_peso_desejado_label')),
