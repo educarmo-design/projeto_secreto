@@ -1048,13 +1048,52 @@ Deno.test('calcularPrato: alimento sólido descrito sem termo de líquido contin
   assertEquals(r.itens[0].unidadeMedidaPadrao, undefined);
 });
 
-Deno.test('calcularPrato: "medida_nao_encontrada" também promove a líquido/ml quando o alimento casado é líquido (sem alias de suco no texto)', () => {
-  // "suco de manga" sem "copo"/"xícara" cadastrado hipotético: usa uma
-  // medida que não existe pra forçar medida_nao_encontrada DEPOIS da
-  // checagem de categoria (aqui a categoria já é compatível — alimento é
-  // explicitamente líquido — então o fluxo chega até `encontrarMedida`).
+Deno.test(
+  'calcularPrato: RCA 20261016_0003 (Bug 2, 2ª rodada) — "copo"/"garrafa" SEM estar cadastrado pro alimento ' +
+    'resolve via recipiente de líquido genérico (200ml/500ml), nunca mais "medida não cadastrada"',
+  () => {
+    // ACHADO REAL confirmado pelo fundador em device: "suco de laranja" só
+    // tem "copo" (250g) cadastrado no catálogo real — mas o MESMO problema
+    // valeria pra "taça"/"caneca"/"garrafa"/qualquer outro recipiente comum
+    // não cadastrado especificamente. "garrafa" não existe nas medidas de
+    // CATALOGO_LIQUIDOS_TESTE pro suco de laranja (só "copo", 250g) — antes
+    // desta correção isso caía em medida_nao_encontrada; agora resolve
+    // direto, 500ml (aproximação de densidade~1, mesma do resto do app).
+    const r = calcularPrato(
+      [{ nome: 'suco de laranja', medida: 'garrafa', quantidade: 1, confianca: 0.9 }],
+      CATALOGO_LIQUIDOS_TESTE,
+    );
+    assertEquals(r.itensNaoReconhecidos.length, 0);
+    assertEquals(r.itens.length, 1);
+    assertEquals(r.itens[0].gramasEstimados, 500);
+    assertEquals(r.itens[0].categoriaConsumo, 'liquido_frio');
+    assertEquals(r.itens[0].unidadeMedidaPadrao, 'ml');
+  },
+);
+
+Deno.test(
+  'calcularPrato: recipiente genérico NUNCA se aplica a alimento sólido, mesmo sem a medida cadastrada (restrição — não arbitrar sólidos)',
+  () => {
+    // "manga congelada" (sólida) + "garrafa" (nem cadastrada pro alimento,
+    // nem um recipiente de líquido aplicável — o alimento não é líquido) —
+    // tem que continuar falhando visível, nunca inventar um volume.
+    const r = calcularPrato(
+      [{ nome: 'manga congelada', medida: 'garrafa', quantidade: 1, confianca: 0.9 }],
+      CATALOGO_LIQUIDOS_TESTE,
+    );
+    assertEquals(r.itens.length, 0);
+    assertEquals(r.itensNaoReconhecidos.length, 1);
+    assertEquals(r.itensNaoReconhecidos[0].motivo, 'medida_nao_encontrada');
+  },
+);
+
+Deno.test('calcularPrato: "medida_nao_encontrada" também promove a líquido/ml quando o alimento casado é líquido (recipiente fora até do fallback genérico)', () => {
+  // "jarra" não é nem uma medida cadastrada pro suco de laranja nem um
+  // recipiente do fallback genérico (FATORES_RECIPIENTE_LIQUIDO_ML) —
+  // continua caindo em medida_nao_encontrada, mas com a categoria/unidade
+  // corretas pra tela de resolução manual oferecer "ml".
   const r = calcularPrato(
-    [{ nome: 'suco de laranja', medida: 'garrafa', quantidade: 1, confianca: 0.9 }],
+    [{ nome: 'suco de laranja', medida: 'jarra', quantidade: 1, confianca: 0.9 }],
     CATALOGO_LIQUIDOS_TESTE,
   );
   assertEquals(r.itens.length, 0);

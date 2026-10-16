@@ -134,6 +134,31 @@ const FATORES_UNIDADE_BRUTA: Record<string, number> = {
   l: 1000,
 };
 
+/// RELATÓRIO 20261016_0003 (rework bugs alimentares, Bug 2, 2ª rodada) —
+/// DIFERENTE de [FATORES_UNIDADE_BRUTA] (unidades SI universais, mesmo
+/// peso pra QUALQUER alimento): um recipiente ("copo") não tem volume
+/// universal pra sólidos (1 copo de arroz ≠ 1 copo de farinha em gramas),
+/// então nunca vira unidade bruta de verdade. Mas pra um alimento JÁ
+/// confirmado como líquido pelo catálogo, a mesma aproximação de
+/// densidade~1 que o app já assume em outros lugares (badge "150g"/
+/// "200ml" no Flutter) torna um recipiente comum ~equivalente em ml
+/// independente de qual bebida específica — usado só em
+/// [encontrarMedida], só como ÚLTIMO recurso (depois do match exato/
+/// substring pelas medidas que o próprio alimento cadastrou), e só
+/// quando `categoria_consumo` já é líquido (nunca pra inferir — essa
+/// inferência é papel de `categoriaIncompativel`/`categoriaEfetiva`,
+/// que agem ANTES de `encontrarMedida` ser chamada). Valores de volume
+/// típico (ml), não gramas — a mesma convenção de `ml: 1` acima já trata
+/// "gramas" como genérico pra massa/volume.
+const FATORES_RECIPIENTE_LIQUIDO_ML: Record<string, number> = {
+  copo: 200,
+  taca: 200,
+  xicara: 200,
+  caneca: 300,
+  garrafa: 500,
+  lata: 350,
+};
+
 // Faixa fisiologicamente plausível de peso corporal adulto em kg. Mesmo
 // espírito de GLICOSE_MIN_MG_DL/MAX — um "705" lido por engano em vez de
 // "70.5" precisa ser rejeitado, não gravado.
@@ -1477,12 +1502,39 @@ export function encontrarMedida(
     return substring.original;
   }
 
-  // Sem match exato nem substring: Regra 23 — nunca arbitrar. As camadas de
-  // fallback que existiam aqui ("primeira medida disponível", depois um
-  // peso genérico de 100g ou o peso padrão da categoria) foram removidas
-  // nesta tarefa (N27) — inventavam um número sem avisar. `null` é o
-  // resultado honesto: quem chama decide como marcar o item como não
-  // resolvido.
+  // RELATÓRIO 20261016_0003 (rework bugs alimentares, Bug 2, 2ª rodada) —
+  // ACHADO REAL confirmado pelo fundador em teste: "copo" não é rejeitado
+  // por SER "copo" — é que o alimento casado ("Manga, polpa, congelada" ou
+  // similar) genuinamente não tem "copo" entre as medidas que cadastrou (só
+  // "xícara", por exemplo). "Colher de sopa"/"xícara"/"fatia" continuam
+  // corretamente ESPECÍFICAS por alimento (uma xícara de arroz ≠ uma xícara
+  // de feijão em gramas — não dá pra ter uma tabela universal pra elas).
+  // Mas um RECIPIENTE DE LÍQUIDO é diferente: pela mesma aproximação de
+  // densidade~1 que o resto do app já assume pra líquidos (badge "150g"/
+  // "200ml", Flutter), "1 copo" de QUALQUER líquido é ~o mesmo volume,
+  // independente de qual bebida específica. Só entra em jogo quando (a) o
+  // match exato/substring por medida cadastrada já falhou E (b) o alimento
+  // já é um líquido CONFIRMADO pelo catálogo (`categoria_consumo` —
+  // nunca pelo texto descrito: isso é papel de `categoriaIncompativel`,
+  // que já intercepta ANTES de chegar aqui quando o alimento casado é
+  // sólido) — nunca arbitra um alimento sólido, nunca inventa a MEDIDA de
+  // um alimento que já tem suas próprias medidas específicas cadastradas.
+  if (ehCategoriaLiquida(alimento.categoriaConsumo)) {
+    const mlRecipiente = FATORES_RECIPIENTE_LIQUIDO_ML[alvo];
+    if (mlRecipiente !== undefined) {
+      console.log(
+        `[encontrarMedida] Recipiente de líquido genérico: "${medidaBuscada}" -> ${mlRecipiente}ml (alimento já é líquido confirmado, sem essa medida cadastrada especificamente)`,
+      );
+      return { medida: medidaBuscada, gramas: mlRecipiente };
+    }
+  }
+
+  // Sem match exato nem substring (nem recipiente genérico de líquido):
+  // Regra 23 — nunca arbitrar. As camadas de fallback que existiam aqui
+  // ("primeira medida disponível", depois um peso genérico de 100g ou o
+  // peso padrão da categoria) foram removidas nesta tarefa (N27) —
+  // inventavam um número sem avisar. `null` é o resultado honesto: quem
+  // chama decide como marcar o item como não resolvido.
   console.log(
     `[encontrarMedida] Sem match para "${medidaBuscada}" em "${alimento.nomeTaco}" (${alimento.medidas.length} medida(s) cadastrada(s)) — devolvendo null, não arbitrando (N27/Regra 23)`,
   );

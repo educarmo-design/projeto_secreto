@@ -64,8 +64,16 @@ class CameraCaptureView extends StatefulWidget {
   State<CameraCaptureView> createState() => _CameraCaptureViewState();
 }
 
-class _CameraCaptureViewState extends State<CameraCaptureView> {
+class _CameraCaptureViewState extends State<CameraCaptureView> with WidgetsBindingObserver {
   final CameraCaptureController _controller = CameraCaptureController();
+
+  // RELATÓRIO 20261016_0003 — ver doc de
+  // [CameraCaptureController.pausarCamera]. `true` só entre um
+  // `didChangeAppLifecycleState(inactive/paused)` real e o `resumed`
+  // seguinte — garante que [didChangeAppLifecycleState] só reinicializa a
+  // câmera quando ELE MESMO a pausou antes, nunca num `resumed` solto
+  // (ex.: o 1º build da tela, que já é tratado por [initState]).
+  bool _cameraPausadaPeloLifecycle = false;
 
   // RELATÓRIO 20260902_0001 (mitigação de latência, Regra 4) — depois de
   // 15s esperando a resposta do servidor (medição real em 20260901_0003:
@@ -112,8 +120,37 @@ class _CameraCaptureViewState extends State<CameraCaptureView> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _controller.addListener(_onStateChanged);
     _controller.initializeCamera(tipoAparelho: _tipoAtual);
+  }
+
+  /// RELATÓRIO 20261016_0003 — padrão oficial documentado no README do
+  /// pacote `camera` ("Handling Lifecycle states"), nunca implementado
+  /// nesta tela antes: libera a câmera nativa quando o app sai de foco
+  /// (`inactive`/`paused` — ex.: o diálogo de permissão de câmera, uma
+  /// notificação, o sistema liberando a câmera pra outro app) e
+  /// reinicializa ao voltar (`resumed`). Sem isto, o `CameraController`
+  /// nativo pode ficar "preso" num estado inválido depois de qualquer
+  /// transição dessas — a prévia (e a foto capturada a partir dela) sai
+  /// branca, mesmo com o flash corretamente desligado.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Nunca durante uma captura/upload em voo — `pausarCamera()` no meio de
+    // `capturarEEnviar` derrubaria o `CameraController` que o `takePicture()`
+    // ainda está usando. Best-effort: se o app for mesmo pra background
+    // nesse instante exato, o próprio upload já trata timeout/erro de rede
+    // (ver `CameraCaptureController.capturarEEnviar`).
+    if (_controller.value.isBusy) return;
+
+    if (state == AppLifecycleState.inactive || state == AppLifecycleState.paused) {
+      if (_controller.cameraController == null) return; // nunca chegou a inicializar
+      _cameraPausadaPeloLifecycle = true;
+      _controller.pausarCamera();
+    } else if (state == AppLifecycleState.resumed && _cameraPausadaPeloLifecycle) {
+      _cameraPausadaPeloLifecycle = false;
+      _controller.initializeCamera(tipoAparelho: _tipoAtual);
+    }
   }
 
   /// Chamado a cada notificação do controller — liga o timer só na
@@ -267,6 +304,7 @@ class _CameraCaptureViewState extends State<CameraCaptureView> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _timerAvisoDemora?.cancel();
     _controller.removeListener(_onStateChanged);
     _controller.dispose();
