@@ -220,16 +220,40 @@ class PerfilUsuarioRepository {
   /// decifrada é a RPC `meu_perfil_seguro()` (SECURITY DEFINER, escopada a
   /// `auth.uid()`, `20260730160000_d2_pii_criptografia_repouso.sql`).
   /// `cep` não é PII cifrada — lido direto, mesmo padrão do resto da
-  /// classe. `null` tanto para "ninguém logado" quanto para "linha de
-  /// perfil ainda não existe" (usuário provisionado fora do cadastro
-  /// normal, mesmo achado de [atualizarDataNascimento]).
+  /// classe. `null` só pra "ninguém logado".
+  ///
+  /// RELATÓRIO 20261016_0008 (BUG CORRIGIDO) — achado real no device: a
+  /// 1ª versão desta função devolvia `null` (tela inteira em branco, sem
+  /// nenhum aviso de erro) quando `meu_perfil_seguro()` devolve lista
+  /// VAZIA — exatamente o caso de uma conta cuja linha em
+  /// `perfis_usuarios` nunca chegou a ser criada, o MESMO achado já
+  /// documentado em [atualizarDataNascimento] (`atleta1000@teste.com`):
+  /// `meu_perfil_seguro()` faz `where p.id = auth.uid()`, então "sem
+  /// linha" não é um erro da RPC — ela responde certo, com uma lista
+  /// vazia. Faltava tratar essa lista vazia como "perfil ainda não
+  /// existe", não como "ninguém logado"/erro. Agora, quando isso
+  /// acontece: 1) cria a linha com `.upsert({'id': usuarioId})` — mesmo
+  /// padrão seguro já usado no resto da classe, idempotente, nunca
+  /// sobrescreve nada que já exista; 2) devolve um [PerfilContaResumo] com
+  /// o e-mail da SESSÃO (`_supabase.auth.currentUser?.email` — sempre
+  /// disponível, nunca cifrado, já que não veio do banco) em vez de
+  /// `null`/tela vazia — a Restrição "exibir pelo menos o email" fica
+  /// garantida mesmo nesse caso extremo. Nome/tipo de perfil/CEP ficam
+  /// vazios de verdade (não há nada pra mostrar ainda), não inventados.
   Future<PerfilContaResumo?> buscarPerfilConta() async {
     final usuarioId = _supabase.auth.currentUser?.id;
     if (usuarioId == null) return null;
 
     final perfilSeguroResponse = await _supabase.rpc('meu_perfil_seguro');
     final linhasSeguras = (perfilSeguroResponse as List).cast<Map<String, dynamic>>();
-    if (linhasSeguras.isEmpty) return null;
+
+    if (linhasSeguras.isEmpty) {
+      await _supabase.from('perfis_usuarios').upsert({'id': usuarioId}, onConflict: 'id');
+      return PerfilContaResumo(
+        email: _supabase.auth.currentUser?.email,
+        ehProfissional: false,
+      );
+    }
     final perfilSeguro = linhasSeguras.first;
 
     final linhaCep = await _supabase.from('perfis_usuarios').select('cep').eq('id', usuarioId).maybeSingle();
@@ -237,7 +261,12 @@ class PerfilUsuarioRepository {
 
     return PerfilContaResumo(
       nome: perfilSeguro['nome'] as String?,
-      email: perfilSeguro['email'] as String?,
+      // `perfis_usuarios.email` pode genuinamente ser nulo mesmo com a
+      // linha existindo (cadastro antigo, ou nunca confirmado) — cai pro
+      // e-mail da sessão de autenticação pela mesma razão do ramo acima,
+      // nunca deixando o campo "Não informado" quando o Supabase Auth já
+      // sabe o e-mail de quem está logado.
+      email: (perfilSeguro['email'] as String?) ?? _supabase.auth.currentUser?.email,
       ehProfissional: perfilSeguro['eh_profissional'] as bool? ?? false,
       tipoProfissional: perfilSeguro['tipo_profissional'] as String?,
       cep: cep,

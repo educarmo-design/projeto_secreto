@@ -366,4 +366,127 @@ void main() {
       verifyNever(() => supabase.from('perfis_usuarios'));
     });
   });
+
+  // RELATÓRIO 20261016_0005 (Tela de Perfil) / BUG CORRIGIDO no RELATÓRIO
+  // 20261016_0008 — ver o doc de [PerfilUsuarioRepository.buscarPerfilConta].
+  group('buscarPerfilConta', () {
+    test('devolve email/nome/tipo decifrados pela RPC + cep lido direto, quando a linha já existe', () async {
+      when(() => supabase.rpc('meu_perfil_seguro')).thenAnswer(
+        (_) => _FakeFilterBuilder<dynamic>(
+          Future.value(<Map<String, dynamic>>[
+            {
+              'nome': 'Maria Silva',
+              'email': 'maria@teste.com',
+              'eh_profissional': false,
+              'tipo_profissional': null,
+            },
+          ]),
+        ),
+      );
+      when(() => perfisBuilder.select(any())).thenAnswer(
+        (_) => _FakeSelectFilterBuilder({'cep': '01001000'}),
+      );
+
+      final perfil = await repository.buscarPerfilConta();
+
+      expect(perfil, isNotNull);
+      expect(perfil!.nome, 'Maria Silva');
+      expect(perfil.email, 'maria@teste.com');
+      expect(perfil.ehProfissional, false);
+      expect(perfil.cep, '01001000');
+    });
+
+    // BUG CORRIGIDO (RELATÓRIO 20261016_0008) — achado real no device: a
+    // tela "Meu Perfil" aparecia inteiramente vazia (sem erro nenhum) pra
+    // uma conta cuja linha em `perfis_usuarios` nunca chegou a ser criada
+    // (mesmo achado de `atleta1000@teste.com`, documentado no resto desta
+    // classe). `meu_perfil_seguro()` devolve uma lista VAZIA nesse caso —
+    // não é "ninguém logado", é "perfil ainda não existe".
+    test('linha de perfis_usuarios ainda não existe: cria a linha e cai pro e-mail da sessão (nunca tela vazia)', () async {
+      when(() => supabase.rpc('meu_perfil_seguro')).thenAnswer(
+        (_) => _FakeFilterBuilder<dynamic>(Future.value(const <Map<String, dynamic>>[])),
+      );
+      when(() => perfisBuilder.upsert(any(), onConflict: any(named: 'onConflict'))).thenAnswer(
+        (_) => _FakeFilterBuilder<dynamic>(Future.value(const <Map<String, dynamic>>[])),
+      );
+      when(() => auth.currentUser).thenReturn(
+        const User(
+          id: _usuarioId,
+          email: 'sessao@teste.com',
+          appMetadata: {},
+          userMetadata: {},
+          aud: 'authenticated',
+          createdAt: '2026-01-01T00:00:00Z',
+        ),
+      );
+
+      final perfil = await repository.buscarPerfilConta();
+
+      expect(perfil, isNotNull);
+      expect(perfil!.email, 'sessao@teste.com');
+      expect(perfil.nome, isNull);
+      expect(perfil.cep, isNull);
+      expect(perfil.ehProfissional, false);
+      verify(() => perfisBuilder.upsert({'id': _usuarioId}, onConflict: 'id')).called(1);
+    });
+
+    test('perfis_usuarios.email nulo (linha existe, mas sem email cifrado) cai pro e-mail da sessão', () async {
+      when(() => supabase.rpc('meu_perfil_seguro')).thenAnswer(
+        (_) => _FakeFilterBuilder<dynamic>(
+          Future.value(<Map<String, dynamic>>[
+            {'nome': null, 'email': null, 'eh_profissional': false, 'tipo_profissional': null},
+          ]),
+        ),
+      );
+      when(() => perfisBuilder.select(any())).thenAnswer((_) => _FakeSelectFilterBuilder(null));
+      when(() => auth.currentUser).thenReturn(
+        const User(
+          id: _usuarioId,
+          email: 'sessao@teste.com',
+          appMetadata: {},
+          userMetadata: {},
+          aud: 'authenticated',
+          createdAt: '2026-01-01T00:00:00Z',
+        ),
+      );
+
+      final perfil = await repository.buscarPerfilConta();
+
+      expect(perfil!.email, 'sessao@teste.com');
+    });
+
+    test('devolve null sem consultar o Supabase quando ninguém está logado', () async {
+      when(() => auth.currentUser).thenReturn(null);
+
+      final perfil = await repository.buscarPerfilConta();
+
+      expect(perfil, isNull);
+      verifyNever(() => supabase.rpc(any()));
+    });
+  });
+
+  group('atualizarNomeECep', () {
+    test('faz UPSERT em perfis_usuarios com nome e cep', () async {
+      when(() => perfisBuilder.upsert(any(), onConflict: any(named: 'onConflict'))).thenAnswer(
+        (_) => _FakeFilterBuilder<dynamic>(Future.value(const <Map<String, dynamic>>[])),
+      );
+
+      await repository.atualizarNomeECep(nome: 'João Pereira', cep: '01001000');
+
+      verify(() => perfisBuilder.upsert(
+            {'id': _usuarioId, 'nome': 'João Pereira', 'cep': '01001000'},
+            onConflict: 'id',
+          )).called(1);
+    });
+
+    test('lança StateError sem chamar o Supabase quando ninguém está logado', () async {
+      when(() => auth.currentUser).thenReturn(null);
+
+      expect(
+        () => repository.atualizarNomeECep(nome: 'João', cep: '01001000'),
+        throwsStateError,
+      );
+      verifyNever(() => supabase.from('perfis_usuarios'));
+    });
+  });
 }
