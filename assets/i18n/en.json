@@ -855,6 +855,19 @@
     "historico_anamnese_load_error": "Failed to load your history. Please try again."
   },
 
+  "anamnese_detalhe": {
+    "title": "Assessment Details",
+    "load_error": "Failed to load this assessment's details.",
+    "tentar_novamente": "Try again",
+    "nao_encontrada": "Assessment not found.",
+    "secao_dados_fisicos": "Physical Data",
+    "secao_condicoes_saude": "Health Conditions",
+    "secao_alimentacao": "Diet",
+    "secao_atividade": "Physical Activity and Routine",
+    "secao_sono": "Sleep",
+    "secao_metas": "Goals and Objectives"
+  },
+
   "vinculos": {
     "title": "Professional Invitations",
     "empty_state": "You have no pending invitations.",
@@ -878,6 +891,30 @@
       "Personal_Trainer": "Personal Trainer",
       "Auditoria_Seguradora": "Insurance Audit"
     }
+  },
+
+  "meu_perfil": {
+    "menu_item": "My Profile",
+    "title": "My Profile",
+    "load_error": "Failed to load your profile. Please try again.",
+    "identificacao_label": "Identification",
+    "email_label": "Email",
+    "email_vazio": "Not informed",
+    "tipo_perfil_label": "Profile Type",
+    "tipo_perfil_paciente": "Patient",
+    "tipo_perfil_profissional": "Health Professional",
+    "vinculos_label": "Professionals following you",
+    "vinculos_vazio": "No professional is following you right now.",
+    "editar_label": "Edit Data",
+    "nome_label": "Name",
+    "nome_validation_empty": "Enter your name",
+    "cep_label": "ZIP/Postal Code",
+    "cep_hint": "Numbers only",
+    "cep_validation_empty": "Enter your postal code",
+    "cep_validation_invalid": "Postal code must have 8 digits",
+    "save_button": "Save",
+    "save_success": "Data saved successfully",
+    "save_error": "Failed to save. Please try again."
   },
 
   "food_search": {

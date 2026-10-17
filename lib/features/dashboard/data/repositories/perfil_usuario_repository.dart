@@ -212,6 +212,82 @@ class PerfilUsuarioRepository {
       onConflict: 'id',
     );
   }
+
+  /// RELATÓRIO 20261016_0005 (Tela de Perfil) — leitura do "perfil de
+  /// conta" (email, nome, tipo paciente/profissional). `nome`/`email` são
+  /// PII cifradas em repouso (D2) — por isso, diferente do resto desta
+  /// classe, NÃO dá pra `.select('nome, email')` direto: a única leitura
+  /// decifrada é a RPC `meu_perfil_seguro()` (SECURITY DEFINER, escopada a
+  /// `auth.uid()`, `20260730160000_d2_pii_criptografia_repouso.sql`).
+  /// `cep` não é PII cifrada — lido direto, mesmo padrão do resto da
+  /// classe. `null` tanto para "ninguém logado" quanto para "linha de
+  /// perfil ainda não existe" (usuário provisionado fora do cadastro
+  /// normal, mesmo achado de [atualizarDataNascimento]).
+  Future<PerfilContaResumo?> buscarPerfilConta() async {
+    final usuarioId = _supabase.auth.currentUser?.id;
+    if (usuarioId == null) return null;
+
+    final perfilSeguroResponse = await _supabase.rpc('meu_perfil_seguro');
+    final linhasSeguras = (perfilSeguroResponse as List).cast<Map<String, dynamic>>();
+    if (linhasSeguras.isEmpty) return null;
+    final perfilSeguro = linhasSeguras.first;
+
+    final linhaCep = await _supabase.from('perfis_usuarios').select('cep').eq('id', usuarioId).maybeSingle();
+    final cep = linhaCep?['cep'] as String?;
+
+    return PerfilContaResumo(
+      nome: perfilSeguro['nome'] as String?,
+      email: perfilSeguro['email'] as String?,
+      ehProfissional: perfilSeguro['eh_profissional'] as bool? ?? false,
+      tipoProfissional: perfilSeguro['tipo_profissional'] as String?,
+      cep: cep,
+    );
+  }
+
+  /// Primeira tela do app a editar `nome`/`cep` pós-cadastro (até aqui, só
+  /// `CadastroController._persistirPerfil` gravava esses campos, só no
+  /// signup). `nome` é cifrado transparentemente pelo trigger de D2 no
+  /// UPDATE — este repositório manda texto plano, igual todo outro writer
+  /// já faz (cadastro, painel web). RLS `perfis_usuarios_update_own`
+  /// garante que só o dono da linha grava; `.upsert()` (não `.update()`)
+  /// pela mesma razão documentada em [atualizarDataNascimento]: uma linha
+  /// de perfil que não existe ainda não pode ser afetada por um UPDATE.
+  Future<void> atualizarNomeECep({required String nome, required String cep}) async {
+    final usuarioId = _supabase.auth.currentUser?.id;
+    if (usuarioId == null) {
+      throw StateError('Nenhum usuário logado.');
+    }
+
+    await _supabase.from('perfis_usuarios').upsert(
+      {'id': usuarioId, 'nome': nome, 'cep': cep},
+      onConflict: 'id',
+    );
+  }
+}
+
+/// Resumo do "perfil de conta" (RELATÓRIO 20261016_0005) — email, nome e
+/// tipo de perfil (paciente/profissional), lidos via [PerfilUsuarioRepository.buscarPerfilConta].
+/// Diferente de [PerfilUsuarioRepository] em geral (dado físico): este é o
+/// dado de IDENTIDADE da conta.
+class PerfilContaResumo {
+  const PerfilContaResumo({
+    required this.email,
+    required this.ehProfissional,
+    this.nome,
+    this.tipoProfissional,
+    this.cep,
+  });
+
+  /// `null` só em contas muito antigas/provisionadas fora do fluxo normal —
+  /// todo cadastro novo grava email (ver `CadastroController`).
+  final String? email;
+  final String? nome;
+  final bool ehProfissional;
+
+  /// Valor bruto do enum `tipo_profissional_saude` (ex. "Nutricionista") —
+  /// `null` quando [ehProfissional] é `false`.
+  final String? tipoProfissional;
+  final String? cep;
 }
 
 /// Última leitura de peso conhecida + o dia a que ela se refere — usada só

@@ -4,6 +4,7 @@ import '../../../../core/i18n/i18n_manager.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../data/models/anamnese_models.dart';
 import '../../data/repositories/anamnese_repository.dart';
+import 'anamnese_detalhes_page.dart';
 
 const _carenciaDias = 30;
 
@@ -181,6 +182,12 @@ class _HistoricoAnamnesesPageState extends State<HistoricoAnamnesesPage> {
               ? i18n.tr('nutricao.historico_anamnese_item_ativo')
               : i18n.tr('nutricao.historico_anamnese_item_historico'),
           style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.mutedText),
+        ),
+        // RELATÓRIO 20261016_0005 (item 2) — abre o detalhe 100% leitura
+        // daquela anamnese específica. Restrição da tarefa: nunca edita
+        // nada aqui, [AnamneseDetalhesPage] não tem nenhum campo editável.
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute<void>(builder: (_) => AnamneseDetalhesPage(anamneseId: item.id)),
         ),
       ),
     );

@@ -287,6 +287,112 @@ class AnamneseRepository {
         .toList();
   }
 
+  /// RELATÓRIO 20261016_0005 (item 2 — "Visualização do Histórico de
+  /// Anamnese") — UMA anamnese específica, por id, com TODOS os campos
+  /// (mesmo espírito de [buscarAnamneseAtiva], generalizado de "a vigente"
+  /// para "qualquer uma do usuário"). `.eq('usuario_id', usuarioId)` é
+  /// defesa em profundidade — a RLS de `anamneses` já restringe a leitura
+  /// ao próprio dono (ou profissional vinculado ativo), mas aqui o
+  /// `usuario_id` da SESSÃO (não o da linha) é quem decide, então o filtro
+  /// evita que esta tela [AnamneseDetalhesPage, só paciente] abra por
+  /// engano uma anamnese de outra pessoa que a RLS deixaria passar (ex.:
+  /// um profissional vinculado usando este mesmo app, hipótese futura).
+  /// `null` = id não existe, não pertence a este usuário, ou ninguém
+  /// logado — tratado pela tela como "não encontrado", não erro.
+  Future<AnamneseDetalheModel?> buscarAnamnesePorId(String anamneseId) async {
+    final usuarioId = _supabase.auth.currentUser?.id;
+    if (usuarioId == null) return null;
+
+    final anamnese = await _supabase
+        .from('anamneses')
+        .select()
+        .eq('id', anamneseId)
+        .eq('usuario_id', usuarioId)
+        .maybeSingle();
+    if (anamnese == null) return null;
+
+    final results = await Future.wait([
+      _supabase
+          .from('anamneses_problemas_saude')
+          .select('problemas_saude(nome)')
+          .eq('anamnese_id', anamneseId),
+      _supabase
+          .from('anamneses_alergias')
+          .select('alergias(nome_exibicao)')
+          .eq('anamnese_id', anamneseId),
+      _supabase
+          .from('anamneses_atividades_dias')
+          .select('atividade_id, dia_semana, minutos, intensidade, tipos_atividades_fisicas(nome_exibicao)')
+          .eq('anamnese_id', anamneseId),
+      _supabase.from('anamneses_medicamentos').select('nome, dose, unidade, frequencia').eq('anamnese_id', anamneseId),
+      _supabase.from('anamneses_suplementos').select('nome, dose, unidade, objetivo').eq('anamnese_id', anamneseId),
+      _supabase
+          .from('anamneses_exames_laboratoriais')
+          .select('nome_exame, resultado, unidade')
+          .eq('anamnese_id', anamneseId),
+    ]);
+
+    final problemasSaude = (results[0] as List).cast<Map<String, dynamic>>();
+    final alergias = (results[1] as List).cast<Map<String, dynamic>>();
+    final atividades = (results[2] as List).cast<Map<String, dynamic>>();
+    final medicamentos = (results[3] as List).cast<Map<String, dynamic>>();
+    final suplementos = (results[4] as List).cast<Map<String, dynamic>>();
+    final exames = (results[5] as List).cast<Map<String, dynamic>>();
+
+    String? camposParaTexto(Map<String, dynamic> linha, String chave) {
+      final valor = linha[chave];
+      return valor == null ? null : '$valor';
+    }
+
+    return AnamneseDetalheModel(
+      id: anamnese['id'] as String,
+      dataPreenchimento: DateTime.parse(anamnese['data_preenchimento'] as String),
+      statusVigencia: anamnese['status_vigencia'] as String,
+      objetivoCodigo: anamnese['objetivo_codigo'] as String,
+      pesoKg: (anamnese['peso_kg'] as num).toDouble(),
+      alturaCm: (anamnese['altura_cm'] as num).toDouble(),
+      problemasSaudeNomes: problemasSaude
+          .map((linha) => (linha['problemas_saude'] as Map<String, dynamic>?)?['nome'] as String?)
+          .whereType<String>()
+          .toList(),
+      alergiasNomes: alergias
+          .map((linha) => (linha['alergias'] as Map<String, dynamic>?)?['nome_exibicao'] as String?)
+          .whereType<String>()
+          .toList(),
+      atividades: atividades.map((linha) {
+        final tipoAtividade = linha['tipos_atividades_fisicas'];
+        return AtividadeSelecionada(
+          atividadeId: linha['atividade_id'] as int,
+          nomeExibicao: tipoAtividade is Map ? (tipoAtividade['nome_exibicao'] as String? ?? '') : '',
+          minutos: linha['minutos'] as int,
+          diaSemana: linha['dia_semana'] as int,
+          intensidade: linha['intensidade'] as String? ?? 'moderada',
+        );
+      }).toList(),
+      medicamentos: medicamentos
+          .map((linha) => ItemRepetivel(nome: linha['nome'] as String, campos: {
+                if (camposParaTexto(linha, 'dose') != null) 'dose': camposParaTexto(linha, 'dose')!,
+                if (linha['unidade'] != null) 'unidade': linha['unidade'] as String,
+                if (linha['frequencia'] != null) 'frequencia': linha['frequencia'] as String,
+              }))
+          .toList(),
+      suplementos: suplementos
+          .map((linha) => ItemRepetivel(nome: linha['nome'] as String, campos: {
+                if (camposParaTexto(linha, 'dose') != null) 'dose': camposParaTexto(linha, 'dose')!,
+                if (linha['unidade'] != null) 'unidade': linha['unidade'] as String,
+                if (linha['objetivo'] != null) 'objetivo': linha['objetivo'] as String,
+              }))
+          .toList(),
+      exames: exames
+          .map((linha) => ItemRepetivel(nome: linha['nome_exame'] as String, campos: {
+                if (linha['resultado'] != null) 'resultado': linha['resultado'] as String,
+                if (linha['unidade'] != null) 'unidade': linha['unidade'] as String,
+              }))
+          .toList(),
+      complementares: dadosComplementaresDeJson(anamnese),
+    );
+  }
+
   /// Bloco 4 (docs/motor_metabolico.txt, RELATÓRIO 20260918_0001) — "o
   /// sistema deve recuperar automaticamente informações históricas
   /// disponíveis". Chama a RPC pura `anamnese_historico_peso` (nunca

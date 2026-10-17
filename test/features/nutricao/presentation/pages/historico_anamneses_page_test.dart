@@ -5,6 +5,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:atleta_gamificacao/core/i18n/i18n_manager.dart';
 import 'package:atleta_gamificacao/features/nutricao/data/models/anamnese_models.dart';
 import 'package:atleta_gamificacao/features/nutricao/data/repositories/anamnese_repository.dart';
+import 'package:atleta_gamificacao/features/nutricao/presentation/pages/anamnese_detalhes_page.dart';
 import 'package:atleta_gamificacao/features/nutricao/presentation/pages/historico_anamneses_page.dart';
 
 class _MockRepository extends Mock implements AnamneseRepository {}
@@ -100,5 +101,35 @@ void main() {
 
     expect(find.text('Revisão disponível agora'), findsNothing);
     expect(find.textContaining('Próxima revisão disponível em'), findsOneWidget);
+  });
+
+  // RELATÓRIO 20261016_0005 (item 2) — o card deixa de ser inerte: toca e
+  // abre o detalhe 100% leitura daquela anamnese específica.
+  testWidgets('tocar num card navega para AnamneseDetalhesPage com o id correto', (tester) async {
+    when(() => repository.buscarHistoricoAnamneses()).thenAnswer(
+      (_) async => [
+        AnamneseHistoricoItem(
+          id: 'anamnese-xyz',
+          dataPreenchimento: DateTime.now(),
+          objetivoCodigo: 'manter_peso',
+          statusVigencia: 'ativo',
+        ),
+      ],
+    );
+    await tester.pumpWidget(criarApp());
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Manter peso'));
+    // A tela de detalhe usa seu próprio AnamneseRepository por padrão
+    // quando nenhum é injetado (igual ao uso real a partir daqui) — não
+    // há Supabase inicializado neste arquivo de teste, mas a tentativa de
+    // acesso falha de forma síncrona e é capturada pelo try/catch de
+    // `_carregar` (vira estado de erro), então pumpAndSettle termina
+    // normalmente; aqui só interessa confirmar QUE a navegação aconteceu
+    // com o id certo.
+    await tester.pumpAndSettle();
+
+    final detalhePage = tester.widget<AnamneseDetalhesPage>(find.byType(AnamneseDetalhesPage));
+    expect(detalhePage.anamneseId, 'anamnese-xyz');
   });
 }

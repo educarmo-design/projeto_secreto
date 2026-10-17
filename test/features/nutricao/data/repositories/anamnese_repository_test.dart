@@ -364,6 +364,117 @@ void main() {
     });
   });
 
+  group('buscarAnamnesePorId (RELATÓRIO 20261016_0005, Tela de Detalhes)', () {
+    test('devolve null sem consultar o Supabase quando ninguém está logado', () async {
+      when(() => auth.currentUser).thenReturn(null);
+
+      final detalhe = await repository.buscarAnamnesePorId('anamnese-1');
+
+      expect(detalhe, isNull);
+      verifyNever(() => supabase.from(any()));
+    });
+
+    test('devolve null quando o id não existe/não pertence a este usuário', () async {
+      final anamnesesBuilder = builderPara('anamneses');
+      when(() => anamnesesBuilder.select(any())).thenAnswer(
+        (_) => _FakeQuery<List<Map<String, dynamic>>>([]),
+      );
+
+      final detalhe = await repository.buscarAnamnesePorId('anamnese-inexistente');
+
+      expect(detalhe, isNull);
+    });
+
+    test('devolve o detalhe completo com relações N:N e campos complementares resolvidos', () async {
+      final anamnesesBuilder = builderPara('anamneses');
+      when(() => anamnesesBuilder.select(any())).thenAnswer(
+        (_) => _FakeQuery<List<Map<String, dynamic>>>([
+          {
+            'id': 'anamnese-1',
+            'data_preenchimento': '2026-08-10T00:00:00Z',
+            'objetivo_codigo': 'perder_peso',
+            'status_vigencia': 'historico',
+            'peso_kg': 80.0,
+            'altura_cm': 178.0,
+            'restricoes_alimentares': ['Vegetariano'],
+            'intolerancias_alimentares': ['Lactose'],
+            'numero_refeicoes_dia': 5,
+          },
+        ]),
+      );
+
+      final problemasBuilder = builderPara('anamneses_problemas_saude');
+      when(() => problemasBuilder.select(any())).thenAnswer(
+        (_) => _FakeQuery<List<Map<String, dynamic>>>([
+          {'problemas_saude': {'nome': 'Hipertensão'}},
+        ]),
+      );
+
+      final alergiasBuilder = builderPara('anamneses_alergias');
+      when(() => alergiasBuilder.select(any())).thenAnswer(
+        (_) => _FakeQuery<List<Map<String, dynamic>>>([
+          {'alergias': {'nome_exibicao': 'Amendoim'}},
+        ]),
+      );
+
+      final atividadesBuilder = builderPara('anamneses_atividades_dias');
+      when(() => atividadesBuilder.select(any())).thenAnswer(
+        (_) => _FakeQuery<List<Map<String, dynamic>>>([
+          {
+            'atividade_id': 30,
+            'dia_semana': 1,
+            'minutos': 45,
+            'intensidade': 'moderada',
+            'tipos_atividades_fisicas': {'nome_exibicao': 'Corrida'},
+          },
+        ]),
+      );
+
+      final medicamentosBuilder = builderPara('anamneses_medicamentos');
+      when(() => medicamentosBuilder.select(any())).thenAnswer(
+        (_) => _FakeQuery<List<Map<String, dynamic>>>([
+          {'nome': 'Metformina', 'dose': 500, 'unidade': 'mg', 'frequencia': '2x ao dia'},
+        ]),
+      );
+
+      final suplementosBuilder = builderPara('anamneses_suplementos');
+      when(() => suplementosBuilder.select(any())).thenAnswer(
+        (_) => _FakeQuery<List<Map<String, dynamic>>>([]),
+      );
+
+      final examesBuilder = builderPara('anamneses_exames_laboratoriais');
+      when(() => examesBuilder.select(any())).thenAnswer(
+        (_) => _FakeQuery<List<Map<String, dynamic>>>([]),
+      );
+
+      final detalhe = await repository.buscarAnamnesePorId('anamnese-1');
+
+      expect(detalhe, isNotNull);
+      expect(detalhe!.id, 'anamnese-1');
+      expect(detalhe.statusVigencia, 'historico');
+      expect(detalhe.objetivoCodigo, 'perder_peso');
+      expect(detalhe.pesoKg, 80.0);
+      expect(detalhe.alturaCm, 178.0);
+      expect(detalhe.problemasSaudeNomes, ['Hipertensão']);
+      expect(detalhe.alergiasNomes, ['Amendoim']);
+      expect(detalhe.atividades, hasLength(1));
+      expect(detalhe.atividades.single.nomeExibicao, 'Corrida');
+      expect(detalhe.atividades.single.intensidade, 'moderada');
+      expect(detalhe.medicamentos, hasLength(1));
+      expect(detalhe.medicamentos.single.nome, 'Metformina');
+      expect(detalhe.medicamentos.single.campos['unidade'], 'mg');
+      expect(detalhe.suplementos, isEmpty);
+      expect(detalhe.exames, isEmpty);
+      // Restrição da tarefa ("Nenhuma anamnese passada pode ter seus dados
+      // sobrescritos") — esta leitura não altera a anamnese; aqui só
+      // confirma que os campos complementares (não só os fixos) também
+      // foram lidos de volta corretamente.
+      expect(detalhe.complementares.restricoesAlimentares, ['Vegetariano']);
+      expect(detalhe.complementares.intolerancias, ['Lactose']);
+      expect(detalhe.complementares.numeroRefeicoesDia, 5);
+    });
+  });
+
   group('buscarHistoricoPeso', () {
     test('devolve tudo null sem consultar o Supabase quando ninguém está logado', () async {
       when(() => auth.currentUser).thenReturn(null);
