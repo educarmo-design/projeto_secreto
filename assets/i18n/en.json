@@ -913,6 +913,7 @@
     "cep_hint": "Numbers only",
     "cep_validation_empty": "Enter your postal code",
     "cep_validation_invalid": "Postal code must have 8 digits",
+    "endereco_validation_empty": "Fill in this field",
     "save_button": "Save",
     "save_success": "Data saved successfully",
     "save_error": "Failed to save. Please try again."
