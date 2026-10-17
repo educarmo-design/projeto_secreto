@@ -182,6 +182,8 @@
     "camera_rotulo_gorduras_label": "Grasas",
     "camera_rotulo_ingredientes_label": "Ingredientes principales",
     "camera_rotulo_possivel_foto_tela": "Esto podría ser una foto de una pantalla, no del producto físico — revisa los valores con atención antes de confirmar.",
+    "camera_rotulo_macros_incompletos": "Esta etiqueta no imprime todos los valores nutricionales (o alguno quedó ilegible) — completa manualmente lo que falte antes de confirmar.",
+    "camera_rotulo_campo_nao_impresso": "no impreso en la etiqueta",
     "health_permission_denied": "Permiso de salud denegado. Habilite el acceso en Configuración.",
     "health_connect_unavailable": "Health Connect no está instalado en este dispositivo",
     "health_connect_install_button": "Instalar Health Connect",
@@ -853,6 +855,19 @@
     "historico_anamnese_load_error": "Error al cargar tu historial. Inténtalo de nuevo."
   },
 
+  "anamnese_detalhe": {
+    "title": "Detalles de la Evaluación",
+    "load_error": "Error al cargar los detalles de esta evaluación.",
+    "tentar_novamente": "Intentar de nuevo",
+    "nao_encontrada": "Evaluación no encontrada.",
+    "secao_dados_fisicos": "Datos Físicos",
+    "secao_condicoes_saude": "Condiciones de Salud",
+    "secao_alimentacao": "Alimentación",
+    "secao_atividade": "Actividad Física y Rutina",
+    "secao_sono": "Sueño",
+    "secao_metas": "Metas y Objetivos"
+  },
+
   "vinculos": {
     "title": "Invitaciones de Profesionales",
     "empty_state": "No tienes invitaciones pendientes.",
@@ -876,6 +891,30 @@
       "Personal_Trainer": "Entrenador Personal",
       "Auditoria_Seguradora": "Auditoría de Seguros"
     }
+  },
+
+  "meu_perfil": {
+    "menu_item": "Mi Perfil",
+    "title": "Mi Perfil",
+    "load_error": "Error al cargar tu perfil. Inténtalo de nuevo.",
+    "identificacao_label": "Identificación",
+    "email_label": "Correo electrónico",
+    "email_vazio": "No informado",
+    "tipo_perfil_label": "Tipo de Perfil",
+    "tipo_perfil_paciente": "Paciente",
+    "tipo_perfil_profissional": "Profesional de Salud",
+    "vinculos_label": "Profesionales que te acompañan",
+    "vinculos_vazio": "Ningún profesional te acompaña en este momento.",
+    "editar_label": "Editar Datos",
+    "nome_label": "Nombre",
+    "nome_validation_empty": "Indica tu nombre",
+    "cep_label": "Código Postal",
+    "cep_hint": "Solo números",
+    "cep_validation_empty": "Indica tu código postal",
+    "cep_validation_invalid": "El código postal debe tener 8 números",
+    "save_button": "Guardar",
+    "save_success": "Datos guardados con éxito",
+    "save_error": "Error al guardar. Inténtalo de nuevo."
   },
 
   "food_search": {

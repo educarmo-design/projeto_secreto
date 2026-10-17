@@ -10,6 +10,7 @@ import '../../../nutricao/presentation/pages/meta_bem_estar_page.dart';
 import '../../../nutrition/presentation/pages/favoritas_page.dart';
 import '../../../nutrition/presentation/pages/manual_food_search_page.dart';
 import '../../../vinculos/presentation/pages/gerir_vinculos_page.dart';
+import 'meu_perfil_page.dart';
 import 'perfil_usuario_page.dart';
 import 'teste_frequencia_cardiaca_page.dart';
 import 'teste_peso_page.dart';
@@ -129,6 +130,19 @@ class _ConfiguracoesPerfilPageState extends State<ConfiguracoesPerfilPage> {
                 const SizedBox(height: 32),
                 const Divider(),
                 const SizedBox(height: 16),
+                // RELATÓRIO 20261016_0005 — "Meu Perfil": email/tipo de
+                // perfil/vínculos ativos (leitura) + Nome/CEP (edição).
+                // Primeiro item da lista, antes dos demais — é a tela de
+                // identidade da conta, o ponto de entrada mais natural.
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.person_outline),
+                  title: Text(i18n.tr('meu_perfil.menu_item')),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(builder: (_) => const MeuPerfilPage()),
+                  ),
+                ),
                 ListTile(
                   contentPadding: EdgeInsets.zero,
                   leading: const Icon(Icons.mail_outline),
