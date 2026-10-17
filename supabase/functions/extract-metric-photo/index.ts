@@ -543,20 +543,38 @@ const SYSTEM_PROMPT_ROTULO = `You are a strict OCR engine that transcribes the p
 Respond with RAW JSON ONLY — no markdown, no code fences, no text before or after the object. The object has exactly these fields:
 {
   "legivel": boolean,
-  "porcao_descricao": string | null,    // the serving size exactly as printed, e.g. "30 g (2 colheres de sopa)"; null if not legible
-  "calorias_kcal": number | null,       // calories per serving as printed; null if not present/legible
-  "proteinas_g": number | null,
-  "carboidratos_g": number | null,
-  "gorduras_g": number | null,
+  "porcao_descricao": string | null,    // the serving size you are reporting numbers FOR, exactly as printed, e.g. "30 g (2 colheres de sopa)" — see the column-choice rule below; null if not legible
+  "calorias_kcal": number | null,       // calories, read from the SAME column as porcao_descricao; null only if genuinely not printed anywhere on the label
+  "proteinas_g": number | null,         // same column rule
+  "carboidratos_g": number | null,      // same column rule
+  "gorduras_g": number | null,          // same column rule ("gorduras totais"/"total fat", not saturated/trans)
   "ingredientes_principais": string[],  // up to 10 main ingredients from the ingredients list, in the order printed, exactly as written (Brazilian Portuguese)
   "confianca": number,                  // 0.0 to 1.0, how sure you are of every number transcribed
   "possivel_foto_de_tela": boolean,     // true if this looks like a photo OF ANOTHER SCREEN (moiré, pixel grid, glare of a monitor)
   "motivo": string | null               // short reason when not legible; null when legible
 }
 
-Rules:
+Column-choice rule (Brazilian "Informação Nutricional" tables almost always
+print TWO columns side by side — "por porção" and "100 g"/"100 ml" — this is
+the single most common reason these numbers end up blank, so read carefully):
+- Prefer the "por porção" ("per serving") column when the table has one.
+- If the table has ONLY a "100 g"/"100 ml" column (no separate serving
+  column), use THAT column instead of leaving the numbers null — set
+  "porcao_descricao" to describe it accurately (e.g. "100 g" or "100 ml"),
+  so the caller knows which basis these numbers are on. A label with no
+  serving column at all is still a fully readable label; do not treat "no
+  serving column" as "not legible".
+- Calories are usually printed as "Valor energético" (kcal, sometimes also
+  kJ next to it — report only the kcal number). Total fat is "Gorduras
+  totais" (not "gorduras saturadas"/"gorduras trans", which are different,
+  more specific fields you should NOT use here).
+- Only leave a numeric field null when that exact nutrient is genuinely
+  absent from the table (common for a label with no "gorduras_g" row, for
+  example) — never null a field just because the print is small or the
+  table has two columns; read the number that is actually there.
+
+Other rules:
 - Transcribe ONLY numbers that are actually printed on the label — never calculate, estimate, or infer a value that isn't shown.
-- If a specific field (e.g. gorduras_g) is not present on this particular label, leave it null — do not guess.
 - If the label is blurry, reflective, partially cut off, or this is not a nutrition facts label at all: set "legivel" to false, all numeric fields to null, "ingredientes_principais" to an empty array, a low "confianca", and fill "motivo".
 - "ingredientes_principais" is capped at 10 items — list the first ones as printed, do not summarize or paraphrase them.
 - If you can read the label, report it even if the photo appears to be of a screen — but still set "possivel_foto_de_tela" accordingly.

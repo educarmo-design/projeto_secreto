@@ -671,6 +671,29 @@ class _CameraCaptureViewState extends State<CameraCaptureView> with WidgetsBindi
                     ),
                     const SizedBox(height: 16),
                   ],
+                  // RELATÓRIO 20261016_0004 (hotfix OCR de rótulos) — Regra
+                  // 23 ("falhar visível, nunca arbitrar/esconder"): antes
+                  // desta correção, um ou mais macros vindo em branco do
+                  // rótulo (comum — nem toda etiqueta imprime os 4; ver doc
+                  // de [RotuloExtracaoModel.todosMacrosPresentes]) deixava o
+                  // card abaixo com campos vazios e NENHUM aviso — igual, pra
+                  // quem olha a tela, de "a extração não funcionou". Agora
+                  // isso é dito explicitamente, nunca silencioso.
+                  if (extracao != null && !extracao.todosMacrosPresentes) ...[
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: AppColors.info.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: AppColors.info),
+                      ),
+                      child: Text(
+                        i18n.tr('dashboard.camera_rotulo_macros_incompletos'),
+                        style: const TextStyle(color: AppColors.info),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
                   Card(
                     color: Colors.white,
                     child: Padding(
@@ -776,6 +799,11 @@ class _CameraCaptureViewState extends State<CameraCaptureView> with WidgetsBindi
       inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]'))],
       decoration: InputDecoration(
         labelText: i18n.tr(labelKey),
+        // RELATÓRIO 20261016_0004 — campo vazio com hint explícito
+        // ("não impresso no rótulo"), nunca um espaço em branco mudo: a
+        // mesma distinção que o banner acima faz pro card inteiro, aqui
+        // campo a campo (o usuário pode digitar por cima pra completar).
+        hintText: i18n.tr('dashboard.camera_rotulo_campo_nao_impresso'),
         suffixText: suffix,
         border: const OutlineInputBorder(),
         isDense: true,
