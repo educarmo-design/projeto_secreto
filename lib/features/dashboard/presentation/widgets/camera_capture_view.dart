@@ -694,42 +694,65 @@ class _CameraCaptureViewState extends State<CameraCaptureView> with WidgetsBindi
                     ),
                     const SizedBox(height: 16),
                   ],
-                  Card(
-                    color: Colors.white,
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            i18n.tr('dashboard.camera_rotulo_card_title'),
-                            style: Theme.of(context).textTheme.titleMedium,
-                          ),
-                          const SizedBox(height: 12),
-                          _buildCampoMacro(
-                            controller: _caloriasController,
-                            labelKey: 'dashboard.camera_rotulo_calorias_label',
-                            suffix: 'kcal',
-                          ),
-                          const SizedBox(height: 12),
-                          _buildCampoMacro(
-                            controller: _proteinasController,
-                            labelKey: 'dashboard.camera_rotulo_proteinas_label',
-                            suffix: 'g',
-                          ),
-                          const SizedBox(height: 12),
-                          _buildCampoMacro(
-                            controller: _carboidratosController,
-                            labelKey: 'dashboard.camera_rotulo_carboidratos_label',
-                            suffix: 'g',
-                          ),
-                          const SizedBox(height: 12),
-                          _buildCampoMacro(
-                            controller: _gordurasController,
-                            labelKey: 'dashboard.camera_rotulo_gorduras_label',
-                            suffix: 'g',
-                          ),
-                        ],
+                  // RELATÓRIO 20261016_0006 — achado real do "retângulo
+                  // branco vazio": não é crash (não há nenhum `!` perigoso
+                  // nesta tela, nem em `_buildResultadoRotulo` nem em
+                  // `_buildCampoMacro` — confirmado por leitura; os únicos 2
+                  // force-unwraps existentes são blindados por `if` logo
+                  // acima, nunca executam com valor nulo). É CONTRASTE: esta
+                  // é a ÚNICA tela do app, no perfil Atleta, que mistura um
+                  // fundo de `Card` branco com o tema global ESCURO
+                  // (`UiProfileSwitcher.themeMode` força `ThemeMode.dark`
+                  // pra Atleta, sempre — `main.dart`). Sem este `Theme`
+                  // local, o título e os 4 campos herdavam
+                  // `textTheme.titleMedium`/`colorScheme.onSurface` do tema
+                  // ESCURO ambiente (`AppColors.lightText`, branco) —
+                  // texto branco sobre Card branco, invisível a olho nu,
+                  // indistinguível de "nada renderizou". Mesmo idioma já
+                  // usado em outras telas deste app pra forçar um tema
+                  // específico num subtree (`main_navigation_page.dart`,
+                  // `gerenciador_layout_page.dart`: `Theme(data:
+                  // getDarkTheme(), ...)`), aqui invertido porque o fundo
+                  // local é claro, não escuro.
+                  Theme(
+                    data: getLightTheme(),
+                    child: Card(
+                      color: Colors.white,
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              i18n.tr('dashboard.camera_rotulo_card_title'),
+                              style: Theme.of(context).textTheme.titleMedium,
+                            ),
+                            const SizedBox(height: 12),
+                            _buildCampoMacro(
+                              controller: _caloriasController,
+                              labelKey: 'dashboard.camera_rotulo_calorias_label',
+                              suffix: 'kcal',
+                            ),
+                            const SizedBox(height: 12),
+                            _buildCampoMacro(
+                              controller: _proteinasController,
+                              labelKey: 'dashboard.camera_rotulo_proteinas_label',
+                              suffix: 'g',
+                            ),
+                            const SizedBox(height: 12),
+                            _buildCampoMacro(
+                              controller: _carboidratosController,
+                              labelKey: 'dashboard.camera_rotulo_carboidratos_label',
+                              suffix: 'g',
+                            ),
+                            const SizedBox(height: 12),
+                            _buildCampoMacro(
+                              controller: _gordurasController,
+                              labelKey: 'dashboard.camera_rotulo_gorduras_label',
+                              suffix: 'g',
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
