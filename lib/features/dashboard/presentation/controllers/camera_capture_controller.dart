@@ -73,6 +73,21 @@ class CameraCaptureState {
   /// typed confirmation screen yet (unlike [pratoExtraido]).
   final Map<String, dynamic>? rawResult;
 
+  /// RELATÓRIO 20261016_0007 — pedido explícito do fundador: depois de
+  /// fotografar o rótulo, ver a própria foto na tela de resultado (UX),
+  /// mesmo sem nenhuma renderização de imagem ter existido antes nesta
+  /// tela. Os MESMOS bytes já lidos em memória por [capturarEEnviar] antes
+  /// do upload (nunca uma 2ª leitura/cópia do arquivo) — populado só para
+  /// [TipoAparelho.rotulo]; os demais tipos continuam `null`, sem mudança
+  /// de comportamento. Não é uma regressão do "Zero Storage Pipeline": o
+  /// arquivo temporário do plugin `camera` continua sendo apagado do disco
+  /// no `finally` de [capturarEEnviar], exatamente como antes — isto só
+  /// mantém os bytes (já em RAM) vivos um pouco mais, dentro do próprio
+  /// estado do controller, até o usuário confirmar/tentar de novo/saltar
+  /// desta tela (quando [reset]/um novo `CameraCaptureState` descarta a
+  /// referência e o Dart libera a memória).
+  final Uint8List? capturedImageBytes;
+
   final String? errorMessage;
 
   /// Classe da exceção real + mensagem técnica (nunca dado da foto/paciente)
@@ -87,6 +102,7 @@ class CameraCaptureState {
     this.extractedData,
     this.pratoExtraido,
     this.rawResult,
+    this.capturedImageBytes,
     this.errorMessage,
     this.debugDetail,
   });
@@ -109,10 +125,17 @@ class CameraCaptureState {
 /// camera via the `camera` plugin, never `image_picker` or any path that
 /// could accept a pre-existing photo.
 ///
-/// LGPD Zero Storage Pipeline: [capturarEEnviar] holds the captured frame
-/// in memory only for the duration of the upload request, and deletes the
-/// plugin's temp file the instant the server responds (success or not) —
-/// see the `finally` block.
+/// LGPD Zero Storage Pipeline: [capturarEEnviar] deletes the plugin's temp
+/// file the instant the server responds (success or not) — see the
+/// `finally` block. Nothing about the photo ever reaches disk under this
+/// app's own control, and no gallery/pre-existing photo is ever eligible
+/// for upload. RELATÓRIO 20261016_0007 — the raw bytes (already read into
+/// memory before the upload, never re-read from disk) now also survive a
+/// little longer, in [CameraCaptureState.capturedImageBytes], for
+/// [TipoAparelho.rotulo] only: long enough for the result screen to show
+/// the user their own photo (UX, explicitly requested) before they confirm
+/// or retry. Still RAM-only, never a 2nd file — discarded the moment
+/// [reset]/a fresh capture replaces the state.
 class CameraCaptureController extends ValueNotifier<CameraCaptureState> {
   CameraCaptureController({http.Client? httpClient})
       : _httpClient = httpClient ?? http.Client(),
@@ -379,6 +402,9 @@ class CameraCaptureController extends ValueNotifier<CameraCaptureState> {
         value = CameraCaptureState(
           status: CameraCaptureStatus.success,
           rawResult: decoded,
+          // RELATÓRIO 20261016_0007 — mesmos `bytes` já lidos acima pra
+          // montar o corpo do upload, nunca uma 2ª leitura do arquivo.
+          capturedImageBytes: bytes,
         );
         return;
       }

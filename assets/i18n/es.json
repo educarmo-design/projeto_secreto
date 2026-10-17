@@ -184,6 +184,7 @@
     "camera_rotulo_possivel_foto_tela": "Esto podría ser una foto de una pantalla, no del producto físico — revisa los valores con atención antes de confirmar.",
     "camera_rotulo_macros_incompletos": "Esta etiqueta no imprime todos los valores nutricionales (o alguno quedó ilegible) — completa manualmente lo que falte antes de confirmar.",
     "camera_rotulo_campo_nao_impresso": "no impreso en la etiqueta",
+    "camera_rotulo_foto_indisponivel": "Imagen no disponible",
     "health_permission_denied": "Permiso de salud denegado. Habilite el acceso en Configuración.",
     "health_connect_unavailable": "Health Connect no está instalado en este dispositivo",
     "health_connect_install_button": "Instalar Health Connect",
