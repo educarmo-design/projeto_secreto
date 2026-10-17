@@ -184,6 +184,7 @@
     "camera_rotulo_possivel_foto_tela": "This might be a photo of a screen, not the physical product — double-check the values before confirming.",
     "camera_rotulo_macros_incompletos": "This label doesn't print every nutritional value (or one came out unreadable) — fill in whatever's missing manually before confirming.",
     "camera_rotulo_campo_nao_impresso": "not printed on the label",
+    "camera_rotulo_foto_indisponivel": "Image unavailable",
     "health_permission_denied": "Health permission denied. Enable access in Settings.",
     "health_connect_unavailable": "Health Connect is not installed on this device",
     "health_connect_install_button": "Install Health Connect",

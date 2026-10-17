@@ -612,7 +612,7 @@ class _CameraCaptureViewState extends State<CameraCaptureView> with WidgetsBindi
 
       case CameraCaptureStatus.success:
         if (state.rawResult != null) {
-          return _buildResultadoRotulo(context, _rotuloExtraido);
+          return _buildResultadoRotulo(context, _rotuloExtraido, state.capturedImageBytes);
         }
         // Glicosímetro/balança/pressão: `_onStateChanged` já fez
         // `Navigator.pop` antes deste frame renderizar de fato — este
@@ -633,7 +633,11 @@ class _CameraCaptureViewState extends State<CameraCaptureView> with WidgetsBindi
   /// número que a IA leu errado antes de confirmar — "validar os dados
   /// antes de gravar no banco" (Restrição da tarefa). Prato de comida não
   /// chega mais aqui — tem [ConfirmacaoPratoPage] própria (F10 Passo 3).
-  Widget _buildResultadoRotulo(BuildContext context, RotuloExtracaoModel? extracao) {
+  Widget _buildResultadoRotulo(
+    BuildContext context,
+    RotuloExtracaoModel? extracao,
+    Uint8List? fotoBytes,
+  ) {
     return SafeArea(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -644,6 +648,43 @@ class _CameraCaptureViewState extends State<CameraCaptureView> with WidgetsBindi
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // RELATÓRIO 20261016_0007 — pedido explícito do fundador:
+                  // mostrar a própria foto tirada nesta tela de resultado
+                  // (UX). `fotoBytes` só existe em RAM (ver doc de
+                  // [CameraCaptureState.capturedImageBytes]) — `Image.memory`
+                  // nunca lê nada do disco. `errorBuilder` cobre o caso
+                  // (raro, mas possível em teoria: bytes corrompidos/
+                  // formato que o decodificador de imagem do Flutter não
+                  // reconhece) de falha ao decodificar — mostra um aviso
+                  // claro em vez de quebrar a tela.
+                  if (fotoBytes != null) ...[
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: Image.memory(
+                        fotoBytes,
+                        height: 200,
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) => Container(
+                          height: 200,
+                          width: double.infinity,
+                          color: Colors.white12,
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(Icons.broken_image_outlined, color: Colors.white54, size: 40),
+                              const SizedBox(height: 8),
+                              Text(
+                                i18n.tr('dashboard.camera_rotulo_foto_indisponivel'),
+                                style: const TextStyle(color: Colors.white54, fontSize: 12),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
                   if (extracao?.porcaoDescricao != null) ...[
                     Text(
                       i18n.tr('dashboard.camera_rotulo_porcao_label'),
