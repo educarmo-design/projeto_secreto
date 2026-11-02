@@ -102,4 +102,36 @@ class VinculosService {
       return const [];
     }
   }
+
+  /// RELATÓRIO 20261102_0001 (Histórico de Anamnese — badge "Prescrição
+  /// Clínica — [nickname]") — resolve nickname/tipo de QUALQUER
+  /// profissional já vinculado a este paciente, independente do
+  /// `status` do vínculo (ativo, em carência, encerrado — um profissional
+  /// que prescreveu uma meta há meses e não acompanha mais o paciente
+  /// hoje ainda precisa ser identificável num registro histórico).
+  /// `perfis_profissionais_vinculados` já não filtra por status (ver a
+  /// própria migration) — mesmo motivo de [carregarConvitesPendentes]/
+  /// [carregarVinculosAtivos], mas sem o filtro de status desta vez.
+  ///
+  /// Nunca nome/e-mail/telefone reais — só o que esta view sempre exibiu
+  /// pra um paciente sobre o profissional (nickname público + tipo),
+  /// mesma Restrição de privacidade do resto do app.
+  Future<Map<String, ({String? nickname, String? tipoProfissional})>> buscarNomesProfissionaisVinculados() async {
+    try {
+      final perfisResponse = await _client
+          .from('perfis_profissionais_vinculados')
+          .select('id, nickname, tipo_profissional');
+
+      return {
+        for (final perfil in (perfisResponse as List).cast<Map<String, dynamic>>())
+          perfil['id'] as String: (
+            nickname: perfil['nickname'] as String?,
+            tipoProfissional: perfil['tipo_profissional'] as String?,
+          ),
+      };
+    } on PostgrestException catch (e) {
+      debugPrint('Erro ao carregar nomes de profissionais vinculados: ${e.message}');
+      return const {};
+    }
+  }
 }

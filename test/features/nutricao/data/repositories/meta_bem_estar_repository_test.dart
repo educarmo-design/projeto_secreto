@@ -28,6 +28,13 @@ class _FakeQuery<T> extends Fake implements PostgrestFilterBuilder<T> {
   @override
   PostgrestFilterBuilder<T> not(String column, String operator, Object? value) => this;
 
+  // RELATÓRIO 20261102_0001 — usados por `buscarMetasNoPeriodo`.
+  @override
+  PostgrestFilterBuilder<T> gte(String column, Object value) => this;
+
+  @override
+  PostgrestFilterBuilder<T> lt(String column, Object value) => this;
+
   @override
   PostgrestTransformBuilder<T> order(
     String column, {
@@ -231,6 +238,78 @@ void main() {
       final historico = await repository.buscarHistoricoMetas();
 
       expect(historico, isEmpty);
+      verifyNever(() => supabase.from('objetivos_alimentares'));
+    });
+  });
+
+  // RELATÓRIO 20261102_0001 (Histórico de Anamnese — correlação por
+  // tempo com o Plano de Metas) — diferente de `buscarHistoricoMetas`
+  // (só self-service, só `tipo_dia = 'PADRAO'`), devolve QUALQUER meta
+  // (profissional ou self-service, qualquer `tipo_dia`) no intervalo.
+  group('buscarMetasNoPeriodo', () {
+    test('devolve metas (self-service e profissional, qualquer tipo_dia) com tipoDia/profissionalId mapeados',
+        () async {
+      when(() => objetivosBuilder.select(any())).thenAnswer(
+        (_) => _FakeQuery<List<Map<String, dynamic>>>([
+          {
+            'calorias_alvo': 2400,
+            'proteina_g': 180,
+            'carbo_g': 260,
+            'gordura_g': 75,
+            'data_criacao': '2026-10-01T00:00:00Z',
+            'status_vigencia': 'ativo',
+            'tipo_dia': 'TREINO',
+            'profissional_id': 'prof-1',
+          },
+          {
+            'calorias_alvo': 1900,
+            'proteina_g': 160,
+            'carbo_g': 150,
+            'gordura_g': 70,
+            'data_criacao': '2026-10-01T00:00:00Z',
+            'status_vigencia': 'ativo',
+            'tipo_dia': 'DESCANSO',
+            'profissional_id': 'prof-1',
+          },
+        ]),
+      );
+
+      final metas = await repository.buscarMetasNoPeriodo(inicio: DateTime(2026, 10, 1));
+
+      expect(metas, hasLength(2));
+      expect(metas[0].tipoDia, 'TREINO');
+      expect(metas[0].profissionalId, 'prof-1');
+      expect(metas[0].prescritaPorProfissional, isTrue);
+      expect(metas[1].tipoDia, 'DESCANSO');
+    });
+
+    test('meta self-service sem tipo_dia/profissional_id na resposta cai no default PADRAO/null', () async {
+      when(() => objetivosBuilder.select(any())).thenAnswer(
+        (_) => _FakeQuery<List<Map<String, dynamic>>>([
+          {
+            'calorias_alvo': 2200,
+            'proteina_g': null,
+            'carbo_g': null,
+            'gordura_g': null,
+            'data_criacao': '2026-10-01T00:00:00Z',
+            'status_vigencia': 'ativo',
+          },
+        ]),
+      );
+
+      final metas = await repository.buscarMetasNoPeriodo(inicio: DateTime(2026, 10, 1));
+
+      expect(metas.single.tipoDia, 'PADRAO');
+      expect(metas.single.profissionalId, isNull);
+      expect(metas.single.prescritaPorProfissional, isFalse);
+    });
+
+    test('devolve lista vazia sem consultar o Supabase quando ninguém está logado', () async {
+      when(() => auth.currentUser).thenReturn(null);
+
+      final metas = await repository.buscarMetasNoPeriodo(inicio: DateTime(2026, 10, 1));
+
+      expect(metas, isEmpty);
       verifyNever(() => supabase.from('objetivos_alimentares'));
     });
   });

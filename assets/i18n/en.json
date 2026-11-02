@@ -866,7 +866,12 @@
     "secao_alimentacao": "Diet",
     "secao_atividade": "Physical Activity and Routine",
     "secao_sono": "Sleep",
-    "secao_metas": "Goals and Objectives"
+    "secao_metas": "Goals and Objectives",
+    "plano_titulo": "Caloric and Macronutrient Target",
+    "plano_sem_meta": "No prescription/calculation attached to this record.",
+    "plano_origem_motor": "Calculated by the Metabolic Engine",
+    "plano_origem_profissional": "Clinical Prescription — {{nome}}",
+    "plano_macros": "P {{proteina}}g · C {{carbo}}g · F {{gordura}}g"
   },
 
   "vinculos": {

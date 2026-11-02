@@ -2,24 +2,44 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/i18n/i18n_manager.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../vinculos/data/services/vinculos_service.dart';
 import '../../data/models/anamnese_models.dart';
 import '../../data/repositories/anamnese_repository.dart';
+import '../../data/repositories/meta_bem_estar_repository.dart';
 
 enum _CargaStatus { carregando, sucesso, erro, naoEncontrada }
 
-/// Detalhe de UMA anamnese passada (RELATÓRIO 20261016_0005, item 2) —
-/// aberta a partir de [HistoricoAnamnesesPage] ao tocar num card da
-/// lista. 100% SOMENTE LEITURA — Restrição explícita da tarefa:
-/// "Nenhuma anamnese passada pode ter seus dados sobrescritos". Não há
-/// NENHUM botão de salvar/editar nesta tela, nem campo editável — é puro
+/// Detalhe de UMA anamnese passada (RELATÓRIO 20261016_0005, item 2;
+/// ampliado no RELATÓRIO 20261102_0001 com o plano de metas vigente
+/// naquele período) — aberta a partir de [HistoricoAnamnesesPage] ao
+/// tocar num card da lista. 100% SOMENTE LEITURA — Restrição explícita
+/// da tarefa original: "Nenhuma anamnese passada pode ter seus dados
+/// sobrescritos", reafirmada pela tarefa desta ampliação. Não há NENHUM
+/// botão de salvar/editar nesta tela, nem campo editável — é puro
 /// `Text`, mesmo quando o valor é idêntico ao de um campo editável em
 /// [AnamneseSelfServicePage] (ex.: peso/altura).
+///
+/// RELATÓRIO 20261102_0001 — não existe (e a tarefa não pediu) nenhuma
+/// FK ligando `objetivos_alimentares` a `anamneses`: a correlação "qual
+/// meta estava vigente nesta avaliação" é por JANELA DE TEMPO
+/// ([AnamneseRepository.buscarDataProximaAnamnese] +
+/// [MetaBemEstarRepository.buscarMetasNoPeriodo]) — mesmo princípio de
+/// versionamento que as duas tabelas já usam internamente.
 class AnamneseDetalhesPage extends StatefulWidget {
-  const AnamneseDetalhesPage({super.key, required this.anamneseId, AnamneseRepository? repository})
-      : _repository = repository;
+  const AnamneseDetalhesPage({
+    super.key,
+    required this.anamneseId,
+    AnamneseRepository? repository,
+    MetaBemEstarRepository? metaRepository,
+    VinculosService? vinculosService,
+  })  : _repository = repository,
+        _metaRepository = metaRepository,
+        _vinculosService = vinculosService;
 
   final String anamneseId;
   final AnamneseRepository? _repository;
+  final MetaBemEstarRepository? _metaRepository;
+  final VinculosService? _vinculosService;
 
   @override
   State<AnamneseDetalhesPage> createState() => _AnamneseDetalhesPageState();
@@ -27,9 +47,13 @@ class AnamneseDetalhesPage extends StatefulWidget {
 
 class _AnamneseDetalhesPageState extends State<AnamneseDetalhesPage> {
   late final AnamneseRepository _repository = widget._repository ?? AnamneseRepository();
+  late final MetaBemEstarRepository _metaRepository = widget._metaRepository ?? MetaBemEstarRepository();
+  late final VinculosService _vinculosService = widget._vinculosService ?? VinculosService();
 
   _CargaStatus _status = _CargaStatus.carregando;
   AnamneseDetalheModel? _detalhe;
+  List<MetaResumo> _metasDoPeriodo = const [];
+  Map<String, ({String? nickname, String? tipoProfissional})> _nomesProfissionais = const {};
 
   @override
   void initState() {
@@ -42,14 +66,61 @@ class _AnamneseDetalhesPageState extends State<AnamneseDetalhesPage> {
     try {
       final detalhe = await _repository.buscarAnamnesePorId(widget.anamneseId);
       if (!mounted) return;
+      if (detalhe == null) {
+        setState(() => _status = _CargaStatus.naoEncontrada);
+        return;
+      }
+
+      // RELATÓRIO 20261102_0001 — a janela de vigência desta anamnese vai
+      // da própria data de preenchimento até a PRÓXIMA anamnese (se
+      // existir) — sem próxima, esta ainda é a vigente, janela sem limite
+      // superior. `buscarMetasNoPeriodo` já devolve lista vazia sozinho
+      // se não houver nenhuma meta no período — fallback tratado na UI,
+      // nunca um erro.
+      final fimJanela = await _repository.buscarDataProximaAnamnese(detalhe.dataPreenchimento);
+      final metas = await _metaRepository.buscarMetasNoPeriodo(
+        inicio: detalhe.dataPreenchimento,
+        fim: fimJanela,
+      );
+      final nomesProfissionais = metas.any((m) => m.prescritaPorProfissional)
+          ? await _vinculosService.buscarNomesProfissionaisVinculados()
+          : const <String, ({String? nickname, String? tipoProfissional})>{};
+
+      if (!mounted) return;
       setState(() {
         _detalhe = detalhe;
-        _status = detalhe == null ? _CargaStatus.naoEncontrada : _CargaStatus.sucesso;
+        _metasDoPeriodo = metas;
+        _nomesProfissionais = nomesProfissionais;
+        _status = _CargaStatus.sucesso;
       });
     } catch (_) {
       if (!mounted) return;
       setState(() => _status = _CargaStatus.erro);
     }
+  }
+
+  /// Mais recente por `tipoDia` — dentro da janela de uma única anamnese
+  /// é raro haver mais de uma meta pro MESMO `tipoDia` (teria que ter sido
+  /// revisada 2x no mesmo período), mas quando acontece, a mais recente é
+  /// a que de fato valeu por mais tempo.
+  Map<String, MetaResumo> _metasPorTipoDiaMaisRecente() {
+    final porTipo = <String, MetaResumo>{};
+    for (final meta in _metasDoPeriodo) {
+      final atual = porTipo[meta.tipoDia];
+      if (atual == null || meta.dataCriacao.isAfter(atual.dataCriacao)) {
+        porTipo[meta.tipoDia] = meta;
+      }
+    }
+    return porTipo;
+  }
+
+  String _nomeExibicaoProfissional(String? profissionalId) {
+    if (profissionalId == null) return i18n.tr('anamnese_detalhe.plano_origem_motor');
+    final perfil = _nomesProfissionais[profissionalId];
+    final nickname = perfil?.nickname ?? i18n.tr('vinculos.invited_by_generic');
+    final tipo = perfil?.tipoProfissional;
+    final tipoExibicao = tipo == null ? '' : ' (${i18n.tr('vinculos.professional_type.$tipo')})';
+    return i18n.tr('anamnese_detalhe.plano_origem_profissional', params: {'nome': '$nickname$tipoExibicao'});
   }
 
   @override
@@ -112,6 +183,8 @@ class _AnamneseDetalhesPageState extends State<AnamneseDetalhesPage> {
       padding: const EdgeInsets.all(24),
       children: [
         _buildCabecalho(context, detalhe),
+        _buildPlanoDeMetas(context),
+        const SizedBox(height: 24),
         _secao(context, i18n.tr('anamnese_detalhe.secao_dados_fisicos'), [
           _linha(context, i18n.tr('nutricao.peso_label'), '${_formatarNumero(detalhe.pesoKg)} kg'),
           _linha(context, i18n.tr('perfil_fisico.altura_label'), '${_formatarNumero(detalhe.alturaCm)} cm'),
@@ -206,6 +279,112 @@ class _AnamneseDetalhesPageState extends State<AnamneseDetalhesPage> {
                 ? i18n.tr('nutricao.historico_anamnese_item_ativo')
                 : i18n.tr('nutricao.historico_anamnese_item_historico'),
             style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.mutedText),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// RELATÓRIO 20261102_0001 — "Plano de Metas" vigente na janela desta
+  /// anamnese: badge de origem (Motor Metabólico vs Prescrição Clínica) +
+  /// card único (meta linear, um só `tipoDia`) OU lista expansível por
+  /// dia (vários `tipoDia` distintos, ex. TREINO/DESCANSO ou os 7 dias da
+  /// semana — ver `PrescricaoView.tsx`/N10). Fallback gracioso quando a
+  /// janela não tem nenhuma meta.
+  ///
+  /// GAP CONHECIDO, documentado (não escondido — mesmo espírito do GAP já
+  /// registrado no cabeçalho de `HistoricoAnamnesesPage`): TMB/GET (TDEE)
+  /// nunca aparecem aqui porque `calcular_motor_metabolico_v1` é uma
+  /// função PURA que nunca persiste resultado (ME-005/ME-006) —
+  /// `objetivos_alimentares` só guarda o VET final (`calorias_alvo`) e os
+  /// macros, nunca o TMB/GET intermediário. Mostrar só o que de fato foi
+  /// persistido, nunca um valor recalculado/inventado pra completar a
+  /// tabela.
+  Widget _buildPlanoDeMetas(BuildContext context) {
+    final metasPorTipo = _metasPorTipoDiaMaisRecente();
+
+    if (metasPorTipo.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: Text(
+          i18n.tr('anamnese_detalhe.plano_sem_meta'),
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.mutedText, fontStyle: FontStyle.italic),
+        ),
+      );
+    }
+
+    final algumaPrescritaPorProfissional = metasPorTipo.values.any((m) => m.prescritaPorProfissional);
+    final profissionalIdExibicao =
+        metasPorTipo.values.firstWhere((m) => m.prescritaPorProfissional, orElse: () => metasPorTipo.values.first).profissionalId;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(i18n.tr('anamnese_detalhe.plano_titulo'), style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: 8),
+        _buildBadgeOrigem(context, algumaPrescritaPorProfissional, profissionalIdExibicao),
+        const SizedBox(height: 12),
+        if (metasPorTipo.length == 1)
+          _buildCardMeta(context, metasPorTipo.values.single, comHeaderDeTipo: false)
+        else
+          for (final entry in metasPorTipo.entries) _buildExpansivelMetaPorDia(context, entry.key, entry.value),
+      ],
+    );
+  }
+
+  Widget _buildBadgeOrigem(BuildContext context, bool prescritaPorProfissional, String? profissionalId) {
+    final cor = prescritaPorProfissional ? AppColors.secondaryBlue : AppColors.primaryGold;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: cor.withValues(alpha: 0.12),
+        border: Border.all(color: cor),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        _nomeExibicaoProfissional(prescritaPorProfissional ? profissionalId : null),
+        style: Theme.of(context).textTheme.bodySmall?.copyWith(color: cor, fontWeight: FontWeight.w600),
+      ),
+    );
+  }
+
+  Widget _buildCardMeta(BuildContext context, MetaResumo meta, {required bool comHeaderDeTipo}) {
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (comHeaderDeTipo) ...[
+              Text(meta.tipoDia, style: Theme.of(context).textTheme.titleSmall),
+              const SizedBox(height: 4),
+            ],
+            Text('${meta.caloriasAlvo} kcal', style: Theme.of(context).textTheme.headlineSmall),
+            Text(
+              i18n.tr('anamnese_detalhe.plano_macros', params: {
+                'proteina': meta.proteinaG?.toString() ?? '—',
+                'carbo': meta.carboG?.toString() ?? '—',
+                'gordura': meta.gorduraG?.toString() ?? '—',
+              }),
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppColors.mutedText),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildExpansivelMetaPorDia(BuildContext context, String tipoDia, MetaResumo meta) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: ExpansionTile(
+        title: Text(tipoDia),
+        subtitle: Text('${meta.caloriasAlvo} kcal'),
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: _buildCardMeta(context, meta, comHeaderDeTipo: false),
           ),
         ],
       ),
