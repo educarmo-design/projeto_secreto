@@ -21,6 +21,10 @@ void main() {
 
   setUp(() {
     repository = _MockRepository();
+    // RELATÓRIO 20261101_0002 — default "sem validade calculada ainda"
+    // (mesma convenção do resto da classe); os testes da Próxima Revisão
+    // sobrescrevem com uma data real.
+    when(() => repository.buscarDataValidadeAnamnese()).thenAnswer((_) async => null);
   });
 
   Widget criarApp() {
@@ -45,7 +49,14 @@ void main() {
     expect(find.text('Erro ao carregar seu histórico. Tente novamente.'), findsOneWidget);
   });
 
-  testWidgets('lista as anamneses (data, peso/altura, objetivo, status) e destaca a próxima revisão', (tester) async {
+  // RELATÓRIO 20261101_0002 (BUG CORRIGIDO) — a Próxima Revisão usava uma
+  // régua própria (`dataPreenchimento + 30 dias`), a mesma divergência já
+  // corrigida em [AnamneseSelfServicePage] (RELATÓRIO 20261101_0001):
+  // ignorava `anamneses.data_validade` por completo. Agora usa a MESMA
+  // [AnamneseValidadeStatus] do Dashboard — os testes abaixo trocam "dias
+  // desde o preenchimento" por "data_validade no futuro/passado".
+  testWidgets('lista as anamneses (data, peso/altura, objetivo, status) e destaca a próxima revisão — já vencida',
+      (tester) async {
     final maisRecente = DateTime.now().subtract(const Duration(days: 35));
     final anterior = maisRecente.subtract(const Duration(days: 35));
     when(() => repository.buscarHistoricoAnamneses()).thenAnswer(
@@ -66,12 +77,14 @@ void main() {
         ),
       ],
     );
+    when(() => repository.buscarDataValidadeAnamnese()).thenAnswer(
+      (_) async => DateTime.now().subtract(const Duration(days: 5)),
+    );
 
     await tester.pumpWidget(criarApp());
     await tester.pumpAndSettle();
 
-    // Próxima revisão = maisRecente + 30 dias, que já passou (preenchida
-    // há 35 dias) — "disponível agora".
+    // data_validade já no passado — "disponível agora".
     expect(find.text('Revisão disponível agora'), findsOneWidget);
 
     expect(find.text('Ganhar massa muscular'), findsOneWidget);
@@ -83,17 +96,19 @@ void main() {
     expect(find.text('Anterior'), findsOneWidget);
   });
 
-  testWidgets('anamnese recente (< 30 dias) mostra a data exata da próxima revisão', (tester) async {
-    final recente = DateTime.now().subtract(const Duration(days: 5));
+  testWidgets('data_validade ainda no futuro mostra a data exata da próxima revisão', (tester) async {
     when(() => repository.buscarHistoricoAnamneses()).thenAnswer(
       (_) async => [
         AnamneseHistoricoItem(
           id: 'a1',
-          dataPreenchimento: recente,
+          dataPreenchimento: DateTime.now().subtract(const Duration(days: 5)),
           objetivoCodigo: 'manter_peso',
           statusVigencia: 'ativo',
         ),
       ],
+    );
+    when(() => repository.buscarDataValidadeAnamnese()).thenAnswer(
+      (_) async => DateTime.now().add(const Duration(days: 25)),
     );
 
     await tester.pumpWidget(criarApp());
@@ -101,6 +116,30 @@ void main() {
 
     expect(find.text('Revisão disponível agora'), findsNothing);
     expect(find.textContaining('Próxima revisão disponível em'), findsOneWidget);
+  });
+
+  // ACEITE literal da tarefa: Dashboard mostra "vencida", esta tela
+  // reflete isso imediatamente, mesmo preenchida há poucos dias.
+  testWidgets('data_validade no passado (Dashboard mostraria "vencida") sempre mostra "disponível agora"',
+      (tester) async {
+    when(() => repository.buscarHistoricoAnamneses()).thenAnswer(
+      (_) async => [
+        AnamneseHistoricoItem(
+          id: 'a1',
+          dataPreenchimento: DateTime.now().subtract(const Duration(days: 2)),
+          objetivoCodigo: 'manter_peso',
+          statusVigencia: 'ativo',
+        ),
+      ],
+    );
+    when(() => repository.buscarDataValidadeAnamnese()).thenAnswer(
+      (_) async => DateTime.now().subtract(const Duration(days: 1)),
+    );
+
+    await tester.pumpWidget(criarApp());
+    await tester.pumpAndSettle();
+
+    expect(find.text('Revisão disponível agora'), findsOneWidget);
   });
 
   // RELATÓRIO 20261016_0005 (item 2) — o card deixa de ser inerte: toca e

@@ -42,6 +42,19 @@ class _ConfirmarAnamnesePageState extends State<ConfirmarAnamnesePage> {
   bool _enviando = false;
 
   Future<void> _confirmarEEnviar() async {
+    // RELATÓRIO 20261101_0002 (BUG CORRIGIDO) — achado real no device:
+    // duplo-toque disparava `_confirmarEEnviar` 2x, gravando duas
+    // anamneses e batendo `duplicate key value violates unique constraint
+    // "anamneses_atividades_dias_pkey"` na 2ª. `onPressed: _enviando ?
+    // null : _confirmarEEnviar` já existia, mas `setState` só reconstrói
+    // o `FilledButton` desabilitado no PRÓXIMO frame — um 2º toque que
+    // chega antes desse rebuild (toque duplo rápido, 2 eventos de ponteiro
+    // no mesmo frame) ainda encontra o botão habilitado e dispara a
+    // função de novo. Este `if` é o guarda de verdade: síncrono, checado
+    // ANTES de qualquer `setState`/await, nunca depende de um rebuild já
+    // ter acontecido — a 2ª chamada (mesmo na mesma janela de 1 frame) cai
+    // aqui e retorna sem fazer nada.
+    if (_enviando) return;
     setState(() => _enviando = true);
     final rascunho = widget.rascunho;
     try {
