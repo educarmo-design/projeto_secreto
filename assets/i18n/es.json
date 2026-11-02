@@ -866,7 +866,12 @@
     "secao_alimentacao": "Alimentación",
     "secao_atividade": "Actividad Física y Rutina",
     "secao_sono": "Sueño",
-    "secao_metas": "Metas y Objetivos"
+    "secao_metas": "Metas y Objetivos",
+    "plano_titulo": "Meta Calórica y de Macronutrientes",
+    "plano_sem_meta": "Sin prescripción/cálculo asociado a este registro.",
+    "plano_origem_motor": "Calculado por el Motor Metabólico",
+    "plano_origem_profissional": "Prescripción Clínica — {{nome}}",
+    "plano_macros": "P {{proteina}}g · C {{carbo}}g · G {{gordura}}g"
   },
 
   "vinculos": {

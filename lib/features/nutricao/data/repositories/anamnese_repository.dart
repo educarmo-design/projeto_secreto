@@ -287,6 +287,29 @@ class AnamneseRepository {
         .toList();
   }
 
+  /// RELATÓRIO 20261102_0001 (Histórico de Anamnese — "qual meta estava
+  /// vigente nesta avaliação") — data de preenchimento da PRÓXIMA
+  /// anamnese do usuário depois de [dataPreenchimento] (a que substituiu
+  /// esta), ou `null` se esta ainda é a vigente/mais recente. Usado só
+  /// pra calcular o fim da janela de tempo em que esta anamnese era a
+  /// "do momento" — ver [MetaBemEstarRepository.buscarMetasNoPeriodo].
+  Future<DateTime?> buscarDataProximaAnamnese(DateTime dataPreenchimento) async {
+    final usuarioId = _supabase.auth.currentUser?.id;
+    if (usuarioId == null) return null;
+
+    final linha = await _supabase
+        .from('anamneses')
+        .select('data_preenchimento')
+        .eq('usuario_id', usuarioId)
+        .gt('data_preenchimento', dataPreenchimento.toIso8601String())
+        .order('data_preenchimento')
+        .limit(1)
+        .maybeSingle();
+
+    final bruto = linha?['data_preenchimento'] as String?;
+    return bruto == null ? null : DateTime.parse(bruto);
+  }
+
   /// RELATÓRIO 20261016_0005 (item 2 — "Visualização do Histórico de
   /// Anamnese") — UMA anamnese específica, por id, com TODOS os campos
   /// (mesmo espírito de [buscarAnamneseAtiva], generalizado de "a vigente"

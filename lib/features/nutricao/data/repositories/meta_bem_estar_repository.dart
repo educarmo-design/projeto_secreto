@@ -17,6 +17,17 @@ class MetaResumo {
   /// pra Tela de Metas rotular cada item da lista.
   final String? statusVigencia;
 
+  /// RELATÓRIO 20261102_0001 — texto livre (ex. `PADRAO`, `TREINO`,
+  /// `SEGUNDA`...`DOMINGO`, ver `PrescricaoView.tsx`/N10). `'PADRAO'`
+  /// quando a query de origem não seleciona a coluna — mesmo padrão
+  /// (default seguro) do resto da classe, nunca quebra um caller antigo.
+  final String tipoDia;
+
+  /// RELATÓRIO 20261102_0001 — quem prescreveu, se foi um profissional
+  /// (`null` = self-service/Motor Metabólico). `null` por default quando a
+  /// query de origem não seleciona a coluna.
+  final String? profissionalId;
+
   const MetaResumo({
     required this.caloriasAlvo,
     required this.dataCriacao,
@@ -24,6 +35,8 @@ class MetaResumo {
     this.carboG,
     this.gorduraG,
     this.statusVigencia,
+    this.tipoDia = 'PADRAO',
+    this.profissionalId,
   });
 
   factory MetaResumo.fromJson(Map<String, dynamic> json) {
@@ -34,8 +47,12 @@ class MetaResumo {
       gorduraG: json['gordura_g'] as int?,
       dataCriacao: DateTime.parse(json['data_criacao'] as String),
       statusVigencia: json['status_vigencia'] as String?,
+      tipoDia: json['tipo_dia'] as String? ?? 'PADRAO',
+      profissionalId: json['profissional_id'] as String?,
     );
   }
+
+  bool get prescritaPorProfissional => profissionalId != null;
 }
 
 /// Resultado da RPC `gerar_sugestao_meta` (RELATÓRIO 20260915_0002/0003) —
@@ -384,6 +401,40 @@ class MetaBemEstarRepository {
         .isFilter('profissional_id', null)
         .order('data_criacao', ascending: false);
 
+    return (linhas as List).cast<Map<String, dynamic>>().map(MetaResumo.fromJson).toList();
+  }
+
+  /// RELATÓRIO 20261102_0001 (Histórico de Anamnese — "qual meta estava
+  /// vigente nesta avaliação") — diferente de [buscarHistoricoMetas]
+  /// (só self-service, só `tipo_dia = 'PADRAO'`), esta busca QUALQUER meta
+  /// (self-service OU prescrita por profissional, PADRÃO ou por dia da
+  /// semana) cuja `data_criacao` caia no intervalo
+  /// `[inicio, fim)` — a janela de tempo em que uma anamnese específica
+  /// era a vigente (ver [AnamneseDetalhesPage], que calcula essa janela a
+  /// partir da data da anamnese seguinte, se existir).
+  ///
+  /// Não existe (e a Restrição desta tarefa não pediu) nenhuma coluna de
+  /// FK ligando `objetivos_alimentares` a `anamneses` — a correlação é por
+  /// tempo, o mesmo princípio de versionamento que as duas tabelas já
+  /// usam (mais recente substitui o anterior). `fim == null` = sem limite
+  /// superior (a anamnese em questão ainda é a vigente).
+  Future<List<MetaResumo>> buscarMetasNoPeriodo({
+    required DateTime inicio,
+    DateTime? fim,
+  }) async {
+    final usuarioId = _supabase.auth.currentUser?.id;
+    if (usuarioId == null) return const [];
+
+    var query = _supabase
+        .from('objetivos_alimentares')
+        .select('calorias_alvo, proteina_g, carbo_g, gordura_g, data_criacao, status_vigencia, tipo_dia, profissional_id')
+        .eq('usuario_id', usuarioId)
+        .gte('data_criacao', inicio.toIso8601String());
+    if (fim != null) {
+      query = query.lt('data_criacao', fim.toIso8601String());
+    }
+
+    final linhas = await query.order('data_criacao');
     return (linhas as List).cast<Map<String, dynamic>>().map(MetaResumo.fromJson).toList();
   }
 
