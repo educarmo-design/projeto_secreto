@@ -40,6 +40,10 @@ void main() {
     when(() => repository.buscarAlergias()).thenAnswer((_) async => alergias);
     when(() => repository.buscarTiposAtividades()).thenAnswer((_) async => tiposAtividades);
     when(() => repository.buscarAnamneseAtiva()).thenAnswer((_) async => null);
+    // RELATÓRIO 20261101_0001 — default "sem validade calculada ainda"
+    // (mesma convenção do resto da classe); os testes da trava de
+    // validade sobrescrevem com uma data real.
+    when(() => repository.buscarDataValidadeAnamnese()).thenAnswer((_) async => null);
     when(() => repository.buscarDadosFisicosAtuais()).thenAnswer((_) async => dadosFisicosVazios);
     when(() => repository.buscarHistoricoPeso()).thenAnswer((_) async => historicoPesoVazio);
     // RELATÓRIO 20260917 — item 1, "Captura Inteligente": default "nada
@@ -106,23 +110,88 @@ void main() {
     expect(find.text('Erro ao carregar. Tente novamente.'), findsOneWidget);
   });
 
-  testWidgets('trava de 30 dias: anamnese preenchida há menos de 30 dias bloqueia a tela', (tester) async {
-    final preenchidaHa5Dias = DateTime.now().subtract(const Duration(days: 5));
-    when(() => repository.buscarAnamneseAtiva()).thenAnswer(
-      (_) async => AnamneseAtiva(
-        objetivoCodigo: 'ganhar_massa_muscular',
-        dataPreenchimento: preenchidaHa5Dias,
-        problemasSaudeIds: const [],
-        alergiaIds: const [],
-        atividades: const [],
-      ),
-    );
+  // RELATÓRIO 20261101_0001 (BUG CORRIGIDO) — a trava de carência usava
+  // uma régua própria, hardcoded (`dataPreenchimento + 30 dias`), TOTALMENTE
+  // independente de `anamneses.data_validade`/[AnamneseValidadeStatus] (a
+  // MESMA régua que o Dashboard já usa pra decidir "vencida", e que
+  // `MetaBemEstarPage` já usa pro próprio bloqueio). Agora as duas telas
+  // usam a mesma fonte — os testes abaixo trocam "dias desde o
+  // preenchimento" por "data_validade no futuro/passado", a pergunta de
+  // verdade.
+  group('trava de carência — unificada com AnamneseValidadeStatus (RELATÓRIO 20261101_0001)', () {
+    testWidgets('data_validade ainda no futuro (nível ok) bloqueia a tela', (tester) async {
+      when(() => repository.buscarAnamneseAtiva()).thenAnswer(
+        (_) async => AnamneseAtiva(
+          objetivoCodigo: 'ganhar_massa_muscular',
+          dataPreenchimento: DateTime.now().subtract(const Duration(days: 5)),
+          problemasSaudeIds: const [],
+          alergiaIds: const [],
+          atividades: const [],
+        ),
+      );
+      when(() => repository.buscarDataValidadeAnamnese()).thenAnswer(
+        (_) async => DateTime.now().add(const Duration(days: 20)),
+      );
 
-    await tester.pumpWidget(criarApp());
-    await tester.pumpAndSettle();
+      await tester.pumpWidget(criarApp());
+      await tester.pumpAndSettle();
 
-    expect(find.text('Anamnese já preenchida recentemente'), findsOneWidget);
-    expect(find.widgetWithText(FilledButton, 'Salvar'), findsNothing);
+      expect(find.text('Anamnese já preenchida recentemente'), findsOneWidget);
+      expect(find.widgetWithText(FilledButton, 'Salvar'), findsNothing);
+    });
+
+    // ACEITE literal da tarefa: dashboard mostra "vencida", esta tela
+    // libera o preenchimento imediatamente — nunca mais as duas réguas
+    // divergindo.
+    testWidgets('data_validade já no passado (Dashboard mostraria "vencida") NÃO bloqueia, mesmo preenchida há poucos dias',
+        (tester) async {
+      when(() => repository.buscarAnamneseAtiva()).thenAnswer(
+        (_) async => AnamneseAtiva(
+          objetivoCodigo: 'ganhar_massa_muscular',
+          dataPreenchimento: DateTime.now().subtract(const Duration(days: 2)),
+          problemasSaudeIds: const ['p1'],
+          alergiaIds: const ['a1'],
+          atividades: const [
+            AtividadeSelecionada(atividadeId: 30, nomeExibicao: 'Corrida', minutos: 45, diaSemana: 1, intensidade: 'moderada'),
+          ],
+        ),
+      );
+      when(() => repository.buscarDataValidadeAnamnese()).thenAnswer(
+        (_) async => DateTime.now().subtract(const Duration(days: 1)),
+      );
+
+      await configurarViewportAlto(tester);
+      await tester.pumpWidget(criarApp());
+      await tester.pumpAndSettle();
+
+      final radioObjetivo = tester.widget<RadioListTile<String>>(
+        find.widgetWithText(RadioListTile<String>, 'Ganhar massa muscular'),
+      );
+      expect(radioObjetivo.value, 'ganhar_massa_muscular');
+      expect(find.text('Anamnese já preenchida recentemente'), findsNothing);
+    });
+
+    // Defesa em profundidade (Regra 23): anamnese de antes do RELATÓRIO
+    // 20260922_0001 (`data_validade` não existia ainda, sem backfill das
+    // linhas antigas) — sem dado de validade pra julgar, nunca bloqueia.
+    testWidgets('anamnese vigente sem data_validade calculada (linha antiga) NÃO bloqueia', (tester) async {
+      when(() => repository.buscarAnamneseAtiva()).thenAnswer(
+        (_) async => AnamneseAtiva(
+          objetivoCodigo: 'perder_peso',
+          dataPreenchimento: DateTime.now().subtract(const Duration(days: 2)),
+          problemasSaudeIds: const [],
+          alergiaIds: const [],
+          atividades: const [],
+        ),
+      );
+      when(() => repository.buscarDataValidadeAnamnese()).thenAnswer((_) async => null);
+
+      await configurarViewportAlto(tester);
+      await tester.pumpWidget(criarApp());
+      await tester.pumpAndSettle();
+
+      expect(find.text('Anamnese já preenchida recentemente'), findsNothing);
+    });
   });
 
   testWidgets('anamnese preenchida há mais de 30 dias NÃO bloqueia — mostra o formulário pré-preenchido', (tester) async {
@@ -137,6 +206,9 @@ void main() {
           AtividadeSelecionada(atividadeId: 30, nomeExibicao: 'Corrida', minutos: 45, diaSemana: 1, intensidade: 'moderada'),
         ],
       ),
+    );
+    when(() => repository.buscarDataValidadeAnamnese()).thenAnswer(
+      (_) async => DateTime.now().subtract(const Duration(days: 10)),
     );
 
     await configurarViewportAlto(tester);

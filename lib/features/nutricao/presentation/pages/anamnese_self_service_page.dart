@@ -8,6 +8,7 @@ import '../../../../core/theme/app_theme.dart';
 import '../../data/models/anamnese_models.dart';
 import '../../data/repositories/anamnese_repository.dart';
 import '../../data/repositories/meta_bem_estar_repository.dart';
+import '../../domain/anamnese_validade_status.dart';
 import '../widgets/lista_repetivel_widget.dart';
 import '../widgets/refeicoes_habituais_widget.dart';
 import '../widgets/revisao_smartwatch_page.dart';
@@ -16,7 +17,6 @@ import 'confirmar_anamnese_page.dart';
 
 enum _CargaStatus { carregando, sucesso, erro, bloqueadaCarencia }
 
-const _carenciaDias = 30;
 const _idadeMinimaBlocoIdoso = 60;
 
 /// N09 (RELATÓRIO 20260811_0007) — Anamnese Nutricional Versionada,
@@ -303,15 +303,42 @@ class _AnamneseSelfServicePageState extends State<AnamneseSelfServicePage> {
       final dadosFisicos = await _repository.buscarDadosFisicosAtuais();
       final sugestaoBalanca = await _repository.buscarSugestaoBalanca();
       final historicoPeso = await _repository.buscarHistoricoPeso();
+      final dataValidade = await _repository.buscarDataValidadeAnamnese();
 
       if (!mounted) return;
 
-      // Trava de 30 Dias — mesmo espírito de MetaBemEstarPage._carregar.
-      if (anamneseAtiva != null) {
-        final liberaEm = anamneseAtiva.dataPreenchimento.add(const Duration(days: _carenciaDias));
-        if (liberaEm.isAfter(DateTime.now())) {
+      // RELATÓRIO 20261101_0001 (BUG CORRIGIDO) — esta trava usava uma
+      // conta própria, hardcoded (`dataPreenchimento + 30 dias`), TOTALMENTE
+      // independente de `anamneses.data_validade`/`anamnese_dias_validade_
+      // padrao` e de [AnamneseValidadeStatus] — a MESMA regra que o
+      // Dashboard já usa pra decidir "vencida" (`AnamneseValidadeBanner`) e
+      // que [MetaBemEstarPage] já usa pro próprio bloqueio severo (40+
+      // dias). Resultado: o fundador forçava `data_validade` pro passado em
+      // teste, o Dashboard corretamente avisava "Anamnese vencida", mas
+      // esta tela continuava contando os 30 dias a partir de
+      // `dataPreenchimento` — duas réguas diferentes pra mesma pergunta
+      // ("posso refazer agora?"). Agora a MESMA [AnamneseValidadeStatus]
+      // decide os dois lugares: só bloqueia enquanto o nível ainda é `ok`
+      // (mais de [AnamneseValidadeStatus.diasLembrete] dias pra vencer) —
+      // qualquer nível de aviso que o Dashboard já esteja mostrando
+      // (`lembrete`/`atrasada`/`bloqueada`) libera o preenchimento aqui,
+      // nunca mais os dois divergindo. Sem anamnese vigente (1º
+      // preenchimento), `dataValidade` é `null` e [AnamneseValidadeStatus.calcular]
+      // já devolve `ok` sem bloquear nada — Restrição da tarefa.
+      // `dataValidade == null` com `anamneseAtiva != null` é uma anamnese
+      // de antes do RELATÓRIO 20260922_0001 (`data_validade` não existia
+      // ainda — a migration que criou a coluna não faz backfill das linhas
+      // antigas). [AnamneseValidadeStatus.calcular] devolveria `ok` nesse
+      // caso (seu contrato é "sem data, nada a bloquear"), mas aqui já se
+      // sabe que HÁ anamnese vigente — então não dá pra confiar nesse
+      // `ok` pra decidir "ainda não venceu, pode bloquear": sem dado de
+      // validade pra julgar, a escolha mais segura (Regra 23) é NUNCA
+      // bloquear, nunca pior do que a trava antiga removida.
+      if (anamneseAtiva != null && dataValidade != null) {
+        final statusValidade = AnamneseValidadeStatus.calcular(dataValidade);
+        if (statusValidade.nivel == AnamneseValidadeNivel.ok) {
           setState(() {
-            _dataProximaLiberacao = liberaEm;
+            _dataProximaLiberacao = dataValidade;
             _status = _CargaStatus.bloqueadaCarencia;
           });
           return;
