@@ -1116,19 +1116,38 @@ class _AnamneseSelfServicePageState extends State<AnamneseSelfServicePage> {
   /// massa gorda; peso − massa gorda = massa magra) — só uma prévia visual
   /// editável, o backend recalcula de novo (e não sobrescreve se o usuário
   /// editar aqui) no momento de salvar.
-  void _confirmarSugestaoBalanca(SugestaoBalanca sugestao) {
-    setState(() {
-      final peso = sugestao.pesoKg;
-      final percentualGordura = sugestao.percentualGordura;
-      if (peso != null) _pesoController.text = _formatarNumero(peso);
-      if (percentualGordura != null) {
-        _percentualGorduraController.text = _formatarNumero(percentualGordura);
-        if (peso != null) {
-          final massaGorda = peso * (percentualGordura / 100);
-          _massaGordaController.text = _formatarNumero(massaGorda);
-          _massaMagraController.text = _formatarNumero(peso - massaGorda);
-        }
+  ///
+  /// RELATÓRIO 20261101_0002 (BUG CORRIGIDO) — achado real no device: ao
+  /// confirmar os dados lidos da balança, a seção "Histórico de Peso"
+  /// (agregados + gráfico, abaixo) não refletia a confirmação — ficava
+  /// visualmente parada no snapshot carregado em `_carregar()`, sem
+  /// nenhuma reação ao toque em "Usar". Agora, depois de preencher os
+  /// campos, a função busca `buscarHistoricoPeso()`/`buscarSeriePeso()` de
+  /// novo e atualiza `_historicoPeso`/`_seriePeso` num único `setState` —
+  /// a seção abaixo reage visivelmente à confirmação, nunca mais parada.
+  Future<void> _confirmarSugestaoBalanca(SugestaoBalanca sugestao) async {
+    final peso = sugestao.pesoKg;
+    final percentualGordura = sugestao.percentualGordura;
+    if (peso != null) _pesoController.text = _formatarNumero(peso);
+    if (percentualGordura != null) {
+      _percentualGorduraController.text = _formatarNumero(percentualGordura);
+      if (peso != null) {
+        final massaGorda = peso * (percentualGordura / 100);
+        _massaGordaController.text = _formatarNumero(massaGorda);
+        _massaMagraController.text = _formatarNumero(peso - massaGorda);
       }
+    }
+
+    final historicoPeso = await _repository.buscarHistoricoPeso();
+    final janela = _janelaSmartwatch;
+    final serie = janela == null
+        ? null
+        : await _repository.buscarSeriePeso(dataInicio: janela.dataInicio, dataFim: janela.dataFim);
+
+    if (!mounted) return;
+    setState(() {
+      _historicoPeso = historicoPeso;
+      if (serie != null) _seriePeso = serie;
     });
   }
 

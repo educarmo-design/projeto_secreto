@@ -4,17 +4,27 @@ import '../../../../core/i18n/i18n_manager.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../data/models/anamnese_models.dart';
 import '../../data/repositories/anamnese_repository.dart';
+import '../../domain/anamnese_validade_status.dart';
 import 'anamnese_detalhes_page.dart';
-
-const _carenciaDias = 30;
 
 enum _CargaStatus { carregando, sucesso, erro }
 
 /// RELATÓRIO 20260917 (item 3 — "Histórico de Anamnese e Próxima
 /// Revisão") — lista todas as anamneses do usuário (data, peso, altura,
 /// objetivo), mais recente primeiro, e destaca no topo a Data da Próxima
-/// Revisão (última anamnese + 30 dias, mesma regra de carência já
-/// aplicada em [AnamneseSelfServicePage] pra usuário self-service).
+/// Revisão.
+///
+/// RELATÓRIO 20261101_0002 (BUG CORRIGIDO) — até esta tarefa, a Próxima
+/// Revisão era calculada aqui com uma régua PRÓPRIA (`dataPreenchimento +
+/// 30 dias`, hardcoded), a mesma divergência já corrigida no RELATÓRIO
+/// 20261101_0001 para [AnamneseSelfServicePage]: ignorava
+/// `anamneses.data_validade`/`anamnese_dias_validade_padrao` por completo.
+/// Resultado real relatado: o fundador força `data_validade` pro passado
+/// em teste, o Dashboard mostra "vencida", mas esta tela continuava
+/// anunciando "Próxima revisão disponível em [data 30 dias depois do
+/// preenchimento]" — uma 3ª régua divergente da mesma pergunta. Agora usa
+/// a MESMA [AnamneseValidadeStatus] que o Dashboard/[AnamneseSelfServicePage]
+/// já compartilham — zero cálculo próprio de dias restando nesta tela.
 ///
 /// Restrição da tarefa — "Nenhuma anamnese passada pode ter seus dados
 /// sobrescritos": esta tela é 100% leitura, nunca edita/deleta nada.
@@ -43,6 +53,7 @@ class _HistoricoAnamnesesPageState extends State<HistoricoAnamnesesPage> {
 
   _CargaStatus _status = _CargaStatus.carregando;
   List<AnamneseHistoricoItem> _historico = const [];
+  DateTime? _dataValidade;
 
   @override
   void initState() {
@@ -54,22 +65,17 @@ class _HistoricoAnamnesesPageState extends State<HistoricoAnamnesesPage> {
     setState(() => _status = _CargaStatus.carregando);
     try {
       final historico = await _repository.buscarHistoricoAnamneses();
+      final dataValidade = await _repository.buscarDataValidadeAnamnese();
       if (!mounted) return;
       setState(() {
         _historico = historico;
+        _dataValidade = dataValidade;
         _status = _CargaStatus.sucesso;
       });
     } catch (_) {
       if (!mounted) return;
       setState(() => _status = _CargaStatus.erro);
     }
-  }
-
-  /// A mais recente é sempre `_historico.first` (a query já ordena por
-  /// `data_preenchimento desc`) — `null` só quando a lista está vazia.
-  DateTime? get _proximaRevisao {
-    if (_historico.isEmpty) return null;
-    return _historico.first.dataPreenchimento.add(const Duration(days: _carenciaDias));
   }
 
   @override
@@ -129,15 +135,26 @@ class _HistoricoAnamnesesPageState extends State<HistoricoAnamnesesPage> {
   }
 
   /// Destaque no topo, pedido explícito da tarefa ("calcular e exibir em
-  /// destaque a Data da Próxima Revisão").
+  /// destaque a Data da Próxima Revisão") — RELATÓRIO 20261101_0002,
+  /// agora decidido pela MESMA [AnamneseValidadeStatus] do Dashboard, não
+  /// mais por uma conta própria. `dataValidade == null` (sem anamnese
+  /// vigente com validade calculada — 1ª anamnese recém-criada antes do
+  /// trigger computar, ou linha de antes do RELATÓRIO 20260922_0001, sem
+  /// backfill) cai no mesmo "disponível agora" do nível `atrasada`/
+  /// `bloqueada` — nunca mostra uma data inventada sem dado real.
   Widget _buildProximaRevisao(BuildContext context) {
-    final proximaRevisao = _proximaRevisao!;
-    final liberada = !proximaRevisao.isAfter(DateTime.now());
-    final texto = liberada
-        ? i18n.tr('nutricao.historico_anamnese_proxima_revisao_disponivel')
-        : i18n.tr('nutricao.historico_anamnese_proxima_revisao_label', params: {
-            'data': _formatarData(proximaRevisao),
-          });
+    final dataValidade = _dataValidade;
+    final nivel = AnamneseValidadeStatus.calcular(dataValidade).nivel;
+    String texto;
+    if (dataValidade == null ||
+        nivel == AnamneseValidadeNivel.atrasada ||
+        nivel == AnamneseValidadeNivel.bloqueada) {
+      texto = i18n.tr('nutricao.historico_anamnese_proxima_revisao_disponivel');
+    } else {
+      texto = i18n.tr('nutricao.historico_anamnese_proxima_revisao_label', params: {
+        'data': _formatarData(dataValidade),
+      });
+    }
 
     return Container(
       width: double.infinity,

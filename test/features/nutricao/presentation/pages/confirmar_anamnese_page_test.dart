@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -122,6 +124,56 @@ void main() {
         )).called(1);
 
     expect(find.byType(ResultadoMotorMetabolicoPage), findsOneWidget);
+  });
+
+  // RELATÓRIO 20261101_0002 (BUG CORRIGIDO) — achado real no device:
+  // duplo-toque chamava `salvarAnamnese` 2x, gravando duas anamneses e
+  // batendo `duplicate key` na 2ª. O guarda (`if (_enviando) return;`,
+  // síncrono, ANTES do `setState`) é o que impede isso mesmo quando o 2º
+  // toque chega antes do rebuild que desabilita o botão — por isso este
+  // teste nunca espera (`pumpAndSettle`) entre os dois toques: o 2º
+  // precisa chegar DURANTE a mesma janela em que a 1ª chamada ainda não
+  // terminou, pra provar que o guarda (não o rebuild) é quem bloqueia.
+  testWidgets('duplo toque em "Confirmar e Enviar" grava a anamnese só 1 vez (RCA: race condition)', (tester) async {
+    final chamadaEmAndamento = Completer<void>();
+    var vezesChamado = 0;
+    when(() => repository.salvarAnamnese(
+          objetivoCodigo: any(named: 'objetivoCodigo'),
+          alturaCm: any(named: 'alturaCm'),
+          sexoBiologico: any(named: 'sexoBiologico'),
+          pesoKg: any(named: 'pesoKg'),
+          problemasSaudeIds: any(named: 'problemasSaudeIds'),
+          alergiaIds: any(named: 'alergiaIds'),
+          atividades: any(named: 'atividades'),
+          complementares: any(named: 'complementares'),
+        )).thenAnswer((_) async {
+      vezesChamado++;
+      await chamadaEmAndamento.future;
+    });
+
+    await configurarViewportAlto(tester);
+    await tester.pumpWidget(criarApp());
+    await tester.pumpAndSettle();
+
+    // 2 toques SEM `pumpAndSettle`/`pump` entre eles — simula o duplo-
+    // toque real do device chegando antes de qualquer rebuild.
+    await tester.tap(find.widgetWithText(FilledButton, 'Confirmar e Enviar'));
+    await tester.tap(find.widgetWithText(FilledButton, 'Confirmar e Enviar'));
+
+    chamadaEmAndamento.complete();
+    await tester.pumpAndSettle();
+
+    expect(vezesChamado, 1);
+    verify(() => repository.salvarAnamnese(
+          objetivoCodigo: any(named: 'objetivoCodigo'),
+          alturaCm: any(named: 'alturaCm'),
+          sexoBiologico: any(named: 'sexoBiologico'),
+          pesoKg: any(named: 'pesoKg'),
+          problemasSaudeIds: any(named: 'problemasSaudeIds'),
+          alergiaIds: any(named: 'alergiaIds'),
+          atividades: any(named: 'atividades'),
+          complementares: any(named: 'complementares'),
+        )).called(1);
   });
 
   testWidgets('falha ao gravar mostra mensagem de erro, não navega', (tester) async {
