@@ -28,13 +28,6 @@ class _FakeQuery<T> extends Fake implements PostgrestFilterBuilder<T> {
   @override
   PostgrestFilterBuilder<T> not(String column, String operator, Object? value) => this;
 
-  // RELATÓRIO 20261102_0001 — usados por `buscarMetasNoPeriodo`.
-  @override
-  PostgrestFilterBuilder<T> gte(String column, Object value) => this;
-
-  @override
-  PostgrestFilterBuilder<T> lt(String column, Object value) => this;
-
   @override
   PostgrestTransformBuilder<T> order(
     String column, {
@@ -246,7 +239,10 @@ void main() {
   // tempo com o Plano de Metas) — diferente de `buscarHistoricoMetas`
   // (só self-service, só `tipo_dia = 'PADRAO'`), devolve QUALQUER meta
   // (profissional ou self-service, qualquer `tipo_dia`) no intervalo.
-  group('buscarMetasNoPeriodo', () {
+  // RELATÓRIO 20261102_0002 — substitui `buscarMetasNoPeriodo` (janela de
+  // tempo, RELATÓRIO 20261102_0001): vínculo exclusivo por FK direta
+  // (`anamnese_id`), proibida qualquer comparação de data.
+  group('buscarMetasPorAnamneseId', () {
     test('devolve metas (self-service e profissional, qualquer tipo_dia) com tipoDia/profissionalId mapeados',
         () async {
       when(() => objetivosBuilder.select(any())).thenAnswer(
@@ -260,6 +256,7 @@ void main() {
             'status_vigencia': 'ativo',
             'tipo_dia': 'TREINO',
             'profissional_id': 'prof-1',
+            'anamnese_id': 'anamnese-1',
           },
           {
             'calorias_alvo': 1900,
@@ -270,16 +267,18 @@ void main() {
             'status_vigencia': 'ativo',
             'tipo_dia': 'DESCANSO',
             'profissional_id': 'prof-1',
+            'anamnese_id': 'anamnese-1',
           },
         ]),
       );
 
-      final metas = await repository.buscarMetasNoPeriodo(inicio: DateTime(2026, 10, 1));
+      final metas = await repository.buscarMetasPorAnamneseId('anamnese-1');
 
       expect(metas, hasLength(2));
       expect(metas[0].tipoDia, 'TREINO');
       expect(metas[0].profissionalId, 'prof-1');
       expect(metas[0].prescritaPorProfissional, isTrue);
+      expect(metas[0].anamneseId, 'anamnese-1');
       expect(metas[1].tipoDia, 'DESCANSO');
     });
 
@@ -293,11 +292,12 @@ void main() {
             'gordura_g': null,
             'data_criacao': '2026-10-01T00:00:00Z',
             'status_vigencia': 'ativo',
+            'anamnese_id': 'anamnese-1',
           },
         ]),
       );
 
-      final metas = await repository.buscarMetasNoPeriodo(inicio: DateTime(2026, 10, 1));
+      final metas = await repository.buscarMetasPorAnamneseId('anamnese-1');
 
       expect(metas.single.tipoDia, 'PADRAO');
       expect(metas.single.profissionalId, isNull);
@@ -307,7 +307,7 @@ void main() {
     test('devolve lista vazia sem consultar o Supabase quando ninguém está logado', () async {
       when(() => auth.currentUser).thenReturn(null);
 
-      final metas = await repository.buscarMetasNoPeriodo(inicio: DateTime(2026, 10, 1));
+      final metas = await repository.buscarMetasPorAnamneseId('anamnese-1');
 
       expect(metas, isEmpty);
       verifyNever(() => supabase.from('objetivos_alimentares'));

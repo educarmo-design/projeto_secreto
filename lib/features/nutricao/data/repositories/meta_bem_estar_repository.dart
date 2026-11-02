@@ -28,6 +28,14 @@ class MetaResumo {
   /// query de origem não seleciona a coluna.
   final String? profissionalId;
 
+  /// RELATÓRIO 20261102_0002 — FK direta para a anamnese que serviu de
+  /// insumo (peso/altura, SSOT) a esta meta (`objetivos_alimentares.
+  /// anamnese_id`, gravada por `validar_e_salvar_meta`). `null` quando a
+  /// query de origem não seleciona a coluna, OU quando o usuário não tinha
+  /// nenhuma anamnese com dados antropométricos completos no momento em
+  /// que a meta foi salva (gap honesto, não um erro de leitura).
+  final String? anamneseId;
+
   const MetaResumo({
     required this.caloriasAlvo,
     required this.dataCriacao,
@@ -37,6 +45,7 @@ class MetaResumo {
     this.statusVigencia,
     this.tipoDia = 'PADRAO',
     this.profissionalId,
+    this.anamneseId,
   });
 
   factory MetaResumo.fromJson(Map<String, dynamic> json) {
@@ -49,6 +58,7 @@ class MetaResumo {
       statusVigencia: json['status_vigencia'] as String?,
       tipoDia: json['tipo_dia'] as String? ?? 'PADRAO',
       profissionalId: json['profissional_id'] as String?,
+      anamneseId: json['anamnese_id'] as String?,
     );
   }
 
@@ -404,37 +414,28 @@ class MetaBemEstarRepository {
     return (linhas as List).cast<Map<String, dynamic>>().map(MetaResumo.fromJson).toList();
   }
 
-  /// RELATÓRIO 20261102_0001 (Histórico de Anamnese — "qual meta estava
-  /// vigente nesta avaliação") — diferente de [buscarHistoricoMetas]
-  /// (só self-service, só `tipo_dia = 'PADRAO'`), esta busca QUALQUER meta
-  /// (self-service OU prescrita por profissional, PADRÃO ou por dia da
-  /// semana) cuja `data_criacao` caia no intervalo
-  /// `[inicio, fim)` — a janela de tempo em que uma anamnese específica
-  /// era a vigente (ver [AnamneseDetalhesPage], que calcula essa janela a
-  /// partir da data da anamnese seguinte, se existir).
-  ///
-  /// Não existe (e a Restrição desta tarefa não pediu) nenhuma coluna de
-  /// FK ligando `objetivos_alimentares` a `anamneses` — a correlação é por
-  /// tempo, o mesmo princípio de versionamento que as duas tabelas já
-  /// usam (mais recente substitui o anterior). `fim == null` = sem limite
-  /// superior (a anamnese em questão ainda é a vigente).
-  Future<List<MetaResumo>> buscarMetasNoPeriodo({
-    required DateTime inicio,
-    DateTime? fim,
-  }) async {
+  /// RELATÓRIO 20261102_0002 (Histórico de Anamnese — "qual meta está
+  /// atrelada a esta avaliação") — substitui a antiga busca por janela de
+  /// tempo (RELATÓRIO 20261102_0001)
+  /// (RELATÓRIO 20261102_0001, janela de tempo sem FK): o fundador rejeitou
+  /// a correlação por data como frágil e determinou vínculo exclusivo por
+  /// Chave Estrangeira. Busca QUALQUER meta (self-service OU prescrita por
+  /// profissional, PADRÃO ou por dia da semana) cujo `anamnese_id` seja
+  /// EXATAMENTE esta anamnese (`objetivos_alimentares.anamnese_id`, FK —
+  /// ver migration `20261102140000`). Nenhuma comparação de data.
+  Future<List<MetaResumo>> buscarMetasPorAnamneseId(String anamneseId) async {
     final usuarioId = _supabase.auth.currentUser?.id;
     if (usuarioId == null) return const [];
 
-    var query = _supabase
+    final linhas = await _supabase
         .from('objetivos_alimentares')
-        .select('calorias_alvo, proteina_g, carbo_g, gordura_g, data_criacao, status_vigencia, tipo_dia, profissional_id')
+        .select(
+          'calorias_alvo, proteina_g, carbo_g, gordura_g, data_criacao, status_vigencia, tipo_dia, profissional_id, anamnese_id',
+        )
         .eq('usuario_id', usuarioId)
-        .gte('data_criacao', inicio.toIso8601String());
-    if (fim != null) {
-      query = query.lt('data_criacao', fim.toIso8601String());
-    }
+        .eq('anamnese_id', anamneseId)
+        .order('data_criacao');
 
-    final linhas = await query.order('data_criacao');
     return (linhas as List).cast<Map<String, dynamic>>().map(MetaResumo.fromJson).toList();
   }
 
