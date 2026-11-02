@@ -918,6 +918,7 @@
     "cep_hint": "Somente números",
     "cep_validation_empty": "Informe seu CEP",
     "cep_validation_invalid": "CEP deve ter 8 números",
+    "endereco_validation_empty": "Preencha este campo",
     "save_button": "Salvar",
     "save_success": "Dados salvos com sucesso",
     "save_error": "Erro ao salvar. Tente novamente."

@@ -240,6 +240,18 @@ class PerfilUsuarioRepository {
   /// `null`/tela vazia — a Restrição "exibir pelo menos o email" fica
   /// garantida mesmo nesse caso extremo. Nome/tipo de perfil/CEP ficam
   /// vazios de verdade (não há nada pra mostrar ainda), não inventados.
+  ///
+  /// RELATÓRIO 20261016_0009 (auditoria de paridade Web↔Flutter) — achado
+  /// da auditoria: o Painel Web NÃO tem nenhuma tela de "meu perfil"
+  /// self-service (só um formulário de CADASTRO de profissional, nome/
+  /// telefone/data de nascimento, sem CEP/endereço nenhum) — não existe
+  /// "paridade com o Web" a buscar aqui. O que de fato existia, e nunca
+  /// tinha chegado a esta tela, era o telefone/endereço completo que o
+  /// CADASTRO do PRÓPRIO APP (`CadastroController._persistirPerfil`) já
+  /// grava em `perfis_usuarios` desde sempre — `telefone` já vinha nesta
+  /// mesma RPC (só não era lido); `logradouro`/`bairro`/`cidade`/`estado`
+  /// são lidos aqui no mesmo SELECT que já buscava `cep` (nenhuma consulta
+  /// nova).
   Future<PerfilContaResumo?> buscarPerfilConta() async {
     final usuarioId = _supabase.auth.currentUser?.id;
     if (usuarioId == null) return null;
@@ -256,8 +268,11 @@ class PerfilUsuarioRepository {
     }
     final perfilSeguro = linhasSeguras.first;
 
-    final linhaCep = await _supabase.from('perfis_usuarios').select('cep').eq('id', usuarioId).maybeSingle();
-    final cep = linhaCep?['cep'] as String?;
+    final linhaEndereco = await _supabase
+        .from('perfis_usuarios')
+        .select('cep, logradouro, bairro, cidade, estado')
+        .eq('id', usuarioId)
+        .maybeSingle();
 
     return PerfilContaResumo(
       nome: perfilSeguro['nome'] as String?,
@@ -267,28 +282,59 @@ class PerfilUsuarioRepository {
       // nunca deixando o campo "Não informado" quando o Supabase Auth já
       // sabe o e-mail de quem está logado.
       email: (perfilSeguro['email'] as String?) ?? _supabase.auth.currentUser?.email,
+      telefone: perfilSeguro['telefone'] as String?,
       ehProfissional: perfilSeguro['eh_profissional'] as bool? ?? false,
       tipoProfissional: perfilSeguro['tipo_profissional'] as String?,
-      cep: cep,
+      cep: linhaEndereco?['cep'] as String?,
+      logradouro: linhaEndereco?['logradouro'] as String?,
+      bairro: linhaEndereco?['bairro'] as String?,
+      cidade: linhaEndereco?['cidade'] as String?,
+      estado: linhaEndereco?['estado'] as String?,
     );
   }
 
-  /// Primeira tela do app a editar `nome`/`cep` pós-cadastro (até aqui, só
-  /// `CadastroController._persistirPerfil` gravava esses campos, só no
-  /// signup). `nome` é cifrado transparentemente pelo trigger de D2 no
-  /// UPDATE — este repositório manda texto plano, igual todo outro writer
-  /// já faz (cadastro, painel web). RLS `perfis_usuarios_update_own`
-  /// garante que só o dono da linha grava; `.upsert()` (não `.update()`)
-  /// pela mesma razão documentada em [atualizarDataNascimento]: uma linha
-  /// de perfil que não existe ainda não pode ser afetada por um UPDATE.
-  Future<void> atualizarNomeECep({required String nome, required String cep}) async {
+  /// Primeira tela do app a editar os dados de conta pós-cadastro (até
+  /// aqui, só `CadastroController._persistirPerfil` gravava estes campos,
+  /// só no signup). `nome`/`telefone` são cifrados transparentemente pelo
+  /// trigger de D2 no UPDATE — este repositório manda texto plano, igual
+  /// todo outro writer já faz (cadastro, painel web). RLS
+  /// `perfis_usuarios_update_own` garante que só o dono da linha grava;
+  /// `.upsert()` (não `.update()`) pela mesma razão documentada em
+  /// [atualizarDataNascimento]: uma linha de perfil que não existe ainda
+  /// não pode ser afetada por um UPDATE.
+  ///
+  /// RELATÓRIO 20261016_0009 — `telefone`/`logradouro`/`bairro`/`cidade`/
+  /// `estado` são os campos trazidos nesta tarefa (nenhuma coluna nova:
+  /// todas já existiam em `perfis_usuarios`, só nunca tinham sido
+  /// editáveis fora do cadastro). `geo_ranking_id` (bucket de ranking
+  /// geográfico, calculado só no cadastro a partir do CEP) deliberadamente
+  /// NÃO é recalculado aqui — fora do escopo desta tarefa, registrado como
+  /// limitação conhecida no relatório.
+  Future<void> atualizarDadosConta({
+    required String nome,
+    required String telefone,
+    required String cep,
+    required String logradouro,
+    required String bairro,
+    required String cidade,
+    required String estado,
+  }) async {
     final usuarioId = _supabase.auth.currentUser?.id;
     if (usuarioId == null) {
       throw StateError('Nenhum usuário logado.');
     }
 
     await _supabase.from('perfis_usuarios').upsert(
-      {'id': usuarioId, 'nome': nome, 'cep': cep},
+      {
+        'id': usuarioId,
+        'nome': nome,
+        'telefone': telefone,
+        'cep': cep,
+        'logradouro': logradouro,
+        'bairro': bairro,
+        'cidade': cidade,
+        'estado': estado,
+      },
       onConflict: 'id',
     );
   }
@@ -303,20 +349,38 @@ class PerfilContaResumo {
     required this.email,
     required this.ehProfissional,
     this.nome,
+    this.telefone,
     this.tipoProfissional,
     this.cep,
+    this.logradouro,
+    this.bairro,
+    this.cidade,
+    this.estado,
   });
 
   /// `null` só em contas muito antigas/provisionadas fora do fluxo normal —
   /// todo cadastro novo grava email (ver `CadastroController`).
   final String? email;
   final String? nome;
+
+  /// RELATÓRIO 20261016_0009 — já vinha em `meu_perfil_seguro()` (PII
+  /// cifrada, igual nome/email), só não era lido por esta classe ainda.
+  final String? telefone;
   final bool ehProfissional;
 
   /// Valor bruto do enum `tipo_profissional_saude` (ex. "Nutricionista") —
   /// `null` quando [ehProfissional] é `false`.
   final String? tipoProfissional;
   final String? cep;
+
+  /// RELATÓRIO 20261016_0009 — endereço completo, mesmas colunas que
+  /// `CadastroController._persistirPerfil` já grava no cadastro (não são
+  /// PII cifradas — `cep`/`logradouro`/`bairro`/`cidade`/`estado` são lidos
+  /// direto, sem precisar da RPC).
+  final String? logradouro;
+  final String? bairro;
+  final String? cidade;
+  final String? estado;
 }
 
 /// Última leitura de peso conhecida + o dia a que ela se refere — usada só

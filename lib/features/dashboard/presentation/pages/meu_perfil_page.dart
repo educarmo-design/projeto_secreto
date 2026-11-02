@@ -2,23 +2,34 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/i18n/i18n_manager.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../auth/presentation/controllers/cadastro_controller.dart';
 import '../../../vinculos/data/models/vinculo_ativo_model.dart';
 import '../../../vinculos/data/services/vinculos_service.dart';
 import '../../data/repositories/perfil_usuario_repository.dart';
 
 enum _CargaStatus { carregando, sucesso, erro }
 
-/// Tela de Perfil (RELATÓRIO 20261016_0005) — "com qual email estou
-/// logado, sou paciente ou profissional, quem me acompanha" + edição de
-/// Nome/CEP. Diferente de [PerfilUsuarioPage] ("Meus Dados Físicos" —
-/// data de nascimento/sexo biológico, insumo do Motor Metabólico): esta
-/// tela é sobre a IDENTIDADE da conta, não dado físico.
+/// Tela de Perfil (RELATÓRIO 20261016_0005, ampliada no RELATÓRIO
+/// 20261016_0009) — "com qual email estou logado, sou paciente ou
+/// profissional, quem me acompanha" + edição de Nome/Telefone/CEP/
+/// Endereço completo. Diferente de [PerfilUsuarioPage] ("Meus Dados
+/// Físicos" — data de nascimento/sexo biológico, insumo do Motor
+/// Metabólico): esta tela é sobre a IDENTIDADE da conta, não dado físico
+/// — por isso não duplica aqueles 2 campos aqui, mesmo a tarefa de
+/// ampliação os citando como exemplo (ver RELATÓRIO 20261016_0009 pra a
+/// decisão completa).
 ///
-/// Restrição da tarefa: só Nome e CEP são editáveis aqui. Email, tipo de
-/// perfil e a lista de profissionais vinculados são somente leitura — não
-/// há caminho de escrita para nenhum dos três nesta tela (email é
-/// definido no cadastro; tipo de perfil e vínculos são geridos pelo
-/// backend/painel profissional, nunca pelo próprio paciente).
+/// RELATÓRIO 20261016_0009 — achado da auditoria de "paridade com o
+/// Painel Web": o Painel Web NÃO tem nenhuma tela de perfil self-service
+/// (só um formulário de CADASTRO de profissional, sem CEP/endereço). Os
+/// campos novos desta tela (telefone, endereço completo com busca
+/// automática por CEP via ViaCEP) vêm de onde já existiam de verdade —
+/// `CadastroController`/`perfis_usuarios`, o próprio cadastro do app —
+/// não do Web. Zero coluna nova, zero RPC nova (Restrição da tarefa).
+///
+/// Restrição original (RELATÓRIO 20261016_0005): email, tipo de perfil e
+/// a lista de profissionais vinculados continuam somente leitura — não há
+/// caminho de escrita para nenhum dos três nesta tela.
 ///
 /// Mesmo padrão de [PerfilUsuarioPage]: `StatefulWidget` + repositório
 /// injetável em teste, `enum _CargaStatus`, `Form`+botão Salvar cru
@@ -28,11 +39,19 @@ class MeuPerfilPage extends StatefulWidget {
     super.key,
     PerfilUsuarioRepository? repository,
     VinculosService? vinculosService,
+    CadastroController? cepController,
   })  : _repository = repository,
-        _vinculosService = vinculosService;
+        _vinculosService = vinculosService,
+        _cepController = cepController;
 
   final PerfilUsuarioRepository? _repository;
   final VinculosService? _vinculosService;
+
+  /// RELATÓRIO 20261016_0009 — reaproveita literalmente o mesmo
+  /// `CadastroController` (ViaCEP) do cadastro, nunca uma 2ª implementação
+  /// da mesma chamada HTTP. Injetável em teste pelo mesmo motivo de
+  /// `_repository`/`_vinculosService`.
+  final CadastroController? _cepController;
 
   @override
   State<MeuPerfilPage> createState() => _MeuPerfilPageState();
@@ -43,10 +62,27 @@ class _MeuPerfilPageState extends State<MeuPerfilPage> {
       widget._repository ?? PerfilUsuarioRepository();
   late final VinculosService _vinculosService =
       widget._vinculosService ?? VinculosService();
+  late final CadastroController _cepController =
+      widget._cepController ?? CadastroController();
+  late final bool _cepControllerEhProprio = widget._cepController == null;
 
   final _formKey = GlobalKey<FormState>();
   final _nomeController = TextEditingController();
-  final _cepController = TextEditingController();
+  final _telefoneController = TextEditingController();
+  final _cepTextController = TextEditingController();
+  final _logradouroController = TextEditingController();
+  final _bairroController = TextEditingController();
+  final _cidadeController = TextEditingController();
+  final _estadoController = TextEditingController();
+
+  /// RELATÓRIO 20261016_0009 (item 2 — "mover o cursor pro campo
+  /// seguinte") — não existe coluna/campo de "número" em `perfis_usuarios`
+  /// (nem no cadastro, nem no Web — confirmado na auditoria, Restrição
+  /// "não criar coluna nova" impede inventar um aqui). O campo seguinte
+  /// que de fato existe é o Logradouro — focar nele deixa o usuário
+  /// completar o número direto ali, mesmo padrão informal já usado no
+  /// cadastro (`_streetController` sem campo de número separado).
+  final _logradouroFocusNode = FocusNode();
 
   _CargaStatus _status = _CargaStatus.carregando;
   bool _salvando = false;
@@ -56,14 +92,39 @@ class _MeuPerfilPageState extends State<MeuPerfilPage> {
   @override
   void initState() {
     super.initState();
+    _cepController.addListener(_onCepStateChanged);
     _carregar();
   }
 
   @override
   void dispose() {
+    _cepController.removeListener(_onCepStateChanged);
+    if (_cepControllerEhProprio) _cepController.dispose();
     _nomeController.dispose();
-    _cepController.dispose();
+    _telefoneController.dispose();
+    _cepTextController.dispose();
+    _logradouroController.dispose();
+    _bairroController.dispose();
+    _cidadeController.dispose();
+    _estadoController.dispose();
+    _logradouroFocusNode.dispose();
     super.dispose();
+  }
+
+  /// Mesmo padrão de `CadastroPage._onCadastroStateChanged` — preenche os
+  /// campos de endereço quando o ViaCEP responde com sucesso, e move o
+  /// foco pro Logradouro (item 2 da tarefa) pra o usuário completar número/
+  /// complemento direto ali.
+  void _onCepStateChanged() {
+    final cepModel = _cepController.value.cepModel;
+    if (_cepController.value.isSuccess && cepModel != null) {
+      _logradouroController.text = cepModel.logradouro;
+      _bairroController.text = cepModel.bairro;
+      _cidadeController.text = cepModel.localidade;
+      _estadoController.text = cepModel.uf;
+      _logradouroFocusNode.requestFocus();
+    }
+    setState(() {});
   }
 
   Future<void> _carregar() async {
@@ -76,7 +137,12 @@ class _MeuPerfilPageState extends State<MeuPerfilPage> {
         _perfilConta = perfilConta;
         _vinculosAtivos = vinculosAtivos;
         _nomeController.text = perfilConta?.nome ?? '';
-        _cepController.text = perfilConta?.cep ?? '';
+        _telefoneController.text = perfilConta?.telefone ?? '';
+        _cepTextController.text = perfilConta?.cep ?? '';
+        _logradouroController.text = perfilConta?.logradouro ?? '';
+        _bairroController.text = perfilConta?.bairro ?? '';
+        _cidadeController.text = perfilConta?.cidade ?? '';
+        _estadoController.text = perfilConta?.estado ?? '';
         _status = _CargaStatus.sucesso;
       });
     } catch (_) {
@@ -88,6 +154,13 @@ class _MeuPerfilPageState extends State<MeuPerfilPage> {
   String? _validarNome(String? valor) {
     if ((valor ?? '').trim().isEmpty) {
       return i18n.tr('meu_perfil.nome_validation_empty');
+    }
+    return null;
+  }
+
+  String? _validarTelefone(String? valor) {
+    if ((valor ?? '').trim().isEmpty) {
+      return i18n.tr('auth.phone_required');
     }
     return null;
   }
@@ -105,15 +178,27 @@ class _MeuPerfilPageState extends State<MeuPerfilPage> {
     return null;
   }
 
+  String? _validarCampoEndereco(String? valor) {
+    if ((valor ?? '').trim().isEmpty) {
+      return i18n.tr('meu_perfil.endereco_validation_empty');
+    }
+    return null;
+  }
+
   Future<void> _salvar() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
 
     setState(() => _salvando = true);
     try {
-      final cepDigitos = _cepController.text.replaceAll(RegExp(r'\D'), '');
-      await _repository.atualizarNomeECep(
+      final cepDigitos = _cepTextController.text.replaceAll(RegExp(r'\D'), '');
+      await _repository.atualizarDadosConta(
         nome: _nomeController.text.trim(),
+        telefone: _telefoneController.text.trim(),
         cep: cepDigitos,
+        logradouro: _logradouroController.text.trim(),
+        bairro: _bairroController.text.trim(),
+        cidade: _cidadeController.text.trim(),
+        estado: _estadoController.text.trim(),
       );
       if (!mounted) return;
       ScaffoldMessenger.of(context)
@@ -225,15 +310,98 @@ class _MeuPerfilPageState extends State<MeuPerfilPage> {
                   ),
                   const SizedBox(height: 16),
                   TextFormField(
-                    controller: _cepController,
+                    controller: _telefoneController,
+                    keyboardType: TextInputType.phone,
+                    decoration: InputDecoration(
+                      labelText: i18n.tr('auth.phone_label'),
+                      border: const OutlineInputBorder(),
+                    ),
+                    validator: _validarTelefone,
+                    enabled: !_salvando,
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: _cepTextController,
                     keyboardType: TextInputType.number,
                     decoration: InputDecoration(
                       labelText: i18n.tr('meu_perfil.cep_label'),
                       hintText: i18n.tr('meu_perfil.cep_hint'),
                       border: const OutlineInputBorder(),
+                      suffixIcon: _cepController.value.isLoading
+                          ? const Padding(
+                              padding: EdgeInsets.all(12),
+                              child: SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              ),
+                            )
+                          : null,
                     ),
                     validator: _validarCep,
                     enabled: !_salvando,
+                    // RELATÓRIO 20261016_0009 (item 2) — mesma lógica de
+                    // `CadastroController.onCepChanged`: só dispara a busca
+                    // ViaCEP de verdade quando chega a exatamente 8 dígitos.
+                    onChanged: _cepController.onCepChanged,
+                  ),
+                  if (_cepController.value.isError) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      i18n.tr('auth.cep_invalid'),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.error),
+                    ),
+                  ],
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: _logradouroController,
+                    focusNode: _logradouroFocusNode,
+                    decoration: InputDecoration(
+                      labelText: i18n.tr('auth.street_label'),
+                      border: const OutlineInputBorder(),
+                    ),
+                    validator: _validarCampoEndereco,
+                    enabled: !_salvando,
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: _bairroController,
+                    decoration: InputDecoration(
+                      labelText: i18n.tr('auth.neighborhood_label'),
+                      border: const OutlineInputBorder(),
+                    ),
+                    validator: _validarCampoEndereco,
+                    enabled: !_salvando,
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        flex: 2,
+                        child: TextFormField(
+                          controller: _cidadeController,
+                          decoration: InputDecoration(
+                            labelText: i18n.tr('auth.city_label'),
+                            border: const OutlineInputBorder(),
+                          ),
+                          validator: _validarCampoEndereco,
+                          enabled: !_salvando,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: TextFormField(
+                          controller: _estadoController,
+                          decoration: InputDecoration(
+                            labelText: i18n.tr('auth.state_label'),
+                            border: const OutlineInputBorder(),
+                          ),
+                          validator: _validarCampoEndereco,
+                          enabled: !_salvando,
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 24),
                   FilledButton(

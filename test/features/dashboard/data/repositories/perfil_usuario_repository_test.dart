@@ -370,13 +370,15 @@ void main() {
   // RELATÓRIO 20261016_0005 (Tela de Perfil) / BUG CORRIGIDO no RELATÓRIO
   // 20261016_0008 — ver o doc de [PerfilUsuarioRepository.buscarPerfilConta].
   group('buscarPerfilConta', () {
-    test('devolve email/nome/tipo decifrados pela RPC + cep lido direto, quando a linha já existe', () async {
+    test('devolve email/nome/telefone/tipo decifrados pela RPC + endereço completo lido direto, quando a linha já existe',
+        () async {
       when(() => supabase.rpc('meu_perfil_seguro')).thenAnswer(
         (_) => _FakeFilterBuilder<dynamic>(
           Future.value(<Map<String, dynamic>>[
             {
               'nome': 'Maria Silva',
               'email': 'maria@teste.com',
+              'telefone': '11999999999',
               'eh_profissional': false,
               'tipo_profissional': null,
             },
@@ -384,7 +386,13 @@ void main() {
         ),
       );
       when(() => perfisBuilder.select(any())).thenAnswer(
-        (_) => _FakeSelectFilterBuilder({'cep': '01001000'}),
+        (_) => _FakeSelectFilterBuilder({
+          'cep': '01001000',
+          'logradouro': 'Praça da Sé',
+          'bairro': 'Sé',
+          'cidade': 'São Paulo',
+          'estado': 'SP',
+        }),
       );
 
       final perfil = await repository.buscarPerfilConta();
@@ -392,8 +400,13 @@ void main() {
       expect(perfil, isNotNull);
       expect(perfil!.nome, 'Maria Silva');
       expect(perfil.email, 'maria@teste.com');
+      expect(perfil.telefone, '11999999999');
       expect(perfil.ehProfissional, false);
       expect(perfil.cep, '01001000');
+      expect(perfil.logradouro, 'Praça da Sé');
+      expect(perfil.bairro, 'Sé');
+      expect(perfil.cidade, 'São Paulo');
+      expect(perfil.estado, 'SP');
     });
 
     // BUG CORRIGIDO (RELATÓRIO 20261016_0008) — achado real no device: a
@@ -465,16 +478,37 @@ void main() {
     });
   });
 
-  group('atualizarNomeECep', () {
-    test('faz UPSERT em perfis_usuarios com nome e cep', () async {
+  // RELATÓRIO 20261016_0009 — renomeado de `atualizarNomeECep` (só nome/
+  // cep) pra `atualizarDadosConta` (+ telefone/endereço completo), mesmas
+  // colunas que `CadastroController._persistirPerfil` já grava no
+  // cadastro (nenhuma coluna nova).
+  group('atualizarDadosConta', () {
+    test('faz UPSERT em perfis_usuarios com nome, telefone e endereço completo', () async {
       when(() => perfisBuilder.upsert(any(), onConflict: any(named: 'onConflict'))).thenAnswer(
         (_) => _FakeFilterBuilder<dynamic>(Future.value(const <Map<String, dynamic>>[])),
       );
 
-      await repository.atualizarNomeECep(nome: 'João Pereira', cep: '01001000');
+      await repository.atualizarDadosConta(
+        nome: 'João Pereira',
+        telefone: '11999999999',
+        cep: '01001000',
+        logradouro: 'Praça da Sé',
+        bairro: 'Sé',
+        cidade: 'São Paulo',
+        estado: 'SP',
+      );
 
       verify(() => perfisBuilder.upsert(
-            {'id': _usuarioId, 'nome': 'João Pereira', 'cep': '01001000'},
+            {
+              'id': _usuarioId,
+              'nome': 'João Pereira',
+              'telefone': '11999999999',
+              'cep': '01001000',
+              'logradouro': 'Praça da Sé',
+              'bairro': 'Sé',
+              'cidade': 'São Paulo',
+              'estado': 'SP',
+            },
             onConflict: 'id',
           )).called(1);
     });
@@ -483,7 +517,15 @@ void main() {
       when(() => auth.currentUser).thenReturn(null);
 
       expect(
-        () => repository.atualizarNomeECep(nome: 'João', cep: '01001000'),
+        () => repository.atualizarDadosConta(
+          nome: 'João',
+          telefone: '11999999999',
+          cep: '01001000',
+          logradouro: 'Praça da Sé',
+          bairro: 'Sé',
+          cidade: 'São Paulo',
+          estado: 'SP',
+        ),
         throwsStateError,
       );
       verifyNever(() => supabase.from('perfis_usuarios'));
