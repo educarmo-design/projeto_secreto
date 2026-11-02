@@ -3,10 +3,17 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 
 import 'package:atleta_gamificacao/core/i18n/i18n_manager.dart';
+import 'package:atleta_gamificacao/features/nutricao/data/repositories/anamnese_repository.dart';
 import 'package:atleta_gamificacao/features/nutricao/data/repositories/meta_bem_estar_repository.dart';
+import 'package:atleta_gamificacao/features/nutricao/presentation/pages/anamnese_detalhes_page.dart';
 import 'package:atleta_gamificacao/features/nutricao/presentation/pages/resultado_motor_metabolico_page.dart';
+import 'package:atleta_gamificacao/features/vinculos/data/services/vinculos_service.dart';
 
 class _MockRepository extends Mock implements MetaBemEstarRepository {}
+
+class _MockAnamneseRepository extends Mock implements AnamneseRepository {}
+
+class _MockVinculosService extends Mock implements VinculosService {}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -17,11 +24,20 @@ void main() {
   });
 
   late _MockRepository repository;
+  late _MockAnamneseRepository anamneseRepository;
+  late _MockVinculosService vinculosService;
   late GlobalKey<NavigatorState> navigatorKey;
 
   setUp(() {
     repository = _MockRepository();
+    anamneseRepository = _MockAnamneseRepository();
+    vinculosService = _MockVinculosService();
     navigatorKey = GlobalKey<NavigatorState>();
+
+    // RELATÓRIO 20261102_0003 — defaults seguros pra quando a navegação
+    // ("Ver Resultado da Prescrição"/salvar meta/"Definir depois") monta
+    // de verdade a [AnamneseDetalhesPage] por cima desta tela.
+    when(() => anamneseRepository.buscarAnamnesePorId('anamnese-1')).thenAnswer((_) async => null);
   });
 
   Future<void> configurarViewportAlto(WidgetTester tester) async {
@@ -29,12 +45,11 @@ void main() {
     addTearDown(() => tester.binding.setSurfaceSize(null));
   }
 
-  // `_fecharFluxo` (botão "Definir depois"/salvar com sucesso) faz DOIS
-  // `Navigator.pop()` em sequência — em produção sempre seguro (a tela só
-  // existe empilhada sobre a Anamnese, 2 rotas reais). Pra um teste isolado
-  // não quebrar com "!_debugLocked" (só 1 rota na pilha), a home vira uma
-  // tela "vazia" e cada teste EMPILHA [ResultadoMotorMetabolicoPage] por
-  // cima via `navigatorKey`, mesma topologia de 2 rotas da produção.
+  // `_irParaResultadoCompleto` (botão "Definir depois"/salvar com sucesso,
+  // RELATÓRIO 20261102_0003) faz `pushReplacement` pra [AnamneseDetalhesPage]
+  // — a home vira uma tela "vazia" e cada teste EMPILHA
+  // [ResultadoMotorMetabolicoPage] por cima via `navigatorKey`, mesma
+  // topologia de 2 rotas da produção (Anamnese → Resultado).
   Widget criarApp() {
     return MaterialApp(
       navigatorKey: navigatorKey,
@@ -45,7 +60,14 @@ void main() {
   Future<void> abrirResultado(WidgetTester tester) async {
     await tester.pumpWidget(criarApp());
     navigatorKey.currentState!.push(
-      MaterialPageRoute<void>(builder: (_) => ResultadoMotorMetabolicoPage(repository: repository)),
+      MaterialPageRoute<void>(
+        builder: (_) => ResultadoMotorMetabolicoPage(
+          anamneseId: 'anamnese-1',
+          repository: repository,
+          anamneseRepository: anamneseRepository,
+          vinculosService: vinculosService,
+        ),
+      ),
     );
     await tester.pumpAndSettle();
   }
@@ -80,6 +102,41 @@ void main() {
       ),
       findsOneWidget,
     );
+  });
+
+  // RELATÓRIO 20261102_0003 (ACEITE 2) — botão de ação primária, sempre
+  // visível na Seção A, independente de a Seção B (meta) ser preenchida.
+  testWidgets('"Ver Resultado da Prescrição" abre o AnamneseDetalhesPage desta anamnese', (tester) async {
+    when(() => repository.calcularMotorMetabolicoV1()).thenAnswer(
+      (_) async => const MotorMetabolicoV1Resultado(
+        tmb: 1774,
+        tdeeMedio: 2200,
+        formulaCodigo: 'TMB-001',
+        estrategiaTdee: 'pal',
+        avisos: [],
+        qualidade: QualidadeMotorResultado(score: 'alta', motivos: []),
+        energiaRecomendacao: null,
+        macrosRecomendados: null,
+        pesoKg: null,
+        massaMagraKg: null,
+      ),
+    );
+
+    await configurarViewportAlto(tester);
+    await abrirResultado(tester);
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Ver Resultado da Prescrição'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(AnamneseDetalhesPage), findsOneWidget);
+
+    // `push` (não `pushReplacement`) aqui — o usuário pode voltar e ainda
+    // preencher/salvar a meta na Seção B, diferente dos outros 2 destinos
+    // (salvar/"Definir depois", que concluem o fluxo): confirma que a
+    // rota anterior continua na pilha, abaixo da atual.
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    expect(find.byType(ResultadoMotorMetabolicoPage), findsOneWidget);
   });
 
   testWidgets('sem tdee_medio (dados insuficientes), mostra "—" em vez de inventar um número', (tester) async {
@@ -157,7 +214,8 @@ void main() {
           ));
     });
 
-    testWidgets('preenchendo a meta e salvando, chama salvarMeta com os valores DIGITADOS e fecha o fluxo', (tester) async {
+    testWidgets('preenchendo a meta e salvando, chama salvarMeta com os valores DIGITADOS e vai pro Resultado Completo',
+        (tester) async {
       when(() => repository.salvarMeta(
             caloriasAlvo: any(named: 'caloriasAlvo'),
             proteinaG: any(named: 'proteinaG'),
@@ -186,12 +244,12 @@ void main() {
             carboG: 180,
             gorduraG: 60,
           )).called(1);
-      // `_fecharFluxo` (duplo pop) fecha a tela em seguida ao sucesso — a
-      // asserção real de "salvou e voltou" é a tela ter saído da pilha
-      // (o snackbar em si é transiente demais pra sobreviver ao pop no
-      // mesmo ciclo de frame, mesma limitação já documentada nos outros
-      // testes desta suíte que usam duplo pop).
+      // `_irParaResultadoCompleto` substitui esta tela por
+      // [AnamneseDetalhesPage] (RELATÓRIO 20261102_0003, ACEITE 2) em
+      // seguida ao sucesso — a tela some da pilha e a de resultado
+      // completo (100% leitura, mesma anamnese) toma o lugar.
       expect(find.byType(ResultadoMotorMetabolicoPage), findsNothing);
+      expect(find.byType(AnamneseDetalhesPage), findsOneWidget);
     });
 
     testWidgets('trava clínica (N08_TRAVA_CLINICA) mostra o modal vermelho compartilhado', (tester) async {
@@ -218,7 +276,7 @@ void main() {
       await tester.pumpAndSettle();
     });
 
-    testWidgets('"Definir depois" fecha o fluxo sem chamar salvarMeta', (tester) async {
+    testWidgets('"Definir depois" não chama salvarMeta, mas ainda vai pro Resultado Completo', (tester) async {
       await configurarViewportAlto(tester);
       await abrirResultado(tester);
 
@@ -231,6 +289,10 @@ void main() {
             carboG: any(named: 'carboG'),
             gorduraG: any(named: 'gorduraG'),
           ));
+      // RELATÓRIO 20261102_0003 (ACEITE 2) — pular a meta não deixa o
+      // usuário sem acesso ao resultado da anamnese: mesmo destino de
+      // quando a meta É salva.
+      expect(find.byType(AnamneseDetalhesPage), findsOneWidget);
     });
   });
 

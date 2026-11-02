@@ -442,7 +442,10 @@ class AnamneseRepository {
   /// (Seção 11 — "Confirme seus dados": esta função só é chamada a partir
   /// de [ConfirmarAnamnesePage], depois da revisão final; não existe outro
   /// caminho no app pra chegar aqui).
-  Future<void> salvarAnamnese({
+  /// RELATÓRIO 20261102_0003 — devolve o `id` da anamnese recém-criada
+  /// (antes descartado, `Future<void>`) para o chamador poder navegar até
+  /// [AnamneseDetalhesPage] dela ao concluir o fluxo.
+  Future<String> salvarAnamnese({
     required String objetivoCodigo,
     required double alturaCm,
     required String sexoBiologico,
@@ -597,6 +600,8 @@ class AnamneseRepository {
           },
       ]);
     }
+
+    return anamneseId;
   }
 
   static String _formatarDataIso(DateTime data) {

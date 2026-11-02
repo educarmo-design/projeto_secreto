@@ -779,6 +779,7 @@
     "resultado_motor_secao_meta_aviso": "Define tú mismo tu meta diaria — la app nunca la completa sola. El valor se convierte en tu meta promedio para los 7 días de la semana.",
     "resultado_motor_meta_salvar_button": "Guardar Mi Meta",
     "resultado_motor_meta_definir_depois_button": "Definir más tarde",
+    "resultado_motor_ver_prescricao_button": "Ver Resultado de la Prescripción",
 
     "resultado_motor_qualidade_titulo": "Calidad de los Datos",
     "resultado_motor_qualidade_score_alta": "Alta",
@@ -851,6 +852,7 @@
     "historico_anamnese_vazio": "Todavía no has completado ninguna anamnesis.",
     "historico_anamnese_item_ativo": "Actual",
     "historico_anamnese_item_historico": "Anterior",
+    "historico_anamnese_ver_detalhes_button": "Ver Detalles / Prescripción",
     "historico_anamnese_peso_altura": "{{peso}} kg · {{altura}} cm",
     "historico_anamnese_sem_peso_altura": "Sin peso/altura registrados",
     "historico_anamnese_load_error": "Error al cargar tu historial. Inténtalo de nuevo."

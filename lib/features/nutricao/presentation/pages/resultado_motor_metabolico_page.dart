@@ -3,8 +3,11 @@ import 'package:flutter/services.dart';
 
 import '../../../../core/i18n/i18n_manager.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../vinculos/data/services/vinculos_service.dart';
+import '../../data/repositories/anamnese_repository.dart';
 import '../../data/repositories/meta_bem_estar_repository.dart';
 import '../widgets/meta_bloqueio_modal.dart';
+import 'anamnese_detalhes_page.dart';
 
 enum _CargaStatus { carregando, erro, sucesso }
 
@@ -30,10 +33,29 @@ enum _CargaStatus { carregando, erro, sucesso }
 /// Regra 14 (Parte 0): "Validação = completa funcionalmente, crua
 /// visualmente" — sem carrossel/ilustração.
 class ResultadoMotorMetabolicoPage extends StatefulWidget {
-  const ResultadoMotorMetabolicoPage({super.key, MetaBemEstarRepository? repository})
-      : _repository = repository;
+  const ResultadoMotorMetabolicoPage({
+    super.key,
+    required this.anamneseId,
+    MetaBemEstarRepository? repository,
+    AnamneseRepository? anamneseRepository,
+    VinculosService? vinculosService,
+  })  : _repository = repository,
+        _anamneseRepository = anamneseRepository,
+        _vinculosService = vinculosService;
 
+  /// RELATÓRIO 20261102_0003 — id da anamnese que originou este cálculo
+  /// (devolvido agora por [AnamneseRepository.salvarAnamnese]), usado pra
+  /// navegar até [AnamneseDetalhesPage] dela — "Ver Resultado da
+  /// Prescrição" e ao concluir o fluxo (salvando a meta ou pulando).
+  final String anamneseId;
   final MetaBemEstarRepository? _repository;
+
+  /// Repassados direto pra [AnamneseDetalhesPage] na navegação — mesmo
+  /// motivo de todo outro parâmetro opcional deste arquivo: permitir
+  /// injeção de mocks em teste, sem mudar nada em produção (`null` cai no
+  /// default real de [AnamneseDetalhesPage]).
+  final AnamneseRepository? _anamneseRepository;
+  final VinculosService? _vinculosService;
 
   @override
   State<ResultadoMotorMetabolicoPage> createState() => _ResultadoMotorMetabolicoPageState();
@@ -166,15 +188,29 @@ class _ResultadoMotorMetabolicoPageState extends State<ResultadoMotorMetabolicoP
     }
   }
 
-  /// Fecha esta tela E a Anamnese logo abaixo dela na pilha — depois de
-  /// concluir o fluxo inteiro (Anamnese salva + resultado visto/meta
-  /// definida ou pulada), voltar pra um formulário já enviado não faz
-  /// sentido; o usuário volta direto pra tela que abriu a Anamnese
-  /// (Configurações de Perfil).
-  void _fecharFluxo() {
-    Navigator.of(context)
-      ..pop()
-      ..pop();
+  /// RELATÓRIO 20261102_0003 (ACEITE 2 — "ao concluir, leva o usuário
+  /// para a tela de resultado da prescrição") — substitui o antigo
+  /// `_fecharFluxo` (`pop(); pop();`, que fechava o fluxo inteiro sem
+  /// mostrar nada): achado real em device físico, o fundador não
+  /// conseguia acessar/visualizar o resultado completo da anamnese que
+  /// acabara de concluir. Agora, ao salvar a meta OU pular ("Definir
+  /// Depois"), o app SUBSTITUI esta tela por [AnamneseDetalhesPage] da
+  /// anamnese recém-criada — mesma profundidade de pilha de antes (troca
+  /// só o topo), mostrando o formulário completo + o card do Motor
+  /// Metabólico/Plano de Metas vinculado por FK (`anamnese_id`, RELATÓRIO
+  /// 20261102_0002) — inclusive a meta que acabou de ser salva, se foi o
+  /// caso.
+  void _irParaResultadoCompleto() {
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute<void>(
+        builder: (_) => AnamneseDetalhesPage(
+          anamneseId: widget.anamneseId,
+          repository: widget._anamneseRepository,
+          metaRepository: _repository,
+          vinculosService: widget._vinculosService,
+        ),
+      ),
+    );
   }
 
   int? _parseOpcional(String texto) {
@@ -214,7 +250,7 @@ class _ResultadoMotorMetabolicoPageState extends State<ResultadoMotorMetabolicoP
             backgroundColor: AppColors.success,
           ),
         );
-      _fecharFluxo();
+      _irParaResultadoCompleto();
     } on MetaBloqueadaException catch (erro) {
       if (!mounted) return;
       await mostrarModalBloqueioMeta(context, erro);
@@ -324,6 +360,25 @@ class _ResultadoMotorMetabolicoPageState extends State<ResultadoMotorMetabolicoP
                   ?.copyWith(color: AppColors.error, fontWeight: FontWeight.w600),
             ),
           ),
+          const SizedBox(height: 16),
+          // RELATÓRIO 20261102_0003 (ACEITE 2) — ação primária, sempre
+          // visível, pra ver o resultado completo da anamnese que acabou
+          // de ser enviada SEM precisar passar pelo formulário de meta
+          // abaixo (Seção B é opcional — o usuário pode pular pra ver o
+          // registro completo direto).
+          FilledButton.tonal(
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => AnamneseDetalhesPage(
+                  anamneseId: widget.anamneseId,
+                  repository: widget._anamneseRepository,
+                  metaRepository: _repository,
+                  vinculosService: widget._vinculosService,
+                ),
+              ),
+            ),
+            child: Text(i18n.tr('nutricao.resultado_motor_ver_prescricao_button')),
+          ),
 
           const SizedBox(height: 32),
           const Divider(),
@@ -401,7 +456,7 @@ class _ResultadoMotorMetabolicoPageState extends State<ResultadoMotorMetabolicoP
           ),
           const SizedBox(height: 8),
           TextButton(
-            onPressed: _salvandoMeta ? null : _fecharFluxo,
+            onPressed: _salvandoMeta ? null : _irParaResultadoCompleto,
             child: Text(i18n.tr('nutricao.resultado_motor_meta_definir_depois_button')),
           ),
         ],

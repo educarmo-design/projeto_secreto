@@ -784,6 +784,7 @@
     "resultado_motor_secao_meta_aviso": "Defina você mesmo sua meta diária — o app nunca preenche isso sozinho. O valor vira sua meta média para os 7 dias da semana.",
     "resultado_motor_meta_salvar_button": "Salvar Minha Meta",
     "resultado_motor_meta_definir_depois_button": "Definir depois",
+    "resultado_motor_ver_prescricao_button": "Ver Resultado da Prescrição",
 
     "resultado_motor_qualidade_titulo": "Qualidade dos Dados",
     "resultado_motor_qualidade_score_alta": "Alta",
@@ -856,6 +857,7 @@
     "historico_anamnese_vazio": "Você ainda não preencheu nenhuma anamnese.",
     "historico_anamnese_item_ativo": "Atual",
     "historico_anamnese_item_historico": "Anterior",
+    "historico_anamnese_ver_detalhes_button": "Ver Detalhes / Prescrição",
     "historico_anamnese_peso_altura": "{{peso}} kg · {{altura}} cm",
     "historico_anamnese_sem_peso_altura": "Sem peso/altura registrados",
     "historico_anamnese_load_error": "Erro ao carregar seu histórico. Tente novamente."

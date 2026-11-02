@@ -540,7 +540,10 @@ void main() {
         ]),
       );
 
-      await repository.salvarAnamnese(
+      // RELATÓRIO 20261102_0003 — devolve o id da anamnese recém-criada
+      // (antes descartado, `Future<void>`), usado pelo chamador pra
+      // navegar até o resultado completo dela.
+      final anamneseIdDevolvido = await repository.salvarAnamnese(
         objetivoCodigo: 'manter_peso',
         alturaCm: 179,
         sexoBiologico: 'M',
@@ -550,6 +553,7 @@ void main() {
         atividades: const [],
       );
 
+      expect(anamneseIdDevolvido, 'anamnese-nova');
       verify(
         () => perfisBuilder.upsert({'id': _usuarioId, 'sexo_biologico': 'M'}, onConflict: 'id'),
       ).called(1);
