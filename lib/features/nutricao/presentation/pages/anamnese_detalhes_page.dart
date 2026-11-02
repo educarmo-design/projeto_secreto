@@ -19,12 +19,13 @@ enum _CargaStatus { carregando, sucesso, erro, naoEncontrada }
 /// `Text`, mesmo quando o valor é idêntico ao de um campo editável em
 /// [AnamneseSelfServicePage] (ex.: peso/altura).
 ///
-/// RELATÓRIO 20261102_0001 — não existe (e a tarefa não pediu) nenhuma
-/// FK ligando `objetivos_alimentares` a `anamneses`: a correlação "qual
-/// meta estava vigente nesta avaliação" é por JANELA DE TEMPO
-/// ([AnamneseRepository.buscarDataProximaAnamnese] +
-/// [MetaBemEstarRepository.buscarMetasNoPeriodo]) — mesmo princípio de
-/// versionamento que as duas tabelas já usam internamente.
+/// RELATÓRIO 20261102_0002 — a correlação "qual meta está atrelada a esta
+/// avaliação" passou a ser por FK DIRETA ([MetaBemEstarRepository.
+/// buscarMetasPorAnamneseId], `objetivos_alimentares.anamnese_id`), nunca
+/// mais por janela de tempo (o RELATÓRIO 20261102_0001 original usava
+/// `data_criacao`/`data_preenchimento` — o fundador rejeitou essa
+/// heurística explicitamente como frágil/fora de boas práticas de
+/// modelagem relacional).
 class AnamneseDetalhesPage extends StatefulWidget {
   const AnamneseDetalhesPage({
     super.key,
@@ -71,17 +72,11 @@ class _AnamneseDetalhesPageState extends State<AnamneseDetalhesPage> {
         return;
       }
 
-      // RELATÓRIO 20261102_0001 — a janela de vigência desta anamnese vai
-      // da própria data de preenchimento até a PRÓXIMA anamnese (se
-      // existir) — sem próxima, esta ainda é a vigente, janela sem limite
-      // superior. `buscarMetasNoPeriodo` já devolve lista vazia sozinho
-      // se não houver nenhuma meta no período — fallback tratado na UI,
-      // nunca um erro.
-      final fimJanela = await _repository.buscarDataProximaAnamnese(detalhe.dataPreenchimento);
-      final metas = await _metaRepository.buscarMetasNoPeriodo(
-        inicio: detalhe.dataPreenchimento,
-        fim: fimJanela,
-      );
+      // RELATÓRIO 20261102_0002 — FK direta: busca só as metas cujo
+      // `anamnese_id` seja ESTA anamnese. `buscarMetasPorAnamneseId` já
+      // devolve lista vazia sozinho quando nenhuma meta está atrelada —
+      // fallback tratado na UI, nunca um erro.
+      final metas = await _metaRepository.buscarMetasPorAnamneseId(widget.anamneseId);
       final nomesProfissionais = metas.any((m) => m.prescritaPorProfissional)
           ? await _vinculosService.buscarNomesProfissionaisVinculados()
           : const <String, ({String? nickname, String? tipoProfissional})>{};

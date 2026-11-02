@@ -46,10 +46,6 @@ class _FakeQuery<T> extends Fake implements PostgrestFilterBuilder<T> {
   @override
   PostgrestFilterBuilder<T> or(String filters, {String? referencedTable}) => this;
 
-  // RELATÓRIO 20261102_0001 — usado por `buscarDataProximaAnamnese`.
-  @override
-  PostgrestFilterBuilder<T> gt(String column, Object value) => this;
-
   @override
   PostgrestTransformBuilder<T> limit(int count, {String? referencedTable}) =>
       this as PostgrestTransformBuilder<T>;
@@ -476,44 +472,6 @@ void main() {
       expect(detalhe.complementares.restricoesAlimentares, ['Vegetariano']);
       expect(detalhe.complementares.intolerancias, ['Lactose']);
       expect(detalhe.complementares.numeroRefeicoesDia, 5);
-    });
-  });
-
-  // RELATÓRIO 20261102_0001 (Histórico de Anamnese — Plano de Metas) —
-  // calcula o fim da janela de vigência de uma anamnese: a data de
-  // preenchimento da PRÓXIMA (se existir).
-  group('buscarDataProximaAnamnese', () {
-    test('devolve a data de preenchimento da anamnese seguinte, quando existe', () async {
-      final anamnesesBuilder = builderPara('anamneses');
-      when(() => anamnesesBuilder.select(any())).thenAnswer(
-        (_) => _FakeQuery<List<Map<String, dynamic>>>([
-          {'data_preenchimento': '2026-11-01T00:00:00Z'},
-        ]),
-      );
-
-      final proxima = await repository.buscarDataProximaAnamnese(DateTime(2026, 10, 1));
-
-      expect(proxima, DateTime.parse('2026-11-01T00:00:00Z'));
-    });
-
-    test('devolve null quando esta é a anamnese mais recente (ainda vigente)', () async {
-      final anamnesesBuilder = builderPara('anamneses');
-      when(() => anamnesesBuilder.select(any())).thenAnswer(
-        (_) => _FakeQuery<List<Map<String, dynamic>>>([]),
-      );
-
-      final proxima = await repository.buscarDataProximaAnamnese(DateTime(2026, 10, 1));
-
-      expect(proxima, isNull);
-    });
-
-    test('devolve null sem consultar o Supabase quando ninguém está logado', () async {
-      when(() => auth.currentUser).thenReturn(null);
-
-      final proxima = await repository.buscarDataProximaAnamnese(DateTime(2026, 10, 1));
-
-      expect(proxima, isNull);
-      verifyNever(() => supabase.from('anamneses'));
     });
   });
 

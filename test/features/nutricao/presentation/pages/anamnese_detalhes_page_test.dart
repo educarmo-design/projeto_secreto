@@ -36,11 +36,9 @@ void main() {
     repository = _MockRepository();
     metaRepository = _MockMetaRepository();
     vinculosService = _MockVinculosService();
-    // Defaults seguros ("sem próxima anamnese"/"sem meta na janela") —
-    // os testes do Plano de Metas sobrescrevem.
-    when(() => repository.buscarDataProximaAnamnese(any())).thenAnswer((_) async => null);
-    when(() => metaRepository.buscarMetasNoPeriodo(inicio: any(named: 'inicio'), fim: any(named: 'fim')))
-        .thenAnswer((_) async => const []);
+    // Default seguro ("sem meta atrelada a esta anamnese") — os testes do
+    // Plano de Metas sobrescrevem.
+    when(() => metaRepository.buscarMetasPorAnamneseId(any())).thenAnswer((_) async => const []);
   });
 
   Widget criarApp() {
@@ -153,9 +151,10 @@ void main() {
     expect(find.text('Metformina'), findsOneWidget);
   });
 
-  // RELATÓRIO 20261102_0001 — "Plano de Metas" vigente na janela desta
-  // anamnese, correlacionado por tempo (sem FK — ver doc da classe).
-  group('Plano de Metas (RELATÓRIO 20261102_0001)', () {
+  // RELATÓRIO 20261102_0002 — "Plano de Metas" atrelado a esta anamnese,
+  // correlacionado por FK direta (anamnese_id), nunca mais por tempo (ver
+  // doc da classe).
+  group('Plano de Metas (RELATÓRIO 20261102_0002)', () {
     AnamneseDetalheModel detalheBasico({DateTime? dataPreenchimento, String statusVigencia = 'ativo'}) =>
         AnamneseDetalheModel(
           id: 'anamnese-1',
@@ -173,7 +172,7 @@ void main() {
           complementares: const DadosComplementaresAnamnese(),
         );
 
-    testWidgets('sem nenhuma meta na janela mostra o aviso de fallback', (tester) async {
+    testWidgets('sem nenhuma meta atrelada (anamnese_id) mostra o aviso de fallback', (tester) async {
       when(() => repository.buscarAnamnesePorId('anamnese-1')).thenAnswer((_) async => detalheBasico());
 
       await tester.pumpWidget(criarApp());
@@ -185,7 +184,7 @@ void main() {
     testWidgets('meta única self-service (Motor Metabólico) mostra o card consolidado, sem nome de profissional',
         (tester) async {
       when(() => repository.buscarAnamnesePorId('anamnese-1')).thenAnswer((_) async => detalheBasico());
-      when(() => metaRepository.buscarMetasNoPeriodo(inicio: any(named: 'inicio'), fim: any(named: 'fim'))).thenAnswer(
+      when(() => metaRepository.buscarMetasPorAnamneseId('anamnese-1')).thenAnswer(
         (_) async => [
           MetaResumo(
             caloriasAlvo: 2200,
@@ -194,6 +193,7 @@ void main() {
             gorduraG: 70,
             dataCriacao: DateTime(2026, 10, 1),
             tipoDia: 'PADRAO',
+            anamneseId: 'anamnese-1',
           ),
         ],
       );
@@ -212,7 +212,7 @@ void main() {
     testWidgets('prescrição profissional com metas por dia da semana mostra o badge e a lista expansível por dia',
         (tester) async {
       when(() => repository.buscarAnamnesePorId('anamnese-1')).thenAnswer((_) async => detalheBasico());
-      when(() => metaRepository.buscarMetasNoPeriodo(inicio: any(named: 'inicio'), fim: any(named: 'fim'))).thenAnswer(
+      when(() => metaRepository.buscarMetasPorAnamneseId('anamnese-1')).thenAnswer(
         (_) async => [
           MetaResumo(
             caloriasAlvo: 2400,
@@ -222,6 +222,7 @@ void main() {
             dataCriacao: DateTime(2026, 10, 1),
             tipoDia: 'TREINO',
             profissionalId: 'prof-1',
+            anamneseId: 'anamnese-1',
           ),
           MetaResumo(
             caloriasAlvo: 1900,
@@ -231,6 +232,7 @@ void main() {
             dataCriacao: DateTime(2026, 10, 1),
             tipoDia: 'DESCANSO',
             profissionalId: 'prof-1',
+            anamneseId: 'anamnese-1',
           ),
         ],
       );
@@ -254,21 +256,18 @@ void main() {
       expect(find.text('P 180g · C 260g · G 75g'), findsOneWidget);
     });
 
-    testWidgets('anamnese sem próxima (ainda vigente): janela de metas não tem limite superior', (tester) async {
-      final dataPreenchimento = DateTime(2026, 10, 1);
-      when(() => repository.buscarAnamnesePorId('anamnese-1'))
-          .thenAnswer((_) async => detalheBasico(dataPreenchimento: dataPreenchimento));
-      when(() => repository.buscarDataProximaAnamnese(dataPreenchimento)).thenAnswer((_) async => null);
-      when(() => metaRepository.buscarMetasNoPeriodo(inicio: any(named: 'inicio'), fim: any(named: 'fim'))).thenAnswer(
+    testWidgets('busca a meta exclusivamente pelo anamneseId (FK direta) — nunca por data', (tester) async {
+      when(() => repository.buscarAnamnesePorId('anamnese-1')).thenAnswer((_) async => detalheBasico());
+      when(() => metaRepository.buscarMetasPorAnamneseId('anamnese-1')).thenAnswer(
         (_) async => [
-          MetaResumo(caloriasAlvo: 2000, dataCriacao: DateTime(2026, 10, 5)),
+          MetaResumo(caloriasAlvo: 2000, dataCriacao: DateTime(2026, 10, 5), anamneseId: 'anamnese-1'),
         ],
       );
 
       await tester.pumpWidget(criarApp());
       await tester.pumpAndSettle();
 
-      verify(() => metaRepository.buscarMetasNoPeriodo(inicio: dataPreenchimento, fim: null)).called(1);
+      verify(() => metaRepository.buscarMetasPorAnamneseId('anamnese-1')).called(1);
       expect(find.text('2000 kcal'), findsOneWidget);
     });
   });
