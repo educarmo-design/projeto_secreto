@@ -326,11 +326,10 @@ void main() {
       expect(find.text('1760 kcal'), findsOneWidget);
       expect(find.textContaining('Déficit de 12%'), findsOneWidget);
 
-      // "Usar este valor em Calorias" copia o valor pro campo — continua editável.
-      await tester.tap(find.widgetWithText(TextButton, 'Usar este valor em Calorias'));
-      await tester.pump();
-      final caloriasField = tester.widget<TextFormField>(find.byType(TextFormField).at(0));
-      expect(caloriasField.controller?.text, '1760');
+      // RELATÓRIO 20261103_0001 — botão "Usar este valor em Calorias"
+      // removido por pedido do fundador; o card fica só informativo, sem
+      // nenhum atalho de cópia pro campo de Calorias da Seção B.
+      expect(find.widgetWithText(TextButton, 'Usar este valor em Calorias'), findsNothing);
     });
 
     testWidgets('manutenção mostra a descrição correta, sem percentual de déficit', (tester) async {

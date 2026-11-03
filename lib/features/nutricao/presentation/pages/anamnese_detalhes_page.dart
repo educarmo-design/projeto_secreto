@@ -6,6 +6,7 @@ import '../../../vinculos/data/services/vinculos_service.dart';
 import '../../data/models/anamnese_models.dart';
 import '../../data/repositories/anamnese_repository.dart';
 import '../../data/repositories/meta_bem_estar_repository.dart';
+import '../widgets/motor_metabolico_resultado_view.dart';
 
 enum _CargaStatus { carregando, sucesso, erro, naoEncontrada }
 
@@ -247,7 +248,36 @@ class _AnamneseDetalhesPageState extends State<AnamneseDetalhesPage> {
             _linha(context, i18n.tr('nutricao.meta_massa_desejada_label'), _formatarNumeroOuNull(c.metaMassaDesejadaKg)),
             _linha(context, i18n.tr('nutricao.meta_outro_indicador_label'), c.metaOutroIndicador),
           ]),
+        const SizedBox(height: 24),
+        const Divider(),
+        const SizedBox(height: 24),
+        _buildResultadoMotorMetabolico(context, detalhe),
       ],
+    );
+  }
+
+  /// RELATÓRIO 20261103_0001 (item 3) — "ao final da tela de detalhes...
+  /// exibição completa dos resultados dos cálculos do Motor Metabólico
+  /// (...) exatamente como apresentados na Tela de Resultado da
+  /// Avaliação": [MotorMetabolicoResultadoView] é o MESMO widget usado em
+  /// [ResultadoMotorMetabolicoPage] — mesmo código, mesmos textos. Lido
+  /// de `anamneses.resultado_motor_v1` (snapshot gravado por
+  /// `validar_e_salvar_meta`, Gap Crítico do RELATÓRIO 20260917_0001),
+  /// nunca recalculado aqui. Fallback gracioso (Regra 23) quando nenhuma
+  /// meta nunca foi salva pra esta anamnese — a RPC do motor nunca
+  /// escreve nada sozinha.
+  Widget _buildResultadoMotorMetabolico(BuildContext context, AnamneseDetalheModel detalhe) {
+    final bruto = detalhe.resultadoMotorV1;
+    if (bruto == null) {
+      return Text(
+        i18n.tr('anamnese_detalhe.motor_sem_resultado'),
+        style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.mutedText, fontStyle: FontStyle.italic),
+      );
+    }
+
+    return MotorMetabolicoResultadoView(
+      resultado: MotorMetabolicoV1Resultado.fromJson(bruto),
+      mostrarMacrosRecomendados: true,
     );
   }
 

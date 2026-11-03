@@ -321,6 +321,24 @@ void main() {
     expect(find.widgetWithText(TextFormField, 'Refeições fora de casa'), findsNothing);
   });
 
+  // RELATÓRIO 20261103_0001 (item 1) — máscara HH:mm nos dois campos de
+  // horário do sono. O formatter/validator em si (`HoraInputFormatter`/
+  // `validarHorarioOpcional`) já tem cobertura unitária dedicada
+  // (`hora_input_formatter_test.dart`); aqui só confirma que os 2 campos
+  // desta tela de fato usam a mesma máscara.
+  testWidgets('horários de dormir/acordar aplicam a máscara HH:mm', (tester) async {
+    await configurarViewportAlto(tester);
+    await tester.pumpWidget(criarApp());
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.widgetWithText(TextFormField, 'Horário habitual de dormir'), '2230');
+    await tester.enterText(find.widgetWithText(TextFormField, 'Horário habitual de acordar'), '0645');
+    await tester.pump();
+
+    expect(find.text('22:30'), findsOneWidget);
+    expect(find.text('06:45'), findsOneWidget);
+  });
+
   testWidgets('RELATÓRIO 20260927_0001 (bug de QA, i18n): Qualidade do Sono mostra texto traduzido, nunca a chave crua', (tester) async {
     await configurarViewportAlto(tester);
     await tester.pumpWidget(criarApp());

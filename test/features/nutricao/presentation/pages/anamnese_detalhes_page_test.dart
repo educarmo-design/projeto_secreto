@@ -271,4 +271,78 @@ void main() {
       expect(find.text('2000 kcal'), findsOneWidget);
     });
   });
+
+  // RELATÓRIO 20261103_0001 (item 3) — "ao final da tela de detalhes,
+  // exibição completa dos resultados do Motor Metabólico". Lido de
+  // `anamneses.resultado_motor_v1` (snapshot do RELATÓRIO 20260917_0001),
+  // nunca recalculado por esta tela.
+  group('Resultado do Motor Metabólico (RELATÓRIO 20261103_0001)', () {
+    AnamneseDetalheModel detalheComMotor(Map<String, dynamic>? resultadoMotorV1) => AnamneseDetalheModel(
+          id: 'anamnese-1',
+          dataPreenchimento: DateTime(2026, 10, 1),
+          statusVigencia: 'ativo',
+          objetivoCodigo: 'manter_peso',
+          pesoKg: 80.0,
+          alturaCm: 178.0,
+          problemasSaudeNomes: const [],
+          alergiasNomes: const [],
+          atividades: const [],
+          medicamentos: const [],
+          suplementos: const [],
+          exames: const [],
+          complementares: const DadosComplementaresAnamnese(),
+          resultadoMotorV1: resultadoMotorV1,
+        );
+
+    testWidgets('sem snapshot gravado (nenhuma meta salva ainda) mostra o aviso de fallback', (tester) async {
+      when(() => repository.buscarAnamnesePorId('anamnese-1')).thenAnswer((_) async => detalheComMotor(null));
+
+      await tester.pumpWidget(criarApp());
+      await tester.pumpAndSettle();
+
+      expect(find.text('Sem resultado do Motor Metabólico calculado para esta avaliação.'), findsOneWidget);
+    });
+
+    testWidgets('com snapshot gravado, mostra TMB, TDEE médio, qualidade, energia recomendada e macros',
+        (tester) async {
+      when(() => repository.buscarAnamnesePorId('anamnese-1')).thenAnswer(
+        (_) async => detalheComMotor({
+          'formula_tmb': {'codigo': 'TMB-001'},
+          'estrategia_tdee': 'pal',
+          'tmb': 1655.5,
+          'tdee_medio': 1986.6,
+          'avisos': <String>[],
+          'qualidade': {'score': 'alta', 'motivos': <String>[]},
+          'energia_recomendacao': {
+            'estrategia': 'deficit_conservador',
+            'deficit_percentual': 0.1,
+            'deficit_versao': 'DEFICIT-002-multicriterio-v1',
+            'recomendacao_media_diaria': 1788,
+          },
+          'macros_recomendados': {
+            'energia_alvo': 1986.6,
+            'macro_001': {
+              'versao': 'MACRO-001-default-v1',
+              'disponivel': true,
+              'parametros': {'percentual_proteina': 0.25, 'percentual_carboidrato': 0.45, 'percentual_gordura': 0.30},
+              'proteina_g': 124,
+              'carboidrato_g': 223,
+              'gordura_g': 66,
+              'validacao_soma_ok': true,
+            },
+          },
+        }),
+      );
+
+      await tester.pumpWidget(criarApp());
+      await tester.pumpAndSettle();
+
+      expect(find.text('1987 kcal'), findsOneWidget);
+      expect(find.text('1656 kcal'), findsOneWidget);
+      expect(find.text('Alta'), findsOneWidget);
+      expect(find.text('1788 kcal'), findsOneWidget);
+      expect(find.text('MACRO-001'), findsOneWidget);
+      expect(find.text('P 124g · C 223g · G 66g'), findsOneWidget);
+    });
+  });
 }
