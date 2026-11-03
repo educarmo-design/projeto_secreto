@@ -182,30 +182,49 @@ class _HistoricoAnamnesesPageState extends State<HistoricoAnamnesesPage> {
           })
         : i18n.tr('nutricao.historico_anamnese_sem_peso_altura');
 
+    // RELATÓRIO 20261016_0005 (item 2) — abre o detalhe 100% leitura
+    // daquela anamnese específica. Restrição da tarefa: nunca edita nada
+    // aqui, [AnamneseDetalhesPage] não tem nenhum campo editável.
+    void abrirDetalhes() => Navigator.of(context).push(
+          MaterialPageRoute<void>(builder: (_) => AnamneseDetalhesPage(anamneseId: item.id)),
+        );
+
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
-      child: ListTile(
-        title: Text(_formatarData(item.dataPreenchimento)),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(i18n.tr('nutricao.objetivo_${item.objetivoCodigo}')),
-            Text(pesoAltura),
-          ],
-        ),
-        isThreeLine: true,
-        trailing: Text(
-          item.statusVigencia == 'ativo'
-              ? i18n.tr('nutricao.historico_anamnese_item_ativo')
-              : i18n.tr('nutricao.historico_anamnese_item_historico'),
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.mutedText),
-        ),
-        // RELATÓRIO 20261016_0005 (item 2) — abre o detalhe 100% leitura
-        // daquela anamnese específica. Restrição da tarefa: nunca edita
-        // nada aqui, [AnamneseDetalhesPage] não tem nenhum campo editável.
-        onTap: () => Navigator.of(context).push(
-          MaterialPageRoute<void>(builder: (_) => AnamneseDetalhesPage(anamneseId: item.id)),
-        ),
+      child: Column(
+        children: [
+          ListTile(
+            title: Text(_formatarData(item.dataPreenchimento)),
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(i18n.tr('nutricao.objetivo_${item.objetivoCodigo}')),
+                Text(pesoAltura),
+              ],
+            ),
+            isThreeLine: true,
+            trailing: Text(
+              item.statusVigencia == 'ativo'
+                  ? i18n.tr('nutricao.historico_anamnese_item_ativo')
+                  : i18n.tr('nutricao.historico_anamnese_item_historico'),
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.mutedText),
+            ),
+            // O card inteiro continua tocável (atalho) — o botão abaixo é
+            // a afordância EXPLÍCITA e visível (RELATÓRIO 20261102_0003,
+            // item 2: "garanta um botão/link visível"), pro usuário nunca
+            // depender de adivinhar que o card é tocável.
+            onTap: abrirDetalhes,
+          ),
+          const Divider(height: 1),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              onPressed: abrirDetalhes,
+              icon: const Icon(Icons.chevron_right, size: 18),
+              label: Text(i18n.tr('nutricao.historico_anamnese_ver_detalhes_button')),
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -627,6 +627,8 @@
     "sono_horas_medias_label": "Average hours of sleep",
     "sono_horario_dormir_label": "Usual bedtime",
     "sono_horario_acordar_label": "Usual wake-up time",
+    "horario_validation_formato": "Use the HH:mm format (e.g.: 22:30)",
+    "horario_validation_intervalo": "Enter a valid time (00:00 to 23:59)",
     "sono_qualidade_label": "Perceived sleep quality",
     "sono_qualidade_muito_ruim": "Very poor",
     "sono_qualidade_ruim": "Poor",
@@ -779,6 +781,7 @@
     "resultado_motor_secao_meta_aviso": "Set your own daily goal — the app never fills this in for you. The value becomes your average goal for all 7 days of the week.",
     "resultado_motor_meta_salvar_button": "Save My Goal",
     "resultado_motor_meta_definir_depois_button": "Set later",
+    "resultado_motor_ver_prescricao_button": "View Prescription Result",
 
     "resultado_motor_qualidade_titulo": "Data Quality",
     "resultado_motor_qualidade_score_alta": "High",
@@ -792,7 +795,6 @@
     "resultado_motor_energia_titulo": "Energy Recommendation",
     "resultado_motor_energia_manutencao": "Maintenance — same average as the calculated TDEE.",
     "resultado_motor_energia_deficit": "{{percentual}}% deficit from the calculated TDEE (parametrized table by profile).",
-    "resultado_motor_energia_usar_button": "Use this value for Calories",
 
     "resultado_motor_protocolo_titulo": "Macro Protocols",
     "resultado_motor_protocolo_aviso": "Choosing a protocol automatically fills in Protein/Carbs/Fat — the fields stay editable and nothing is saved until you tap \"Save My Goal\".",
@@ -822,8 +824,6 @@
     "meta_save_success": "Goal saved successfully",
     "meta_save_error": "Failed to save. Please try again.",
     "meta_load_error": "Failed to load. Please try again.",
-    "meta_carencia_titulo": "Goal already set this month",
-    "meta_carencia_mensagem": "You can only change your wellness goal once a month. Available again on {{data}}.",
     "meta_acompanhamento_titulo": "You're under professional care",
     "meta_acompanhamento_mensagem": "Your current goal was set by a professional linked to your account. Talk to them to adjust it.",
     "meta_bloqueio_confirmar": "Got it",
@@ -831,17 +831,15 @@
     "meta_bloqueio_clinico_mensagem": "This goal is outside the safety range for your profile (calories or fat incompatible with your Basal Metabolic Rate). Adjust the values or seek professional guidance.",
     "meta_bloqueio_profissional_titulo": "You're under professional care",
     "meta_bloqueio_profissional_mensagem": "Your current goal was set by a professional linked to your account. Talk to them to adjust it.",
-    "meta_bloqueio_carencia_titulo": "Goal already set this month",
-    "meta_bloqueio_carencia_mensagem": "You can only change your wellness goal once a month.",
+    "meta_bloqueio_carencia_titulo": "Goal already set",
 
     "meta_atual_label": "Current Goal (Average)",
     "meta_atual_vazio": "You haven't set a goal yet.",
+    "meta_ja_definida_label": "Goal already set",
     "meta_historico_label": "Goal History",
     "meta_historico_vazio": "No previous goals.",
     "meta_historico_item_ativo": "Current",
     "meta_historico_item_historico": "Previous",
-    "meta_proxima_revisao_label": "Next review available on {{data}}",
-    "meta_proxima_revisao_disponivel": "Review available now",
     "meta_criar_nova_button": "Create New Goal",
     "meta_flag_profissional_texto": "Your goals are set and monitored by your health professional.",
 
@@ -851,6 +849,7 @@
     "historico_anamnese_vazio": "You haven't filled out any intake yet.",
     "historico_anamnese_item_ativo": "Current",
     "historico_anamnese_item_historico": "Previous",
+    "historico_anamnese_ver_detalhes_button": "View Details / Prescription",
     "historico_anamnese_peso_altura": "{{peso}} kg · {{altura}} cm",
     "historico_anamnese_sem_peso_altura": "No weight/height on record",
     "historico_anamnese_load_error": "Failed to load your history. Please try again."
@@ -871,7 +870,8 @@
     "plano_sem_meta": "No prescription/calculation attached to this record.",
     "plano_origem_motor": "Calculated by the Metabolic Engine",
     "plano_origem_profissional": "Clinical Prescription — {{nome}}",
-    "plano_macros": "P {{proteina}}g · C {{carbo}}g · F {{gordura}}g"
+    "plano_macros": "P {{proteina}}g · C {{carbo}}g · F {{gordura}}g",
+    "motor_sem_resultado": "No Metabolic Engine result calculated for this assessment."
   },
 
   "vinculos": {

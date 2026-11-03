@@ -103,7 +103,7 @@ void main() {
           alergiaIds: any(named: 'alergiaIds'),
           atividades: any(named: 'atividades'),
           complementares: any(named: 'complementares'),
-        )).thenAnswer((_) async {});
+        )).thenAnswer((_) async => 'anamnese-nova');
 
     await configurarViewportAlto(tester);
     await tester.pumpWidget(criarApp());
@@ -149,6 +149,7 @@ void main() {
         )).thenAnswer((_) async {
       vezesChamado++;
       await chamadaEmAndamento.future;
+      return 'anamnese-nova';
     });
 
     await configurarViewportAlto(tester);

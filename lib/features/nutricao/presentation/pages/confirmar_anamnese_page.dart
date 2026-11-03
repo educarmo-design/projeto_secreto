@@ -58,7 +58,7 @@ class _ConfirmarAnamnesePageState extends State<ConfirmarAnamnesePage> {
     setState(() => _enviando = true);
     final rascunho = widget.rascunho;
     try {
-      await _repository.salvarAnamnese(
+      final anamneseId = await _repository.salvarAnamnese(
         objetivoCodigo: rascunho.objetivoCodigo,
         alturaCm: rascunho.alturaCm,
         sexoBiologico: rascunho.sexoBiologico,
@@ -71,7 +71,7 @@ class _ConfirmarAnamnesePageState extends State<ConfirmarAnamnesePage> {
       if (!mounted) return;
       await Navigator.of(context).pushReplacement(
         MaterialPageRoute<void>(
-          builder: (_) => ResultadoMotorMetabolicoPage(repository: widget._metaRepository),
+          builder: (_) => ResultadoMotorMetabolicoPage(anamneseId: anamneseId, repository: widget._metaRepository),
         ),
       );
     } catch (e) {

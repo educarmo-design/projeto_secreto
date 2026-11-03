@@ -171,4 +171,32 @@ void main() {
     final detalhePage = tester.widget<AnamneseDetalhesPage>(find.byType(AnamneseDetalhesPage));
     expect(detalhePage.anamneseId, 'anamnese-xyz');
   });
+
+  // RELATÓRIO 20261102_0003 (item 2 — "garanta um botão/link visível") —
+  // achado real em device: o fundador não percebia que o card inteiro era
+  // tocável. Esta afordância explícita não substitui o tap no card (ambos
+  // continuam funcionando), só garante que existe algo claramente clicável.
+  testWidgets('botão explícito "Ver Detalhes / Prescrição" também navega para AnamneseDetalhesPage com o id correto',
+      (tester) async {
+    when(() => repository.buscarHistoricoAnamneses()).thenAnswer(
+      (_) async => [
+        AnamneseHistoricoItem(
+          id: 'anamnese-xyz',
+          dataPreenchimento: DateTime.now(),
+          objetivoCodigo: 'manter_peso',
+          statusVigencia: 'ativo',
+        ),
+      ],
+    );
+    await tester.pumpWidget(criarApp());
+    await tester.pumpAndSettle();
+
+    expect(find.widgetWithText(TextButton, 'Ver Detalhes / Prescrição'), findsOneWidget);
+
+    await tester.tap(find.widgetWithText(TextButton, 'Ver Detalhes / Prescrição'));
+    await tester.pumpAndSettle();
+
+    final detalhePage = tester.widget<AnamneseDetalhesPage>(find.byType(AnamneseDetalhesPage));
+    expect(detalhePage.anamneseId, 'anamnese-xyz');
+  });
 }

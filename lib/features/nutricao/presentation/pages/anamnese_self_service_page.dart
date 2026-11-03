@@ -9,6 +9,7 @@ import '../../data/models/anamnese_models.dart';
 import '../../data/repositories/anamnese_repository.dart';
 import '../../data/repositories/meta_bem_estar_repository.dart';
 import '../../domain/anamnese_validade_status.dart';
+import '../widgets/hora_input_formatter.dart';
 import '../widgets/lista_repetivel_widget.dart';
 import '../widgets/refeicoes_habituais_widget.dart';
 import '../widgets/revisao_smartwatch_page.dart';
@@ -1718,12 +1719,18 @@ class _AnamneseSelfServicePageState extends State<AnamneseSelfServicePage> {
         const SizedBox(height: 8),
         TextFormField(
           controller: _horarioDormirController,
+          keyboardType: TextInputType.number,
+          inputFormatters: horaInputFormatters,
+          validator: validarHorarioOpcional,
           decoration: InputDecoration(labelText: i18n.tr('nutricao.sono_horario_dormir_label'), hintText: 'HH:mm', border: const OutlineInputBorder()),
           enabled: !_indoParaConfirmacao,
         ),
         const SizedBox(height: 8),
         TextFormField(
           controller: _horarioAcordarController,
+          keyboardType: TextInputType.number,
+          inputFormatters: horaInputFormatters,
+          validator: validarHorarioOpcional,
           decoration: InputDecoration(labelText: i18n.tr('nutricao.sono_horario_acordar_label'), hintText: 'HH:mm', border: const OutlineInputBorder()),
           enabled: !_indoParaConfirmacao,
         ),

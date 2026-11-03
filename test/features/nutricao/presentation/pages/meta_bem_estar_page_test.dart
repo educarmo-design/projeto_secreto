@@ -86,7 +86,14 @@ void main() {
     expect(find.widgetWithText(FilledButton, 'Salvar Meta'), findsNothing);
   });
 
-  testWidgets('meta própria criada há menos de 30 dias bloqueia a tela por carência', (tester) async {
+  // RELATÓRIO 20261103_0001 — removida a trava client-side de carência
+  // (1x/30 dias): o servidor (RPC, por ciclo de anamnese desde o
+  // RELATÓRIO 20261102_0003) é o único que decide se a gravação é
+  // permitida. A tela mostra "Meta já definida" só informativo, sem
+  // bloquear o formulário.
+  testWidgets('meta própria criada há menos de 30 dias NÃO bloqueia — mostra "Meta já definida" e o formulário',
+      (tester) async {
+    await configurarViewportAlto(tester);
     final criadaHa5Dias = DateTime.now().subtract(const Duration(days: 5));
     when(() => repository.buscarMinhaUltimaMetaPropria()).thenAnswer(
       (_) async => MetaResumo(caloriasAlvo: 2200, dataCriacao: criadaHa5Dias),
@@ -95,8 +102,8 @@ void main() {
     await tester.pumpWidget(criarApp());
     await tester.pumpAndSettle();
 
-    expect(find.text('Meta já definida este mês'), findsOneWidget);
-    expect(find.widgetWithText(FilledButton, 'Salvar Meta'), findsNothing);
+    expect(find.text('Meta já definida'), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, 'Salvar Meta'), findsOneWidget);
   });
 
   testWidgets('RELATÓRIO 20260922_0002: anamnese vencida há 40+ dias bloqueia a tela, mesmo sem meta prescrita/carência', (tester) async {
@@ -137,7 +144,7 @@ void main() {
     expect(find.widgetWithText(FilledButton, 'Salvar Meta'), findsOneWidget);
   });
 
-  testWidgets('salvar com sucesso mostra snackbar e recarrega (vira bloqueadaCarencia)', (tester) async {
+  testWidgets('salvar com sucesso mostra snackbar e recarrega', (tester) async {
     await configurarViewportAlto(tester);
     when(() => repository.salvarMeta(
           caloriasAlvo: any(named: 'caloriasAlvo'),
@@ -191,6 +198,36 @@ void main() {
     await tester.pumpAndSettle();
   });
 
+  // RELATÓRIO 20261103_0001 — o servidor ainda pode recusar
+  // (N08_CARENCIA_MENSAL) quando a meta é pro MESMO ciclo de anamnese; o
+  // modal avisa na hora, mas sem mais repetir a mensagem de "1x por mês".
+  testWidgets('carência recusada pelo servidor (N08_CARENCIA_MENSAL) mostra "Meta já definida" sem a mensagem de limitação mensal',
+      (tester) async {
+    await configurarViewportAlto(tester);
+    when(() => repository.salvarMeta(
+          caloriasAlvo: any(named: 'caloriasAlvo'),
+          proteinaG: any(named: 'proteinaG'),
+          carboG: any(named: 'carboG'),
+          gorduraG: any(named: 'gorduraG'),
+        )).thenThrow(
+      MetaBloqueadaException(MotivoBloqueioN08.carenciaMensal, 'N08_CARENCIA_MENSAL: ...'),
+    );
+
+    await tester.pumpWidget(criarApp());
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextFormField).at(0), '2200');
+    await tester.tap(find.widgetWithText(FilledButton, 'Salvar Meta'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(find.text('Meta já definida'), findsOneWidget);
+    expect(find.textContaining('1x por mês'), findsNothing);
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Entendi'));
+    await tester.pumpAndSettle();
+  });
+
   testWidgets('sem meta própria ainda, mostra "Meta Atual" vazia e histórico vazio no formulário', (tester) async {
     await configurarViewportAlto(tester);
     await tester.pumpWidget(criarApp());
@@ -202,7 +239,8 @@ void main() {
     expect(find.text('Nenhuma meta anterior.'), findsOneWidget);
   });
 
-  testWidgets('com meta própria e histórico, mostra a média atual, a próxima revisão e o histórico rotulado', (tester) async {
+  testWidgets('com meta própria e histórico, mostra a média atual, "Meta já definida" e o histórico rotulado',
+      (tester) async {
     when(() => repository.buscarMinhaUltimaMetaPropria()).thenAnswer(
       (_) async => MetaResumo(
         caloriasAlvo: 2200,
@@ -223,7 +261,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Meta Atual (Média)'), findsOneWidget);
-    expect(find.text('Revisão disponível agora'), findsOneWidget);
+    expect(find.text('Meta já definida'), findsOneWidget);
     expect(find.text('Atual'), findsOneWidget);
     expect(find.text('Anterior'), findsOneWidget);
     expect(find.text('2000 kcal'), findsOneWidget);

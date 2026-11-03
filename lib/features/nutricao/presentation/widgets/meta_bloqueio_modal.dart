@@ -17,10 +17,15 @@ Future<void> mostrarModalBloqueioMeta(BuildContext context, MetaBloqueadaExcepti
     MotivoBloqueioN08.carenciaMensal => i18n.tr('nutricao.meta_bloqueio_carencia_titulo'),
     MotivoBloqueioN08.outro => i18n.tr('nutricao.meta_save_error'),
   };
+  // RELATÓRIO 20261103_0001 — `carenciaMensal` não tem mais mensagem
+  // (`null`): a "limitação mensal de alteração" foi removida do texto —
+  // o título "Meta já definida" já basta, sem reexplicar a regra de
+  // negócio do servidor (que agora é por ciclo de anamnese, RELATÓRIO
+  // 20261102_0003 — não é mais um simples "1x por mês" pra descrever).
   final mensagem = switch (erro.motivo) {
     MotivoBloqueioN08.travaClinica => i18n.tr('nutricao.meta_bloqueio_clinico_mensagem'),
     MotivoBloqueioN08.prioridadeProfissional => i18n.tr('nutricao.meta_bloqueio_profissional_mensagem'),
-    MotivoBloqueioN08.carenciaMensal => i18n.tr('nutricao.meta_bloqueio_carencia_mensagem'),
+    MotivoBloqueioN08.carenciaMensal => null,
     MotivoBloqueioN08.outro => erro.mensagemOriginal,
   };
 
@@ -29,7 +34,7 @@ Future<void> mostrarModalBloqueioMeta(BuildContext context, MetaBloqueadaExcepti
     builder: (dialogContext) => AlertDialog(
       icon: const Icon(Icons.block, color: AppColors.error, size: 32),
       title: Text(titulo, style: const TextStyle(color: AppColors.error)),
-      content: Text(mensagem),
+      content: mensagem == null ? null : Text(mensagem),
       actions: [
         FilledButton(
           onPressed: () => Navigator.of(dialogContext).pop(),
