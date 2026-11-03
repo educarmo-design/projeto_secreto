@@ -618,6 +618,18 @@ class AnamneseDetalheModel {
 
   final DadosComplementaresAnamnese complementares;
 
+  /// RELATÓRIO 20261103_0001 (item 3 — "resultados dos cálculos do Motor
+  /// Metabólico ao final da Tela de Detalhes") — snapshot cru de
+  /// `anamneses.resultado_motor_v1` (JSON exato devolvido por
+  /// `calcular_motor_metabolico_v1` no momento em que uma Meta foi salva
+  /// para esta anamnese, Gap Crítico do RELATÓRIO 20260917_0001). `null`
+  /// até a primeira meta ser salva pra esta anamnese — a RPC do motor em
+  /// si nunca escreve nada sozinha (ME-005/ME-006). Fica como JSON cru
+  /// aqui (não como `MotorMetabolicoV1Resultado` já parseado) pra não
+  /// acoplar este modelo de dados ao repositório de metas — quem lê isto
+  /// ([AnamneseDetalhesPage]) decide como parsear.
+  final Map<String, dynamic>? resultadoMotorV1;
+
   const AnamneseDetalheModel({
     required this.id,
     required this.dataPreenchimento,
@@ -632,6 +644,7 @@ class AnamneseDetalheModel {
     required this.suplementos,
     required this.exames,
     required this.complementares,
+    this.resultadoMotorV1,
   });
 }
 

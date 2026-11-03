@@ -6,6 +6,7 @@ import '../../../../core/i18n/i18n_manager.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../nutrition/data/models/prato_refeicao_extracao_model.dart';
 import '../../../nutrition/presentation/controllers/registro_refeicao_ia_controller.dart';
+import 'hora_input_formatter.dart';
 
 /// RELATÓRIO 20260922_0002 (Item 3 da tarefa "Anamnese Inteligente — UI") —
 /// uma linha de refeição habitual: Horário, Fora de casa (Sim/Não), texto
@@ -195,9 +196,12 @@ class _RefeicoesHabituaisWidgetState extends State<RefeicoesHabituaisWidget> {
               Row(
                 children: [
                   Expanded(
-                    child: TextField(
+                    child: TextFormField(
                       controller: linha.horarioController,
                       enabled: widget.habilitado && !processando,
+                      keyboardType: TextInputType.number,
+                      inputFormatters: horaInputFormatters,
+                      validator: validarHorarioOpcional,
                       decoration: InputDecoration(
                         labelText: i18n.tr('nutricao.refeicoes_habituais_horario_label'),
                         hintText: 'HH:mm',

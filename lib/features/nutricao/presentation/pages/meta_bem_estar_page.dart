@@ -7,12 +7,9 @@ import '../../data/repositories/meta_bem_estar_repository.dart';
 import '../../domain/anamnese_validade_status.dart';
 import '../widgets/meta_bloqueio_modal.dart';
 
-const _carenciaDias = 30;
-
 enum _CargaStatus {
   carregando,
   erro,
-  bloqueadaCarencia,
   bloqueadaProfissional,
   // RELATÓRIO 20260922_0002 (Item 5) — "Bloqueio Severo (40 dias): ...
   // BLOQUEAR o acesso às metas nutricionais". Checado ANTES das outras 2
@@ -31,12 +28,23 @@ enum _CargaStatus {
 /// Regra 14 (Parte 0): "Validação = completa funcionalmente, crua
 /// visualmente" — sem carrossel/ilustração.
 ///
-/// Duas travas de UX (a barreira REAL das duas é o banco, ver o RPC):
-///   - Carência: 1x a cada 30 dias — bloqueia a tela inteira ANTES de
-///     deixar preencher, mostrando quando libera de novo.
-///   - Prioridade B2B: se um profissional já tem uma meta ATIVA pra este
-///     usuário, a tela nem mostra o formulário — mostra a meta vigente e
-///     explica que só o profissional pode mudá-la.
+/// Trava de UX (a barreira REAL é o banco, ver o RPC): Prioridade B2B —
+/// se um profissional já tem uma meta ATIVA pra este usuário, a tela nem
+/// mostra o formulário — mostra a meta vigente e explica que só o
+/// profissional pode mudá-la.
+///
+/// RELATÓRIO 20261103_0001 — removido o pré-bloqueio client-side de
+/// "carência 1x/30 dias" que existia aqui: era uma conta própria
+/// (`ultimaMetaPropria.dataCriacao + 30 dias`), 100% alheia ao vínculo por
+/// anamnese que a RPC `validar_e_salvar_meta` já usa desde o RELATÓRIO
+/// 20261102_0003 — um usuário podia submeter uma anamnese nova (o
+/// servidor liberaria a gravação na hora) e ainda assim ficar trancado
+/// aqui, nesta tela, por uma régua desatualizada e redundante. O servidor
+/// (RPC) é agora o ÚNICO lugar que decide se uma meta pode ser salva — a
+/// tela sempre mostra o formulário (quando não há meta profissional/
+/// anamnese severamente vencida); se o servidor realmente recusar
+/// (mesmo ciclo de anamnese), o modal de bloqueio (`meta_bloqueio_modal.
+/// dart`) informa na hora, sem pré-julgar antes de tentar.
 class MetaBemEstarPage extends StatefulWidget {
   const MetaBemEstarPage({super.key, MetaBemEstarRepository? repository})
       : _repository = repository;
@@ -60,7 +68,6 @@ class _MetaBemEstarPageState extends State<MetaBemEstarPage> {
   _CargaStatus _status = _CargaStatus.carregando;
   bool _salvando = false;
   double? _sugestaoCalorias;
-  DateTime? _dataProximaLiberacao;
   MetaResumo? _metaDoProfissional;
   // RELATÓRIO 20260915_0003 — item 4 (Tela de Metas): "Meta Atual (Média)"
   // e "Histórico de Metas" agora ficam visíveis em TODOS os estados que
@@ -101,16 +108,12 @@ class _MetaBemEstarPageState extends State<MetaBemEstarPage> {
         return;
       }
 
-      // Prioridade B2B primeiro — se o profissional tem uma meta ativa,
-      // nem importa a carência: a tela trava do mesmo jeito.
+      // Prioridade B2B — se o profissional tem uma meta ativa, a tela
+      // trava (única trava de UX que resta aqui; carência agora é
+      // decidida só pelo servidor, ver doc da classe).
       final metaProfissional = await _repository.buscarMetaAtivaDoProfissional();
       final ultimaMetaPropria = await _repository.buscarMinhaUltimaMetaPropria();
       final historico = await _repository.buscarHistoricoMetas();
-
-      DateTime? liberaEm;
-      if (ultimaMetaPropria != null) {
-        liberaEm = ultimaMetaPropria.dataCriacao.add(const Duration(days: _carenciaDias));
-      }
 
       if (metaProfissional != null) {
         if (!mounted) return;
@@ -118,19 +121,7 @@ class _MetaBemEstarPageState extends State<MetaBemEstarPage> {
           _metaDoProfissional = metaProfissional;
           _ultimaMetaPropria = ultimaMetaPropria;
           _historico = historico;
-          _dataProximaLiberacao = liberaEm;
           _status = _CargaStatus.bloqueadaProfissional;
-        });
-        return;
-      }
-
-      if (liberaEm != null && liberaEm.isAfter(DateTime.now())) {
-        if (!mounted) return;
-        setState(() {
-          _ultimaMetaPropria = ultimaMetaPropria;
-          _historico = historico;
-          _dataProximaLiberacao = liberaEm;
-          _status = _CargaStatus.bloqueadaCarencia;
         });
         return;
       }
@@ -141,7 +132,6 @@ class _MetaBemEstarPageState extends State<MetaBemEstarPage> {
         _sugestaoCalorias = sugestao;
         _ultimaMetaPropria = ultimaMetaPropria;
         _historico = historico;
-        _dataProximaLiberacao = liberaEm;
         _status = _CargaStatus.formulario;
       });
     } catch (_) {
@@ -193,8 +183,8 @@ class _MetaBemEstarPageState extends State<MetaBemEstarPage> {
             backgroundColor: AppColors.success,
           ),
         );
-      // A meta acabou de consumir a cota do mês — recarrega pra tela virar
-      // "bloqueadaCarencia" sozinha, sem precisar sair e voltar.
+      // Recarrega pra "Meta Atual" e o Histórico refletirem a meta nova
+      // sem precisar sair e voltar.
       await _carregar();
     } on MetaBloqueadaException catch (erro) {
       if (!mounted) return;
@@ -256,17 +246,6 @@ class _MetaBemEstarPageState extends State<MetaBemEstarPage> {
           icone: Icons.event_busy_outlined,
           titulo: i18n.tr('nutricao.validade_bloqueada_titulo'),
           mensagem: i18n.tr('nutricao.validade_bloqueada_mensagem', params: {'dias': '${_diasAtrasoValidade ?? AnamneseValidadeStatus.diasBloqueio}'}),
-        );
-      case _CargaStatus.bloqueadaCarencia:
-        return _buildBloqueio(
-          context,
-          icone: Icons.lock_clock_outlined,
-          titulo: i18n.tr('nutricao.meta_carencia_titulo'),
-          mensagem: i18n.tr(
-            'nutricao.meta_carencia_mensagem',
-            params: {'data': _formatarData(_dataProximaLiberacao!)},
-          ),
-          meta: _ultimaMetaPropria,
         );
       case _CargaStatus.bloqueadaProfissional:
         return _buildBloqueio(
@@ -343,30 +322,10 @@ class _MetaBemEstarPageState extends State<MetaBemEstarPage> {
               ),
             ],
             const SizedBox(height: 24),
-            _buildProximaRevisao(context),
-            const SizedBox(height: 16),
             Align(alignment: Alignment.centerLeft, child: _buildHistorico(context)),
           ],
         ),
       ),
-    );
-  }
-
-  /// "Data da próxima revisão" (item 4) — persistente sempre que o usuário
-  /// já criou uma meta própria alguma vez, independente de estar
-  /// bloqueado agora ou não. Some (sem renderizar nada) se nunca criou.
-  Widget _buildProximaRevisao(BuildContext context) {
-    if (_ultimaMetaPropria == null) return const SizedBox.shrink();
-
-    final liberada = _dataProximaLiberacao == null || !_dataProximaLiberacao!.isAfter(DateTime.now());
-    final texto = liberada
-        ? i18n.tr('nutricao.meta_proxima_revisao_disponivel')
-        : i18n.tr('nutricao.meta_proxima_revisao_label', params: {'data': _formatarData(_dataProximaLiberacao!)});
-
-    return Text(
-      texto,
-      textAlign: TextAlign.center,
-      style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.mutedText),
     );
   }
 
@@ -409,11 +368,11 @@ class _MetaBemEstarPageState extends State<MetaBemEstarPage> {
         key: _formKey,
         child: ListView(
           children: [
-            // Item 4 da tarefa — "Meta Atual (Média)" + próxima revisão +
-            // histórico ficam sempre visíveis no topo, mesmo quando o
-            // formulário de criar uma nova meta está liberado (a tela de
-            // Metas é "independente da Anamnese": mostra o estado atual
-            // sempre, não só quando bloqueada).
+            // Item 4 da tarefa — "Meta Atual (Média)" + histórico ficam
+            // sempre visíveis no topo, mesmo quando o formulário de criar
+            // uma nova meta está liberado (a tela de Metas é "independente
+            // da Anamnese": mostra o estado atual sempre, não só quando
+            // bloqueada).
             Text(i18n.tr('nutricao.meta_atual_label'), style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 4),
             if (_ultimaMetaPropria == null)
@@ -427,9 +386,17 @@ class _MetaBemEstarPageState extends State<MetaBemEstarPage> {
                 'P ${_ultimaMetaPropria!.proteinaG ?? '—'}g · C ${_ultimaMetaPropria!.carboG ?? '—'}g · G ${_ultimaMetaPropria!.gorduraG ?? '—'}g',
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.mutedText),
               ),
+              // RELATÓRIO 20261103_0001 — só informativo ("você já tem uma
+              // meta própria salva"), nunca bloqueia o formulário abaixo:
+              // substitui a antiga "Próxima revisão disponível em
+              // {{data}}"/"1x por mês", que dependia de uma conta de dias
+              // alheia ao ciclo real da anamnese (ver doc da classe).
+              const SizedBox(height: 4),
+              Text(
+                i18n.tr('nutricao.meta_ja_definida_label'),
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.mutedText),
+              ),
             ],
-            const SizedBox(height: 8),
-            _buildProximaRevisao(context),
             const SizedBox(height: 16),
             _buildHistorico(context),
             const SizedBox(height: 24),

@@ -390,6 +390,7 @@ class AnamneseRepository {
               }))
           .toList(),
       complementares: dadosComplementaresDeJson(anamnese),
+      resultadoMotorV1: anamnese['resultado_motor_v1'] as Map<String, dynamic>?,
     );
   }
 

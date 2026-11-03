@@ -7,6 +7,7 @@ import '../../../vinculos/data/services/vinculos_service.dart';
 import '../../data/repositories/anamnese_repository.dart';
 import '../../data/repositories/meta_bem_estar_repository.dart';
 import '../widgets/meta_bloqueio_modal.dart';
+import '../widgets/motor_metabolico_resultado_view.dart';
 import 'anamnese_detalhes_page.dart';
 
 enum _CargaStatus { carregando, erro, sucesso }
@@ -311,55 +312,9 @@ class _ResultadoMotorMetabolicoPageState extends State<ResultadoMotorMetabolicoP
         padding: const EdgeInsets.all(24),
         children: [
           // ─── Seção A — Resultados Calculados (SÓ LEITURA) ───
-          Text(
-            i18n.tr('nutricao.resultado_motor_secao_calculo_titulo'),
-            style: Theme.of(context).textTheme.titleLarge,
-          ),
-          const SizedBox(height: 4),
-          Text(
-            i18n.tr('nutricao.resultado_motor_secao_calculo_aviso'),
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.mutedText),
-          ),
-          const SizedBox(height: 16),
-          Text(i18n.tr('nutricao.resultado_motor_media_label'), style: Theme.of(context).textTheme.titleMedium),
-          Text(
-            resultado.tdeeMedio == null
-                ? i18n.tr('nutricao.resultado_motor_sem_dado')
-                : '${resultado.tdeeMedio!.round()} kcal',
-            style: Theme.of(context).textTheme.headlineMedium,
-          ),
-          if (resultado.tmb != null) ...[
-            const SizedBox(height: 16),
-            Text(i18n.tr('nutricao.resultado_motor_tmb_label'), style: Theme.of(context).textTheme.titleSmall),
-            Text('${resultado.tmb!.round()} kcal', style: Theme.of(context).textTheme.bodyMedium),
-          ],
-          const SizedBox(height: 16),
-          _buildQualidade(context, resultado.qualidade),
-          if (resultado.energiaRecomendacao != null) ...[
-            const SizedBox(height: 16),
-            _buildEnergiaRecomendacao(context, resultado.energiaRecomendacao!),
-          ],
-          if (resultado.avisos.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            for (final aviso in resultado.avisos)
-              Text('• $aviso', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.mutedText)),
-          ],
-          const SizedBox(height: 16),
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: AppColors.error.withValues(alpha: 0.08),
-              border: Border.all(color: AppColors.error),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Text(
-              i18n.tr('nutricao.resultado_motor_aviso_disclaimer'),
-              style: Theme.of(context)
-                  .textTheme
-                  .bodySmall
-                  ?.copyWith(color: AppColors.error, fontWeight: FontWeight.w600),
-            ),
-          ),
+          // RELATÓRIO 20261103_0001 — extraída pra [MotorMetabolicoResultadoView],
+          // reaproveitada também por [AnamneseDetalhesPage].
+          MotorMetabolicoResultadoView(resultado: resultado),
           const SizedBox(height: 16),
           // RELATÓRIO 20261102_0003 (ACEITE 2) — ação primária, sempre
           // visível, pra ver o resultado completo da anamnese que acabou
@@ -458,95 +413,6 @@ class _ResultadoMotorMetabolicoPageState extends State<ResultadoMotorMetabolicoP
           TextButton(
             onPressed: _salvandoMeta ? null : _irParaResultadoCompleto,
             child: Text(i18n.tr('nutricao.resultado_motor_meta_definir_depois_button')),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// Bloco 15/Regra 25 (RELATÓRIO 20260919_0001/20260920_0001) — badge de
-  /// score (Alta/Média/Baixa) + os motivos, na Seção A (só leitura).
-  Widget _buildQualidade(BuildContext context, QualidadeMotorResultado qualidade) {
-    final cor = switch (qualidade.score) {
-      'alta' => AppColors.success,
-      'media' => AppColors.warning,
-      _ => AppColors.error,
-    };
-    final rotulo = i18n.tr('nutricao.resultado_motor_qualidade_score_${qualidade.score}');
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: cor.withValues(alpha: 0.08),
-        border: Border.all(color: cor),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Text(i18n.tr('nutricao.resultado_motor_qualidade_titulo'), style: Theme.of(context).textTheme.titleSmall),
-              const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(color: cor, borderRadius: BorderRadius.circular(12)),
-                child: Text(
-                  rotulo,
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(color: Colors.white),
-                ),
-              ),
-            ],
-          ),
-          for (final motivo in qualidade.motivos)
-            Padding(
-              padding: const EdgeInsets.only(top: 4),
-              child: Text(
-                '• ${i18n.tr('nutricao.resultado_motor_qualidade_motivo_$motivo')}',
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  /// "Definição da Meta Energética V1.0" (RELATÓRIO 20260919_0001/
-  /// 20260920_0001) — manutenção ou déficit calculado pela tabela
-  /// multicritério, na Seção A (só leitura). O botão só COPIA o valor pro
-  /// campo Calorias, editável — nunca salva sozinho (ME-005).
-  Widget _buildEnergiaRecomendacao(BuildContext context, EnergiaRecomendacaoResultado energia) {
-    final descricao = energia.estrategia == 'manutencao'
-        ? i18n.tr('nutricao.resultado_motor_energia_manutencao')
-        : i18n.tr(
-            'nutricao.resultado_motor_energia_deficit',
-            params: {'percentual': ((energia.deficitPercentual ?? 0) * 100).round().toString()},
-          );
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        border: Border.all(color: AppColors.mutedText.withValues(alpha: 0.4)),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(i18n.tr('nutricao.resultado_motor_energia_titulo'), style: Theme.of(context).textTheme.titleSmall),
-          const SizedBox(height: 4),
-          Text('${energia.recomendacaoMediaDiaria.round()} kcal', style: Theme.of(context).textTheme.headlineSmall),
-          const SizedBox(height: 4),
-          Text(descricao, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.mutedText)),
-          const SizedBox(height: 8),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: TextButton(
-              onPressed: _salvandoMeta
-                  ? null
-                  : () {
-                      _caloriasController.text = energia.recomendacaoMediaDiaria.round().toString();
-                      _recalcularProtocoloSelecionado();
-                    },
-              child: Text(i18n.tr('nutricao.resultado_motor_energia_usar_button')),
-            ),
           ),
         ],
       ),
