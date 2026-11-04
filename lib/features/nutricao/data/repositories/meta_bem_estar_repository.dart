@@ -204,17 +204,31 @@ class MacroProtocoloResultado {
 
 /// `macros_recomendados` inteiro — `null` quando o motor não tem energia-alvo
 /// (nenhuma recomendação energética) ou peso suficiente pra calcular.
+///
+/// RELATÓRIO 20261103_0002 (item 2 — "apresente os cálculos detalhados
+/// para cada um dos protocolos suportados pelo Motor Metabólico") —
+/// ganhou [macro004] e [macro005] (já calculados pela RPC desde o
+/// RELATÓRIO 20260920_0001, docs/motor_metabolico.txt "Protocolos de
+/// Macronutrientes V1.0"; só não eram expostos ao Flutter). [macro005]
+/// ("Personalizado pelo profissional") nunca vem com gramas calculadas
+/// pra este usuário — a RPC devolve só `disponivel`/`motivo`, o cálculo
+/// real mora em `validar_macro_personalizado` (Painel Web, fora do
+/// alcance do app) — listado aqui só por completude do contrato.
 class MacrosRecomendadosResultado {
   final double energiaAlvo;
   final MacroProtocoloResultado macro001;
   final MacroProtocoloResultado macro002;
   final MacroProtocoloResultado macro003;
+  final MacroProtocoloResultado macro004;
+  final MacroProtocoloResultado macro005;
 
   const MacrosRecomendadosResultado({
     required this.energiaAlvo,
     required this.macro001,
     required this.macro002,
     required this.macro003,
+    required this.macro004,
+    required this.macro005,
   });
 
   factory MacrosRecomendadosResultado.fromJson(Map<String, dynamic> json) {
@@ -223,6 +237,8 @@ class MacrosRecomendadosResultado {
       macro001: MacroProtocoloResultado.fromJson(json['macro_001'] as Map<String, dynamic>?),
       macro002: MacroProtocoloResultado.fromJson(json['macro_002'] as Map<String, dynamic>?),
       macro003: MacroProtocoloResultado.fromJson(json['macro_003'] as Map<String, dynamic>?),
+      macro004: MacroProtocoloResultado.fromJson(json['macro_004'] as Map<String, dynamic>?),
+      macro005: MacroProtocoloResultado.fromJson(json['macro_005'] as Map<String, dynamic>?),
     );
   }
 }

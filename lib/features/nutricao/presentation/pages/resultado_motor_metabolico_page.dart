@@ -150,6 +150,22 @@ class _ResultadoMotorMetabolicoPageState extends State<ResultadoMotorMetabolicoP
           'carboidrato': (caloriasAlvo - proteinaG * 4 - gorduraG * 9) / 4,
           'gordura': gorduraG,
         };
+      case 'MACRO-004':
+        // RELATÓRIO 20261103_0002 — proteína prioritária (g/kg) + gordura
+        // por percentual mínimo da própria energia-alvo digitada +
+        // carboidrato residual (mesma fórmula da RPC, `20260920100000`).
+        if (pesoKg == null) return null;
+        final p = macros.macro004.parametros;
+        final gPorKgProteina = (p['proteina_g_por_kg'] as num?)?.toDouble();
+        final pctMinimoGordura = (p['gordura_percentual_minimo'] as num?)?.toDouble();
+        if (gPorKgProteina == null || pctMinimoGordura == null) return null;
+        final proteinaG = pesoKg * gPorKgProteina;
+        final gorduraG = (caloriasAlvo * pctMinimoGordura) / 9;
+        return {
+          'proteina': proteinaG,
+          'carboidrato': (caloriasAlvo - proteinaG * 4 - gorduraG * 9) / 4,
+          'gordura': gorduraG,
+        };
       default:
         return null;
     }
@@ -314,7 +330,12 @@ class _ResultadoMotorMetabolicoPageState extends State<ResultadoMotorMetabolicoP
           // ─── Seção A — Resultados Calculados (SÓ LEITURA) ───
           // RELATÓRIO 20261103_0001 — extraída pra [MotorMetabolicoResultadoView],
           // reaproveitada também por [AnamneseDetalhesPage].
-          MotorMetabolicoResultadoView(resultado: resultado),
+          // RELATÓRIO 20261103_0002 (item 2) — `mostrarMacrosRecomendados:
+          // true` liga o comparativo de TODOS os protocolos aqui também
+          // (antes só na tela de Detalhes); o seletor INTERATIVO da Seção
+          // B abaixo continua só pra "escolher 1 e preencher os campos",
+          // função diferente — nenhum dos dois substitui o outro.
+          MotorMetabolicoResultadoView(resultado: resultado, mostrarMacrosRecomendados: true),
           const SizedBox(height: 16),
           // RELATÓRIO 20261102_0003 (ACEITE 2) — ação primária, sempre
           // visível, pra ver o resultado completo da anamnese que acabou
@@ -462,6 +483,13 @@ class _ResultadoMotorMetabolicoPageState extends State<ResultadoMotorMetabolicoP
                     ? null
                     : (_) => _selecionarProtocolo('MACRO-003'),
               ),
+            ),
+            // RELATÓRIO 20261103_0002 — MACRO-004 sempre disponível (sem
+            // pré-requisito de composição corporal, diferente do MACRO-003).
+            ChoiceChip(
+              label: Text(i18n.tr('nutricao.resultado_motor_protocolo_004')),
+              selected: _protocoloSelecionado == 'MACRO-004',
+              onSelected: _salvandoMeta ? null : (_) => _selecionarProtocolo('MACRO-004'),
             ),
           ],
         ),

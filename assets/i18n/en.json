@@ -803,7 +803,10 @@
     "resultado_motor_protocolo_002": "MACRO-002 · Protein/fat g/kg",
     "resultado_motor_protocolo_003": "MACRO-003 · Protein by lean mass",
     "resultado_motor_protocolo_003_indisponivel": "MACRO-003 requires lean mass (body composition) in your Intake.",
+    "resultado_motor_protocolo_004": "MACRO-004 · Priority protein",
     "resultado_motor_protocolo_calorias_necessarias": "Fill in Calories to calculate this protocol's grams.",
+    "resultado_motor_protocolo_vet_label": "TEV / Caloric Target",
+    "resultado_motor_protocolo_macros_percentual": "P {{proteina}}g ({{proteinaPct}}%) · C {{carbo}}g ({{carboPct}}%) · F {{gordura}}g ({{gorduraPct}}%)",
 
     "save_button": "Save",
     "save_success": "Intake saved successfully",
@@ -871,7 +874,11 @@
     "plano_origem_motor": "Calculated by the Metabolic Engine",
     "plano_origem_profissional": "Clinical Prescription — {{nome}}",
     "plano_macros": "P {{proteina}}g · C {{carbo}}g · F {{gordura}}g",
-    "motor_sem_resultado": "No Metabolic Engine result calculated for this assessment."
+    "motor_sem_resultado": "No Metabolic Engine result calculated for this assessment.",
+    "refeicao_fora_de_casa_badge": "Away from home",
+    "refeicao_sem_calculo": "No calorie/macro calculation for this meal.",
+    "total_diario_titulo": "Daily Total",
+    "total_diario_sem_dados": "Not enough data to calculate the daily total."
   },
 
   "vinculos": {
