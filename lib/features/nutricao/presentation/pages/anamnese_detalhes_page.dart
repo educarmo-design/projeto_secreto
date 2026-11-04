@@ -214,6 +214,7 @@ class _AnamneseDetalhesPageState extends State<AnamneseDetalhesPage> {
           if (c.restricoesCulturaisReligiosas.isNotEmpty)
             _linha(context, i18n.tr('nutricao.restricoes_culturais_label'), c.restricoesCulturaisReligiosas.join(', ')),
         ]),
+        _buildRefeicoesHabituais(context, detalhe.refeicoesHabituais),
         if (detalhe.atividades.isNotEmpty || c.rotinaDiaria != null || c.atividadeOcupacional != null)
           _secao(context, i18n.tr('anamnese_detalhe.secao_atividade'), [
             _linha(context, i18n.tr('nutricao.rotina_diaria_pergunta'), c.rotinaDiaria),
@@ -412,6 +413,149 @@ class _AnamneseDetalhesPageState extends State<AnamneseDetalhesPage> {
             child: _buildCardMeta(context, meta, comHeaderDeTipo: false),
           ),
         ],
+      ),
+    );
+  }
+
+  /// RELATÓRIO 20261103_0002 (item 1 — "Detalhamento de Calorias e
+  /// Nutrientes no Histórico") — cada refeição habitual (quando houver
+  /// alguma) + o total consolidado do dia ao final. Lista vazia
+  /// (`refeicoesHabituais.isEmpty`) some por completo — mesma anamnese
+  /// de antes do RELATÓRIO 20260922_0002 (sem o recurso), nenhuma seção
+  /// vazia inventada.
+  Widget _buildRefeicoesHabituais(BuildContext context, List<RefeicaoHabitualResumo> refeicoes) {
+    if (refeicoes.isEmpty) return const SizedBox.shrink();
+
+    return _secao(context, i18n.tr('nutricao.refeicoes_habituais_label'), [
+      for (final refeicao in refeicoes) _buildRefeicaoItem(context, refeicao),
+      const SizedBox(height: 4),
+      _buildTotalDiario(context, refeicoes),
+    ]);
+  }
+
+  /// Calorias/macros só aparecem quando a IA de refeições (RELATÓRIO
+  /// 20260922_0002) conseguiu interpretar aquela linha — inclusive em
+  /// anamneses antigas, de antes da IA existir, a chave simplesmente não
+  /// existe no jsonb. Fallback explícito (`refeicao_sem_calculo`) em vez
+  /// de omitir silenciosamente: o usuário vê QUE faltou cálculo, não só
+  /// a ausência de um número.
+  Widget _buildRefeicaoItem(BuildContext context, RefeicaoHabitualResumo refeicao) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          border: Border.all(color: AppColors.mutedText.withValues(alpha: 0.3)),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Text(
+                  i18n.tr('nutricao.refeicoes_habituais_numero', params: {'numero': '${refeicao.numeroRefeicao}'}),
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
+                if (refeicao.horario != null) ...[
+                  const SizedBox(width: 8),
+                  Text(
+                    refeicao.horario!,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.mutedText),
+                  ),
+                ],
+                if (refeicao.foraDeCasa) ...[
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: AppColors.mutedText.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      i18n.tr('anamnese_detalhe.refeicao_fora_de_casa_badge'),
+                      style: Theme.of(context).textTheme.labelSmall,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+            if (refeicao.descricaoTexto != null) ...[
+              const SizedBox(height: 4),
+              Text(refeicao.descricaoTexto!, style: Theme.of(context).textTheme.bodyMedium),
+            ],
+            const SizedBox(height: 4),
+            if (refeicao.kcal == null &&
+                refeicao.proteinaG == null &&
+                refeicao.carboidratoG == null &&
+                refeicao.gorduraG == null)
+              Text(
+                i18n.tr('anamnese_detalhe.refeicao_sem_calculo'),
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.mutedText, fontStyle: FontStyle.italic),
+              )
+            else ...[
+              if (refeicao.kcal != null)
+                Text('${refeicao.kcal!.round()} kcal', style: Theme.of(context).textTheme.titleSmall),
+              Text(
+                i18n.tr('anamnese_detalhe.plano_macros', params: {
+                  'proteina': refeicao.proteinaG?.round().toString() ?? '—',
+                  'carbo': refeicao.carboidratoG?.round().toString() ?? '—',
+                  'gordura': refeicao.gorduraG?.round().toString() ?? '—',
+                }),
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.mutedText),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// "Exiba no final da lista de refeições o total acumulado" — soma só
+  /// as refeições que TÊM aquele dado (Regra 23: nunca inventa um valor
+  /// pra refeição sem cálculo); `null` quando NENHUMA refeição tem aquele
+  /// nutriente, o que também é o caso de "zero refeições com cálculo" —
+  /// aí o card mostra o fallback, nunca "0 kcal".
+  Widget _buildTotalDiario(BuildContext context, List<RefeicaoHabitualResumo> refeicoes) {
+    double? somar(Iterable<double?> valores) {
+      final presentes = valores.whereType<double>();
+      return presentes.isEmpty ? null : presentes.fold<double>(0, (soma, valor) => soma + valor);
+    }
+
+    final totalKcal = somar(refeicoes.map((r) => r.kcal));
+    final totalProteina = somar(refeicoes.map((r) => r.proteinaG));
+    final totalCarbo = somar(refeicoes.map((r) => r.carboidratoG));
+    final totalGordura = somar(refeicoes.map((r) => r.gorduraG));
+
+    return Card(
+      margin: EdgeInsets.zero,
+      color: AppColors.primaryGold.withValues(alpha: 0.08),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(i18n.tr('anamnese_detalhe.total_diario_titulo'), style: Theme.of(context).textTheme.titleSmall),
+            const SizedBox(height: 4),
+            if (totalKcal == null && totalProteina == null && totalCarbo == null && totalGordura == null)
+              Text(
+                i18n.tr('anamnese_detalhe.total_diario_sem_dados'),
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.mutedText, fontStyle: FontStyle.italic),
+              )
+            else ...[
+              if (totalKcal != null)
+                Text('${totalKcal.round()} kcal', style: Theme.of(context).textTheme.headlineSmall),
+              Text(
+                i18n.tr('anamnese_detalhe.plano_macros', params: {
+                  'proteina': totalProteina?.round().toString() ?? '—',
+                  'carbo': totalCarbo?.round().toString() ?? '—',
+                  'gordura': totalGordura?.round().toString() ?? '—',
+                }),
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppColors.mutedText),
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }

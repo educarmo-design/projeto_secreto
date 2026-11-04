@@ -403,6 +403,28 @@ void main() {
             gorduraG: macro003Disponivel ? 64 : null,
             validacaoSomaOk: macro003Disponivel,
           ),
+          // RELATÓRIO 20261103_0002 — MACRO-004 sempre disponível (sem
+          // pré-requisito de composição corporal, diferente do MACRO-003).
+          macro004: const MacroProtocoloResultado(
+            versao: 'MACRO-004-default-v1',
+            disponivel: true,
+            parametros: {'proteina_g_por_kg': 2.2, 'gordura_percentual_minimo': 0.2},
+            proteinaG: 176,
+            carboidratoG: 169,
+            gorduraG: 44.4,
+            validacaoSomaOk: true,
+          ),
+          // MACRO-005 ("personalizado pelo profissional") nunca tem
+          // gramas calculadas pra este app — mesmo formato da RPC real.
+          macro005: const MacroProtocoloResultado(
+            versao: 'MACRO-005-personalizado-v1',
+            disponivel: true,
+            parametros: {},
+            proteinaG: null,
+            carboidratoG: null,
+            gorduraG: null,
+            validacaoSomaOk: false,
+          ),
         ),
       );
     }
@@ -457,6 +479,134 @@ void main() {
 
       final chip = tester.widget<ChoiceChip>(find.widgetWithText(ChoiceChip, 'MACRO-003 · Proteína por massa magra'));
       expect(chip.onSelected, isNull);
+    });
+
+    // RELATÓRIO 20261103_0002 (item 2) — MACRO-004 some disponível (sem
+    // pré-requisito de massa magra, diferente do MACRO-003) junto do
+    // seletor interativo da Seção B.
+    testWidgets('selecionar MACRO-004 converte proteína prioritária + gordura mínima + carboidrato residual',
+        (tester) async {
+      when(() => repository.calcularMotorMetabolicoV1())
+          .thenAnswer((_) async => montarResultadoComProtocolos(macro003Disponivel: true));
+
+      await configurarViewportAlto(tester);
+      await abrirResultado(tester);
+
+      await tester.enterText(find.byType(TextFormField).at(0), '2000');
+      await tester.tap(find.widgetWithText(ChoiceChip, 'MACRO-004 · Proteína prioritária'));
+      await tester.pump();
+
+      // Proteína = 80 × 2.2 = 176g; Gordura = 2000 × 0.2 ÷ 9 = 44g;
+      // Carboidrato = (2000 − 176×4 − 44.44×9) ÷ 4 = 224g.
+      expect(tester.widget<TextFormField>(find.byType(TextFormField).at(1)).controller?.text, '176');
+      expect(tester.widget<TextFormField>(find.byType(TextFormField).at(2)).controller?.text, '224');
+      expect(tester.widget<TextFormField>(find.byType(TextFormField).at(3)).controller?.text, '44');
+    });
+  });
+
+  // RELATÓRIO 20261103_0002 (item 2 — "apresente os cálculos detalhados
+  // para cada protocolo... permita comparar ou navegar visualmente") —
+  // comparativo ESTÁTICO na Seção A (leitura), diferente do seletor
+  // interativo da Seção B (grupo acima).
+  group('Seção A — Comparativo de Protocolos de Macros (RELATÓRIO 20261103_0002)', () {
+    MotorMetabolicoV1Resultado montarResultadoComProtocolos({required bool macro003Disponivel}) {
+      return MotorMetabolicoV1Resultado(
+        tmb: 1700,
+        tdeeMedio: 2000,
+        formulaCodigo: 'TMB-001',
+        estrategiaTdee: 'pal',
+        avisos: const [],
+        qualidade: const QualidadeMotorResultado(score: 'alta', motivos: []),
+        energiaRecomendacao: null,
+        pesoKg: 80,
+        massaMagraKg: macro003Disponivel ? 60 : null,
+        macrosRecomendados: MacrosRecomendadosResultado(
+          energiaAlvo: 2000,
+          macro001: const MacroProtocoloResultado(
+            versao: 'MACRO-001-default-v1',
+            disponivel: true,
+            parametros: {},
+            proteinaG: 125,
+            carboidratoG: 225,
+            gorduraG: 67,
+            validacaoSomaOk: true,
+          ),
+          macro002: const MacroProtocoloResultado(
+            versao: 'MACRO-002-default-v1',
+            disponivel: true,
+            parametros: {},
+            proteinaG: 128,
+            carboidratoG: 228,
+            gorduraG: 64,
+            validacaoSomaOk: true,
+          ),
+          macro003: MacroProtocoloResultado(
+            versao: 'MACRO-003-default-v1',
+            disponivel: macro003Disponivel,
+            parametros: const {},
+            proteinaG: macro003Disponivel ? 120 : null,
+            carboidratoG: macro003Disponivel ? 236 : null,
+            gorduraG: macro003Disponivel ? 64 : null,
+            validacaoSomaOk: macro003Disponivel,
+          ),
+          macro004: const MacroProtocoloResultado(
+            versao: 'MACRO-004-default-v1',
+            disponivel: true,
+            parametros: {},
+            proteinaG: 176,
+            carboidratoG: 169,
+            gorduraG: 44,
+            validacaoSomaOk: true,
+          ),
+          macro005: const MacroProtocoloResultado(
+            versao: 'MACRO-005-personalizado-v1',
+            disponivel: true,
+            parametros: {},
+            proteinaG: null,
+            carboidratoG: null,
+            gorduraG: null,
+            validacaoSomaOk: false,
+          ),
+        ),
+      );
+    }
+
+    testWidgets('mostra um card por protocolo disponível, com VET e gramas+porcentagem — MACRO-005 nunca aparece',
+        (tester) async {
+      when(() => repository.calcularMotorMetabolicoV1())
+          .thenAnswer((_) async => montarResultadoComProtocolos(macro003Disponivel: true));
+
+      await configurarViewportAlto(tester);
+      await abrirResultado(tester);
+
+      expect(find.text('MACRO-001'), findsOneWidget);
+      expect(find.text('MACRO-002'), findsOneWidget);
+      expect(find.text('MACRO-003'), findsOneWidget);
+      expect(find.text('MACRO-004'), findsOneWidget);
+      // MACRO-005 nunca tem gramas calculadas pra este app (personalizado
+      // pelo profissional) — não aparece como card de comparação.
+      expect(find.text('MACRO-005'), findsNothing);
+
+      // VET repetido em cada card (mesma energia-alvo, RELATÓRIO
+      // 20261103_0002) — 4 protocolos disponíveis = 4 ocorrências.
+      expect(find.text('VET / Meta Calórica'), findsNWidgets(4));
+      expect(find.text('2000 kcal'), findsWidgets);
+
+      // MACRO-002: P 128g×4=512/2000=26%; C 228g×4=912/2000=46%; G 64g×9=576/2000=29%.
+      expect(find.text('P 128g (26%) · C 228g (46%) · G 64g (29%)'), findsOneWidget);
+    });
+
+    testWidgets('sem massa magra, MACRO-003 não aparece no comparativo (continua desabilitado na Seção B)',
+        (tester) async {
+      when(() => repository.calcularMotorMetabolicoV1())
+          .thenAnswer((_) async => montarResultadoComProtocolos(macro003Disponivel: false));
+
+      await configurarViewportAlto(tester);
+      await abrirResultado(tester);
+
+      expect(find.text('MACRO-001'), findsOneWidget);
+      expect(find.text('MACRO-003'), findsNothing);
+      expect(find.text('MACRO-004'), findsOneWidget);
     });
   });
 }
