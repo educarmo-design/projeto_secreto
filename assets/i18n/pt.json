@@ -808,7 +808,10 @@
     "resultado_motor_protocolo_002": "MACRO-002 · Proteína/gordura g/kg",
     "resultado_motor_protocolo_003": "MACRO-003 · Proteína por massa magra",
     "resultado_motor_protocolo_003_indisponivel": "MACRO-003 exige massa magra (composição corporal) na sua Anamnese.",
+    "resultado_motor_protocolo_004": "MACRO-004 · Proteína prioritária",
     "resultado_motor_protocolo_calorias_necessarias": "Preencha Calorias para calcular os gramas deste protocolo.",
+    "resultado_motor_protocolo_vet_label": "VET / Meta Calórica",
+    "resultado_motor_protocolo_macros_percentual": "P {{proteina}}g ({{proteinaPct}}%) · C {{carbo}}g ({{carboPct}}%) · G {{gordura}}g ({{gorduraPct}}%)",
 
     "save_button": "Salvar",
     "save_success": "Anamnese salva com sucesso",
@@ -876,7 +879,11 @@
     "plano_origem_motor": "Calculado pelo Motor Metabólico",
     "plano_origem_profissional": "Prescrição Clínica — {{nome}}",
     "plano_macros": "P {{proteina}}g · C {{carbo}}g · G {{gordura}}g",
-    "motor_sem_resultado": "Sem resultado do Motor Metabólico calculado para esta avaliação."
+    "motor_sem_resultado": "Sem resultado do Motor Metabólico calculado para esta avaliação.",
+    "refeicao_fora_de_casa_badge": "Fora de casa",
+    "refeicao_sem_calculo": "Sem cálculo de calorias/macros para esta refeição.",
+    "total_diario_titulo": "Total do Dia",
+    "total_diario_sem_dados": "Sem dados suficientes para calcular o total do dia."
   },
 
   "vinculos": {

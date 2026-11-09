@@ -592,6 +592,49 @@ class AnamneseHistoricoItem {
   }
 }
 
+/// RELATÓRIO 20261103_0002 (item 1 — "Detalhamento de Calorias e
+/// Nutrientes no Histórico") — leitura tipada de UM elemento de
+/// [DadosComplementaresAnamnese.refeicoesDiariasHabituais] (jsonb cru,
+/// `{numero_refeicao, horario, fora_de_casa, descricao_texto, kcal?,
+/// proteina_g?, carboidrato_g?, gordura_g?}`). `kcal`/`proteinaG`/
+/// `carboidratoG`/`gorduraG` continuam `null` quando a chave nem existe
+/// no mapa (refeição nunca passou pela IA, inclusive em anamneses
+/// antigas, de antes desta tarefa) — nunca um valor inventado.
+class RefeicaoHabitualResumo {
+  final int numeroRefeicao;
+  final String? horario;
+  final bool foraDeCasa;
+  final String? descricaoTexto;
+  final double? kcal;
+  final double? proteinaG;
+  final double? carboidratoG;
+  final double? gorduraG;
+
+  const RefeicaoHabitualResumo({
+    required this.numeroRefeicao,
+    this.horario,
+    this.foraDeCasa = false,
+    this.descricaoTexto,
+    this.kcal,
+    this.proteinaG,
+    this.carboidratoG,
+    this.gorduraG,
+  });
+
+  factory RefeicaoHabitualResumo.fromJson(Map<String, dynamic> json) {
+    return RefeicaoHabitualResumo(
+      numeroRefeicao: (json['numero_refeicao'] as num).toInt(),
+      horario: json['horario'] as String?,
+      foraDeCasa: json['fora_de_casa'] as bool? ?? false,
+      descricaoTexto: json['descricao_texto'] as String?,
+      kcal: (json['kcal'] as num?)?.toDouble(),
+      proteinaG: (json['proteina_g'] as num?)?.toDouble(),
+      carboidratoG: (json['carboidrato_g'] as num?)?.toDouble(),
+      gorduraG: (json['gordura_g'] as num?)?.toDouble(),
+    );
+  }
+}
+
 /// RELATÓRIO 20261016_0005 (item 2 — "Visualização do Histórico de
 /// Anamnese") — leitura completa, SOMENTE LEITURA, de UMA anamnese
 /// específica (qualquer `status_vigencia`), via [AnamneseRepository.buscarAnamnesePorId].
@@ -646,6 +689,12 @@ class AnamneseDetalheModel {
     required this.complementares,
     this.resultadoMotorV1,
   });
+
+  /// RELATÓRIO 20261103_0002 (item 1) — leitura tipada de
+  /// `complementares.refeicoesDiariasHabituais` (jsonb cru), na ordem em
+  /// que foram preenchidas (`numero_refeicao`).
+  List<RefeicaoHabitualResumo> get refeicoesHabituais =>
+      complementares.refeicoesDiariasHabituais.map(RefeicaoHabitualResumo.fromJson).toList();
 }
 
 /// Leitura inversa de [AnamneseRepository.salvarAnamnese] — os mesmos

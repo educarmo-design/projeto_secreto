@@ -161,16 +161,25 @@ class MotorMetabolicoResultadoView extends StatelessWidget {
     );
   }
 
-  /// Equivalente ESTÁTICO (sem `ChoiceChip`/seleção) do seletor de
-  /// protocolos de `ResultadoMotorMetabolicoPage` — só os que o motor
-  /// conseguiu calcular (`disponivel`), cada um com os gramas exatos que
-  /// a RPC devolveu (nunca recalculado aqui).
+  /// RELATÓRIO 20261103_0002 (item 2 — "apresente os cálculos detalhados
+  /// para cada um dos protocolos... nome, VET/Meta Calórica, distribuição
+  /// em gramas E porcentagem... permita comparar ou navegar visualmente")
+  /// — comparativo ESTÁTICO (sem `ChoiceChip`/seleção, esse seletor
+  /// interativo continua só na Seção B de `ResultadoMotorMetabolicoPage`)
+  /// de TODOS os protocolos que o Motor calculou pra este usuário
+  /// (MACRO-001 a 004 — MACRO-005 é "personalizado pelo profissional",
+  /// nunca vem com gramas calculadas pra este app, então nunca aparece
+  /// aqui: filtrar por `proteinaG != null` já exclui ele + qualquer outro
+  /// protocolo indisponível, sem precisar de uma lista hardcoded de
+  /// exceções). Row horizontal rolável — "navegar visualmente" entre as
+  /// opções sem ocupar a tela toda verticalmente.
   Widget _buildMacrosRecomendadosEstatico(BuildContext context, MacrosRecomendadosResultado macros) {
     final protocolosDisponiveis = [
-      (codigo: 'MACRO-001', protocolo: macros.macro001),
-      (codigo: 'MACRO-002', protocolo: macros.macro002),
-      (codigo: 'MACRO-003', protocolo: macros.macro003),
-    ].where((item) => item.protocolo.disponivel).toList();
+      (codigo: 'MACRO-001', chaveLabel: 'resultado_motor_protocolo_001', protocolo: macros.macro001),
+      (codigo: 'MACRO-002', chaveLabel: 'resultado_motor_protocolo_002', protocolo: macros.macro002),
+      (codigo: 'MACRO-003', chaveLabel: 'resultado_motor_protocolo_003', protocolo: macros.macro003),
+      (codigo: 'MACRO-004', chaveLabel: 'resultado_motor_protocolo_004', protocolo: macros.macro004),
+    ].where((item) => item.protocolo.disponivel && item.protocolo.proteinaG != null).toList();
 
     if (protocolosDisponiveis.isEmpty) return const SizedBox.shrink();
 
@@ -179,31 +188,72 @@ class MotorMetabolicoResultadoView extends StatelessWidget {
       children: [
         Text(i18n.tr('nutricao.resultado_motor_protocolo_titulo'), style: Theme.of(context).textTheme.titleSmall),
         const SizedBox(height: 8),
-        for (final item in protocolosDisponiveis)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                border: Border.all(color: AppColors.mutedText.withValues(alpha: 0.3)),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(item.codigo, style: Theme.of(context).textTheme.titleSmall),
-                  const SizedBox(height: 4),
-                  Text(
-                    'P ${item.protocolo.proteinaG?.round() ?? '—'}g · '
-                    'C ${item.protocolo.carboidratoG?.round() ?? '—'}g · '
-                    'G ${item.protocolo.gorduraG?.round() ?? '—'}g',
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  ),
-                ],
-              ),
-            ),
+        SizedBox(
+          height: 200,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: protocolosDisponiveis.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 8),
+            itemBuilder: (context, indice) {
+              final item = protocolosDisponiveis[indice];
+              return _buildCardProtocolo(context, item.codigo, i18n.tr('nutricao.${item.chaveLabel}'), macros.energiaAlvo, item.protocolo);
+            },
           ),
+        ),
       ],
+    );
+  }
+
+  Widget _buildCardProtocolo(
+    BuildContext context,
+    String codigo,
+    String label,
+    double energiaAlvo,
+    MacroProtocoloResultado protocolo,
+  ) {
+    final proteinaG = protocolo.proteinaG ?? 0;
+    final carboidratoG = protocolo.carboidratoG ?? 0;
+    final gorduraG = protocolo.gorduraG ?? 0;
+    int percentual(double gramas, double kcalPorGrama) =>
+        energiaAlvo <= 0 ? 0 : ((gramas * kcalPorGrama / energiaAlvo) * 100).round();
+
+    return Container(
+      width: 240,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        border: Border.all(color: AppColors.mutedText.withValues(alpha: 0.3)),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(codigo, style: Theme.of(context).textTheme.titleSmall),
+          Text(
+            label,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.mutedText),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            i18n.tr('nutricao.resultado_motor_protocolo_vet_label'),
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(color: AppColors.mutedText),
+          ),
+          Text('${energiaAlvo.round()} kcal', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 8),
+          Text(
+            i18n.tr('nutricao.resultado_motor_protocolo_macros_percentual', params: {
+              'proteina': proteinaG.round().toString(),
+              'proteinaPct': percentual(proteinaG, 4).toString(),
+              'carbo': carboidratoG.round().toString(),
+              'carboPct': percentual(carboidratoG, 4).toString(),
+              'gordura': gorduraG.round().toString(),
+              'gorduraPct': percentual(gorduraG, 9).toString(),
+            }),
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ],
+      ),
     );
   }
 }
