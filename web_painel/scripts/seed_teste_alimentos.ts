@@ -31,6 +31,7 @@
  */
 import 'dotenv/config';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { lerChaveSecretaAdmin } from './lib/chaveSecretaSupabase';
 
 interface AlimentoTeste {
   nomeTaco: string;
@@ -115,7 +116,7 @@ async function buscarNomesExistentes(admin: SupabaseClient, nomes: string[]): Pr
 }
 
 async function main() {
-  const admin = createClient(baseSupabaseUrl(), requireEnv('SUPABASE_SERVICE_ROLE_KEY'), {
+  const admin = createClient(baseSupabaseUrl(), lerChaveSecretaAdmin(), {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 

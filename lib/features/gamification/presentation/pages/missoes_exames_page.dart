@@ -152,7 +152,7 @@ class _MissoesExamesPageState extends State<MissoesExamesPage> {
           .post(
             Uri.parse(AppConfig.examUploadEndpoint),
             headers: {
-              'apikey': AppConfig.supabaseAnonKey,
+              'apikey': AppConfig.supabasePublishableKey,
               if (session != null)
                 'Authorization': 'Bearer ${session.accessToken}',
               'Content-Type': 'application/pdf',

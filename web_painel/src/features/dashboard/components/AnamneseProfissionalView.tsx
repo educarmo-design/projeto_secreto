@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { supabase } from '@/core/supabase';
+import { supabase, supabasePublishableKey } from '@/core/supabase';
 import type { Database, ObjetivoCodigo } from '@/core/types/database';
 import { Toast, type ToastMessage } from '@/components/Toast';
 
@@ -401,7 +401,7 @@ export function AnamneseProfissionalView({ pacienteId, onSalvo }: AnamneseProfis
         headers: {
           'Content-Type': 'text/plain; charset=utf-8',
           'X-Tipo-Aparelho': 'pratoRefeicaoTexto',
-          apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+          apikey: supabasePublishableKey,
           ...(sessao.session ? { Authorization: `Bearer ${sessao.session.access_token}` } : {}),
         },
         body: linha.descricaoTexto.trim(),

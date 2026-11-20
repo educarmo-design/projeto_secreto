@@ -169,11 +169,11 @@ cp .env.example .env
 
 # Editar .env e adicionar:
 SUPABASE_URL=https://seu-projeto.supabase.co
-SUPABASE_ANON_KEY=sua-anon-key
+SUPABASE_PUBLISHABLE_KEY=sua-chave-sb_publishable
 
 # Ou defini-las como variáveis de ambiente
 $env:SUPABASE_URL="https://seu-projeto.supabase.co"
-$env:SUPABASE_ANON_KEY="sua-anon-key"
+$env:SUPABASE_PUBLISHABLE_KEY="sua-chave-sb_publishable"
 ```
 
 ### 4️⃣ **Code Generation** (se necessário)

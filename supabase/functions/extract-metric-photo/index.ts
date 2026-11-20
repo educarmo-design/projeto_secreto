@@ -53,6 +53,7 @@
 // é 100% reproduzível a partir da tabela do banco.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { lerChavePublicavel } from '../_shared/chaves_supabase.ts';
 
 const CORS_HEADERS: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
@@ -2564,14 +2565,17 @@ export function createHandler(deps: HandlerDeps = {}) {
     }
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
-    const anonKey = Deno.env.get('SUPABASE_ANON_KEY');
+    // N44: chave pública do projeto (`sb_publishable_…`, com fallback para a
+    // `anon` legada). O nome `anonKey` das funções auxiliares abaixo é
+    // histórico — hoje carrega a publicável.
+    const anonKey = lerChavePublicavel();
 
     let autenticador: AutenticadorLike;
     if (deps.autenticador) {
       autenticador = deps.autenticador;
     } else {
       if (!supabaseUrl || !anonKey) {
-        console.error('extract-metric-photo: SUPABASE_URL/ANON_KEY ausentes.');
+        console.error('extract-metric-photo: SUPABASE_URL/chave publicável ausentes.');
         return jsonResponse({ error: 'Configuração do servidor incompleta.' }, 500);
       }
       // Só para validar o JWT. Sem service_role: esta função não escreve em
@@ -2687,7 +2691,7 @@ export function createHandler(deps: HandlerDeps = {}) {
         catalogoAlimentos = deps.catalogoAlimentos;
       } else {
         if (!supabaseUrl || !anonKey) {
-          console.error('extract-metric-photo: SUPABASE_URL/ANON_KEY ausentes.');
+          console.error('extract-metric-photo: SUPABASE_URL/chave publicável ausentes.');
           return jsonResponse({ error: 'Configuração do servidor incompleta.' }, 500);
         }
         catalogoAlimentos = criarCatalogoAlimentosReal(supabaseUrl, anonKey, jwt);

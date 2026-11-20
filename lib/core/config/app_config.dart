@@ -7,22 +7,36 @@ class AppConfig {
     defaultValue: 'https://your-project.supabase.co',
   );
 
-  static const String supabaseAnonKey = String.fromEnvironment(
-    'SUPABASE_ANON_KEY',
-    defaultValue: 'your-anon-key',
+  // N44 / S8.1 (Documento Mestre v9.2.1): a chave pública do projeto agora é a
+  // `sb_publishable_…` (`--dart-define=SUPABASE_PUBLISHABLE_KEY=...`). O define
+  // legado `SUPABASE_ANON_KEY` (JWT `anon`) só é lido como fallback durante a
+  // transição, enquanto o par legado ainda está ativo no Dashboard — assim um
+  // `config_local.json` antigo continua funcionando. Depois do Passo 4
+  // (desativar o par legado) o fallback deixa de ser alcançado. É a chave que
+  // qualquer um extrai do APK: a proteção real dos dados é a RLS.
+  static const String _publishableDefine = String.fromEnvironment(
+    'SUPABASE_PUBLISHABLE_KEY',
   );
+  static const String _anonLegadaDefine = String.fromEnvironment(
+    'SUPABASE_ANON_KEY',
+  );
+  static const String _chavePlaceholder = 'your-publishable-key';
 
-  /// The `defaultValue`s above are compile-time placeholders only — Dart
-  /// const declarations can't throw. This must be checked at runtime, before
-  /// [supabaseUrl]/[supabaseAnonKey] are handed to Supabase.initialize, so the
-  /// app fails fast on a missing `--dart-define` instead of silently running
-  /// against a URL that doesn't exist (or, worse, against a placeholder that
-  /// later happens to be typo-squatted).
+  static const String supabasePublishableKey = _publishableDefine != ''
+      ? _publishableDefine
+      : (_anonLegadaDefine != '' ? _anonLegadaDefine : _chavePlaceholder);
+
+  /// The placeholders above are compile-time only — Dart const declarations
+  /// can't throw. This must be checked at runtime, before
+  /// [supabaseUrl]/[supabasePublishableKey] are handed to Supabase.initialize,
+  /// so the app fails fast on a missing `--dart-define` instead of silently
+  /// running against a URL that doesn't exist (or, worse, against a
+  /// placeholder that later happens to be typo-squatted).
   static bool get hasValidSupabaseCredentials =>
       supabaseUrl != 'https://your-project.supabase.co' &&
-      supabaseAnonKey != 'your-anon-key' &&
+      supabasePublishableKey != _chavePlaceholder &&
       supabaseUrl.isNotEmpty &&
-      supabaseAnonKey.isNotEmpty;
+      supabasePublishableKey.isNotEmpty;
 
   /// App behavior flags
   static const bool debugMode = bool.fromEnvironment(

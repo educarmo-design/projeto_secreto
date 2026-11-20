@@ -284,7 +284,7 @@ class _CameraCaptureViewState extends State<CameraCaptureView> with WidgetsBindi
       // durante `isBusy`, mas isto é a garantia de verdade).
       tipoAparelho: _tipoAtual,
       headers: {
-        'apikey': AppConfig.supabaseAnonKey,
+        'apikey': AppConfig.supabasePublishableKey,
         if (session != null) 'Authorization': 'Bearer ${session.accessToken}',
       },
     );

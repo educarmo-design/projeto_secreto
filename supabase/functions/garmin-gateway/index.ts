@@ -31,6 +31,7 @@
 // por um teste.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { lerChaveSecreta } from '../_shared/chaves_supabase.ts';
 import { OAuth1Signer, type GarminCredentials } from './oauth_helper.ts';
 import {
   PayloadInvalidoError,
@@ -169,12 +170,12 @@ export function createHandler(deps: HandlerDeps = {}) {
       supabaseAdmin = deps.supabaseAdmin;
     } else {
       const supabaseUrl = Deno.env.get('SUPABASE_URL');
-      const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-      if (!supabaseUrl || !serviceRoleKey) {
-        console.error('garmin-gateway: SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY não configuradas.');
+      const chaveSecreta = lerChaveSecreta();
+      if (!supabaseUrl || !chaveSecreta) {
+        console.error('garmin-gateway: SUPABASE_URL/chave secreta do projeto não configuradas.');
         return jsonResponse({ error: 'Configuração do servidor incompleta.' }, 500);
       }
-      supabaseAdmin = createClient(supabaseUrl, serviceRoleKey) as unknown as SupabaseAdminLike;
+      supabaseAdmin = createClient(supabaseUrl, chaveSecreta) as unknown as SupabaseAdminLike;
     }
 
     const { data: userData, error: erroAuth } = await supabaseAdmin.auth.getUser(jwt);

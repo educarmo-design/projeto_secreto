@@ -189,7 +189,7 @@ class IntelligenceController extends ChangeNotifier {
   Map<String, String> _authHeaders() {
     final session = _client.auth.currentSession;
     return {
-      'apikey': AppConfig.supabaseAnonKey,
+      'apikey': AppConfig.supabasePublishableKey,
       if (session != null) 'Authorization': 'Bearer ${session.accessToken}',
     };
   }

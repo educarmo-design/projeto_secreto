@@ -1,0 +1,101 @@
+# CI mínimo (N44 / decisão 92 do Documento Mestre v9.2.1).
+#
+# Objetivo: um clone limpo do repositório compila e passa nas validações
+# básicas SEM edição manual e SEM nenhum segredo. Este workflow não faz
+# deploy de nada e não usa nenhum secret do GitHub: tudo que ele precisa está
+# versionado (`web_painel/.env` só tem valores públicos).
+#
+# Cada verificação abaixo foi medida ANTES de ser ligada, para o CI nascer
+# verde sem esconder falha nova. Onde o repositório já tinha dívida
+# conhecida, o limite está no número atual e o comentário diz qual é — a
+# dívida não pode crescer, e quem a pagar baixa o número.
+
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Guarda de segurança (Parte 6): nenhuma chave PRIVILEGIADA do Supabase em
+  # arquivo versionado. `sb_publishable_…` e o JWT `anon` são públicos por
+  # desenho e não disparam. Nunca imprime o valor encontrado.
+  segredos:
+    name: Sem chave privilegiada versionada
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash .github/scripts/verificar_segredos.sh
+
+  # Painel web: lint + typecheck + build, a partir de `npm ci` (lockfile).
+  web_painel:
+    name: Painel web (lint + build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web_painel
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web_painel/package-lock.json
+      - run: npm ci
+      # DÍVIDA CONHECIDA: 2 warnings antigos em scripts/seed_taco_completa.ts
+      # (variáveis não usadas). O teto é o número atual — um warning NOVO
+      # falha o CI. Quem limpar esses dois baixa o teto para 0.
+      - run: npx eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 2
+      # `npm run build` = `tsc -b && vite build` (typecheck + bundle).
+      - run: npm run build
+
+  # Edge Functions: tipos + testes unitários (sem rede e sem segredos — os
+  # testes injetam dependências falsas). Inclui o leitor de chaves em _shared.
+  edge_functions:
+    name: Edge Functions (check + testes)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Leitor de chaves compartilhado
+        run: deno test --allow-env supabase/functions/_shared/chaves_supabase_test.ts
+      - name: Cada função
+        run: |
+          set -e
+          for dir in supabase/functions/*/; do
+            nome=$(basename "$dir")
+            [ "$nome" = "_shared" ] && continue
+            echo "::group::$nome"
+            (cd "$dir" && deno check index.ts && deno test -A index_test.ts)
+            echo "::endgroup::"
+          done
+
+  # App Flutter: análise estática + testes. Versão fixada na que foi medida.
+  flutter:
+    name: App Flutter (analyze + test)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.47.5
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      # DÍVIDA CONHECIDA: 29 infos + 1 warning antigos (ex.: unused_field em
+      # login_page.dart). Falha só em ERRO de análise; infos/warnings antigos
+      # não travam. Quem limpar a dívida remove as duas flags.
+      - run: flutter analyze --no-fatal-infos --no-fatal-warnings
+      # 593 testes na medição de 20/11/2026. Sem --dart-define: os testes não
+      # dependem de credencial nenhuma.
+      - run: flutter test

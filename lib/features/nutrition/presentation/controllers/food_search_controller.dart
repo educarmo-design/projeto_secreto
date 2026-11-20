@@ -43,7 +43,7 @@ class FoodSearchController extends ValueNotifier<FoodSearchState> {
   static Map<String, String> _authHeadersFromSupabase() {
     final session = Supabase.instance.client.auth.currentSession;
     return {
-      'apikey': AppConfig.supabaseAnonKey,
+      'apikey': AppConfig.supabasePublishableKey,
       if (session != null) 'Authorization': 'Bearer ${session.accessToken}',
     };
   }

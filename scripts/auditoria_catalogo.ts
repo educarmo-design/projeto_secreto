@@ -26,7 +26,7 @@
  *   3. Cruzamento — alimentos que aparecem nas duas listas (risco máximo).
  *
  * Uso:
- *   SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... \
+ *   SUPABASE_URL=... SUPABASE_SECRET_KEY=... \
  *     deno run --allow-net --allow-env --allow-read scripts/auditoria_catalogo.ts
  *
  * Mesma service role key que os outros scripts em scripts/ e
@@ -40,10 +40,10 @@ import {
 } from '../supabase/functions/extract-metric-photo/index.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
-const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+const SERVICE_KEY = (Deno.env.get('SUPABASE_SECRET_KEY') || Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'));
 
 if (!SUPABASE_URL || !SERVICE_KEY) {
-  console.error('❌ Defina SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY no ambiente.');
+  console.error('❌ Defina SUPABASE_URL e SUPABASE_SECRET_KEY (ou a legada SUPABASE_SERVICE_ROLE_KEY) no ambiente.');
   Deno.exit(1);
 }
 

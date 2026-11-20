@@ -33,7 +33,7 @@ void main() async {
   // Initialize Supabase
   await supabaseManager.initialize(
     supabaseUrl: AppConfig.supabaseUrl,
-    supabaseAnonKey: AppConfig.supabaseAnonKey,
+    supabasePublishableKey: AppConfig.supabasePublishableKey,
   );
 
   // Initialize i18n (default to Portuguese)
@@ -117,7 +117,7 @@ class _AtletaGamificacaoAppState extends State<AtletaGamificacaoApp> {
 }
 
 /// Runs instead of [AtletaGamificacaoApp] when `--dart-define=SUPABASE_URL=...
-/// --dart-define=SUPABASE_ANON_KEY=...` was forgotten at build/run time —
+/// --dart-define=SUPABASE_PUBLISHABLE_KEY=...` was forgotten at build/run time —
 /// see the check in `main()`. Deliberately hardcoded (not `i18n.tr`): this
 /// screen can render before `i18n.initialize()` ever runs, since the whole
 /// point is to fail before touching Supabase/anything else. Same precedent
@@ -141,10 +141,10 @@ class _MissingSupabaseCredentialsApp extends StatelessWidget {
                 Icon(Icons.error_outline, color: Colors.white, size: 48),
                 SizedBox(height: 16),
                 Text(
-                  'Configuração ausente: SUPABASE_URL / SUPABASE_ANON_KEY.\n\n'
+                  'Configuração ausente: SUPABASE_URL / SUPABASE_PUBLISHABLE_KEY.\n\n'
                   'Rode com:\nflutter run '
                   '--dart-define=SUPABASE_URL=... '
-                  '--dart-define=SUPABASE_ANON_KEY=...',
+                  '--dart-define=SUPABASE_PUBLISHABLE_KEY=...',
                   textAlign: TextAlign.center,
                   style: TextStyle(color: Colors.white),
                 ),
