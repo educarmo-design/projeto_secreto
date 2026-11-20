@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { createClient } from '@supabase/supabase-js';
+import { supabasePublishableKey, supabaseUrl } from '@/core/supabase';
 
 /**
  * Página de Atualização de Senha (F47) — fluxo de recuperação de senha.
@@ -32,14 +33,7 @@ export function UpdatePasswordPage() {
   useEffect(() => {
     async function validarToken() {
       try {
-        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-        const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-        if (!supabaseUrl || !supabaseKey) {
-          throw new Error('Variáveis de ambiente do Supabase não configuradas');
-        }
-
-        const supabase = createClient(supabaseUrl, supabaseKey);
+        const supabase = createClient(supabaseUrl, supabasePublishableKey);
 
         // Verificar se há token válido na URL
         if (type !== 'recovery' || !token) {
@@ -90,14 +84,7 @@ export function UpdatePasswordPage() {
     setCarregando(true);
 
     try {
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-      if (!supabaseUrl || !supabaseKey) {
-        throw new Error('Variáveis de ambiente do Supabase não configuradas');
-      }
-
-      const supabase = createClient(supabaseUrl, supabaseKey);
+      const supabase = createClient(supabaseUrl, supabasePublishableKey);
 
       // Atualizar a senha usando o token da sessão
       // O Supabase já carrega o token na sessão a partir da URL

@@ -17,13 +17,13 @@ class SupabaseClientManager {
   /// Initialize Supabase with secure token storage
   Future<void> initialize({
     required String supabaseUrl,
-    required String supabaseAnonKey,
+    required String supabasePublishableKey,
   }) async {
     _secureStorage = const FlutterSecureStorage();
 
     await Supabase.initialize(
       url: supabaseUrl,
-      publishableKey: supabaseAnonKey,
+      publishableKey: supabasePublishableKey,
       authOptions: FlutterAuthClientOptions(
         localStorage: _LocalSecureStorage(_secureStorage),
       ),

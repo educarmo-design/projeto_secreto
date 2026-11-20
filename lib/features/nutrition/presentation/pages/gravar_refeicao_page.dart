@@ -100,7 +100,7 @@ class _GravarRefeicaoPageState extends State<GravarRefeicaoPage> {
   static Map<String, String> _authHeadersPadrao() {
     final session = Supabase.instance.client.auth.currentSession;
     return {
-      'apikey': AppConfig.supabaseAnonKey,
+      'apikey': AppConfig.supabasePublishableKey,
       if (session != null) 'Authorization': 'Bearer ${session.accessToken}',
     };
   }

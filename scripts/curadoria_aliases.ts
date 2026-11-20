@@ -44,7 +44,7 @@
  * precisar apagar nem eleger nada nesses 4.
  *
  * Uso:
- *   SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... \
+ *   SUPABASE_URL=... SUPABASE_SECRET_KEY=... \
  *     deno run --allow-net --allow-env scripts/curadoria_aliases.ts --dry-run
  *   (sem --dry-run: aplica de verdade)
  *
@@ -54,11 +54,11 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
-const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+const SERVICE_KEY = (Deno.env.get('SUPABASE_SECRET_KEY') || Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'));
 const DRY_RUN = Deno.args.includes('--dry-run');
 
 if (!SUPABASE_URL || !SERVICE_KEY) {
-  console.error('❌ Defina SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY no ambiente.');
+  console.error('❌ Defina SUPABASE_URL e SUPABASE_SECRET_KEY (ou a legada SUPABASE_SERVICE_ROLE_KEY) no ambiente.');
   Deno.exit(1);
 }
 

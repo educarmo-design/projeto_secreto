@@ -23,7 +23,7 @@ void backgroundSyncCallbackDispatcher() {
           AppConfig.hasValidSupabaseCredentials) {
         await supabaseManager.initialize(
           supabaseUrl: AppConfig.supabaseUrl,
-          supabaseAnonKey: AppConfig.supabaseAnonKey,
+          supabasePublishableKey: AppConfig.supabasePublishableKey,
         );
       }
 

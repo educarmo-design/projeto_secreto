@@ -11,7 +11,7 @@
  * massa (se necessária) para o fundador, com a taxa de erro medida.
  *
  * Uso:
- *   SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... \
+ *   SUPABASE_URL=... SUPABASE_SECRET_KEY=... \
  *     deno run --allow-net --allow-env scripts/amostrar_medidas_caseiras.ts [TAMANHO_AMOSTRA]
  *
  * Precisa da service role key (não a anon): a policy de SELECT de
@@ -22,11 +22,11 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
-const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+const SERVICE_KEY = (Deno.env.get('SUPABASE_SECRET_KEY') || Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'));
 const TAMANHO_AMOSTRA = Number(Deno.args[0]) || 50;
 
 if (!SUPABASE_URL || !SERVICE_KEY) {
-  console.error('❌ Defina SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY no ambiente.');
+  console.error('❌ Defina SUPABASE_URL e SUPABASE_SECRET_KEY (ou a legada SUPABASE_SERVICE_ROLE_KEY) no ambiente.');
   Deno.exit(1);
 }
 

@@ -45,10 +45,16 @@ via integração Git do Cloudflare — não é feito manualmente com
   "single-page-application"`, não por um arquivo `_redirects` separado
   (Cloudflare Workers assets já cobre isso nativamente — um `_redirects`
   com `/* /index.html 200` ao lado disso causa loop infinito de redirect).
-- **Variáveis de ambiente** (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`):
-  configuradas no painel do Cloudflare (Settings → Variables do projeto),
-  nunca commitadas — `.env` fica só na máquina local, coberto pelo
-  `.gitignore`.
+- **Variáveis de ambiente** (`VITE_SUPABASE_URL`,
+  `VITE_SUPABASE_PUBLISHABLE_KEY`): desde o N44 (decisão 92) o `.env` **é
+  versionado** e só contém valores públicos — um clone novo sobe sem edição
+  manual. Chaves privilegiadas (`SUPABASE_SECRET_KEY`, `GEMINI_API_KEY`)
+  ficam só em `.env.local`, que continua fora do git. Se o painel for
+  publicado pelo Cloudflare (Settings → Variables do projeto), uma variável
+  definida lá tem prioridade sobre o `.env` do repositório — mantenha
+  `VITE_SUPABASE_PUBLISHABLE_KEY` igual nos dois lugares. O CI
+  (`.github/workflows/ci.yml`) recusa o PR se uma chave privilegiada aparecer
+  em qualquer arquivo versionado.
 
 ## Antes de usar em produção
 

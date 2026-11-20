@@ -271,13 +271,13 @@ DemoData.sampleRankings.forEach((ranking) {
 ### .env
 ```
 SUPABASE_URL=https://seu-projeto.supabase.co
-SUPABASE_ANON_KEY=sua-anon-key-aqui
+SUPABASE_PUBLISHABLE_KEY=sua-chave-sb_publishable-aqui
 DEBUG_MODE=false
 ```
 
 ### Variáveis de Compile Time
 ```bash
-flutter run --dart-define=SUPABASE_URL=https://... --dart-define=SUPABASE_ANON_KEY=...
+flutter run --dart-define=SUPABASE_URL=https://... --dart-define=SUPABASE_PUBLISHABLE_KEY=...
 ```
 
 ---

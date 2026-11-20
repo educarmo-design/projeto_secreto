@@ -40,6 +40,7 @@
  */
 import 'dotenv/config';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { lerChaveSecretaAdmin } from './lib/chaveSecretaSupabase';
 
 const PROFISSIONAL_EMAIL = 'educarmo@gmail.com';
 const TAG_PLANO = 'seed_demo_baseline';
@@ -287,7 +288,7 @@ function gerarAnomalias(pacienteId: string, pacienteIdx: number) {
 }
 
 async function main() {
-  const admin = createClient(baseSupabaseUrl(), requireEnv('SUPABASE_SERVICE_ROLE_KEY'), {
+  const admin = createClient(baseSupabaseUrl(), lerChaveSecretaAdmin(), {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 

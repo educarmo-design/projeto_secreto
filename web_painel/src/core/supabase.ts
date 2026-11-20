@@ -1,26 +1,38 @@
 import { createClient, type Session, type SupabaseClient } from '@supabase/supabase-js';
 import type { Database, StatusAprovacaoUsuario, TipoProfissionalSaude } from './types/database';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+/** URL do projeto Supabase — única leitura de `VITE_SUPABASE_URL` no painel (as telas que precisam dela importam daqui). */
+export const supabaseUrl: string = import.meta.env.VITE_SUPABASE_URL;
+
+/**
+ * Chave PÚBLICA do projeto (N44 / S8.1 do Documento Mestre v9.2.1).
+ * `VITE_SUPABASE_PUBLISHABLE_KEY` (`sb_publishable_…`) é a chave atual; a
+ * `VITE_SUPABASE_ANON_KEY` (JWT legado) só é lida como fallback durante a
+ * transição, enquanto o par legado ainda está ativo no Dashboard. Depois que
+ * o fundador desativar o par legado (Passo 4), o fallback deixa de ser
+ * alcançado e pode ser removido. É a mesma chave que qualquer visitante vê no
+ * bundle — a proteção real é a RLS, nunca o sigilo desta chave.
+ */
+export const supabasePublishableKey: string =
+  import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 
 // Zero Trust: falha alto e cedo em vez de deixar o painel subir apontando
 // para um projeto Supabase inexistente/errado — mesma regra já aplicada em
 // `AppConfig.hasValidSupabaseCredentials` no app mobile.
-if (!supabaseUrl || !supabaseAnonKey) {
+if (!supabaseUrl || !supabasePublishableKey) {
   throw new Error(
-    'VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY não configuradas. Copie .env.example para .env e preencha.',
+    'VITE_SUPABASE_URL / VITE_SUPABASE_PUBLISHABLE_KEY não configuradas. Copie .env.example para .env e preencha.',
   );
 }
 
 /**
- * Cliente Supabase do Painel Web — só a anon key pública, nunca uma
- * service role key. Toda autorização real acontece via RLS no Postgres
+ * Cliente Supabase do Painel Web — só a chave publicável, nunca uma chave
+ * secreta (`sb_secret_…`/service role). Toda autorização real acontece via RLS no Postgres
  * (ver a migration `*_painel_web_profissional_rls.sql`): esta instância só
  * consegue ler o que as policies explicitamente permitem para a sessão
  * autenticada, exatamente como o app mobile.
  */
-export const supabase: SupabaseClient<Database> = createClient<Database>(supabaseUrl, supabaseAnonKey, {
+export const supabase: SupabaseClient<Database> = createClient<Database>(supabaseUrl, supabasePublishableKey, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,

@@ -45,6 +45,7 @@
  */
 import 'dotenv/config';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { lerChaveSecretaAdmin } from './lib/chaveSecretaSupabase';
 import taco from './data/taco.json' with { type: 'json' };
 
 const TAMANHO_LOTE = 200;
@@ -110,7 +111,7 @@ async function inserirLote(admin: SupabaseClient, alimentos: AlimentoTaco[]): Pr
 }
 
 async function main() {
-  const admin = createClient(baseSupabaseUrl(), requireEnv('SUPABASE_SERVICE_ROLE_KEY'), {
+  const admin = createClient(baseSupabaseUrl(), lerChaveSecretaAdmin(), {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 

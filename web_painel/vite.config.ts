@@ -5,7 +5,7 @@ import path from 'node:path';
 // Painel Web Profissional — build simples, sem SSR: roda inteiramente no
 // navegador do profissional, autenticado via Supabase Auth + RLS (ver
 // src/core/supabase.ts). Nenhuma chave de serviço/elevada é usada aqui —
-// só a anon key pública, exatamente como no app mobile.
+// só a chave publicável (sb_publishable_…), exatamente como no app mobile.
 export default defineConfig({
   plugins: [react()],
   resolve: {

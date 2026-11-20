@@ -43,6 +43,7 @@
  */
 import { config } from 'dotenv';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { lerChaveSecretaAdmin } from './lib/chaveSecretaSupabase';
 
 config(); // .env (valores públicos, versionados)
 config({ path: '.env.local', override: true }); // .env.local (segredos)
@@ -313,7 +314,7 @@ async function apagarMedidasCaseirasExistentes(admin: SupabaseClient): Promise<v
 }
 
 async function main() {
-  const admin = createClient(baseSupabaseUrl(), requireEnv('SUPABASE_SERVICE_ROLE_KEY'), {
+  const admin = createClient(baseSupabaseUrl(), lerChaveSecretaAdmin(), {
     auth: { autoRefreshToken: false, persistSession: false },
   });
   const geminiApiKey = requireEnv('GEMINI_API_KEY');

@@ -19,6 +19,7 @@
  */
 import 'dotenv/config';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { lerChaveSecretaAdmin } from './lib/chaveSecretaSupabase';
 
 interface AlimentoTACO {
   nome_taco: string;
@@ -566,7 +567,7 @@ async function inserirMedidasCaseiras(
 }
 
 async function main() {
-  const admin = createClient(baseSupabaseUrl(), requireEnv('SUPABASE_SERVICE_ROLE_KEY'), {
+  const admin = createClient(baseSupabaseUrl(), lerChaveSecretaAdmin(), {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
