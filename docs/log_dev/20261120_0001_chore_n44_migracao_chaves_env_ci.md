@@ -69,6 +69,7 @@ N44 é o primeiro item do Bloco 1 e tem prazo imposto pela Supabase (fim de 2026
 
 ## Problemas encontrados
 
+- **Primeira execução do CI no GitHub falhou no Flutter (592 passam, 1 falha)** — `background_sync_manager_test.dart` ("agendarSincronizacaoDiaria registra… Wi-Fi e carregamento"). **Não é regressão desta tarefa**: no Linux, `Workmanager._ensurePlatformImplementation()` (workmanager 0.10.10) troca qualquer implementação de `WorkmanagerPlatform` por `WorkmanagerLinux` quando `Platform.isLinux`, descartando o fake que o teste injeta; no Windows o fake sobrevive. O meu único diff nesse arquivo é o renome de um identificador dentro de um callback. O job do Flutter passou a rodar em `windows-latest` (onde os 593 foram medidos) em vez de excluir o teste.
 - `.env.example` com `/rest/v1/` (quebraria qualquer clone) e JWT `anon` embutido — corrigidos.
 - Lint do painel já falhava na `main` (`--max-warnings 0` com 2 warnings) — dívida antiga, agora com teto no CI.
 - Python não existe nesta máquina; um ajuste do guarda de segredos foi refeito com o editor.

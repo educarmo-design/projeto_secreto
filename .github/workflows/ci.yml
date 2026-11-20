@@ -81,9 +81,18 @@ jobs:
           done
 
   # App Flutter: análise estática + testes. Versão fixada na que foi medida.
+  #
+  # Roda em Windows DE PROPÓSITO (onde o projeto é desenvolvido e onde os 593
+  # testes foram medidos). No Linux, 1 teste falha por causa do plugin, não do
+  # app: `background_sync_manager_test.dart` injeta um fake de
+  # `WorkmanagerPlatform`, e `Workmanager._ensurePlatformImplementation()`
+  # (workmanager 0.10.10) troca qualquer implementação por `WorkmanagerLinux`
+  # quando `Platform.isLinux`, descartando o fake. Em vez de excluir o teste
+  # (esconderia cobertura), o job usa o SO em que ele é válido. Se um dia o CI
+  # for para Linux, esse teste precisa de um ajuste próprio.
   flutter:
     name: App Flutter (analyze + test)
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
       - uses: subosito/flutter-action@v2
