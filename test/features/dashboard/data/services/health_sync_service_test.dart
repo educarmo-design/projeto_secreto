@@ -1035,10 +1035,21 @@ void main() {
       expect(linha['minutos_sono'], 300);
     });
 
-    group('Caixa Preta â€” detecÃ§Ã£o de anomalias', () {
-      test(
-        'FC > 150 fora de treino Ã© isolada e gravada em eventos_anomalias_saude com severidade atencao',
-        () async {
+    // R25 / decisao 70 ("alerta diagnostica; espelho descreve"): o app avulso
+    // NAO detecta nem grava anomalia de frequencia cardiaca. Estes testes
+    // substituem os da antiga "Caixa Preta" de FC (que exigiam o INSERT em
+    // eventos_anomalias_saude com severidade atencao/critico) - Regra 24: o
+    // comportamento que eles documentavam (alerta clinico) foi removido por
+    // decisao regulatoria, nao por conveniencia. Continua valendo que a FC
+    // medida e exibida normalmente (espelho) - ver o teste de 'frequencia_cardiaca'.
+    group('R25 - FC nao gera anomalia (espelho, nao alerta)', () {
+      for (final caso in <(String, num)>[
+        ('FC alta (155) fora de treino', 155),
+        ('FC acima do antigo limite critico (165) fora de treino', 165),
+        ('FC baixa (30) fora de treino', 30),
+        ('FC dentro da faixa (72) fora de treino', 72),
+      ]) {
+        test('${caso.$1} nao grava nada em eventos_anomalias_saude', () async {
           final agora = DateTime(2026, 7, 8, 9, 30);
           when(
             () => health.getHealthDataFromTypes(
@@ -1048,47 +1059,19 @@ void main() {
             ),
           ).thenAnswer(
             (_) async => [
-              _ponto(type: HealthDataType.HEART_RATE, value: 155, dateFrom: agora),
+              _ponto(type: HealthDataType.HEART_RATE, value: caso.$2, dateFrom: agora),
             ],
           );
 
-          await service.sincronizarDeltaDiario();
+          final resultado = await service.sincronizarDeltaDiario();
 
-          final captura = verify(() => anomaliasBuilder.insert(captureAny())).captured;
-          expect(captura, hasLength(1));
-          final eventos = captura.single as List<Map<String, dynamic>>;
-          expect(eventos, hasLength(1));
-          expect(eventos.single['usuario_id_anonimo'], _usuarioId);
-          expect(eventos.single['parametro'], 'frequencia_cardiaca');
-          expect(eventos.single['valor_detectado'], 155);
-          expect(eventos.single['em_treino'], false);
-          expect(eventos.single['severidade'], 'atencao');
-          expect(eventos.single['detectado_em'], agora.toIso8601String());
-        },
-      );
+          verifyNever(() => anomaliasBuilder.insert(any()));
+          // O valor medido segue sendo espelhado normalmente.
+          expect(resultado.linhas.single['frequencia_cardiaca'], caso.$2);
+        });
+      }
 
-      test('FC acima do limite crÃ­tico (>160) fora de treino Ã© severidade critico', () async {
-        final agora = DateTime(2026, 7, 8, 9, 30);
-        when(
-          () => health.getHealthDataFromTypes(
-            types: any(named: 'types'),
-            startTime: any(named: 'startTime'),
-            endTime: any(named: 'endTime'),
-          ),
-        ).thenAnswer(
-          (_) async => [
-            _ponto(type: HealthDataType.HEART_RATE, value: 165, dateFrom: agora),
-          ],
-        );
-
-        await service.sincronizarDeltaDiario();
-
-        final captura = verify(() => anomaliasBuilder.insert(captureAny())).captured;
-        final eventos = captura.single as List<Map<String, dynamic>>;
-        expect(eventos.single['severidade'], 'critico');
-      });
-
-      test('FC elevada durante um treino ativo nÃ£o Ã© tratada como anomalia', () async {
+      test('FC elevada durante um treino ativo tambem nao grava anomalia', () async {
         final inicioTreino = DateTime(2026, 7, 8, 9);
         final fimTreino = DateTime(2026, 7, 8, 10);
         final duranteOTreino = DateTime(2026, 7, 8, 9, 30);
@@ -1114,25 +1097,6 @@ void main() {
               sourceName: 'TestWearable',
             ),
             _ponto(type: HealthDataType.HEART_RATE, value: 155, dateFrom: duranteOTreino),
-          ],
-        );
-
-        await service.sincronizarDeltaDiario();
-
-        verifyNever(() => anomaliasBuilder.insert(any()));
-      });
-
-      test('FC dentro da faixa normal fora de treino nÃ£o gera anomalia', () async {
-        final agora = DateTime(2026, 7, 8, 9, 30);
-        when(
-          () => health.getHealthDataFromTypes(
-            types: any(named: 'types'),
-            startTime: any(named: 'startTime'),
-            endTime: any(named: 'endTime'),
-          ),
-        ).thenAnswer(
-          (_) async => [
-            _ponto(type: HealthDataType.HEART_RATE, value: 72, dateFrom: agora),
           ],
         );
 

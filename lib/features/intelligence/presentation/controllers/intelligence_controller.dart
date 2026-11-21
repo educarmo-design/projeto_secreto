@@ -4,7 +4,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/config/app_config.dart';
 import '../../../../core/i18n/i18n_manager.dart';
 import '../../../dashboard/data/models/health_payload_model.dart';
-import '../../../dashboard/data/services/health_sync_service.dart' show EventoAnomaliaSaude;
+import '../../../dashboard/data/services/health_sync_service.dart'
+    show EventoAnomaliaSaude, HealthSyncService;
 import '../../data/repositories/recommendations_repository.dart';
 import '../../data/services/gemini_gateway_service.dart';
 
@@ -177,6 +178,9 @@ class IntelligenceController extends ChangeNotifier {
         .from('eventos_anomalias_saude')
         .select()
         .eq('usuario_id_anonimo', userId)
+        // R25: linhas históricas de FC não alimentam o insight (a FC é só
+        // espelhada no app avulso; a detecção foi desligada).
+        .neq('tipo_anomalia', HealthSyncService.tipoAnomaliaFcDesativado)
         .gte('detectado_em', desde.toIso8601String())
         .order('detectado_em', ascending: false);
 
