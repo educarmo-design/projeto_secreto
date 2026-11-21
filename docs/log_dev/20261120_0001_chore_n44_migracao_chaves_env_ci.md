@@ -100,3 +100,10 @@ Sem impacto em runtime: a leitura de chave acontece uma vez por requisição, po
 
 Novos: `supabase/functions/_shared/chaves_supabase{,_test}.ts`, `web_painel/scripts/lib/chaveSecretaSupabase.ts`, `.github/workflows/ci.yml`, `.github/scripts/verificar_segredos.sh`, `config_local.example.json`, `web_painel/.env`.
 Alterados: 5 Edge Functions, 3 telas/módulos do painel, 6 scripts do painel, 4 scripts da raiz, 14 arquivos de `lib/`, `.gitignore` (×2), `.env.example` (×2), `.env.local.example`, `README.md` do painel, `SETUP_GUIDE.md`, `QUICK_REFERENCE.md`, `vite.config.ts`.
+
+## Mesclagem (decisão 96) — registrada em 2026-11-20
+
+- **PR #23 mesclado em `main`** (merge commit `2b4f311`), sem force push, com autorização explícita do fundador ("pode mesclar") e 5/5 checks verdes (segredos, painel, Edge Functions, Flutter, Cloudflare).
+- Antes do merge entrou o commit `7c70124` com a chave publicável em `web_painel/.env` (estava só na cópia local do fundador; valor público por desenho).
+- Validação do fundador: Passo 1 (chaves criadas) e Passo 4 (par legado desativado em 2026-11-20T20:29Z) feitos; login no painel local funcionou; após recompilar o app com `config_local.json` novo, o fundador relatou tudo funcionando.
+- Sequência e diagnóstico pós-merge: `20261120_0002_chore_n44_pos_merge_passos_1_e_4.md`. Auditoria de segredos e correção de segurança: `20261120_0003_fix_n44_auditoria_segredos_r25_fc.md`.

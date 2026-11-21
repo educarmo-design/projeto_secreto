@@ -297,13 +297,16 @@ class HealthSyncService {
   final FlutterSecureStorage _secureStorage;
   late final Future<void> _configured;
 
-  // Faixas de referência clínica usadas pela checagem defensiva em primeiro
-  // plano (Caixa Preta). Fora da faixa "normal" gera um evento com
-  // severidade 'atencao'; fora da faixa "crítica" gera severidade 'critico'.
-  static const int _fcForaTreinoMin = 40;
-  static const int _fcForaTreinoMax = 120;
-  static const int _fcCriticoMin = 35;
-  static const int _fcCriticoMax = 160;
+  /// R25 / decisão 70 (Parte 5.2.2): o app avulso NÃO detecta nem grava
+  /// anomalia de frequência cardíaca. Este é o `tipo_anomalia` das linhas
+  /// HISTÓRICAS que a detecção antiga gravou em `eventos_anomalias_saude`
+  /// (mantidas no banco, não apagadas); as leituras do app (insight preventivo
+  /// e pontuação) as excluem por este valor para que nada de FC volte à tela.
+  static const String tipoAnomaliaFcDesativado = 'frequencia_cardiaca_fora_faixa';
+
+  // Faixas de referência usadas pela checagem defensiva em primeiro plano
+  // (Caixa Preta) SOMENTE para glicose e pressão. Não há faixa de FC: a FC é
+  // espelhada como o dispositivo mediu (R25).
 
   static const double _glicoseMin = 70;
   static const double _glicoseMax = 180;
@@ -674,26 +677,19 @@ class HealthSyncService {
     }
   }
 
-  /// ⚠️ ACHADO REGULATÓRIO (RELATÓRIO desta tarefa, N17/N18 — não corrigido
-  /// aqui, fora do escopo/ARQUIVOS pedidos): a restrição desta tarefa diz
-  /// "Fica ESTRITAMENTE PROIBIDA a implementação de detecção de anomalias
-  /// cardíacas (eventos de FC fora do normal). Isso pertence ao Motor
-  /// Clínico (F02), que está no Backlog." Este método FAZ EXATAMENTE ISSO
-  /// para FC (`frequencia_cardiaca_fora_faixa`, ver abaixo) — já existia
-  /// antes desta tarefa (Adendo v5.1, "Caixa Preta"), não foi criado por
-  /// mim. Nenhum código NOVO desta tarefa adiciona lógica de anomalia — só
-  /// grava métricas absolutas (média/máxima/repouso/HRV), como pedido. Não
-  /// removi/desliguei esta detecção pré-existente unilateralmente: é uma
-  /// mudança de escopo maior (a "Caixa Preta" também alimenta o Módulo de
-  /// Inteligência, ver doc de [EventoAnomaliaSaude.fromJson]) que precisa de
-  /// decisão explícita do fundador — ver RELATÓRIO/resposta desta tarefa.
+  /// Checagem defensiva em primeiro plano (Caixa Preta) de glicose e pressão:
+  /// escaneia os [points] recém-sincronizados e grava cada leitura crítica
+  /// como [EventoAnomaliaSaude] em `eventos_anomalias_saude`. Best-effort:
+  /// qualquer falha (sem sessão, offline, RLS) é engolida para nunca quebrar
+  /// o fluxo de sync.
   ///
-  /// Scans freshly-synced [points] for readings outside a safe clinical
-  /// range — a heart-rate spike/drop while no workout is in progress, or a
-  /// critical glucose/blood-pressure reading — and writes each one found as
-  /// a structured [EventoAnomaliaSaude] into `eventos_anomalias_saude`
-  /// (the "Caixa Preta"). Best-effort: any failure (no session, offline,
-  /// RLS) is swallowed so the defensive check never breaks the sync flow.
+  /// R25 / decisão 70 (Parte 5.2.2 — "alerta diagnostica; espelho descreve"):
+  /// a detecção de anomalia de FREQUÊNCIA CARDÍACA foi DESLIGADA aqui (era o
+  /// ramo `frequencia_cardiaca_fora_faixa`, com faixa 40–120 bpm e severidade
+  /// atencao/critico). Para o usuário avulso a FC é só espelhada — o valor que
+  /// o relógio mediu, sem faixa, zona rotulada ou severidade. As linhas FC já
+  /// gravadas no passado ficam intactas no banco (ver
+  /// [tipoAnomaliaFcDesativado]); só a geração e a exibição foram desligadas.
   Future<void> _detectarEregistrarAnomalias(
     List<HealthMetricPoint> points,
   ) async {
@@ -727,37 +723,6 @@ class HealthSyncService {
       try {
         final payload = ponto.toPayload();
         final origem = ponto.sourceApp.isEmpty ? 'wearable' : ponto.sourceApp;
-
-        // N17/N18: checa frequenciaCardiaca (leitura genérica/contínua),
-        // não mais fcRepouso — antes desta tarefa os dois eram o mesmo
-        // campo (HEART_RATE só existia como fcRepouso); agora que são
-        // sinais distintos, o pico que faz sentido pegar em primeiro
-        // plano é o da leitura contínua, não a métrica de repouso do
-        // Health Connect (calculada pelo próprio SO, tipicamente durante
-        // o sono — chega no máximo 1x/dia e já É esperada estar baixa,
-        // não é onde um pico fora de treino apareceria). Comportamento de
-        // detecção preservado: é a mesma fonte de dado (HEART_RATE) que
-        // já alimentava esta checagem antes, só o nome do campo/parametro
-        // que corrige.
-        final fc = payload.frequenciaCardiaca;
-        if (fc != null && (fc < _fcForaTreinoMin || fc > _fcForaTreinoMax)) {
-          final foraDoTreino = !emTreino(ponto);
-          if (foraDoTreino) {
-            anomalias.add(EventoAnomaliaSaude(
-              tipoAnomalia: 'frequencia_cardiaca_fora_faixa',
-              parametro: 'frequencia_cardiaca',
-              valorDetectado: fc,
-              valorLimiteMin: _fcForaTreinoMin,
-              valorLimiteMax: _fcForaTreinoMax,
-              emTreino: false,
-              severidade: (fc < _fcCriticoMin || fc > _fcCriticoMax)
-                  ? 'critico'
-                  : 'atencao',
-              origem: origem,
-              detectadoEm: ponto.dateTo,
-            ));
-          }
-        }
 
         final glicose = payload.glicoseJejum;
         if (glicose != null &&
