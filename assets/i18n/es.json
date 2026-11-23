@@ -162,6 +162,7 @@
     "camera_timeout_error": "Tiempo agotado esperando al servidor. Inténtalo de nuevo.",
     "camera_network_error": "Fallo de conexión. Verifica tu internet e inténtalo de nuevo.",
     "camera_client_error": "No se pudo enviar esta foto. Inténtalo de nuevo.",
+    "camera_saldo_ia_indisponivel": "El servicio de análisis por IA no está disponible temporalmente por una pendencia de facturación/créditos de la plataforma. No es un problema de tu dispositivo ni de tu cuenta. Puedes registrar manualmente por ahora.",
     "camera_parse_error": "Respuesta inesperada del servidor. Inténtalo de nuevo.",
     "camera_no_data_extracted_error": "No pudimos identificar nada legible en esta foto. Inténtalo de nuevo con más luz y enfoque.",
     "camera_unexpected_error": "Ocurrió un error inesperado. Inténtalo de nuevo.",

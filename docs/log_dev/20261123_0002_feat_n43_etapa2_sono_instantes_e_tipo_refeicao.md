@@ -81,3 +81,11 @@ Uma leitura extra (1 linha de `configuracoes_sistema`) por sincronização, e s�
 ## Arquivos
 Novos: `supabase/migrations/20261123100000_n43_etapa2_sono_instantes_e_tipo_refeicao.sql`, `lib/features/dashboard/data/services/sono_segmentos.dart`, `test/features/dashboard/data/services/sono_segmentos_test.dart`.
 Alterados: `health_sync_service.dart`, `coleta_diaria_repository.dart`, `confirmacao_prato_controller.dart`, `confirmacao_prato_page.dart`, `favoritas_page.dart`, `assets/i18n/{pt,en,es}.json`, `web_painel/src/core/types/database.ts`, `web_painel/src/features/admin/components/AdminConfiguracoes.tsx`, testes (`health_sync_service_test`, `confirmacao_prato_controller_test`, `confirmacao_prato_page_test`, `favoritas_page_test`), log da Etapa 1 (mesclagem + correção) e este log + `INDICE.md`.
+
+## Mesclagem (decisão 96)
+
+PR #27 **mesclado em `main`** em 2026-11-23 (commit de merge `87ebd22`), após o fundador testar a Etapa 2 no aparelho, aprovar os resultados e autorizar a mesclagem. Registrado na tarefa N45 (`20261123_0003`).
+
+## Pendência futura registrada — regra de cochilo (Bloco 1½)
+
+Definida pelo fundador, **NÃO implementada**: o maior bloco de sono com **≥ 180 min** (mínimo **configurável em `configuracoes_sistema`**, regra 16) define `sono_inicio`/`sono_fim` principais da noite. Os campos ficam vazios apenas se houver **dois blocos ≥ 180 min** ou **nenhum** atingir o mínimo (regra 23 — nunca arbitrar). Hoje, noite + cochilo no mesmo dia continua ambíguo (`sono_segmentos_qtd = 2`, sem instantes).

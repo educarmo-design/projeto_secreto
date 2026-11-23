@@ -15,7 +15,8 @@ import { lerChaveSecreta } from '../_shared/chaves_supabase.ts';
 
 const CORS_HEADERS: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-request-id',
+  'Access-Control-Expose-Headers': 'x-request-id',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
@@ -85,6 +86,18 @@ class ErroHttp extends Error {
   }
 }
 
+/// N45 (decisão 93, R44) — HTTP 402 do Gemini: saldo pré-pago esgotado ou
+/// pagamento pendente. Não é retentado e chega ao app com mensagem própria
+/// (nunca "erro de servidor" genérico — Regras 15 e 23).
+class ErroSaldoGemini extends ErroHttp {
+  constructor(mensagem: string) {
+    super(402, mensagem);
+  }
+}
+
+const MENSAGEM_SALDO_GEMINI_ESGOTADO =
+  'O serviço de análise por IA está temporariamente indisponível por uma pendência de faturamento/créditos da plataforma. Não é um problema no seu aparelho nem na sua conta. Você pode registrar manualmente por enquanto.';
+
 interface SearchFoodRequest {
   query: string;
 }
@@ -153,6 +166,9 @@ export function criarChamadorEmbeddingReal(apiKey: string, timeoutMs = TIMEOUT_E
 
     if (!resposta.ok) {
       const corpoErro = await resposta.text();
+      if (resposta.status === 402) {
+        throw new ErroSaldoGemini(`Gemini embedContent respondeu 402 (saldo/faturamento): ${corpoErro.slice(0, 300)}`);
+      }
       throw new ErroHttp(502, `Gemini embedContent falhou (HTTP ${resposta.status}): ${corpoErro}`);
     }
 
@@ -212,7 +228,31 @@ interface HandlerDeps {
 }
 
 export function createHandler(deps: HandlerDeps = {}) {
+  // Regra 22 — wrapper fino: log de CONCLUSÃO (duração, status, tamanho do
+  // corpo) + eco do X-Request-Id, sem importar qual `return` interno saiu.
   return async function handleRequest(req: Request): Promise<Response> {
+    const inicio = Date.now();
+    const resposta = await processarRequest(req);
+    const duracaoMs = Date.now() - inicio;
+    let tamanhoCorpo = 'desconhecido';
+    try {
+      tamanhoCorpo = String((await resposta.clone().text()).length);
+    } catch {
+      // Best-effort — o log nunca derruba a resposta real.
+    }
+    const requestId = req.headers.get('X-Request-Id') ?? crypto.randomUUID();
+    console.log(
+      `[search-food] CONCLUSÃO: request_id=${requestId} duracao=${duracaoMs}ms status=${resposta.status} tamanho_corpo=${tamanhoCorpo}bytes`,
+    );
+    try {
+      resposta.headers.set('X-Request-Id', requestId);
+    } catch {
+      // Headers imutáveis — o log acima já carrega o id.
+    }
+    return resposta;
+  };
+
+  async function processarRequest(req: Request): Promise<Response> {
     if (req.method === 'OPTIONS') {
       return new Response('ok', { headers: CORS_HEADERS });
     }
@@ -358,6 +398,10 @@ export function createHandler(deps: HandlerDeps = {}) {
 
       return jsonResponse({ results: data ?? [], cache_hit: false }, 200);
     } catch (erro) {
+      if (erro instanceof ErroSaldoGemini) {
+        console.error('search-food:', erro.message);
+        return jsonResponse({ error: MENSAGEM_SALDO_GEMINI_ESGOTADO }, 402);
+      }
       if (erro instanceof ErroHttp) {
         return jsonResponse({ error: erro.message }, erro.status);
       }
