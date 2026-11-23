@@ -11,6 +11,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/config/app_config.dart';
 import '../../../../core/i18n/i18n_manager.dart';
 import '../models/health_payload_model.dart';
+import 'sono_segmentos.dart';
 
 /// One normalized point read from Health Connect (Android) / HealthKit
 /// (iOS). [sourceApp] is the app/device that actually wrote the point —
@@ -845,6 +846,14 @@ class HealthSyncService {
   /// fundador, já removido do banco.
   static const String _chaveHistoricoFuso = AppConfig.storageKeyTimezoneHistory;
 
+  /// Chave (NÃO o valor) em `configuracoes_sistema` da janela, em minutos, que
+  /// une segmentos de sono numa só noite (N43 Etapa 2, regra 16). O valor mora
+  /// no banco e é editável no painel (Admin > Configurações); o prefixo
+  /// `cliente_` é o que a policy `configuracoes_sistema_select_cliente`
+  /// libera para leitura por qualquer usuário logado.
+  static const String _chaveConfigJanelaUniaoSono =
+      'cliente_sono_uniao_segmentos_minutos';
+
   /// Teto de entradas guardadas (transições de fuso são raras — viajar de
   /// fuso é um evento incomum mesmo pra um usuário que viaja muito; 200
   /// entradas cobrem anos de uso real sem custo de armazenamento
@@ -1046,7 +1055,18 @@ class HealthSyncService {
       );
     }
 
-    final linhas = _mesclarPorDia(usuarioId, payloads, historicoFuso);
+    // N43 Etapa 2: a janela de união de segmentos de sono só é buscada quando o
+    // lote realmente tem sono (evita uma ida ao servidor à toa a cada sync).
+    final temSono = payloads.any(_ehPayloadDeSono);
+    final janelaUniaoSonoMinutos =
+        temSono ? await _lerJanelaUniaoSonoMinutos() : null;
+
+    final linhas = _mesclarPorDia(
+      usuarioId,
+      payloads,
+      historicoFuso,
+      janelaUniaoSonoMinutos: janelaUniaoSonoMinutos,
+    );
     await _aplicarInferenciasCruzadas(usuarioId, linhas);
     await _preencherDistanciaFaltante(linhas, inicioAlinhado, historicoFuso);
     final envio = await _enviarLinhas(linhas);
@@ -1166,6 +1186,11 @@ class HealthSyncService {
   ///     MESMO dia. A parte não-óbvia é QUAL dia: um estágio às 23h de
   ///     segunda pertence à noite de sono que só termina terça de manhã, não
   ///     ao "dia de segunda" que `_dataOnly` daria. Ver [_dataDoSonoLocal].
+  ///     N43 Etapa 2: além dos minutos, os instantes CRUS de início/fim da
+  ///     noite (`sono_inicio`/`sono_fim`/`sono_offset_minutos`/
+  ///     `sono_segmentos_qtd`) são gravados por [_aplicarInstantesDeSono] — a
+  ///     `data_referencia` acima NÃO muda; quem consome deriva a noite dos
+  ///     instantes (G.9).
   ///   - **Média aritmética** (frequência cardíaca genérica — `fc`, NÃO
   ///     `fc_repouso`): FC não sofre double-counting entre fontes do mesmo
   ///     jeito que passos/distância (não é cumulativo por natureza).
@@ -1516,11 +1541,52 @@ class HealthSyncService {
     return vencedora.value;
   }
 
+  /// True quando o [payload] carrega algum estágio de sono (leve, profundo,
+  /// REM ou acordado — `SLEEP_ASLEEP` entra como leve, ver [_tiposSuportados]).
+  static bool _ehPayloadDeSono(HealthPayloadModel payload) =>
+      payload.sonoLeveMinutos != null ||
+      payload.sonoProfundoMinutos != null ||
+      payload.sonoRemMinutos != null ||
+      payload.sonoAcordadoMinutos != null;
+
+  /// Lê de `configuracoes_sistema` a janela (minutos) de união de segmentos de
+  /// sono — regra 16: o app NÃO tem valor padrão próprio. Regra 23: se a
+  /// leitura falhar (offline, RLS, valor ausente ou inválido) devolve `null`
+  /// e AVISA no log; [_mesclarPorDia] então não grava os instantes (em vez de
+  /// chutar uma janela), e os minutos por estágio seguem normalmente.
+  Future<int?> _lerJanelaUniaoSonoMinutos() async {
+    try {
+      final linha = await _supabase
+          .from('configuracoes_sistema')
+          .select('valor')
+          .eq('chave', _chaveConfigJanelaUniaoSono)
+          .maybeSingle();
+      final minutos = int.tryParse((linha?['valor'] as String?)?.trim() ?? '');
+      if (minutos == null || minutos < 0) {
+        debugPrint(
+          '[SYNC_DIAGNOSTICO] Config "$_chaveConfigJanelaUniaoSono" ausente ou '
+          'inválida (valor: ${linha?['valor']}) — sono_inicio/sono_fim NÃO '
+          'serão gravados nesta sincronização (os minutos por estágio sim).',
+        );
+        return null;
+      }
+      return minutos;
+    } catch (e) {
+      debugPrint(
+        '[SYNC_DIAGNOSTICO] Falha ao ler a config "$_chaveConfigJanelaUniaoSono" '
+        '— sono_inicio/sono_fim NÃO serão gravados nesta sincronização (os '
+        'minutos por estágio sim): $e',
+      );
+      return null;
+    }
+  }
+
   List<Map<String, dynamic>> _mesclarPorDia(
     String usuarioId,
     List<HealthPayloadModel> payloads,
-    List<(int instanteMs, int offsetMinutos)> historicoFuso,
-  ) {
+    List<(int instanteMs, int offsetMinutos)> historicoFuso, {
+    int? janelaUniaoSonoMinutos,
+  }) {
     final porDia = <String, Map<String, dynamic>>{};
     final somaFcPorDia = <String, double>{};
     final contagemFcPorDia = <String, int>{};
@@ -1552,6 +1618,10 @@ class HealthSyncService {
     // ambos, ver _fonteVencedoraDoDia depois do loop principal.
     final agregadoPorDiaFonte = <String, Map<String, _AgregadoFonte>>{};
 
+    // N43 Etapa 2 (G.9): intervalos CRUS de sono por dia de referência, antes
+    // de qualquer soma de minutos — são o que vira sono_inicio/sono_fim.
+    final intervalosSonoPorDia = <String, List<IntervaloSono>>{};
+
     // RELATÓRIO 20260813_0015 (Parte 1 — Proteção Extrema no Parsing): o
     // corpo inteiro do loop agora roda dentro de um try/catch por
     // iteração. Antes, qualquer exceção aqui dentro (ex.: um cast
@@ -1567,10 +1637,7 @@ class HealthSyncService {
           payload.dateFrom.millisecondsSinceEpoch,
           historicoFuso,
         );
-        final ehSono = payload.sonoLeveMinutos != null ||
-            payload.sonoProfundoMinutos != null ||
-            payload.sonoRemMinutos != null ||
-            payload.sonoAcordadoMinutos != null;
+        final ehSono = _ehPayloadDeSono(payload);
         final dataReferencia = ehSono
             ? _dataDoSonoLocal(payload.dateFrom, offsetDoPonto)
             : _dataOnly(payload.dateFrom, offsetDoPonto);
@@ -1632,6 +1699,11 @@ class HealthSyncService {
               andaresSubidosPorDiaFonte.putIfAbsent(dataReferencia, () => {});
           porFonte[payload.source] =
               (porFonte[payload.source] ?? 0) + payload.andaresSubidos!;
+        }
+        if (ehSono) {
+          (intervalosSonoPorDia[dataReferencia] ??= []).add(
+            (inicio: payload.dateFrom, fim: payload.dateTo),
+          );
         }
         somar('sono_leve_minutos', payload.sonoLeveMinutos);
         somar('sono_profundo_minutos', payload.sonoProfundoMinutos);
@@ -1773,7 +1845,67 @@ class HealthSyncService {
       linha['minutos_sono'] = leve + profundo + rem;
     }
 
+    _aplicarInstantesDeSono(
+      porDia,
+      intervalosSonoPorDia,
+      historicoFuso,
+      janelaUniaoSonoMinutos,
+    );
+
     return porDia.values.toList();
+  }
+
+  /// N43 Etapa 2 (G.9, regra 23): grava em cada linha de [porDia] os instantes
+  /// CRUS `sono_inicio`/`sono_fim` (UTC), o deslocamento de fuso vigente no
+  /// início (`sono_offset_minutos`, via [_offsetParaInstante]) e quantos
+  /// segmentos restaram (`sono_segmentos_qtd`), a partir dos [intervalosPorDia].
+  /// NÃO decide "a que noite o sono pertence" — `data_referencia` segue como
+  /// já era (ver [_dataDoSonoLocal]); quem consome deriva na consulta.
+  ///
+  /// - Sem [janelaUniaoMinutos] (config ilegível): não grava nada de instante e
+  ///   o motivo já foi logado por [_lerJanelaUniaoSonoMinutos].
+  /// - Mais de um segmento após a união: noite ambígua — grava só
+  ///   `sono_segmentos_qtd` (>1) e deixa os instantes nulos; nunca escolhe um.
+  /// - Intervalo com fim anterior ao início: ignorado e logado.
+  void _aplicarInstantesDeSono(
+    Map<String, Map<String, dynamic>> porDia,
+    Map<String, List<IntervaloSono>> intervalosPorDia,
+    List<(int instanteMs, int offsetMinutos)> historicoFuso,
+    int? janelaUniaoMinutos,
+  ) {
+    if (janelaUniaoMinutos == null) return;
+    final janela = Duration(minutes: janelaUniaoMinutos);
+
+    for (final entry in intervalosPorDia.entries) {
+      final linha = porDia[entry.key];
+      if (linha == null) continue;
+
+      final invalidos = entry.value.where((i) => i.fim.isBefore(i.inicio)).length;
+      if (invalidos > 0) {
+        debugPrint(
+          '[SYNC_DIAGNOSTICO] ${entry.key}: $invalidos intervalo(s) de sono '
+          'com fim anterior ao início foram ignorados.',
+        );
+      }
+
+      final consolidado = consolidarSegmentosDeSono(entry.value, janelaUniao: janela);
+      if (consolidado.segmentos == 0) continue;
+
+      linha['sono_segmentos_qtd'] = consolidado.segmentos;
+      if (consolidado.ambiguo) {
+        debugPrint(
+          '[SYNC_DIAGNOSTICO] ${entry.key}: ${consolidado.segmentos} segmentos de '
+          'sono separados por >= $janelaUniaoMinutos min — noite ambígua, '
+          'sono_inicio/sono_fim NÃO gravados (regra 23).',
+        );
+        continue;
+      }
+      final inicio = consolidado.inicio!;
+      linha['sono_inicio'] = inicio.toUtc().toIso8601String();
+      linha['sono_fim'] = consolidado.fim!.toUtc().toIso8601String();
+      linha['sono_offset_minutos'] =
+          _offsetParaInstante(inicio.millisecondsSinceEpoch, historicoFuso);
+    }
   }
 
   /// Treinos + Rotas GPS (RELATÓRIO 20260811_0002, decisão do fundador) —

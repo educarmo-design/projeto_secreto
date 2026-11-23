@@ -296,6 +296,7 @@ void main() {
   late _MockSupabaseQueryBuilder anamnesesBuilder;
   late _MockSupabaseQueryBuilder treinosBuilder;
   late _MockSupabaseQueryBuilder rotasBuilder;
+  late _MockSupabaseQueryBuilder configBuilder;
   late FakeSecureStorage secureStorage;
   late HealthSyncService service;
 
@@ -316,6 +317,19 @@ void main() {
   /// maioria dos usuários hoje: ninguém preencheu uma anamnese com altura
   /// ainda). Testes de IMC-por-inferência chamam de novo com um valor
   /// real.
+  /// N43 Etapa 2: a janela de uniao de segmentos de sono vem de
+  /// `configuracoes_sistema` (regra 16). [valor] null simula a chave ausente;
+  /// [erro] simula a leitura LANCANDO (rede/RLS) - o app nao pode chutar uma
+  /// janela nesses casos (regra 23).
+  void stubJanelaSono(String? valor, {Object? erro}) {
+    when(() => configBuilder.select(any())).thenAnswer(
+      (_) => _FakeAlturaFilterBuilder(
+        valor == null ? null : {'valor': valor},
+        erro: erro,
+      ),
+    );
+  }
+
   void stubAltura(double? alturaCm) {
     // thenAnswer, não thenReturn: _FakeAlturaFilterBuilder implementa Future
     // (via .then(), mesmo truque de _FakeFilterBuilder) — mocktail recusa
@@ -350,6 +364,7 @@ void main() {
     anamnesesBuilder = _MockSupabaseQueryBuilder();
     treinosBuilder = _MockSupabaseQueryBuilder();
     rotasBuilder = _MockSupabaseQueryBuilder();
+    configBuilder = _MockSupabaseQueryBuilder();
     secureStorage = FakeSecureStorage();
 
     when(() => health.configure()).thenAnswer((_) async {});
@@ -384,6 +399,8 @@ void main() {
     // testes específicos chamam stubAltura(valor) para sobrescrever.
     when(() => supabase.from('anamneses')).thenAnswer((_) => anamnesesBuilder);
     stubAltura(null);
+    when(() => supabase.from('configuracoes_sistema')).thenAnswer((_) => configBuilder);
+    stubJanelaSono('30');
 
     // Treinos/Rotas (RELATÓRIO 20260811_0002) — padrão "sucesso", id
     // fixo 'treino-1', pra não afetar os testes que não são sobre isso;
@@ -1033,6 +1050,200 @@ void main() {
       final linha = resultado.linhas.single;
       expect(linha['sono_leve_minutos'], 300);
       expect(linha['minutos_sono'], 300);
+    });
+
+    // N43 Etapa 2 - instantes CRUS de inicio/fim do sono (regra G.9).
+    group('N43 Etapa 2 - sono_inicio / sono_fim', () {
+      final inicioNoite = DateTime(2026, 7, 8, 23); // 23h de 8/jul (local)
+      final madrugada = DateTime(2026, 7, 9, 1);
+
+      void stubNoiteContinua() {
+        when(
+          () => health.getHealthDataFromTypes(
+            types: any(named: 'types'),
+            startTime: any(named: 'startTime'),
+            endTime: any(named: 'endTime'),
+          ),
+        ).thenAnswer(
+          (_) async => [
+            _ponto(
+              type: HealthDataType.SLEEP_LIGHT,
+              value: 0,
+              dateFrom: inicioNoite,
+              dateTo: inicioNoite.add(const Duration(minutes: 200)),
+            ),
+            _ponto(
+              type: HealthDataType.SLEEP_DEEP,
+              value: 0,
+              dateFrom: madrugada,
+              dateTo: madrugada.add(const Duration(minutes: 90)),
+            ),
+            _ponto(
+              type: HealthDataType.SLEEP_REM,
+              value: 0,
+              dateFrom: madrugada,
+              dateTo: madrugada.add(const Duration(minutes: 60)),
+            ),
+          ],
+        );
+      }
+
+      test('noite que atravessa a meia-noite grava inicio, fim (UTC) e offset, sem mexer nos minutos', () async {
+        stubNoiteContinua();
+
+        final linha = (await service.sincronizarDeltaDiario()).linhas.single;
+
+        // 23:00 local de 8/jul ate o fim do ultimo estagio (01:00 + 90 min).
+        final fimEsperado = madrugada.add(const Duration(minutes: 90));
+        expect(linha['sono_inicio'], inicioNoite.toUtc().toIso8601String());
+        expect(linha['sono_fim'], fimEsperado.toUtc().toIso8601String());
+        expect(linha['sono_offset_minutos'], inicioNoite.timeZoneOffset.inMinutes);
+        expect(linha['sono_segmentos_qtd'], 1);
+        // Regressao: data de referencia e minutos por estagio inalterados.
+        expect(linha['data_referencia'], '2026-07-09');
+        expect(linha['sono_leve_minutos'], 200);
+        expect(linha['sono_profundo_minutos'], 90);
+        expect(linha['sono_rem_minutos'], 60);
+        expect(linha['minutos_sono'], 350);
+      });
+
+      test('segmentos separados por MENOS que a janela viram uma noite so', () async {
+        // Lacuna entre o fim do 1o estagio (02:20) e o inicio do 2o (02:30) = 10 min < 30.
+        when(
+          () => health.getHealthDataFromTypes(
+            types: any(named: 'types'),
+            startTime: any(named: 'startTime'),
+            endTime: any(named: 'endTime'),
+          ),
+        ).thenAnswer(
+          (_) async => [
+            _ponto(
+              type: HealthDataType.SLEEP_LIGHT,
+              value: 0,
+              dateFrom: inicioNoite,
+              dateTo: inicioNoite.add(const Duration(minutes: 200)),
+            ),
+            _ponto(
+              type: HealthDataType.SLEEP_DEEP,
+              value: 0,
+              dateFrom: DateTime(2026, 7, 9, 2, 30),
+              dateTo: DateTime(2026, 7, 9, 3, 30),
+            ),
+          ],
+        );
+
+        final linha = (await service.sincronizarDeltaDiario()).linhas.single;
+
+        expect(linha['sono_segmentos_qtd'], 1);
+        expect(linha['sono_inicio'], inicioNoite.toUtc().toIso8601String());
+        expect(linha['sono_fim'], DateTime(2026, 7, 9, 3, 30).toUtc().toIso8601String());
+      });
+
+      test('a janela vem da configuracao, nao do codigo: janela menor que a lacuna separa os segmentos', () async {
+        stubJanelaSono('5'); // mesma lacuna de 10 min do teste acima, agora >= janela
+        when(
+          () => health.getHealthDataFromTypes(
+            types: any(named: 'types'),
+            startTime: any(named: 'startTime'),
+            endTime: any(named: 'endTime'),
+          ),
+        ).thenAnswer(
+          (_) async => [
+            _ponto(
+              type: HealthDataType.SLEEP_LIGHT,
+              value: 0,
+              dateFrom: inicioNoite,
+              dateTo: inicioNoite.add(const Duration(minutes: 200)),
+            ),
+            _ponto(
+              type: HealthDataType.SLEEP_DEEP,
+              value: 0,
+              dateFrom: DateTime(2026, 7, 9, 2, 30),
+              dateTo: DateTime(2026, 7, 9, 3, 30),
+            ),
+          ],
+        );
+
+        final linha = (await service.sincronizarDeltaDiario()).linhas.single;
+
+        expect(linha['sono_segmentos_qtd'], 2);
+      });
+
+      test('noite AMBIGUA (2 segmentos): nao escolhe um - instantes ausentes, contagem visivel, minutos intactos', () async {
+        stubJanelaSono('5');
+        when(
+          () => health.getHealthDataFromTypes(
+            types: any(named: 'types'),
+            startTime: any(named: 'startTime'),
+            endTime: any(named: 'endTime'),
+          ),
+        ).thenAnswer(
+          (_) async => [
+            _ponto(
+              type: HealthDataType.SLEEP_LIGHT,
+              value: 0,
+              dateFrom: inicioNoite,
+              dateTo: inicioNoite.add(const Duration(minutes: 200)),
+            ),
+            _ponto(
+              type: HealthDataType.SLEEP_DEEP,
+              value: 0,
+              dateFrom: DateTime(2026, 7, 9, 2, 30),
+              dateTo: DateTime(2026, 7, 9, 3, 30),
+            ),
+          ],
+        );
+
+        final linha = (await service.sincronizarDeltaDiario()).linhas.single;
+
+        expect(linha['sono_segmentos_qtd'], 2);
+        expect(linha.containsKey('sono_inicio'), false);
+        expect(linha.containsKey('sono_fim'), false);
+        expect(linha.containsKey('sono_offset_minutos'), false);
+        expect(linha['sono_leve_minutos'], 200);
+        expect(linha['sono_profundo_minutos'], 60);
+        expect(linha['minutos_sono'], 260);
+      });
+
+      test('configuracao ilegivel (lanca): NAO chuta janela - sem instantes, minutos seguem normais', () async {
+        stubJanelaSono(null, erro: Exception('rede'));
+        stubNoiteContinua();
+
+        final linha = (await service.sincronizarDeltaDiario()).linhas.single;
+
+        expect(linha.containsKey('sono_inicio'), false);
+        expect(linha.containsKey('sono_segmentos_qtd'), false);
+        expect(linha['minutos_sono'], 350);
+      });
+
+      test('configuracao ausente ou invalida: tambem nao chuta', () async {
+        for (final valor in <String?>[null, 'abc', '-3']) {
+          stubJanelaSono(valor);
+          stubNoiteContinua();
+          final linha = (await service.sincronizarDeltaDiario()).linhas.single;
+          expect(linha.containsKey('sono_inicio'), false, reason: 'valor: $valor');
+        }
+      });
+
+      test('dia sem sono nao consulta a configuracao nem ganha colunas de sono', () async {
+        when(
+          () => health.getHealthDataFromTypes(
+            types: any(named: 'types'),
+            startTime: any(named: 'startTime'),
+            endTime: any(named: 'endTime'),
+          ),
+        ).thenAnswer(
+          (_) async => [
+            _ponto(type: HealthDataType.STEPS, value: 4000, dateFrom: DateTime(2026, 7, 8, 9)),
+          ],
+        );
+
+        final linha = (await service.sincronizarDeltaDiario()).linhas.single;
+
+        expect(linha.containsKey('sono_inicio'), false);
+        expect(linha.containsKey('sono_segmentos_qtd'), false);
+        verifyNever(() => configBuilder.select(any()));
+      });
     });
 
     // R25 / decisao 70 ("alerta diagnostica; espelho descreve"): o app avulso

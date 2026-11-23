@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../dashboard/data/models/health_payload_model.dart';
+import '../models/favorita_model.dart' show TipoRefeicao;
 
 class ColetaDiariaResult {
   final bool success;
@@ -79,9 +80,17 @@ class ColetaDiariaRepository {
   /// ganho nenhum). [confianca] é o score agregado que
   /// [ConfirmacaoPratoController] já calculou (mínimo entre os itens
   /// confirmados).
+  ///
+  /// [tipoRefeicao] (N43 Etapa 2) vai na coluna dedicada
+  /// `coleta_diaria.tipo_refeicao` — NÃO dentro de [payloadRevisado], porque o
+  /// mesmo payload também é o `payload_jsonb` reaproveitável das favoritas e o
+  /// tipo da refeição consumida não deve vazar para lá. É obrigatório: o tipo
+  /// nunca é inferido (regra 23), o usuário sempre escolhe na tela de
+  /// confirmação (nos 4 métodos de registro, que convergem nela).
   Future<ColetaDiariaResult> gravarRefeicao({
     required Map<String, dynamic> payloadRevisado,
     required double? confianca,
+    required TipoRefeicao tipoRefeicao,
     DateTime? dataColeta,
   }) async {
     final usuarioId = _supabase.auth.currentUser?.id;
@@ -98,6 +107,7 @@ class ColetaDiariaRepository {
         'usuario_id': usuarioId,
         'atributo': _atributoRefeicao,
         'valor_jsonb': payloadRevisado,
+        'tipo_refeicao': tipoRefeicao.codigo,
         'origem': _origemOcrRefeicao,
         if (confianca != null) 'confianca': confianca,
         'data_coleta': _dateOnly(dataColeta ?? DateTime.now()),

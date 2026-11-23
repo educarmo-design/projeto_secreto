@@ -72,6 +72,14 @@ export interface Database {
           glicose_jejum: number | null;
           saturacao_oxigenio: number | null;
           temperatura_corporal: number | null;
+          /** N43 Etapa 2 — instante CRU (UTC) do início da noite consolidada. `null` = sem dado OU noite ambígua (`sono_segmentos_qtd` > 1). `20261123100000`. */
+          sono_inicio: string | null;
+          /** N43 Etapa 2 — instante CRU (UTC) do fim da noite consolidada; `null` junto com `sono_inicio`. */
+          sono_fim: string | null;
+          /** N43 Etapa 2 — deslocamento do fuso local (minutos a leste de UTC) vigente em `sono_inicio`. */
+          sono_offset_minutos: number | null;
+          /** N43 Etapa 2 — nº de segmentos após a união; > 1 = noite ambígua (instantes não gravados, regra 23). */
+          sono_segmentos_qtd: number | null;
           origem: string | null;
           criado_em: string;
           atualizado_em: string;

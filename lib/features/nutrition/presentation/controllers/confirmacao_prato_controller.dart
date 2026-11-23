@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 
 import '../../../../core/config/app_config.dart';
+import '../../../../core/i18n/i18n_manager.dart';
+import '../../data/models/favorita_model.dart' show TipoRefeicao;
 import '../../data/models/prato_refeicao_extracao_model.dart';
 import '../../data/repositories/coleta_diaria_repository.dart';
 
@@ -79,6 +81,12 @@ class ConfirmacaoPratoState {
   final List<ItemPratoNaoReconhecidoModel> itensNaoReconhecidos;
   final bool possivelFotoDeTela;
 
+  /// Tipo da refeição escolhido pelo usuário (N43 Etapa 2). `null` = ainda não
+  /// escolheu: o app NUNCA preenche por conta própria (nem pela hora do dia —
+  /// regra 23); só vem pré-selecionado quando a origem é uma favorita, que já
+  /// tem tipo. Obrigatório para registrar uma refeição nova.
+  final TipoRefeicao? tipoRefeicao;
+
   /// True enquanto [ConfirmacaoPratoController.confirmar] está em voo —
   /// bloqueia o botão Confirmar (nunca dois envios simultâneos da mesma
   /// refeição).
@@ -96,6 +104,7 @@ class ConfirmacaoPratoState {
     required this.itens,
     required this.itensNaoReconhecidos,
     required this.possivelFotoDeTela,
+    this.tipoRefeicao,
     this.salvando = false,
     this.erroSalvar,
     this.debugDetalheErroSalvar,
@@ -127,6 +136,7 @@ class ConfirmacaoPratoState {
   ConfirmacaoPratoState copyWith({
     List<ItemPratoEditavel>? itens,
     List<ItemPratoNaoReconhecidoModel>? itensNaoReconhecidos,
+    TipoRefeicao? tipoRefeicao,
     bool? salvando,
     String? erroSalvar,
     bool limparErroSalvar = false,
@@ -136,6 +146,7 @@ class ConfirmacaoPratoState {
       itens: itens ?? this.itens,
       itensNaoReconhecidos: itensNaoReconhecidos ?? this.itensNaoReconhecidos,
       possivelFotoDeTela: possivelFotoDeTela,
+      tipoRefeicao: tipoRefeicao ?? this.tipoRefeicao,
       salvando: salvando ?? this.salvando,
       erroSalvar: limparErroSalvar ? null : (erroSalvar ?? this.erroSalvar),
       debugDetalheErroSalvar:
@@ -154,6 +165,7 @@ class ConfirmacaoPratoController extends ValueNotifier<ConfirmacaoPratoState> {
     PratoRefeicaoExtracaoModel extracao, {
     ColetaDiariaRepository? repositorio,
     this.aoConfirmar,
+    TipoRefeicao? tipoRefeicaoInicial,
   })  : _repositorio = repositorio ?? ColetaDiariaRepository(),
         super(
           ConfirmacaoPratoState(
@@ -167,6 +179,7 @@ class ConfirmacaoPratoController extends ValueNotifier<ConfirmacaoPratoState> {
             ],
             itensNaoReconhecidos: extracao.itensNaoReconhecidos,
             possivelFotoDeTela: extracao.possivelFotoDeTela,
+            tipoRefeicao: tipoRefeicaoInicial,
           ),
         ) {
     // DIAGNÓSTICO 20260825_0007 (instrumentação temporária, ver relatório)
@@ -210,6 +223,12 @@ class ConfirmacaoPratoController extends ValueNotifier<ConfirmacaoPratoState> {
   /// remover ([remover]), não um efeito colateral de decrementar demais.
   static const double _quantidadeMinima = 0.5;
   static const double _passo = 0.5;
+
+  /// Escolha explícita do tipo da refeição (N43 Etapa 2) — limpa o aviso de
+  /// "tipo obrigatório" se ele estava na tela.
+  void selecionarTipo(TipoRefeicao tipo) {
+    value = value.copyWith(tipoRefeicao: tipo, limparErroSalvar: true);
+  }
 
   void incrementar(int chave) => _ajustarQuantidade(chave, _passo);
 
@@ -380,8 +399,22 @@ class ConfirmacaoPratoController extends ValueNotifier<ConfirmacaoPratoState> {
   /// sucesso e volta, ou deixa o usuário tentar de novo. Bloqueia envios
   /// concorrentes ([value.salvando]) e recusa confirmar um prato vazio
   /// (nada para gravar).
+  ///
+  /// N43 Etapa 2 (regra 23): ao registrar uma refeição NOVA (sem
+  /// [aoConfirmar]) o tipo é obrigatório — sem ele, em vez de gravar com um
+  /// tipo chutado, mostra o aviso na tela e não grava nada. Editar o conteúdo
+  /// de uma favorita ([aoConfirmar] não nulo) não tem tipo de refeição
+  /// consumida, então não exige.
   Future<bool> confirmar() async {
     if (value.salvando || value.itens.isEmpty) return false;
+
+    final tipo = value.tipoRefeicao;
+    if (aoConfirmar == null && tipo == null) {
+      value = value.copyWith(
+        erroSalvar: i18n.tr('confirmacao_prato.tipo_refeicao_obrigatorio'),
+      );
+      return false;
+    }
 
     value = value.copyWith(salvando: true, limparErroSalvar: true);
 
@@ -390,6 +423,7 @@ class ConfirmacaoPratoController extends ValueNotifier<ConfirmacaoPratoState> {
         : await _repositorio.gravarRefeicao(
             payloadRevisado: payloadRevisado(),
             confianca: value.confiancaMinima,
+            tipoRefeicao: tipo!,
           );
 
     if (!resultado.success) {

@@ -155,6 +155,7 @@ void main() {
     when(() => coletaDiariaRepository.gravarRefeicao(
           payloadRevisado: any(named: 'payloadRevisado'),
           confianca: any(named: 'confianca'),
+          tipoRefeicao: any(named: 'tipoRefeicao'),
         )).thenAnswer((_) async => const ColetaDiariaResult(success: true));
 
     late bool? resultado;
@@ -187,6 +188,7 @@ void main() {
     verifyNever(() => coletaDiariaRepository.gravarRefeicao(
           payloadRevisado: any(named: 'payloadRevisado'),
           confianca: any(named: 'confianca'),
+          tipoRefeicao: any(named: 'tipoRefeicao'),
         ));
 
     await tester.tap(find.text('Confirmar'));
@@ -194,9 +196,12 @@ void main() {
     await tester.pump(const Duration(milliseconds: 1200)); // mesmo delay de UX pós-sucesso
     await tester.pumpAndSettle();
 
+    // N43 Etapa 2: o tipo da favorita chega pré-selecionado e é o que grava,
+    // sem o usuário ter que tocar no seletor.
     verify(() => coletaDiariaRepository.gravarRefeicao(
           payloadRevisado: any(named: 'payloadRevisado'),
           confianca: 0.9,
+          tipoRefeicao: _favoritaEditavel().tipoRefeicao,
         )).called(1);
     expect(resultado, isTrue);
   });

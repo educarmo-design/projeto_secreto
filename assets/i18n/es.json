@@ -969,6 +969,8 @@
     "tipo_refeicao_almoco": "Almuerzo",
     "tipo_refeicao_lanche": "Merienda",
     "tipo_refeicao_jantar": "Cena",
+    "tipo_refeicao_label": "Tipo de comida",
+    "tipo_refeicao_obrigatorio": "Elige el tipo de comida (desayuno, almuerzo, merienda o cena) para registrarla.",
     "resolver_button": "Resolver",
     "peso_com_unidade": "Peso ({{unidade}})",
     "resolver_item_title": "¿Cuál fue la medida?",
