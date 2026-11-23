@@ -355,15 +355,23 @@ class CameraCaptureController extends ValueNotifier<CameraCaptureState> {
         // tem prioridade em QUALQUER status, não só 4xx. "Servidor ocupado"
         // só aparece sem mensagem do backend E status genuinamente 503/504
         // (indisponibilidade real de infraestrutura) — `extract-metric-photo`
-        // hoje nunca emite esses dois status pelo próprio código (só
-        // 500/502/429), então isto fica reservado pra falha de plataforma
+        // hoje só emite 503/504 por falha de plataforma (o próprio código
+        // usa 500/502/429/402/504), então isto fica reservado pra falha de plataforma
         // acima da função (ex.: gateway do Supabase sobrecarregado).
         // Outro 5xx sem mensagem (ex.: 500 cru) vira "erro no servidor" —
         // real, mas não finge saber a causa.
+        //
+        // N45 (decisão 93, R44): HTTP 402 = saldo/faturamento do Gemini
+        // esgotado. Mensagem PRÓPRIA (i18n), com prioridade sobre qualquer
+        // outra — nunca "servidor ocupado" nem "erro no servidor" (Regras
+        // 15/23). A tela permanece aberta com a mensagem (estado de erro,
+        // sem fechar nem navegar — Regra 25).
         final erroBackend = _extrairMensagemErroBackend(response.body);
         final ehServidorGenuinamenteOcupado =
             response.statusCode == 503 || response.statusCode == 504;
-        final mensagemAmigavel = erroBackend ??
+        final mensagemAmigavel = response.statusCode == 402
+            ? i18n.tr('dashboard.camera_saldo_ia_indisponivel')
+            : erroBackend ??
             (ehServidorGenuinamenteOcupado
                 ? i18n.tr('dashboard.camera_upload_error')
                 : response.statusCode >= 500

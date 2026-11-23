@@ -12,10 +12,12 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { lerChaveSecreta } from '../_shared/chaves_supabase.ts';
+import { registrarIncidenteSaldoGemini } from '../_shared/incidente_saldo_gemini.ts';
 
 const CORS_HEADERS: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-request-id',
+  'Access-Control-Expose-Headers': 'x-request-id',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
@@ -85,6 +87,20 @@ class ErroHttp extends Error {
   }
 }
 
+/// N45 (decisão 93, R44) — HTTP 402 do Gemini: saldo pré-pago esgotado ou
+/// pagamento pendente. Não é retentado e chega ao app com mensagem própria
+/// (nunca "erro de servidor" genérico — Regras 15 e 23).
+class ErroSaldoGemini extends ErroHttp {
+  constructor(mensagem: string) {
+    super(402, mensagem);
+  }
+}
+
+// Texto para o USUÁRIO FINAL: neutro, sem citar faturamento (a causa vai só
+// para o admin via `incidente_gemini_402`) e sem fingir servidor ocupado.
+const MENSAGEM_SALDO_GEMINI_ESGOTADO =
+  'O reconhecimento automático por IA está temporariamente indisponível no momento. Você pode registrar manualmente ou usar suas refeições favoritas.';
+
 interface SearchFoodRequest {
   query: string;
 }
@@ -153,6 +169,9 @@ export function criarChamadorEmbeddingReal(apiKey: string, timeoutMs = TIMEOUT_E
 
     if (!resposta.ok) {
       const corpoErro = await resposta.text();
+      if (resposta.status === 402) {
+        throw new ErroSaldoGemini(`Gemini embedContent respondeu 402 (saldo/faturamento): ${corpoErro.slice(0, 300)}`);
+      }
       throw new ErroHttp(502, `Gemini embedContent falhou (HTTP ${resposta.status}): ${corpoErro}`);
     }
 
@@ -209,10 +228,36 @@ export interface SupabaseAdminLike {
 interface HandlerDeps {
   supabaseAdmin?: SupabaseAdminLike;
   chamarEmbedding?: ChamadorEmbedding;
+  /// N45 — sinaliza o admin (Painel Web) num 402. Injetável para teste.
+  registrarIncidenteSaldo?: () => Promise<unknown>;
 }
 
 export function createHandler(deps: HandlerDeps = {}) {
+  // Regra 22 — wrapper fino: log de CONCLUSÃO (duração, status, tamanho do
+  // corpo) + eco do X-Request-Id, sem importar qual `return` interno saiu.
   return async function handleRequest(req: Request): Promise<Response> {
+    const inicio = Date.now();
+    const resposta = await processarRequest(req);
+    const duracaoMs = Date.now() - inicio;
+    let tamanhoCorpo = 'desconhecido';
+    try {
+      tamanhoCorpo = String((await resposta.clone().text()).length);
+    } catch {
+      // Best-effort — o log nunca derruba a resposta real.
+    }
+    const requestId = req.headers.get('X-Request-Id') ?? crypto.randomUUID();
+    console.log(
+      `[search-food] CONCLUSÃO: request_id=${requestId} duracao=${duracaoMs}ms status=${resposta.status} tamanho_corpo=${tamanhoCorpo}bytes`,
+    );
+    try {
+      resposta.headers.set('X-Request-Id', requestId);
+    } catch {
+      // Headers imutáveis — o log acima já carrega o id.
+    }
+    return resposta;
+  };
+
+  async function processarRequest(req: Request): Promise<Response> {
     if (req.method === 'OPTIONS') {
       return new Response('ok', { headers: CORS_HEADERS });
     }
@@ -358,6 +403,13 @@ export function createHandler(deps: HandlerDeps = {}) {
 
       return jsonResponse({ results: data ?? [], cache_hit: false }, 200);
     } catch (erro) {
+      if (erro instanceof ErroSaldoGemini) {
+        console.error('search-food:', erro.message);
+        // N45: sinal persistido para o admin (best-effort, nunca lança).
+        await (deps.registrarIncidenteSaldo ??
+          (() => registrarIncidenteSaldoGemini(Deno.env.get('SUPABASE_URL'), lerChaveSecreta())))();
+        return jsonResponse({ error: MENSAGEM_SALDO_GEMINI_ESGOTADO }, 402);
+      }
       if (erro instanceof ErroHttp) {
         return jsonResponse({ error: erro.message }, erro.status);
       }

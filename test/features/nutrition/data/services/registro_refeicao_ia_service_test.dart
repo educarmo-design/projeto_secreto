@@ -104,6 +104,46 @@ void main() {
       );
     });
 
+    // N45 (decisão 93, R44): HTTP 402 = saldo/faturamento do Gemini. Mensagem
+    // própria, uma única chamada (o app nunca retenta) e jamais "servidor
+    // ocupado" nem "erro no servidor" (Regras 15 e 23).
+    test('402 vira mensagem neutra (sem faturamento, sem "ocupado"), com 1 única chamada', () async {
+      var chamadas = 0;
+      final client = MockClient((req) async {
+        chamadas++;
+        return http.Response(jsonEncode({'error': 'texto qualquer do backend'}), 402);
+      });
+      final service = RegistroRefeicaoIaService(httpClient: client);
+
+      await expectLater(
+        service.interpretarTexto(descricao: 'x', endpoint: endpoint),
+        throwsA(
+          isA<RegistroRefeicaoIaException>()
+              .having((e) => e.mensagemAmigavel, 'mensagemAmigavel', RegistroRefeicaoIaService.mensagemSaldoIaIndisponivel)
+              .having((e) => e.mensagemAmigavel.toLowerCase().contains('ocupado'), 'diz ocupado', false)
+              .having((e) => e.mensagemAmigavel.toLowerCase().contains('faturamento'), 'cita faturamento', false)
+              .having((e) => e.mensagemAmigavel.contains('favoritas'), 'oferece favoritas', true),
+        ),
+      );
+      expect(chamadas, 1);
+    });
+
+    test('402 com corpo vazio também usa a mensagem própria (não cai em "erro no servidor")', () async {
+      final client = MockClient((req) async => http.Response('', 402));
+      final service = RegistroRefeicaoIaService(httpClient: client);
+
+      await expectLater(
+        service.interpretarTexto(descricao: 'x', endpoint: endpoint),
+        throwsA(
+          isA<RegistroRefeicaoIaException>().having(
+            (e) => e.mensagemAmigavel,
+            'mensagemAmigavel',
+            RegistroRefeicaoIaService.mensagemSaldoIaIndisponivel,
+          ),
+        ),
+      );
+    });
+
     test('timeout do cliente nunca vira "servidor ocupado" — mensagem de tempo esgotado', () async {
       final client = MockClient((req) async {
         // Nunca resolve dentro do timeout curto injetado abaixo — força o

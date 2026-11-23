@@ -378,3 +378,51 @@ Deno.test('criarChamadorEmbeddingReal: timeout vira ErroHttp 504 (não trava esp
     restaurar();
   }
 });
+
+// N45 (decisão 93, R44) — HTTP 402 do Gemini (saldo/faturamento): o app
+// precisa de uma resposta própria, nunca um "erro ao buscar" genérico.
+Deno.test('N45 criarChamadorEmbeddingReal: 402 vira HTTP 402 no handler, com mensagem neutra, incidente para o admin e eco do X-Request-Id', async () => {
+  const { admin } = fakeSupabaseAdmin({ usuarioAutenticado: USUARIO });
+  let chamadas = 0;
+  const restaurar = stubFetch((() => {
+    chamadas++;
+    return Promise.resolve(
+      new Response('{"error":{"code":402,"status":"PAYMENT_REQUIRED"}}', { status: 402 }),
+    );
+  }) as typeof fetch);
+
+  try {
+    Deno.env.set('GEMINI_API_KEY', 'fake-key');
+    let incidentes = 0;
+    const handler = createHandler({
+      supabaseAdmin: admin,
+      registrarIncidenteSaldo: () => {
+        incidentes++;
+        return Promise.resolve(true);
+      },
+    });
+    const resposta = await handler(requisicao({ query: 'arroz' }, { 'X-Request-Id': 'req-n45-sf' }));
+
+    assertEquals(resposta.status, 402);
+    const corpo = await resposta.json();
+    assertStringIncludes(corpo.error, 'indisponível');
+    assertEquals(/faturamento|cr[eé]dito|saldo/i.test(corpo.error), false); // causa só para o admin
+    assertEquals(/ocupado/i.test(corpo.error), false);
+    assertEquals(incidentes, 1);
+    assertEquals(resposta.headers.get('X-Request-Id'), 'req-n45-sf');
+    assertEquals(chamadas, 1); // sem retry
+  } finally {
+    Deno.env.delete('GEMINI_API_KEY');
+    restaurar();
+  }
+});
+
+Deno.test('N45 handler: toda resposta ganha X-Request-Id (Regra 22)', async () => {
+  const { admin } = fakeSupabaseAdmin({ usuarioAutenticado: USUARIO });
+  const handler = createHandler({ supabaseAdmin: admin });
+
+  const resposta = await handler(new Request('http://localhost/search-food', { method: 'GET' }));
+
+  assertEquals(resposta.status, 405);
+  assertEquals((resposta.headers.get('X-Request-Id') ?? '').length > 0, true);
+});

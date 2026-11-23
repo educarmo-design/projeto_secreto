@@ -53,12 +53,14 @@
 // é 100% reproduzível a partir da tabela do banco.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { lerChavePublicavel } from '../_shared/chaves_supabase.ts';
+import { lerChavePublicavel, lerChaveSecreta } from '../_shared/chaves_supabase.ts';
+import { registrarIncidenteSaldoGemini } from '../_shared/incidente_saldo_gemini.ts';
 
 const CORS_HEADERS: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers':
-    'authorization, x-client-info, apikey, content-type, x-tipo-aparelho, x-image-mime',
+    'authorization, x-client-info, apikey, content-type, x-tipo-aparelho, x-image-mime, x-request-id',
+  'Access-Control-Expose-Headers': 'x-request-id',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
@@ -921,6 +923,9 @@ interface HandlerDeps {
   catalogoAlimentos?: CatalogoAlimentosLike;
   chamarEmbedding?: ChamadorEmbedding;
   buscaSemantica?: BuscaSemanticaLike;
+  /// N45 — sinaliza o admin (Painel Web) num 402. Injetável para teste; em
+  /// produção grava `incidente_gemini_402` em `configuracoes_sistema`.
+  registrarIncidenteSaldo?: () => Promise<unknown>;
 }
 
 // Exportada para os testes de `criarChamadorGeminiReal`/
@@ -2130,6 +2135,25 @@ class ErroCotaGemini extends ErroHttp {
   }
 }
 
+/// N45 (decisão 93, risco R44) — HTTP 402 do Gemini: saldo pré-pago esgotado
+/// ou pagamento pendente. O saldo pertence à CONTA DE FATURAMENTO, não ao
+/// modelo: CORE e LITE falham exatamente igual. Por isso este erro nunca é
+/// retentado (`criarChamadorGeminiReal`) e nunca aciona o fallback de modelo
+/// (`criarChamadorGeminiComFallback`), e chega ao cliente com mensagem
+/// própria — nunca "Servidor ocupado" nem "Erro interno" (Regras 15 e 23).
+export class ErroSaldoGemini extends ErroHttp {
+  constructor(mensagem: string) {
+    super(402, mensagem);
+  }
+}
+
+/// Texto único (backend) do 402 para o USUÁRIO FINAL — neutro, sem citar
+/// faturamento (a causa vai só para o admin, via `incidente_gemini_402`) e
+/// sem fingir servidor ocupado nem falha de rede (Regras 15 e 23). O app
+/// Flutter tem a própria cópia i18n para o caso de a resposta chegar sem corpo.
+const MENSAGEM_SALDO_GEMINI_ESGOTADO =
+  'O reconhecimento automático por IA está temporariamente indisponível no momento. Você pode registrar manualmente ou usar suas refeições favoritas.';
+
 // Exportada só para o teste de regressão do bug de 22/jul (modelo no
 // endpoint + no texto do erro) — que stuba `fetch` global. Nenhum outro
 // chamador deveria usar isto fora do próprio handler (que usa
@@ -2250,6 +2274,14 @@ export function criarChamadorGeminiReal(
         );
       }
 
+      // 402 = saldo/faturamento (N45) — falha IMEDIATA, 1 única tentativa:
+      // retentar não faz o saldo voltar e só atrasa a resposta honesta.
+      if (resposta.status === 402) {
+        throw new ErroSaldoGemini(
+          `Gemini (modelo "${modelo}") respondeu 402 (saldo/faturamento): ${detalhe.slice(0, 300)}`,
+        );
+      }
+
       ultimoErro = new ErroHttp(
         502,
         `Gemini (modelo "${modelo}") respondeu ${resposta.status}: ${detalhe.slice(0, 300)}`,
@@ -2321,7 +2353,8 @@ export function criarChamadorGeminiComFallback(
     try {
       return await chamarPrimario(params);
     } catch (erro) {
-      if (!(erro instanceof ErroHttp) || !temFallback) {
+      // N45: 402 nunca degrada pro LITE — o saldo é da conta, o LITE falharia igual.
+      if (!(erro instanceof ErroHttp) || !temFallback || erro instanceof ErroSaldoGemini) {
         throw erro;
       }
       const motivo = erro instanceof ErroCotaGemini ? 'cota esgotada' : `falha (HTTP ${erro.status})`;
@@ -2377,6 +2410,9 @@ export function criarChamadorEmbeddingReal(apiKey: string, timeoutMs = TIMEOUT_E
 
     if (!resposta.ok) {
       const corpoErro = await resposta.text();
+      if (resposta.status === 402) {
+        throw new ErroSaldoGemini(`Gemini embedContent respondeu 402 (saldo/faturamento): ${corpoErro.slice(0, 300)}`);
+      }
       throw new ErroHttp(502, `Gemini embedContent falhou (HTTP ${resposta.status}): ${corpoErro}`);
     }
 
@@ -2743,6 +2779,13 @@ export function createHandler(deps: HandlerDeps = {}) {
         // enganoso pra uma cota diária — não é uma falha que alguns
         // segundos resolvem.
         console.error('extract-metric-photo:', erro.message);
+        // N45: 402 → sinal operacional persistido, visível só ao admin no
+        // Painel Web. Best-effort (nunca lança); aguardado para o runtime
+        // não encerrar antes da gravação.
+        if (erro.status === 402) {
+          await (deps.registrarIncidenteSaldo ??
+            (() => registrarIncidenteSaldoGemini(Deno.env.get('SUPABASE_URL'), lerChaveSecreta())))();
+        }
         // RELATÓRIO 20260902_0001 — 504 é o status real agora quando TODAS
         // as tentativas abortam por timeout (`TIMEOUT_POR_TENTATIVA_GEMINI_MS`
         // em `criarChamadorGeminiReal`); mensagem própria, honesta sobre a
@@ -2751,7 +2794,9 @@ export function createHandler(deps: HandlerDeps = {}) {
         // já trata 504 como "servidor ocupado" — agora esse rótulo fica
         // correto de verdade, não mais um fantasma.
         const mensagem =
-          erro.status === 429
+          erro.status === 402
+            ? MENSAGEM_SALDO_GEMINI_ESGOTADO
+            : erro.status === 429
             ? 'Limite diário de análises por IA atingido. Tente novamente amanhã, ou digite a refeição manualmente.'
             : erro.status === 502
               ? 'Falha ao analisar a imagem.'
@@ -2784,9 +2829,17 @@ export function createHandler(deps: HandlerDeps = {}) {
       // Best-effort — nunca deixa o log de diagnóstico derrubar a resposta
       // real que já está pronta pra sair.
     }
+    // Regra 22 — eco do X-Request-Id (o do cliente, ou um gerado aqui) no log
+    // e na resposta, para casar a linha do log com o relato de quem testou.
+    const requestId = req.headers.get('X-Request-Id') ?? crypto.randomUUID();
     console.log(
-      `[extract-metric-photo] CONCLUSÃO: duracao=${duracaoMs}ms status=${resposta.status} tamanho_corpo=${tamanhoCorpo}bytes`,
+      `[extract-metric-photo] CONCLUSÃO: request_id=${requestId} duracao=${duracaoMs}ms status=${resposta.status} tamanho_corpo=${tamanhoCorpo}bytes`,
     );
+    try {
+      resposta.headers.set('X-Request-Id', requestId);
+    } catch {
+      // Headers imutáveis — o log acima já carrega o id.
+    }
     return resposta;
   };
 }
@@ -3064,6 +3117,9 @@ async function processarPratoRefeicao(params: {
       itensFinais.push(...resolvidos);
       itensNaoReconhecidosFinais = aindaNaoReconhecidos;
     } catch (erro) {
+      // N45 / Regra 23: saldo esgotado NÃO é "busca ruim" — não degrada em
+      // silêncio; sobe pro handler, que responde 402 com a mensagem própria.
+      if (erro instanceof ErroSaldoGemini) throw erro;
       // Degradação graciosa: se busca semântica falhar, manter itens em "Não
       // reconhecidos" é melhor que derrubar a função. Log para debugging.
       console.error(

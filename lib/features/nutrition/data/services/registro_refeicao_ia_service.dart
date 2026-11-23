@@ -79,6 +79,12 @@ class RegistroRefeicaoIaService {
     );
   }
 
+  /// N45 — texto do HTTP 402 (saldo/faturamento do Gemini) para o usuário
+  /// final: neutro, sem citar faturamento (a causa vai só ao admin, no Painel
+  /// Web). Este serviço não usa i18n (as demais mensagens dele também são literais pt-BR).
+  static const mensagemSaldoIaIndisponivel =
+      'O reconhecimento automático por IA está temporariamente indisponível no momento. Você pode registrar manualmente ou usar suas refeições favoritas.';
+
   Future<PratoRefeicaoExtracaoModel> _chamar({
     required Uri endpoint,
     required Map<String, String> headers,
@@ -112,11 +118,18 @@ class RegistroRefeicaoIaService {
       // por exemplo, e o código antigo jogava isso fora pra mostrar
       // "servidor ocupado" sempre que via >=500. "Servidor ocupado" agora
       // só aparece sem mensagem do backend E status genuinamente 503/504.
+      //
+      // N45 (decisão 93, R44): HTTP 402 = saldo/faturamento do Gemini
+      // esgotado — mensagem própria, com prioridade sobre qualquer outra,
+      // nunca "servidor ocupado" (Regras 15/23). O controller mostra o erro
+      // sem fechar a tela (Regra 25).
       final erroBackend = _extrairMensagemErroBackend(response.body);
       final ehServidorGenuinamenteOcupado =
           response.statusCode == 503 || response.statusCode == 504;
       throw RegistroRefeicaoIaException(
-        mensagemAmigavel: erroBackend ??
+        mensagemAmigavel: response.statusCode == 402
+            ? mensagemSaldoIaIndisponivel
+            : erroBackend ??
             (ehServidorGenuinamenteOcupado
                 ? 'Servidor ocupado. Tente novamente em instantes.'
                 : response.statusCode >= 500

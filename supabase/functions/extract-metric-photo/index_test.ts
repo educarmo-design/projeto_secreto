@@ -27,6 +27,7 @@ import {
   criarChamadorGeminiReal,
   encontrarAlimento,
   ErroHttp,
+  ErroSaldoGemini,
   encontrarMedida,
   normalizarTexto,
   parseRespostaGemini,
@@ -2323,4 +2324,155 @@ Deno.test('criarChamadorGeminiComFallback: sem fallback (null), 5xx retenta o or
   } finally {
     restaurar();
   }
+});
+
+// N45 (decisão 93, R44) — HTTP 402 do Gemini: saldo pré-pago esgotado ou
+// pagamento pendente. O saldo é da CONTA DE FATURAMENTO: CORE e LITE falham
+// igual. Logo: 1 única tentativa, nunca fallback de modelo, erro próprio.
+const RESPOSTA_402 =
+  '{"error":{"code":402,"status":"PAYMENT_REQUIRED","message":"prepayment credits depleted"}}';
+
+Deno.test('N45 criarChamadorGeminiReal: 402 falha na 1ª tentativa, sem retry, com erro próprio (não 429/502)', async () => {
+  let chamadas = 0;
+  const restaurar = stubFetch((() => {
+    chamadas++;
+    return Promise.resolve(new Response(RESPOSTA_402, { status: 402 }));
+  }) as typeof fetch);
+
+  try {
+    const chamar = criarChamadorGeminiReal('fake-key', 'gemini-flash-latest');
+    let erro: unknown;
+    try {
+      await chamar({ base64: 'YQ==', mimeType: 'image/jpeg', systemPrompt: 'x', userText: 'y' });
+    } catch (e) {
+      erro = e;
+    }
+    assertEquals(erro instanceof ErroSaldoGemini, true);
+    assertEquals((erro as ErroHttp).status, 402);
+    assertStringIncludes((erro as Error).message, '402');
+    assertEquals(chamadas, 1); // nenhum retry — saldo não volta em segundos
+  } finally {
+    restaurar();
+  }
+});
+
+Deno.test('N45 criarChamadorGeminiComFallback: 402 no primário NÃO cai pro LITE (1 chamada só, modelo primário)', async () => {
+  const modelosChamados: string[] = [];
+  const restaurar = stubFetch(((url: string | URL | Request) => {
+    modelosChamados.push(String(url).match(/models\/([^:]+):/)?.[1] ?? '?');
+    return Promise.resolve(new Response(RESPOSTA_402, { status: 402 }));
+  }) as typeof fetch);
+
+  try {
+    const chamar = criarChamadorGeminiComFallback('fake-key', 'gemini-flash-latest', 'gemini-flash-lite-latest');
+    let erro: unknown;
+    try {
+      await chamar({ base64: 'YQ==', mimeType: 'image/jpeg', systemPrompt: 'x', userText: 'y' });
+    } catch (e) {
+      erro = e;
+    }
+    assertEquals(erro instanceof ErroSaldoGemini, true);
+    assertEquals((erro as ErroHttp).status, 402);
+    assertEquals(modelosChamados, ['gemini-flash-latest']); // LITE nunca chamado
+  } finally {
+    restaurar();
+  }
+});
+
+Deno.test('N45 criarChamadorGeminiComFallback: sem fallback configurado, 402 também é 1 tentativa só', async () => {
+  let chamadas = 0;
+  const restaurar = stubFetch((() => {
+    chamadas++;
+    return Promise.resolve(new Response(RESPOSTA_402, { status: 402 }));
+  }) as typeof fetch);
+
+  try {
+    const chamar = criarChamadorGeminiComFallback('fake-key', 'gemini-flash-lite-latest', null);
+    let erro: unknown;
+    try {
+      await chamar({ base64: 'YQ==', mimeType: 'image/jpeg', systemPrompt: 'x', userText: 'y' });
+    } catch (e) {
+      erro = e;
+    }
+    assertEquals((erro as ErroHttp).status, 402);
+    assertEquals(chamadas, 1); // com 3 tentativas disponíveis, ainda assim só 1
+  } finally {
+    restaurar();
+  }
+});
+
+Deno.test('N45 criarChamadorEmbeddingReal: 402 vira erro próprio de saldo', async () => {
+  const restaurar = stubFetch((() => Promise.resolve(new Response(RESPOSTA_402, { status: 402 }))) as typeof fetch);
+  try {
+    let erro: unknown;
+    try {
+      await criarChamadorEmbeddingReal('fake-key')('arroz');
+    } catch (e) {
+      erro = e;
+    }
+    assertEquals(erro instanceof ErroSaldoGemini, true);
+    assertEquals((erro as ErroHttp).status, 402);
+  } finally {
+    restaurar();
+  }
+});
+
+Deno.test('N45 handler: 402 do Gemini -> HTTP 402 com mensagem neutra (sem faturamento, nunca "ocupado") e incidente registrado para o admin', async () => {
+  let incidentes = 0;
+  const res = await createHandler({
+    autenticador: AUTH_OK,
+    chamarGemini: () => Promise.reject(new ErroSaldoGemini('Gemini respondeu 402')),
+    registrarIncidenteSaldo: () => {
+      incidentes++;
+      return Promise.resolve(true);
+    },
+  })(reqComImagem({ 'X-Tipo-Aparelho': 'glicosimetro', 'X-Request-Id': 'req-n45-teste' }));
+
+  assertEquals(res.status, 402);
+  const body = await res.json();
+  assertStringIncludes(body.error, 'indisponível');
+  assertStringIncludes(body.error, 'favoritas');
+  assertEquals(/faturamento|cr[eé]dito|saldo/i.test(body.error), false); // causa só para o admin
+  assertEquals(/ocupado|rede|internet/i.test(body.error), false);
+  assertEquals(incidentes, 1);
+  // Regra 22: eco do X-Request-Id na resposta.
+  assertEquals(res.headers.get('X-Request-Id'), 'req-n45-teste');
+});
+
+Deno.test('N45 handler: prato com 402 também responde 402 (mesmo caminho dos 4 métodos de refeição)', async () => {
+  const res = await createHandler({
+    autenticador: AUTH_OK,
+    chamarGemini: () => Promise.reject(new ErroSaldoGemini('Gemini respondeu 402')),
+    catalogoAlimentos: CATALOGO_FALSO,
+    registrarIncidenteSaldo: () => Promise.resolve(true),
+  })(reqComImagem({ 'X-Tipo-Aparelho': 'pratoRefeicao' }));
+
+  assertEquals(res.status, 402);
+  assertStringIncludes((await res.json()).error, 'indisponível');
+});
+
+Deno.test('N45 handler: resposta sem X-Request-Id do cliente ganha um gerado (Regra 22)', async () => {
+  const res = await createHandler({
+    autenticador: AUTH_OK,
+    chamarGemini: geminiRespondendo(
+      '{"legivel":false,"valor_mg_dl":null,"confianca":0.2,"possivel_foto_de_tela":false,"motivo":"x"}',
+    ),
+  })(reqComImagem({ 'X-Tipo-Aparelho': 'glicosimetro' }));
+
+  assertEquals((res.headers.get('X-Request-Id') ?? '').length > 0, true);
+});
+
+Deno.test('N45 handler: erro que NÃO é 402 (502) não registra incidente de saldo', async () => {
+  let incidentes = 0;
+  const res = await createHandler({
+    autenticador: AUTH_OK,
+    chamarGemini: () => Promise.reject(new ErroHttp(502, 'falha qualquer')),
+    registrarIncidenteSaldo: () => {
+      incidentes++;
+      return Promise.resolve(true);
+    },
+  })(reqComImagem({ 'X-Tipo-Aparelho': 'glicosimetro' }));
+
+  assertEquals(res.status, 502);
+  assertEquals(incidentes, 0);
 });
