@@ -162,7 +162,7 @@
     "camera_timeout_error": "Timed out waiting for the server. Please try again.",
     "camera_network_error": "Connection failed. Check your internet and try again.",
     "camera_client_error": "Couldn't send this photo. Please try again.",
-    "camera_saldo_ia_indisponivel": "The AI analysis service is temporarily unavailable due to a billing/credits issue on the platform. It is not a problem with your device or your account. You can log manually for now.",
+    "camera_saldo_ia_indisponivel": "Automatic AI recognition is temporarily unavailable right now. You can log manually or use your favorite meals.",
     "camera_parse_error": "Unexpected server response. Please try again.",
     "camera_no_data_extracted_error": "We couldn't identify anything readable in this photo. Try again with more light and focus.",
     "camera_unexpected_error": "An unexpected error occurred. Please try again.",

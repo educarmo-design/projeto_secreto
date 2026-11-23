@@ -68,7 +68,7 @@ jobs:
         with:
           deno-version: v2.x
       - name: Leitor de chaves compartilhado
-        run: deno test --allow-env supabase/functions/_shared/chaves_supabase_test.ts
+        run: deno test --allow-env supabase/functions/_shared/chaves_supabase_test.ts supabase/functions/_shared/incidente_saldo_gemini_test.ts
       - name: Cada função
         run: |
           set -e

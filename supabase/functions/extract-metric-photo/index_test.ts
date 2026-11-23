@@ -2417,16 +2417,24 @@ Deno.test('N45 criarChamadorEmbeddingReal: 402 vira erro próprio de saldo', asy
   }
 });
 
-Deno.test('N45 handler: 402 do Gemini -> HTTP 402 com mensagem própria de faturamento (nunca "ocupado")', async () => {
+Deno.test('N45 handler: 402 do Gemini -> HTTP 402 com mensagem neutra (sem faturamento, nunca "ocupado") e incidente registrado para o admin', async () => {
+  let incidentes = 0;
   const res = await createHandler({
     autenticador: AUTH_OK,
     chamarGemini: () => Promise.reject(new ErroSaldoGemini('Gemini respondeu 402')),
+    registrarIncidenteSaldo: () => {
+      incidentes++;
+      return Promise.resolve(true);
+    },
   })(reqComImagem({ 'X-Tipo-Aparelho': 'glicosimetro', 'X-Request-Id': 'req-n45-teste' }));
 
   assertEquals(res.status, 402);
   const body = await res.json();
-  assertStringIncludes(body.error, 'faturamento');
-  assertEquals(/ocupado/i.test(body.error), false);
+  assertStringIncludes(body.error, 'indisponível');
+  assertStringIncludes(body.error, 'favoritas');
+  assertEquals(/faturamento|cr[eé]dito|saldo/i.test(body.error), false); // causa só para o admin
+  assertEquals(/ocupado|rede|internet/i.test(body.error), false);
+  assertEquals(incidentes, 1);
   // Regra 22: eco do X-Request-Id na resposta.
   assertEquals(res.headers.get('X-Request-Id'), 'req-n45-teste');
 });
@@ -2436,10 +2444,11 @@ Deno.test('N45 handler: prato com 402 também responde 402 (mesmo caminho dos 4 
     autenticador: AUTH_OK,
     chamarGemini: () => Promise.reject(new ErroSaldoGemini('Gemini respondeu 402')),
     catalogoAlimentos: CATALOGO_FALSO,
+    registrarIncidenteSaldo: () => Promise.resolve(true),
   })(reqComImagem({ 'X-Tipo-Aparelho': 'pratoRefeicao' }));
 
   assertEquals(res.status, 402);
-  assertStringIncludes((await res.json()).error, 'faturamento');
+  assertStringIncludes((await res.json()).error, 'indisponível');
 });
 
 Deno.test('N45 handler: resposta sem X-Request-Id do cliente ganha um gerado (Regra 22)', async () => {
@@ -2451,4 +2460,19 @@ Deno.test('N45 handler: resposta sem X-Request-Id do cliente ganha um gerado (Re
   })(reqComImagem({ 'X-Tipo-Aparelho': 'glicosimetro' }));
 
   assertEquals((res.headers.get('X-Request-Id') ?? '').length > 0, true);
+});
+
+Deno.test('N45 handler: erro que NÃO é 402 (502) não registra incidente de saldo', async () => {
+  let incidentes = 0;
+  const res = await createHandler({
+    autenticador: AUTH_OK,
+    chamarGemini: () => Promise.reject(new ErroHttp(502, 'falha qualquer')),
+    registrarIncidenteSaldo: () => {
+      incidentes++;
+      return Promise.resolve(true);
+    },
+  })(reqComImagem({ 'X-Tipo-Aparelho': 'glicosimetro' }));
+
+  assertEquals(res.status, 502);
+  assertEquals(incidentes, 0);
 });

@@ -12,6 +12,7 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { lerChaveSecreta } from '../_shared/chaves_supabase.ts';
+import { registrarIncidenteSaldoGemini } from '../_shared/incidente_saldo_gemini.ts';
 
 const CORS_HEADERS: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
@@ -95,8 +96,10 @@ class ErroSaldoGemini extends ErroHttp {
   }
 }
 
+// Texto para o USUÁRIO FINAL: neutro, sem citar faturamento (a causa vai só
+// para o admin via `incidente_gemini_402`) e sem fingir servidor ocupado.
 const MENSAGEM_SALDO_GEMINI_ESGOTADO =
-  'O serviço de análise por IA está temporariamente indisponível por uma pendência de faturamento/créditos da plataforma. Não é um problema no seu aparelho nem na sua conta. Você pode registrar manualmente por enquanto.';
+  'O reconhecimento automático por IA está temporariamente indisponível no momento. Você pode registrar manualmente ou usar suas refeições favoritas.';
 
 interface SearchFoodRequest {
   query: string;
@@ -225,6 +228,8 @@ export interface SupabaseAdminLike {
 interface HandlerDeps {
   supabaseAdmin?: SupabaseAdminLike;
   chamarEmbedding?: ChamadorEmbedding;
+  /// N45 — sinaliza o admin (Painel Web) num 402. Injetável para teste.
+  registrarIncidenteSaldo?: () => Promise<unknown>;
 }
 
 export function createHandler(deps: HandlerDeps = {}) {
@@ -400,6 +405,9 @@ export function createHandler(deps: HandlerDeps = {}) {
     } catch (erro) {
       if (erro instanceof ErroSaldoGemini) {
         console.error('search-food:', erro.message);
+        // N45: sinal persistido para o admin (best-effort, nunca lança).
+        await (deps.registrarIncidenteSaldo ??
+          (() => registrarIncidenteSaldoGemini(Deno.env.get('SUPABASE_URL'), lerChaveSecreta())))();
         return jsonResponse({ error: MENSAGEM_SALDO_GEMINI_ESGOTADO }, 402);
       }
       if (erro instanceof ErroHttp) {

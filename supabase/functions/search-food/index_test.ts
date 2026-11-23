@@ -381,7 +381,7 @@ Deno.test('criarChamadorEmbeddingReal: timeout vira ErroHttp 504 (não trava esp
 
 // N45 (decisão 93, R44) — HTTP 402 do Gemini (saldo/faturamento): o app
 // precisa de uma resposta própria, nunca um "erro ao buscar" genérico.
-Deno.test('N45 criarChamadorEmbeddingReal: 402 vira HTTP 402 no handler, com mensagem de faturamento e eco do X-Request-Id', async () => {
+Deno.test('N45 criarChamadorEmbeddingReal: 402 vira HTTP 402 no handler, com mensagem neutra, incidente para o admin e eco do X-Request-Id', async () => {
   const { admin } = fakeSupabaseAdmin({ usuarioAutenticado: USUARIO });
   let chamadas = 0;
   const restaurar = stubFetch((() => {
@@ -393,13 +393,22 @@ Deno.test('N45 criarChamadorEmbeddingReal: 402 vira HTTP 402 no handler, com men
 
   try {
     Deno.env.set('GEMINI_API_KEY', 'fake-key');
-    const handler = createHandler({ supabaseAdmin: admin });
+    let incidentes = 0;
+    const handler = createHandler({
+      supabaseAdmin: admin,
+      registrarIncidenteSaldo: () => {
+        incidentes++;
+        return Promise.resolve(true);
+      },
+    });
     const resposta = await handler(requisicao({ query: 'arroz' }, { 'X-Request-Id': 'req-n45-sf' }));
 
     assertEquals(resposta.status, 402);
     const corpo = await resposta.json();
-    assertStringIncludes(corpo.error, 'faturamento');
+    assertStringIncludes(corpo.error, 'indisponível');
+    assertEquals(/faturamento|cr[eé]dito|saldo/i.test(corpo.error), false); // causa só para o admin
     assertEquals(/ocupado/i.test(corpo.error), false);
+    assertEquals(incidentes, 1);
     assertEquals(resposta.headers.get('X-Request-Id'), 'req-n45-sf');
     assertEquals(chamadas, 1); // sem retry
   } finally {

@@ -79,10 +79,11 @@ class RegistroRefeicaoIaService {
     );
   }
 
-  /// N45 — texto do HTTP 402 (saldo/faturamento do Gemini). Este serviço não
-  /// usa i18n (as demais mensagens dele também são literais pt-BR).
+  /// N45 — texto do HTTP 402 (saldo/faturamento do Gemini) para o usuário
+  /// final: neutro, sem citar faturamento (a causa vai só ao admin, no Painel
+  /// Web). Este serviço não usa i18n (as demais mensagens dele também são literais pt-BR).
   static const mensagemSaldoIaIndisponivel =
-      'O serviço de análise por IA está temporariamente indisponível por uma pendência de faturamento/créditos da plataforma. Não é um problema no seu aparelho nem na sua conta. Você pode registrar manualmente por enquanto.';
+      'O reconhecimento automático por IA está temporariamente indisponível no momento. Você pode registrar manualmente ou usar suas refeições favoritas.';
 
   Future<PratoRefeicaoExtracaoModel> _chamar({
     required Uri endpoint,

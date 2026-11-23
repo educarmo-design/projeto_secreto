@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import { Menu } from 'lucide-react';
 import type { ProfissionalAutenticado } from '@/core/supabase';
+import { AlertaSaldoGemini } from '@/features/admin/components/AlertaSaldoGemini';
 import { Sidebar } from './Sidebar';
 
 interface DashboardLayoutProps {
@@ -53,6 +54,8 @@ export function DashboardLayout({ profissional, onSignOut }: DashboardLayoutProp
 
         <main className="flex-1 overflow-y-auto p-4 md:p-8">
           <div className="mx-auto w-full max-w-6xl">
+            {/* N45: aviso de HTTP 402 do Gemini — só admin (e o RLS só entrega a linha a admin). */}
+            {profissional.isAdmin && <AlertaSaldoGemini />}
             <Outlet />
           </div>
         </main>

@@ -162,7 +162,7 @@
     "camera_timeout_error": "Tempo esgotado aguardando o servidor. Tente novamente.",
     "camera_network_error": "Falha de conexão. Verifique sua internet e tente novamente.",
     "camera_client_error": "Não foi possível enviar essa foto. Tente novamente.",
-    "camera_saldo_ia_indisponivel": "O serviço de análise por IA está temporariamente indisponível por uma pendência de faturamento/créditos da plataforma. Não é um problema no seu aparelho nem na sua conta. Você pode registrar manualmente por enquanto.",
+    "camera_saldo_ia_indisponivel": "O reconhecimento automático por IA está temporariamente indisponível no momento. Você pode registrar manualmente ou usar suas refeições favoritas.",
     "camera_parse_error": "Resposta inesperada do servidor. Tente novamente.",
     "camera_no_data_extracted_error": "Não conseguimos identificar nada legível nessa foto. Tente novamente com mais luz e foco.",
     "camera_unexpected_error": "Ocorreu um erro inesperado. Tente novamente.",

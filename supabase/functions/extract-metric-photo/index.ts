@@ -53,7 +53,8 @@
 // é 100% reproduzível a partir da tabela do banco.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { lerChavePublicavel } from '../_shared/chaves_supabase.ts';
+import { lerChavePublicavel, lerChaveSecreta } from '../_shared/chaves_supabase.ts';
+import { registrarIncidenteSaldoGemini } from '../_shared/incidente_saldo_gemini.ts';
 
 const CORS_HEADERS: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
@@ -922,6 +923,9 @@ interface HandlerDeps {
   catalogoAlimentos?: CatalogoAlimentosLike;
   chamarEmbedding?: ChamadorEmbedding;
   buscaSemantica?: BuscaSemanticaLike;
+  /// N45 — sinaliza o admin (Painel Web) num 402. Injetável para teste; em
+  /// produção grava `incidente_gemini_402` em `configuracoes_sistema`.
+  registrarIncidenteSaldo?: () => Promise<unknown>;
 }
 
 // Exportada para os testes de `criarChamadorGeminiReal`/
@@ -2143,10 +2147,12 @@ export class ErroSaldoGemini extends ErroHttp {
   }
 }
 
-/// Texto único (backend) do 402 — o app Flutter tem a própria cópia i18n para
-/// o caso de a resposta chegar sem corpo.
+/// Texto único (backend) do 402 para o USUÁRIO FINAL — neutro, sem citar
+/// faturamento (a causa vai só para o admin, via `incidente_gemini_402`) e
+/// sem fingir servidor ocupado nem falha de rede (Regras 15 e 23). O app
+/// Flutter tem a própria cópia i18n para o caso de a resposta chegar sem corpo.
 const MENSAGEM_SALDO_GEMINI_ESGOTADO =
-  'O serviço de análise por IA está temporariamente indisponível por uma pendência de faturamento/créditos da plataforma. Não é um problema no seu aparelho nem na sua conta. Você pode registrar manualmente por enquanto.';
+  'O reconhecimento automático por IA está temporariamente indisponível no momento. Você pode registrar manualmente ou usar suas refeições favoritas.';
 
 // Exportada só para o teste de regressão do bug de 22/jul (modelo no
 // endpoint + no texto do erro) — que stuba `fetch` global. Nenhum outro
@@ -2773,6 +2779,13 @@ export function createHandler(deps: HandlerDeps = {}) {
         // enganoso pra uma cota diária — não é uma falha que alguns
         // segundos resolvem.
         console.error('extract-metric-photo:', erro.message);
+        // N45: 402 → sinal operacional persistido, visível só ao admin no
+        // Painel Web. Best-effort (nunca lança); aguardado para o runtime
+        // não encerrar antes da gravação.
+        if (erro.status === 402) {
+          await (deps.registrarIncidenteSaldo ??
+            (() => registrarIncidenteSaldoGemini(Deno.env.get('SUPABASE_URL'), lerChaveSecreta())))();
+        }
         // RELATÓRIO 20260902_0001 — 504 é o status real agora quando TODAS
         // as tentativas abortam por timeout (`TIMEOUT_POR_TENTATIVA_GEMINI_MS`
         // em `criarChamadorGeminiReal`); mensagem própria, honesta sobre a
