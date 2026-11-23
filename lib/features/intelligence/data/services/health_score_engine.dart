@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../dashboard/data/models/health_payload_model.dart';
+import '../../../dashboard/data/services/health_sync_service.dart' show HealthSyncService;
 import '../../../gamification/models/gamification_models.dart' show LeagueType;
 
 /// ONDA 3 — Blindagem ANVISA (PRD Mestre §3/§5): [HealthScoreResult] is a
@@ -209,6 +210,9 @@ class HealthScoreEngine {
           .from('eventos_anomalias_saude')
           .select('id')
           .eq('usuario_id_anonimo', userId)
+          // R25: linhas históricas de FC não entram na pontuação (a FC é só
+          // espelhada no app avulso; a detecção foi desligada).
+          .neq('tipo_anomalia', HealthSyncService.tipoAnomaliaFcDesativado)
           .gte('detectado_em', desde.toIso8601String());
       return (response as List).length;
     } on PostgrestException catch (e) {
