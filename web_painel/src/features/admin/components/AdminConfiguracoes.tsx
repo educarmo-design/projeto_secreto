@@ -19,6 +19,12 @@ type EstadoTela = 'carregando' | 'sucesso' | 'erro';
  * tela edita a INFRAESTRUTURA genérica (qualquer par chave/valor), não
  * parâmetros de negócio específicos. As 2 linhas semeadas pela migration
  * (`manutencao_programada`, `idade_minima_anos`) são só exemplo/placeholder.
+ *
+ * N43 Etapa 2: desde `20261123100000` há também um parâmetro REAL aqui,
+ * `cliente_sono_uniao_segmentos_minutos` (minutos para unir segmentos de sono
+ * numa noite; lido pelo app). Chaves com prefixo `cliente_` são legíveis por
+ * qualquer usuário logado (policy `configuracoes_sistema_select_cliente`) —
+ * nunca guarde segredo nelas.
  */
 export function AdminConfiguracoes() {
   const [estado, setEstado] = useState<EstadoTela>('carregando');

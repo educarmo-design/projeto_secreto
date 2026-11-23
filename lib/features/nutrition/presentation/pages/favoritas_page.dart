@@ -32,9 +32,10 @@ String _rotuloTipo(TipoRefeicao tipo) {
 /// excluir). Regra 14: lista crua, sem card bonito.
 ///
 /// "Favorita salva com a medida customizada e volta pronta" (spec): usar
-/// uma favorita chama [ColetaDiariaRepository.gravarRefeicao] direto com
-/// [FavoritaModel.payloadJsonb] — sem recalcular nada, sem passar pela
-/// câmera/IA de novo.
+/// uma favorita abre a [ConfirmacaoPratoPage] com [FavoritaModel.payloadJsonb]
+/// como ponto de partida (RELATÓRIO 20260824_0003) — sem recalcular nada, sem
+/// passar pela câmera/IA de novo — e com o tipo da favorita já selecionado
+/// (N43 Etapa 2); quem grava em `coleta_diaria` é o [ConfirmacaoPratoController].
 class FavoritasPage extends StatefulWidget {
   const FavoritasPage({
     super.key,
@@ -116,7 +117,13 @@ class _FavoritasPageState extends State<FavoritasPage> {
       MaterialPageRoute(
         builder: (_) => ConfirmacaoPratoPage(
           extracao: extracao,
-          controller: ConfirmacaoPratoController(extracao, repositorio: _coletaDiariaRepository),
+          // N43 Etapa 2: o tipo que a favorita já tem chega pré-selecionado
+          // (o usuário ainda pode trocá-lo antes de confirmar).
+          controller: ConfirmacaoPratoController(
+            extracao,
+            repositorio: _coletaDiariaRepository,
+            tipoRefeicaoInicial: favorita.tipoRefeicao,
+          ),
           favoritasRepository: _favoritasRepository,
         ),
       ),

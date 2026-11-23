@@ -978,6 +978,8 @@
     "tipo_refeicao_almoco": "Almoço",
     "tipo_refeicao_lanche": "Lanche",
     "tipo_refeicao_jantar": "Jantar",
+    "tipo_refeicao_label": "Tipo da refeição",
+    "tipo_refeicao_obrigatorio": "Escolha o tipo da refeição (café da manhã, almoço, lanche ou jantar) para registrar.",
     "resolver_button": "Resolver",
     "resolver_item_title": "Qual foi a medida?",
     "resolver_item_descricao": "\"{{alimento}}\" não tem \"{{medida}}\" cadastrada. Escolha uma medida real ou informe o peso.",

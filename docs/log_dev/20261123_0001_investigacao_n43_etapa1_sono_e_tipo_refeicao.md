@@ -86,3 +86,12 @@ Nenhum impeditivo para a investigação. Observações: (1) o enunciado "horári
 
 ## Infra/config, entidades novas, performance
 Infra/config: nenhuma mudança. Entidades novas: **nenhuma**. Performance: **não aplicável — apenas auditoria**. Consultas ao banco foram somente leitura (catálogo + agregados).
+
+## Mesclagem (decisão 96) — registrada em 2026-11-23
+
+- **PR #26 mesclado em `main`** (merge commit `cf91ad9`), sem force push, com autorização explícita do fundador e 5/5 checks verdes. O PR continha só este log e a linha no `INDICE.md`.
+- Desdobramento: a Etapa 2 foi antecipada pelo fundador — ver `20261123_0002_feat_n43_etapa2_sono_instantes_e_tipo_refeicao.md`.
+
+## CORREÇÃO (2026-11-23) — contagens de linhas desta investigação estavam infladas
+
+Ao verificar a Etapa 2 em produção, `select count(*) from coleta_diaria where atributo = 'refeicao'` devolveu **120**, não 360. Causa do erro (minha, na Etapa 1): a consulta que levantou as chaves de `valor_jsonb` fazia `LEFT JOIN LATERAL jsonb_object_keys(...)`, que **repete cada linha uma vez por chave do JSON**; eu li o `count(*)` dessa junção como se fosse o número de linhas. Números reais (`count(*)` simples por `atributo`): `refeicao` **120** (não 360), `rotulo_nutricional` **7** (não 42), `glicosimetro` **3** (não 9), `balanca` **1** (não 3), `agua_ml` 20 (correto, sem chaves). **Nada mais neste log muda**: as listas de chaves de `valor_jsonb` e todas as conclusões (sem coluna/chave de tipo; instantes de sono descartados) continuam válidas. Onde este log e o texto do PR dizem "360 refeições", leia **120**.

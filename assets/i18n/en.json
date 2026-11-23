@@ -969,6 +969,8 @@
     "tipo_refeicao_almoco": "Lunch",
     "tipo_refeicao_lanche": "Snack",
     "tipo_refeicao_jantar": "Dinner",
+    "tipo_refeicao_label": "Meal type",
+    "tipo_refeicao_obrigatorio": "Choose the meal type (breakfast, lunch, snack or dinner) to save it.",
     "resolver_button": "Resolve",
     "peso_com_unidade": "Weight ({{unidade}})",
     "resolver_item_title": "Which measure was it?",

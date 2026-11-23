@@ -242,6 +242,7 @@ void main() {
         possivelFotoDeTela: false,
       ),
       repositorio: fake,
+      tipoRefeicaoInicial: TipoRefeicao.almoco,
     );
 
     bool? resultado;
@@ -349,6 +350,7 @@ void main() {
         possivelFotoDeTela: false,
       ),
       repositorio: fake,
+      tipoRefeicaoInicial: TipoRefeicao.almoco,
     );
 
     // Navigator com uma tela "abrir" por baixo — evita popar a última rota
@@ -454,7 +456,12 @@ void main() {
       await tester.tap(find.byIcon(Icons.star_outline));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Café da manhã'));
+      // N43 Etapa 2: a tela por trás do diálogo agora também tem o chip
+      // "Café da manhã" — o toque precisa ser escopado ao diálogo.
+      await tester.tap(find.descendant(
+        of: find.byType(AlertDialog),
+        matching: find.text('Café da manhã'),
+      ));
       await tester.pumpAndSettle();
 
       final botaoSalvar = tester.widget<FilledButton>(find.widgetWithText(FilledButton, 'Salvar'));
@@ -800,6 +807,104 @@ void main() {
       expect(find.text('Peso (gramas)'), findsNothing);
     });
   });
+
+  // N43 Etapa 2 — seletor do tipo da refeição (funil único dos 4 métodos).
+  group('seletor de tipo da refeição (N43 Etapa 2)', () {
+    Future<_FakeColetaDiariaRepository> abrir(
+      WidgetTester tester, {
+      TipoRefeicao? tipoInicial,
+    }) async {
+      final fake = _FakeColetaDiariaRepository(
+        resultado: const ColetaDiariaResult(success: true),
+      );
+      final extracao = PratoRefeicaoExtracaoModel(
+        itens: [item()],
+        itensNaoReconhecidos: const [],
+        possivelFotoDeTela: false,
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ConfirmacaoPratoPage(
+            extracao: extracao,
+            controller: ConfirmacaoPratoController(
+              extracao,
+              repositorio: fake,
+              tipoRefeicaoInicial: tipoInicial,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      return fake;
+    }
+
+    bool chipSelecionado(WidgetTester tester, String rotulo) =>
+        tester.widget<ChoiceChip>(find.widgetWithText(ChoiceChip, rotulo)).selected;
+
+    testWidgets('mostra os 4 tipos e NENHUM vem marcado (foto, áudio e texto)', (tester) async {
+      await abrir(tester);
+
+      for (final rotulo in ['Café da manhã', 'Almoço', 'Lanche', 'Jantar']) {
+        expect(find.widgetWithText(ChoiceChip, rotulo), findsOneWidget);
+        expect(chipSelecionado(tester, rotulo), false);
+      }
+    });
+
+    testWidgets('vindo de uma favorita, o tipo dela já abre selecionado', (tester) async {
+      await abrir(tester, tipoInicial: TipoRefeicao.lanche);
+
+      expect(chipSelecionado(tester, 'Lanche'), true);
+      expect(chipSelecionado(tester, 'Almoço'), false);
+    });
+
+    testWidgets('confirmar sem escolher o tipo mostra o aviso e não grava nada', (tester) async {
+      final fake = await abrir(tester);
+
+      await tester.tap(find.text('Confirmar'));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('Escolha o tipo da refeição'), findsOneWidget);
+      expect(fake.chamadas, isEmpty);
+    });
+
+    testWidgets('escolher o tipo e confirmar grava exatamente o tipo escolhido', (tester) async {
+      final fake = await abrir(tester);
+
+      await tester.tap(find.widgetWithText(ChoiceChip, 'Jantar'));
+      await tester.pumpAndSettle();
+      expect(chipSelecionado(tester, 'Jantar'), true);
+
+      await tester.tap(find.text('Confirmar'));
+      await tester.pump(const Duration(milliseconds: 1200));
+      await tester.pumpAndSettle();
+
+      expect(fake.chamadas.single.tipo, TipoRefeicao.jantar);
+    });
+
+    testWidgets('editando o conteúdo de uma favorita o seletor não aparece', (tester) async {
+      final extracao = PratoRefeicaoExtracaoModel(
+        itens: [item()],
+        itensNaoReconhecidos: const [],
+        possivelFotoDeTela: false,
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ConfirmacaoPratoPage(
+            extracao: extracao,
+            favoritaEmEdicao: const FavoritaEmEdicao(id: 'fav-1'),
+            controller: ConfirmacaoPratoController(
+              extracao,
+              aoConfirmar: (payload, confianca) async =>
+                  const ColetaDiariaResult(success: true),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ChoiceChip), findsNothing);
+    });
+  });
 }
 
 /// Fake em memória — nunca toca `Supabase.instance`.
@@ -808,16 +913,17 @@ class _FakeColetaDiariaRepository implements ColetaDiariaRepository {
 
   final ColetaDiariaResult resultado;
   final Duration? atraso;
-  final List<({Map<String, dynamic> payload, double? confianca})> chamadas = [];
+  final List<({Map<String, dynamic> payload, double? confianca, TipoRefeicao tipo})> chamadas = [];
 
   @override
   Future<ColetaDiariaResult> gravarRefeicao({
     required Map<String, dynamic> payloadRevisado,
     required double? confianca,
+    required TipoRefeicao tipoRefeicao,
     DateTime? dataColeta,
   }) async {
     if (atraso != null) await Future<void>.delayed(atraso!);
-    chamadas.add((payload: payloadRevisado, confianca: confianca));
+    chamadas.add((payload: payloadRevisado, confianca: confianca, tipo: tipoRefeicao));
     return resultado;
   }
 

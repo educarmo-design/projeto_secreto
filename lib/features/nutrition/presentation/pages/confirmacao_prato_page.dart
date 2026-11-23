@@ -49,6 +49,9 @@ class FavoritaEmEdicao {
 /// + usuário edita"): recebe a extração já calculada pelo backend
 /// ([PratoRefeicaoExtracaoModel]), deixa o usuário revisar, e ao confirmar
 /// grava em `coleta_diaria` via [ConfirmacaoPratoController.confirmar].
+/// É o funil ÚNICO dos 4 métodos de registro (foto, áudio, texto e favoritas)
+/// — por isso o seletor do tipo da refeição (N43 Etapa 2, obrigatório e sem
+/// valor padrão; pré-selecionado só quando vem de uma favorita) mora aqui.
 /// "Completa funcionalmente, crua visualmente" (Parte 8): todo botão (editar
 /// quantidade, remover, confirmar) funciona de ponta a ponta; nenhum
 /// polimento visual além do mínimo (`Card`/`ListTile`).
@@ -212,6 +215,16 @@ class _ConfirmacaoPratoPageState extends State<ConfirmacaoPratoPage> {
                     mensagem: state.erroSalvar!,
                     debugDetalhe: state.debugDetalheErroSalvar,
                   ),
+                // N43 Etapa 2: o tipo da refeição é pedido AQUI porque os 4
+                // métodos de registro (foto, áudio, texto e favoritas)
+                // convergem nesta tela. Editando o conteúdo de uma favorita
+                // não há refeição consumida, então o seletor não aparece.
+                if (!editandoFavorita)
+                  _SeletorTipoRefeicao(
+                    selecionado: state.tipoRefeicao,
+                    desabilitado: state.salvando,
+                    onSelecionar: _controller.selecionarTipo,
+                  ),
                 Expanded(child: _buildLista(context, state)),
                 _TotaisBar(state: state),
                 Padding(
@@ -287,6 +300,50 @@ class _AvisoPossivelFotoDeTela extends StatelessWidget {
       child: Text(
         i18n.tr('confirmacao_prato.possivel_foto_de_tela'),
         style: TextStyle(color: Theme.of(context).colorScheme.onErrorContainer),
+      ),
+    );
+  }
+}
+
+/// Seletor do tipo da refeição (N43 Etapa 2) — 4 chips, SEM valor padrão: só
+/// vem marcado quando a origem é uma favorita (que já tem tipo). Nunca
+/// sugere um tipo pela hora do dia (regra 23: o app não arbitra).
+class _SeletorTipoRefeicao extends StatelessWidget {
+  const _SeletorTipoRefeicao({
+    required this.selecionado,
+    required this.onSelecionar,
+    this.desabilitado = false,
+  });
+
+  final TipoRefeicao? selecionado;
+  final ValueChanged<TipoRefeicao> onSelecionar;
+  final bool desabilitado;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            i18n.tr('confirmacao_prato.tipo_refeicao_label'),
+            style: Theme.of(context).textTheme.labelLarge,
+          ),
+          const SizedBox(height: 4),
+          Wrap(
+            spacing: 8,
+            children: [
+              for (final tipo in TipoRefeicao.values)
+                ChoiceChip(
+                  key: ValueKey('tipo_refeicao_${tipo.codigo}'),
+                  label: Text(rotuloTipoRefeicao(tipo)),
+                  selected: selecionado == tipo,
+                  onSelected: desabilitado ? null : (_) => onSelecionar(tipo),
+                ),
+            ],
+          ),
+        ],
       ),
     );
   }

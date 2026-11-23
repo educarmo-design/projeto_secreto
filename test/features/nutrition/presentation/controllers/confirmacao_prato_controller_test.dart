@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:atleta_gamificacao/features/dashboard/data/models/health_payload_model.dart';
+import 'package:atleta_gamificacao/features/nutrition/data/models/favorita_model.dart';
 import 'package:atleta_gamificacao/features/nutrition/data/models/prato_refeicao_extracao_model.dart';
 import 'package:atleta_gamificacao/features/nutrition/data/repositories/coleta_diaria_repository.dart';
 import 'package:atleta_gamificacao/features/nutrition/presentation/controllers/confirmacao_prato_controller.dart';
@@ -253,7 +254,7 @@ void main() {
 
   test('confirmar com sucesso grava via repositório e retorna true', () async {
     final fake = _FakeColetaDiariaRepository(resultado: const ColetaDiariaResult(success: true));
-    final controller = ConfirmacaoPratoController(extracaoCom(), repositorio: fake);
+    final controller = ConfirmacaoPratoController(extracaoCom(), repositorio: fake, tipoRefeicaoInicial: TipoRefeicao.almoco);
     // garante que o payload gravado reflete a edição — 2 toques porque o
     // passo é 0,5 (RELATÓRIO 20260901_0002).
     controller.incrementar(0);
@@ -275,7 +276,7 @@ void main() {
       resultado: const ColetaDiariaResult(success: true),
       atraso: const Duration(milliseconds: 10),
     );
-    final controller = ConfirmacaoPratoController(extracaoCom(), repositorio: fake);
+    final controller = ConfirmacaoPratoController(extracaoCom(), repositorio: fake, tipoRefeicaoInicial: TipoRefeicao.almoco);
 
     final future = controller.confirmar();
     expect(controller.value.salvando, true);
@@ -289,7 +290,7 @@ void main() {
       resultado: const ColetaDiariaResult(success: true),
       atraso: const Duration(milliseconds: 10),
     );
-    final controller = ConfirmacaoPratoController(extracaoCom(), repositorio: fake);
+    final controller = ConfirmacaoPratoController(extracaoCom(), repositorio: fake, tipoRefeicaoInicial: TipoRefeicao.almoco);
 
     final primeira = controller.confirmar();
     final segunda = controller.confirmar(); // deve ser recusado imediatamente
@@ -301,7 +302,7 @@ void main() {
 
   test('confirmar com prato vazio nunca chama o repositório', () async {
     final fake = _FakeColetaDiariaRepository(resultado: const ColetaDiariaResult(success: true));
-    final controller = ConfirmacaoPratoController(extracaoCom(), repositorio: fake);
+    final controller = ConfirmacaoPratoController(extracaoCom(), repositorio: fake, tipoRefeicaoInicial: TipoRefeicao.almoco);
     controller.remover(0);
 
     final sucesso = await controller.confirmar();
@@ -318,7 +319,7 @@ void main() {
         debugDetail: 'PostgrestException 42501: permission denied',
       ),
     );
-    final controller = ConfirmacaoPratoController(extracaoCom(), repositorio: fake);
+    final controller = ConfirmacaoPratoController(extracaoCom(), repositorio: fake, tipoRefeicaoInicial: TipoRefeicao.almoco);
 
     final sucesso = await controller.confirmar();
 
@@ -335,7 +336,7 @@ void main() {
     final falha = _FakeColetaDiariaRepository(
       resultado: const ColetaDiariaResult(success: false, errorMessage: 'Erro de rede.'),
     );
-    final controller = ConfirmacaoPratoController(extracaoCom(), repositorio: falha);
+    final controller = ConfirmacaoPratoController(extracaoCom(), repositorio: falha, tipoRefeicaoInicial: TipoRefeicao.almoco);
     await controller.confirmar();
     expect(controller.value.erroSalvar, isNotNull);
 
@@ -378,7 +379,7 @@ void main() {
       final chamadasOverride = <({Map<String, dynamic> payload, double? confianca})>[];
       final controller = ConfirmacaoPratoController(
         extracaoCom(),
-        repositorio: fake,
+        repositorio: fake, tipoRefeicaoInicial: TipoRefeicao.almoco,
         aoConfirmar: (payload, confianca) async {
           chamadasOverride.add((payload: payload, confianca: confianca));
           return const ColetaDiariaResult(success: true);
@@ -431,7 +432,7 @@ void main() {
 
     test('sem aoConfirmar, comportamento padrão (gravarRefeicao) é preservado', () async {
       final fake = _FakeColetaDiariaRepository(resultado: const ColetaDiariaResult(success: true));
-      final controller = ConfirmacaoPratoController(extracaoCom(), repositorio: fake);
+      final controller = ConfirmacaoPratoController(extracaoCom(), repositorio: fake, tipoRefeicaoInicial: TipoRefeicao.almoco);
 
       await controller.confirmar();
 
@@ -559,7 +560,7 @@ void main() {
       final fake = _FakeColetaDiariaRepository(resultado: const ColetaDiariaResult(success: true));
       final controller = ConfirmacaoPratoController(
         extracaoCom(itens: const [], itensNaoReconhecidos: [naoReconhecido]),
-        repositorio: fake,
+        repositorio: fake, tipoRefeicaoInicial: TipoRefeicao.almoco,
       );
 
       controller.resolverComPesoManual(naoReconhecido, 80);
@@ -569,6 +570,76 @@ void main() {
       final itensGravados = fake.chamadas.single.payload['itens'] as List;
       expect(itensGravados, hasLength(1));
       expect((itensGravados.single as Map)['nome'], 'Feijão, carioca, cozido');
+    });
+  });
+
+  // N43 Etapa 2 — tipo da refeição (regra 23: nunca inferido).
+  group('tipo da refeição (N43 Etapa 2)', () {
+    test('sem tipo escolhido, confirmar NÃO grava e mostra o aviso na tela', () async {
+      final fake = _FakeColetaDiariaRepository(resultado: const ColetaDiariaResult(success: true));
+      final controller = ConfirmacaoPratoController(extracaoCom(), repositorio: fake);
+
+      final sucesso = await controller.confirmar();
+
+      expect(sucesso, false);
+      expect(fake.chamadas, isEmpty);
+      expect(controller.value.erroSalvar, isNotNull);
+      expect(controller.value.salvando, false);
+    });
+
+    test('começa SEM tipo (nenhum valor padrão, nem pela hora do dia)', () {
+      final controller = ConfirmacaoPratoController(extracaoCom());
+      expect(controller.value.tipoRefeicao, isNull);
+    });
+
+    test('selecionarTipo grava exatamente o tipo escolhido e limpa o aviso', () async {
+      final fake = _FakeColetaDiariaRepository(resultado: const ColetaDiariaResult(success: true));
+      final controller = ConfirmacaoPratoController(extracaoCom(), repositorio: fake);
+      await controller.confirmar(); // gera o aviso de tipo obrigatório
+      expect(controller.value.erroSalvar, isNotNull);
+
+      controller.selecionarTipo(TipoRefeicao.jantar);
+      expect(controller.value.erroSalvar, isNull);
+      final sucesso = await controller.confirmar();
+
+      expect(sucesso, true);
+      expect(fake.chamadas.single.tipo, TipoRefeicao.jantar);
+    });
+
+    test('tipo vindo de uma favorita (tipoRefeicaoInicial) é o que vai para a gravação', () async {
+      final fake = _FakeColetaDiariaRepository(resultado: const ColetaDiariaResult(success: true));
+      final controller = ConfirmacaoPratoController(
+        extracaoCom(),
+        repositorio: fake,
+        tipoRefeicaoInicial: TipoRefeicao.cafeDaManha,
+      );
+
+      expect(controller.value.tipoRefeicao, TipoRefeicao.cafeDaManha);
+      await controller.confirmar();
+
+      expect(fake.chamadas.single.tipo, TipoRefeicao.cafeDaManha);
+    });
+
+    test('o tipo NÃO entra no payloadRevisado (que também é o payload da favorita)', () {
+      final controller = ConfirmacaoPratoController(
+        extracaoCom(),
+        tipoRefeicaoInicial: TipoRefeicao.lanche,
+      );
+      expect(controller.payloadRevisado().keys, isNot(contains('tipo_refeicao')));
+    });
+
+    test('editar o conteúdo de uma favorita (aoConfirmar) não exige tipo', () async {
+      var chamou = false;
+      final controller = ConfirmacaoPratoController(
+        extracaoCom(),
+        aoConfirmar: (payload, confianca) async {
+          chamou = true;
+          return const ColetaDiariaResult(success: true);
+        },
+      );
+
+      expect(await controller.confirmar(), true);
+      expect(chamou, true);
     });
   });
 }
@@ -581,16 +652,17 @@ class _FakeColetaDiariaRepository implements ColetaDiariaRepository {
 
   ColetaDiariaResult resultado;
   final Duration? atraso;
-  final List<({Map<String, dynamic> payload, double? confianca})> chamadas = [];
+  final List<({Map<String, dynamic> payload, double? confianca, TipoRefeicao tipo})> chamadas = [];
 
   @override
   Future<ColetaDiariaResult> gravarRefeicao({
     required Map<String, dynamic> payloadRevisado,
     required double? confianca,
+    required TipoRefeicao tipoRefeicao,
     DateTime? dataColeta,
   }) async {
     if (atraso != null) await Future<void>.delayed(atraso!);
-    chamadas.add((payload: payloadRevisado, confianca: confianca));
+    chamadas.add((payload: payloadRevisado, confianca: confianca, tipo: tipoRefeicao));
     return resultado;
   }
 
